@@ -163,8 +163,17 @@ window.EI = window.EI || {};
     buildSurfaces(g) {
       const hw = this.halfWidth, kw = this.kerbWidth, n = this.n, self = this;
       // asphalt: 6 vertex rows -> white lines, grey body with rubbered racing line
-      const asphaltTex = U.grainTexture(512, 0x4a4a4e, 0.09, 1, 11, 0.02); asphaltTex.repeat.set(1.5, 1);
-      const asphaltN = U.normalTexture(256, 6, 2.2, 1, 3); asphaltN.repeat.set(1.5, 1);
+      const asphaltTex = (function () {
+        const c = document.createElement('canvas'); c.width = c.height = 1024; const ctx = c.getContext('2d');
+        ctx.drawImage(U.grainTexture(512, 0x4b4b4f, 0.1, 1, 11, 0.025).image, 0, 0, 1024, 1024);
+        const r = U.rng(31);
+        // repaired patches and cracks
+        for (let i = 0; i < 14; i++) { ctx.fillStyle = 'rgba(' + (30 + r() * 20) + ',' + (30 + r() * 20) + ',' + (34 + r() * 20) + ',0.35)'; const w = 80 + r() * 300, h = 40 + r() * 120; ctx.fillRect(r() * 1024, r() * 1024, w, h); }
+        ctx.strokeStyle = 'rgba(20,20,22,0.5)'; ctx.lineWidth = 2;
+        for (let i = 0; i < 25; i++) { ctx.beginPath(); let x = r() * 1024, y = r() * 1024; ctx.moveTo(x, y); for (let k = 0; k < 8; k++) { x += (r() - 0.5) * 60; y += (r() - 0.3) * 60; ctx.lineTo(x, y); } ctx.stroke(); }
+        const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.anisotropy = 8; t.repeat.set(1.5, 1); return t;
+      })();
+      const asphaltN = U.normalTexture(512, 9, 2.6, 1, 3); asphaltN.repeat.set(1.5, 1);
       const mat = new THREE.MeshStandardMaterial({ map: asphaltTex, normalMap: asphaltN, normalScale: new THREE.Vector2(0.6, 0.6), vertexColors: true, metalness: 0.0, roughness: 0.92 });
       const grey = new THREE.Color(0x6e6e73), rubber = new THREE.Color(0x4a4a4f), white = new THREE.Color(0xf4f4f4);
       const strips = [[-hw, -hw + 0.25, white], [-hw + 0.25, hw - 0.25, null], [hw - 0.25, hw, white]];
@@ -179,7 +188,10 @@ window.EI = window.EI || {};
       const lineGeo = this.ribbon(i => this.lineOff[i] - 2.4, i => this.lineOff[i] + 2.4, { y: 0.012, vScale: 30 });
       g.add(new THREE.Mesh(lineGeo, new THREE.MeshStandardMaterial({ map: marksTex, color: 0x303034, transparent: true, opacity: 0.45, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -1, roughness: 0.6 })));
       // kerbs: red/white sawtooth
-      const kerbTex = (function () { const c = document.createElement('canvas'); c.width = 64; c.height = 128; const ctx = c.getContext('2d'); ctx.fillStyle = '#eceae6'; ctx.fillRect(0, 0, 64, 128); ctx.fillStyle = '#c8101a'; ctx.fillRect(0, 0, 64, 64); ctx.fillStyle = 'rgba(0,0,0,0.12)'; ctx.fillRect(0, 60, 64, 4); ctx.fillRect(0, 124, 64, 4); const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; return t; })();
+      const kerbTex = (function () { const c = document.createElement('canvas'); c.width = 128; c.height = 256; const ctx = c.getContext('2d'); ctx.fillStyle = '#e4e2dc'; ctx.fillRect(0, 0, 128, 256); ctx.fillStyle = '#c0121c'; ctx.fillRect(0, 0, 128, 128);
+        const g = ctx.createLinearGradient(0, 0, 128, 0); g.addColorStop(0, 'rgba(0,0,0,0.25)'); g.addColorStop(0.35, 'rgba(255,255,255,0.12)'); g.addColorStop(0.7, 'rgba(0,0,0,0)'); g.addColorStop(1, 'rgba(0,0,0,0.35)'); ctx.fillStyle = g; ctx.fillRect(0, 0, 128, 256);
+        ctx.fillStyle = 'rgba(0,0,0,0.25)'; ctx.fillRect(0, 122, 128, 6); ctx.fillRect(0, 250, 128, 6); const r = U.rng(8); for (let i = 0; i < 300; i++) { ctx.fillStyle = 'rgba(0,0,0,' + (0.05 + r() * 0.15) + ')'; ctx.fillRect(r() * 128, r() * 256, 2, 2); }
+        const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.anisotropy = 8; return t; })();
       const kk = this.smooth(this.k, 6); const kerbMask = i => Math.abs(kk[i]) > 1 / 420;
       const kerbMat = new THREE.MeshStandardMaterial({ map: U.srgb(kerbTex), roughness: 0.55, metalness: 0.0 });
       for (const side of [-1, 1]) {
@@ -286,7 +298,16 @@ window.EI = window.EI || {};
       }
       for (let i = 0; i < n; i++) { const a = i * 2; idx.push(a, a + 2, a + 1, a + 1, a + 2, a + 3); }
       const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); geo.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2)); geo.setIndex(idx); geo.computeVertexNormals();
-      const m = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ color: 0x5a5a5e, roughness: 0.95, polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 2 })); m.receiveShadow = true; g.add(m);
+      const m = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ map: U.grainTexture(256, 0x58585c, 0.06, 1, 14), roughness: 0.95, polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 2 })); m.receiveShadow = true; g.add(m);
+      // markings: solid edge lines and a dashed centre line
+      const lineMat = new THREE.MeshBasicMaterial({ color: 0xf2f2f2, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -2 });
+      const dashMat = new THREE.MeshBasicMaterial({ color: 0xf2f2f2, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -2 });
+      for (let i = 0; i < n; i++) {
+        const a = sp[i], b = sp[i + 1]; let dx = b.x - a.x, dz = b.z - a.z; const l = Math.hypot(dx, dz) || 1; dx /= l; dz /= l; const nx = dz, nz = -dx;
+        const pr = this.project(a.x, a.z, null); const y = this.y[pr.i] + 0.012;
+        for (const off of [5.2, -5.2]) { const seg = new THREE.Mesh(new THREE.PlaneGeometry(l, 0.15), lineMat); seg.rotation.x = -Math.PI / 2; seg.rotation.z = -Math.atan2(dz, dx); seg.position.set((a.x + b.x) / 2 + nx * off, y, (a.z + b.z) / 2 + nz * off); g.add(seg); }
+        if (i % 2 === 0) { const d = new THREE.Mesh(new THREE.PlaneGeometry(l * 0.6, 0.12), dashMat); d.rotation.x = -Math.PI / 2; d.rotation.z = -Math.atan2(dz, dx); d.position.set((a.x + b.x) / 2, y, (a.z + b.z) / 2); g.add(d); }
+      }
       this.pitCurve = curve;
     }
 
@@ -296,8 +317,12 @@ window.EI = window.EI || {};
       // start light gantry
       const i0 = this.idxAtS(this.sf + 6); const gantry = new THREE.Group();
       for (const side of [-1, 1]) { const post = new THREE.Mesh(new THREE.BoxGeometry(0.5, 7.5, 0.5), postMat); post.position.set(0, 3.75, side * (hw + 1.6)); post.castShadow = true; gantry.add(post); }
-      const beam = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.7, hw * 2 + 3.6), postMat); beam.position.y = 7.4; gantry.add(beam);
-      const panel = new THREE.Mesh(new THREE.BoxGeometry(0.4, 1.6, 6.4), new THREE.MeshLambertMaterial({ color: 0x111111 })); panel.position.y = 6.2; gantry.add(panel);
+      const beamLen = hw * 2 + 3.6;
+      for (const [yy, zz] of [[7.0, -0.35], [7.0, 0.35], [7.8, -0.35], [7.8, 0.35]]) { const chord = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.1, beamLen), postMat); chord.position.set(zz, yy, 0); chord.rotation.y = 0; chord.geometry.rotateY(0); gantry.add(chord); }
+      for (let zq = -beamLen / 2; zq <= beamLen / 2; zq += 1.2) { const diag = new THREE.Mesh(new THREE.BoxGeometry(0.06, 1.1, 0.06), postMat); diag.position.set(0.35, 7.4, zq); diag.rotation.x = 0.6; gantry.add(diag); const diag2 = diag.clone(); diag2.position.x = -0.35; diag2.rotation.x = -0.6; gantry.add(diag2); const vert = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.06, 0.06), postMat); vert.position.set(0, 7.0, zq); gantry.add(vert); }
+      const banner = new THREE.Mesh(new THREE.PlaneGeometry(beamLen - 1, 0.9), new THREE.MeshBasicMaterial({ map: U.srgb(U.textTexture('EQUATION I   ·   SILVERSTONE GRAND PRIX', { w: 2048, h: 96, bg: '#e10600', color: '#fff', size: 60, font: 'italic 900 Arial Black, Arial' })), side: THREE.DoubleSide })); banner.position.set(-0.42, 8.45, 0); banner.rotation.y = -Math.PI / 2; gantry.add(banner);
+      const panel = new THREE.Mesh(new THREE.BoxGeometry(0.5, 1.7, 6.6), new THREE.MeshStandardMaterial({ color: 0x0f1012, roughness: 0.6 })); panel.position.y = 6.2; gantry.add(panel);
+      for (let c = 0; c < 5; c++) for (let rr = 0; rr < 2; rr++) { const hood = new THREE.Mesh(new THREE.CylinderGeometry(0.34, 0.34, 0.12, 14), new THREE.MeshStandardMaterial({ color: 0x1a1a1c, roughness: 0.5 })); hood.rotation.z = Math.PI / 2; hood.position.set(-0.3, 6.55 - rr * 0.65, (c - 2) * 1.15); gantry.add(hood); }
       this.startLights = []; const offMat = new THREE.MeshBasicMaterial({ color: 0x2a0b0b });
       for (let c = 0; c < 5; c++) { const col = []; for (let rr = 0; rr < 2; rr++) { const lamp = new THREE.Mesh(new THREE.SphereGeometry(0.28, 10, 8), offMat.clone()); lamp.position.set(-0.25, 6.55 - rr * 0.65, (c - 2) * 1.15); gantry.add(lamp); col.push(lamp); } this.startLights.push(col); }
       gantry.position.set(this.x[i0], this.y[i0], this.z[i0]); gantry.rotation.y = -this.heading[i0]; g.add(gantry);
