@@ -8,27 +8,46 @@ window.EI = window.EI || {};
   const tmp = new THREE.Vector3(), tmp2 = new THREE.Vector3(), tmp3 = new THREE.Vector3();
   const CAM_MODES = ['chase', 'cockpit', 'tv'];
 
+  let composer = null, bloomPass = null, fxaaPass = null, particles = null, skyMesh = null;
   function init() {
     const canvas = $('gl');
     renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
     renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5)); renderer.setSize(window.innerWidth, window.innerHeight);
     renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    renderer.outputEncoding = THREE.sRGBEncoding; renderer.toneMapping = THREE.ReinhardToneMapping; renderer.toneMappingExposure = 1.35;
     scene = new THREE.Scene();
-    const horizon = 0xdbe6ef; scene.background = new THREE.Color(horizon); scene.fog = new THREE.Fog(horizon, 450, 2600);
-    hemi = new THREE.HemisphereLight(0xcfe3ff, 0x4a5a3a, 0.5); scene.add(hemi);
-    sun = new THREE.DirectionalLight(0xfff1dc, 1.0); sun.castShadow = true;
-    sun.shadow.mapSize.set(2048, 2048); sun.shadow.camera.near = 10; sun.shadow.camera.far = 500;
-    sun.shadow.camera.left = -75; sun.shadow.camera.right = 75; sun.shadow.camera.top = 75; sun.shadow.camera.bottom = -75; sun.shadow.bias = -0.0005; sun.shadow.normalBias = 0.03;
+    // physically based sky, with the sun light aligned to it and a PMREM environment for reflections / ambient
+    const sunDir = new THREE.Vector3(); const elev = 42, azim = 205; const phi = THREE.MathUtils.degToRad(90 - elev), theta = THREE.MathUtils.degToRad(azim); sunDir.setFromSphericalCoords(1, phi, theta);
+    skyMesh = new THREE.Sky(); skyMesh.scale.setScalar(5500); const su = skyMesh.material.uniforms; su.turbidity.value = 2.2; su.rayleigh.value = 1.5; su.mieCoefficient.value = 0.004; su.mieDirectionalG.value = 0.85; su.sunPosition.value.copy(sunDir); scene.add(skyMesh);
+    const pm = new THREE.PMREMGenerator(renderer); pm.compileEquirectangularShader();
+    const skyScene = new THREE.Scene(); const sky2 = new THREE.Sky(); sky2.scale.setScalar(5500); sky2.material.uniforms.turbidity.value = 2.2; sky2.material.uniforms.rayleigh.value = 1.5; sky2.material.uniforms.sunPosition.value.copy(sunDir); skyScene.add(sky2);
+    scene.environment = pm.fromScene(skyScene, 0.02).texture; pm.dispose();
+    const horizon = 0xb5c8de; scene.fog = new THREE.Fog(horizon, 1100, 5600);
+    hemi = new THREE.HemisphereLight(0xb9cfe8, 0x3f4a2e, 0.3); scene.add(hemi);
+    sun = new THREE.DirectionalLight(0xfff0dd, 1.9); sun.castShadow = true; this_sunDir = sunDir;
+    sun.shadow.mapSize.set(2048, 2048); sun.shadow.camera.near = 10; sun.shadow.camera.far = 600;
+    sun.shadow.camera.left = -70; sun.shadow.camera.right = 70; sun.shadow.camera.top = 70; sun.shadow.camera.bottom = -70; sun.shadow.bias = -0.0004; sun.shadow.normalBias = 0.04; sun.shadow.radius = 2;
     scene.add(sun); scene.add(sun.target);
-    envMap = U.makeEnvMap();
+    envMap = scene.environment;
     track = new EI.Track(EI.TRACKS.silverstone);
     scenery = new EI.Scenery(track); scene.add(scenery.build());
     scene.add(track.build(scenery));
+    scene.traverse(o => { if (o.material && o.material.isMeshStandardMaterial && o.material.envMapIntensity === 1) o.material.envMapIntensity = 0.3; });
+    particles = new EI.Particles(scene);
+    // post-processing (single viewport): bloom + FXAA
+    composer = new THREE.EffectComposer(renderer);
+    composer.addPass(new THREE.RenderPass(scene, new THREE.PerspectiveCamera()));
+    bloomPass = new THREE.UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 0.28, 0.55, 0.88); composer.addPass(bloomPass);
+    fxaaPass = new THREE.ShaderPass(THREE.FXAAShader); composer.addPass(fxaaPass);
     EI.HUD.drawTrackPreview(track, $('track-preview'));
     setupMenu(); $('loading').classList.add('hidden');
     window.addEventListener('resize', onResize);
     if (U.isTouch()) EI.Input.initTouch($('touch'));
     cameras = [new THREE.PerspectiveCamera(60, 1, 0.3, 6000)]; onResize(); requestAnimationFrame(loop);
+  }
+  let this_sunDir = null;
+  function renderView(cam, usePost) {
+    if (usePost && composer) { composer.passes[0].camera = cam; composer.render(); } else renderer.render(scene, cam);
   }
 
   // ------------------------------------------------------------------ menu
@@ -86,6 +105,8 @@ window.EI = window.EI || {};
   }
   function onResize() {
     const w = window.innerWidth, h = window.innerHeight; renderer.setSize(w, h);
+    const pr = renderer.getPixelRatio(); if (composer) { composer.setSize(w, h); fxaaPass.material.uniforms.resolution.value.set(1 / (w * pr), 1 / (h * pr)); }
+    if (particles) particles.setViewportHeight(h * pr / (cameras.length > 1 && w < h ? 2 : 1));
     const rects = layout(cameras.length, w, h);
     cameras.forEach((cam, k) => { const r = rects[k]; cam.aspect = r[2] / r[3]; cam.updateProjectionMatrix(); if (viewports[k]) viewports[k].setRect(r[0], r[1], r[2], r[3]); });
   }
@@ -144,18 +165,19 @@ window.EI = window.EI || {};
     if (!race) {
       menuCamera(now / 1000); scenery.update(dt, cameras[0].position.x, cameras[0].position.z);
       renderer.setScissorTest(false); renderer.setViewport(0, 0, renderer.domElement.width, renderer.domElement.height);
-      sunFollow(cameras[0].position.x, cameras[0].position.z); renderer.render(scene, cameras[0]); return;
+      sunFollow(cameras[0].position.x, cameras[0].position.z); particles.update(dt); renderView(cameras[0], true); return;
     }
     if (paused) dt = 0;
     const single = race.players.length === 1; const inputs = race.players.map((c, k) => EI.Input.read(k, single));
     // gamepad camera button
     race.players.forEach((c, k) => { const pads = navigator.getGamepads ? navigator.getGamepads() : []; const gp = pads && pads[k]; if (gp && gp.buttons[3] && gp.buttons[3].pressed && !c._camBtn) cycleCam(k); c._camBtn = !!(gp && gp.buttons[3] && gp.buttons[3].pressed); });
     acc += dt; let steps = 0; while (acc >= DT && steps < 6) { race.update(DT, inputs); acc -= DT; steps++; } if (steps === 6) acc = 0;
-    handleEvents(); for (const c of race.cars) c.updateVisual(dt); shake = Math.max(0, shake - dt * 3); hudT += dt;
+    handleEvents(); for (const c of race.cars) { c.updateVisual(dt); if (dt > 0) particles.fromCar(c, dt); } particles.update(dt); shake = Math.max(0, shake - dt * 3); hudT += dt;
     race.players.forEach((car, k) => { if (k === 0 && EI.debug.freeCam) { const f = EI.debug.freeCam; cameras[0].position.set(f.pos[0], f.pos[1], f.pos[2]); cameras[0].lookAt(f.look[0], f.look[1], f.look[2]); cameras[0].fov = f.fov || 50; cameras[0].updateProjectionMatrix(); } else placeCamera(cameras[k], car, k, false, dt); if (hudT > 0.05) { viewports[k].update(race, 0.05); updateTags(k, cameras[k], viewports[k]); } if (engines[k]) EI.Audio.setEngine(engines[k], car.rpm, car.throttle, paused ? 0 : (CAM_MODES[camModes[k]] === 'cockpit' ? 1.3 : 1)); });
     if (hudT > 0.05) hudT = 0;
     if (race.over && !resultsShown && race.classified) { resultsShown = true; EI.HUD.showResults(race); }
     scenery.update(dt, race.players[0].x, race.players[0].z);
+    if (skyMesh) skyMesh.position.set(race.players[0].x, 0, race.players[0].z);
     const h = renderer.domElement.height, pr = renderer.getPixelRatio(); const rects = layout(cameras.length, window.innerWidth, window.innerHeight);
     renderer.setScissorTest(cameras.length > 1);
     cameras.forEach((cam, k) => {
@@ -163,10 +185,10 @@ window.EI = window.EI || {};
       renderer.setViewport(x, y, rw, rh); renderer.setScissor(x, y, rw, rh);
       const car = race.players[k]; sunFollow(car.x, car.z);
       const cockpit = CAM_MODES[camModes[k]] === 'cockpit'; if (cockpit) car.helmet.visible = false;
-      renderer.render(scene, cam); if (cockpit) car.helmet.visible = true;
+      renderView(cam, cameras.length === 1); if (cockpit) car.helmet.visible = true;
     });
   }
-  function sunFollow(x, z) { sun.position.set(x + 40, 130, z + 25); sun.target.position.set(x, 0, z); sun.target.updateMatrixWorld(); }
+  function sunFollow(x, z) { const d = this_sunDir; sun.position.set(x + d.x * 160, d.y * 160, z + d.z * 160); sun.target.position.set(x, 0, z); sun.target.updateMatrixWorld(); }
 
   function handleEvents() {
     for (const e of race.pollEvents()) {

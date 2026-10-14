@@ -112,3 +112,39 @@ window.EI = window.EI || {};
     const tex = new THREE.CubeTexture(faces); tex.needsUpdate = true; return tex;
   };
 })();
+// ---- PBR helpers: procedural normal maps, sRGB tagging
+(function () {
+  const U = EI.U;
+  U.srgb = function (tex) { tex.encoding = THREE.sRGBEncoding; return tex; };
+  // normal map from fractal noise height field; strength in texel units
+  U.normalTexture = function (size, scale, strength, repeat, seed) {
+    const c = document.createElement('canvas'); c.width = c.height = size; const ctx = c.getContext('2d'); const img = ctx.createImageData(size, size); const d = img.data;
+    const h = new Float32Array(size * size); const s0 = seed || 0;
+    for (let y = 0; y < size; y++) for (let x = 0; x < size; x++) {
+      // tileable fbm by 4-corner blend
+      const fx = x / size, fy = y / size, T = scale;
+      const n = (u, v) => U.fbm(u + s0, v + s0 * 1.7, 5, 2.1, 0.55);
+      h[y * size + x] = n(fx * T, fy * T) * (1 - fx) * (1 - fy) + n(fx * T - T, fy * T) * fx * (1 - fy) + n(fx * T, fy * T - T) * (1 - fx) * fy + n(fx * T - T, fy * T - T) * fx * fy;
+    }
+    for (let y = 0; y < size; y++) for (let x = 0; x < size; x++) {
+      const l = h[y * size + ((x - 1 + size) % size)], r = h[y * size + ((x + 1) % size)], u = h[((y - 1 + size) % size) * size + x], dn = h[((y + 1) % size) * size + x];
+      let nx = (l - r) * strength, ny = (u - dn) * strength, nz = 1; const len = Math.hypot(nx, ny, nz); nx /= len; ny /= len; nz /= len;
+      const i = (y * size + x) * 4; d[i] = (nx * 0.5 + 0.5) * 255; d[i + 1] = (ny * 0.5 + 0.5) * 255; d[i + 2] = (nz * 0.5 + 0.5) * 255; d[i + 3] = 255;
+    }
+    ctx.putImageData(img, 0, 0);
+    const tex = new THREE.CanvasTexture(c); tex.wrapS = tex.wrapT = THREE.RepeatWrapping; tex.repeat.set(repeat, repeat); tex.anisotropy = 4; return tex;
+  };
+  // grain texture with a little colour variation (asphalt / concrete / gravel)
+  U.grainTexture = function (size, base, variance, repeat, seed, speckle) {
+    const c = document.createElement('canvas'); c.width = c.height = size; const ctx = c.getContext('2d'); const img = ctx.createImageData(size, size); const d = img.data; const r = U.rng(seed || 9);
+    const b = new THREE.Color(base);
+    for (let y = 0; y < size; y++) for (let x = 0; x < size; x++) {
+      const n = (r() - 0.5) * 2 * variance + (U.fbm(x / 37 + seed, y / 37 + seed, 3) - 0.5) * variance; const i = (y * size + x) * 4;
+      let rr = b.r + n, gg = b.g + n, bb = b.b + n;
+      if (speckle && r() < speckle) { const s = 0.25 + r() * 0.4; rr = s; gg = s; bb = s * 1.05; }
+      d[i] = U.clamp(rr * 255, 0, 255); d[i + 1] = U.clamp(gg * 255, 0, 255); d[i + 2] = U.clamp(bb * 255, 0, 255); d[i + 3] = 255;
+    }
+    ctx.putImageData(img, 0, 0);
+    const tex = new THREE.CanvasTexture(c); tex.wrapS = tex.wrapT = THREE.RepeatWrapping; tex.repeat.set(repeat, repeat); tex.anisotropy = 8; return tex;
+  };
+})();

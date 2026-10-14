@@ -40,6 +40,9 @@ In single player either key set drives the car.
   crowd, a rolling patchwork of fields with hedgerows, corner boards, 150/100/50 braking boards, DRS boards
   and detection lines, sponsor walls, painted run-off decals, a start-light gantry, grid boxes, tyre walls,
   Armco, debris fences, gravel traps, green-painted strips and tarmac run-off.
+- **Rendering.** Physically based materials lit by a Preetham sky model with a matching sun and a PMREM
+  environment for reflections, normal-mapped asphalt and gravel, tone mapping, bloom and FXAA
+  (single player), soft shadows, billboard trees, and dust / gravel / tyre-smoke particles.
 - **Three cameras.** Chase, cockpit (behind the halo, helmet hidden) and a trackside TV pod. Name tags float
   over nearby cars.
 - **Sectors.** Three timing sectors with purple / green / yellow flags, plus a live delta to your best lap.
@@ -95,7 +98,8 @@ js/hud.js           per-player HUD, minimap, tower, results
 js/audio.js         synthesized engine and cues
 js/input.js         keyboard / gamepad / touch
 js/main.js          renderer, cameras, loop, menu
-vendor/three.min.js three.js r128 (MIT)
+vendor/three.min.js three.js r128 (MIT) plus its EffectComposer, bloom, FXAA and Sky modules
+js/particles.js     dust, gravel spray and tyre smoke
 ```
 
 ## Credits

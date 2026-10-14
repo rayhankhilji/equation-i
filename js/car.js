@@ -28,27 +28,50 @@ window.EI = window.EI || {};
   }
   function translate(g, x, y, z) { g.translate(x, y, z); return g; }
 
+  // ---------------------------------------------------------------- lofted body: smooth superellipse cross-sections along x
+  function loft(stations, zc, segs) {
+    segs = segs || 28; const pos = [], idx = []; const n = stations.length;
+    for (let i = 0; i < n; i++) {
+      const st = stations[i]; const e = st.n || 2.6; const zOff = (zc || 0) + (st.zc || 0);
+      for (let j = 0; j < segs; j++) {
+        const t = (j / segs) * Math.PI * 2; const c = Math.cos(t), sn = Math.sin(t);
+        const fy = Math.sign(sn) * Math.pow(Math.abs(sn), 2 / e); const y = st.y0 + st.h / 2 + (st.h / 2) * fy;
+        const k = (y - st.y0) / st.h; const w = st.wt != null ? U.lerp(st.w, st.wt, U.clamp(k, 0, 1)) : st.w;
+        const z = zOff + w * Math.sign(c) * Math.pow(Math.abs(c), 2 / e);
+        pos.push(st.x, y, z);
+      }
+    }
+    for (let i = 0; i < n - 1; i++) for (let j = 0; j < segs; j++) { const a = i * segs + j, b = i * segs + (j + 1) % segs, c = (i + 1) * segs + j, d = (i + 1) * segs + (j + 1) % segs; idx.push(a, c, b, b, c, d); }
+    // caps
+    const capA = pos.length / 3; const sa = stations[0]; pos.push(sa.x, sa.y0 + sa.h / 2, (zc || 0) + (sa.zc || 0)); for (let j = 0; j < segs; j++) idx.push(capA, (j + 1) % segs, j);
+    const capB = pos.length / 3; const sb = stations[n - 1]; pos.push(sb.x, sb.y0 + sb.h / 2, (zc || 0) + (sb.zc || 0)); for (let j = 0; j < segs; j++) idx.push(capB, (n - 1) * segs + j, (n - 1) * segs + (j + 1) % segs);
+    const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setIndex(idx); g.computeVertexNormals(); return g;
+  }
+  const BODY = [
+    { x: 2.95, w: 0.07, h: 0.1, y0: 0.3, n: 2.2 }, { x: 2.65, w: 0.12, h: 0.18, y0: 0.31, n: 2.4 }, { x: 2.25, w: 0.19, h: 0.28, y0: 0.32, n: 2.6 }, { x: 1.85, w: 0.26, h: 0.4, y0: 0.29, n: 2.8 },
+    { x: 1.45, w: 0.33, h: 0.5, y0: 0.22, n: 3 }, { x: 1.05, w: 0.41, h: 0.58, y0: 0.16, n: 3.2 }, { x: 0.65, w: 0.46, h: 0.62, y0: 0.14, n: 3.4 }, { x: 0.3, w: 0.46, h: 0.7, y0: 0.14, n: 3.2, wt: 0.3 },
+    { x: 0.0, w: 0.44, h: 0.96, y0: 0.14, n: 2.8, wt: 0.22 }, { x: -0.4, w: 0.4, h: 0.98, y0: 0.14, n: 2.8, wt: 0.2 }, { x: -0.9, w: 0.36, h: 0.84, y0: 0.14, n: 2.8, wt: 0.14 }, { x: -1.4, w: 0.31, h: 0.66, y0: 0.15, n: 2.8, wt: 0.1 },
+    { x: -1.9, w: 0.24, h: 0.46, y0: 0.18, n: 2.6, wt: 0.08 }, { x: -2.3, w: 0.14, h: 0.28, y0: 0.24, n: 2.4 }, { x: -2.5, w: 0.07, h: 0.14, y0: 0.3, n: 2.2 },
+  ];
+  const POD = [
+    { x: 0.28, w: 0.27, h: 0.42, y0: 0.14, n: 3.4, zc: 0 }, { x: -0.2, w: 0.33, h: 0.46, y0: 0.13, n: 3.4, zc: 0.02 }, { x: -0.8, w: 0.3, h: 0.42, y0: 0.13, n: 3.2, zc: -0.03 },
+    { x: -1.4, w: 0.22, h: 0.32, y0: 0.14, n: 3, zc: -0.1 }, { x: -2.0, w: 0.11, h: 0.17, y0: 0.16, n: 2.6, zc: -0.16 }, { x: -2.3, w: 0.04, h: 0.07, y0: 0.19, n: 2.4, zc: -0.2 },
+  ];
+
   let bodyGeoCache = null;
   function buildBodyGeometry() {
     if (bodyGeoCache) return bodyGeoCache;
     const parts = [];
     const add = (g) => parts.push(g.index ? g.toNonIndexed() : g);
-    // floor
+    add(loft(BODY, 0)); add(loft(POD, 0.62)); add(loft(POD, -0.62));
+    // shark fin
+    add(translate(new THREE.BoxGeometry(1.3, 0.3, 0.025), -1.5, 0.95, 0));
+    // floor and floor edges
     add(translate(roundedBox(3.8, 0.09, 1.78, 0.03, { frontW: 0.5 }), -0.7, 0.09, 0));
-    // monocoque (cockpit section) and nose
-    add(translate(roundedBox(1.9, 0.62, 0.98, 0.22, { frontW: 0.75, frontH: 0.88 }), 0.5, 0.42, 0));
-    add(translate(roundedBox(1.5, 0.4, 0.64, 0.18, { frontW: 0.38, frontH: 0.5, droop: -0.18 }), 2.1, 0.5, 0));
-    // engine cover + airbox + shark fin
-    add(translate(roundedBox(2.3, 0.78, 0.72, 0.25, { frontW: 1, frontH: 1, backW: 0.5, backH: 0.45 }), -1.4, 0.5, 0));
-    add(translate(roundedBox(0.9, 0.42, 0.52, 0.16, { frontW: 0.55, frontH: 0.65 }), -0.2, 1.03, 0));
-    add(translate(new THREE.BoxGeometry(1.4, 0.35, 0.03), -1.9, 0.95, 0));
-    // sidepods with undercut
-    for (const sgn of [1, -1]) add(translate(roundedBox(2.1, 0.5, 0.56, 0.17, { frontW: 1, frontH: 1, backW: 0.45, backH: 0.75 }), -0.8, 0.34, sgn * 0.64));
-    // floor edge wings / bargeboards
     for (const sgn of [1, -1]) { add(translate(new THREE.BoxGeometry(1.4, 0.03, 0.14), -0.5, 0.15, sgn * 0.95)); add(translate(new THREE.BoxGeometry(0.5, 0.28, 0.03), 0.9, 0.3, sgn * 0.7)); }
     // front wing: main plane + 2 flaps + endplates + pylons
     add(translate(roundedBox(0.6, 0.035, 1.98, 0.015), 2.95, 0.11, 0));
-    add(translate(roundedBox(0.3, 0.03, 1.8, 0.012), 2.72, 0.2, 0).rotateZ(0));
+    add(translate(roundedBox(0.3, 0.03, 1.8, 0.012), 2.72, 0.2, 0));
     add(translate(roundedBox(0.22, 0.03, 1.5, 0.012), 2.58, 0.28, 0));
     for (const sgn of [1, -1]) add(translate(roundedBox(0.7, 0.34, 0.03, 0.012), 2.85, 0.25, sgn * 1.0));
     for (const sgn of [1, -1]) add(translate(new THREE.BoxGeometry(0.3, 0.25, 0.05), 2.7, 0.32, sgn * 0.18));
@@ -57,15 +80,15 @@ window.EI = window.EI || {};
     add(translate(roundedBox(0.36, 0.03, 1.04, 0.012), -2.55, 0.66, 0));
     add(translate(roundedBox(0.3, 0.03, 1.0, 0.012), -2.3, 0.42, 0));
     add(translate(new THREE.BoxGeometry(0.1, 0.5, 0.08), -2.3, 0.47, 0));
-    // mirrors
     for (const sgn of [1, -1]) add(translate(new THREE.BoxGeometry(0.1, 0.09, 0.17), 0.95, 0.8, sgn * 0.66));
     const pos = [], nrm = []; for (const g of parts) { pos.push(...g.attributes.position.array); nrm.push(...g.attributes.normal.array); }
     const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); geo.setAttribute('normal', new THREE.Float32BufferAttribute(nrm, 3));
     const p = geo.attributes.position, n = geo.attributes.normal; const uv = [];
     for (let i = 0; i < p.count; i++) {
       const x = p.getX(i), y = p.getY(i), z = p.getZ(i), ny = n.getY(i), nz = n.getZ(i); const u = U.clamp((x + 3.0) / 6.2, 0, 1); let v;
-      if (Math.abs(ny) >= 0.5 || Math.abs(nz) < 0.5) v = U.clamp((z + 1.0) / 2.0, 0, 1) * 0.5; else if (nz < 0) v = 0.5 + (1 - U.clamp(y / 1.2, 0, 1)) * 0.25; else v = 0.75 + (1 - U.clamp(y / 1.2, 0, 1)) * 0.25;
-      uv.push((Math.abs(ny) < 0.5 && Math.abs(nz) >= 0.5 && nz < 0) ? 1 - u : u, v);
+      const side = Math.abs(ny) < 0.5 && Math.abs(nz) >= 0.5;
+      if (!side) v = U.clamp((z + 1.0) / 2.0, 0, 1) * 0.5; else if (nz < 0) v = 0.5 + (1 - U.clamp(y / 1.2, 0, 1)) * 0.25; else v = 0.75 + (1 - U.clamp(y / 1.2, 0, 1)) * 0.25;
+      uv.push(side && nz < 0 ? 1 - u : u, v);
     }
     geo.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2)); bodyGeoCache = geo; return geo;
   }
@@ -114,25 +137,25 @@ window.EI = window.EI || {};
     buildModel() {
       const g = new THREE.Group(); g.name = 'car-' + this.id;
       const tex = EI.paintLivery(this.team, this.num, this.isPlayer ? this.name : null, this.driver);
-      this.bodyMat = new THREE.MeshPhongMaterial({ map: tex, shininess: 70, specular: 0x555555, envMap: this.envMap || null, reflectivity: 0.3, combine: THREE.MixOperation });
+      this.bodyMat = new THREE.MeshStandardMaterial({ map: tex, metalness: 0.2, roughness: 0.32, envMapIntensity: 1.1 });
       const body = new THREE.Mesh(buildBodyGeometry(), this.bodyMat); body.castShadow = true;
       this.body = new THREE.Group(); this.body.add(body); g.add(this.body);
-      const dark = new THREE.MeshPhongMaterial({ color: 0x15161a, shininess: 30 });
-      const carbon = new THREE.MeshPhongMaterial({ color: 0x1b1c20, shininess: 90, specular: 0x444444, envMap: this.envMap || null, reflectivity: 0.1, combine: THREE.MixOperation });
+      const dark = new THREE.MeshStandardMaterial({ color: 0x101114, metalness: 0.1, roughness: 0.7 });
+      const carbon = new THREE.MeshStandardMaterial({ color: 0x1a1b1f, metalness: 0.45, roughness: 0.32 });
       for (const sgn of [1, -1]) { const inlet = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.3, 0.4), dark); inlet.position.set(0.26, 0.37, sgn * 0.64); this.body.add(inlet); }
       const cockpit = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.08, 0.5), dark); cockpit.position.set(0.5, 0.72, 0); this.body.add(cockpit);
       const diffuser = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.26, 1.3), carbon); diffuser.position.set(-2.35, 0.2, 0); this.body.add(diffuser);
       const airboxHole = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.2, 0.26), dark); airboxHole.position.set(0.24, 1.06, 0); this.body.add(airboxHole);
       // halo
-      const haloGeo = new THREE.TorusGeometry(0.47, 0.045, 10, 28, Math.PI); haloGeo.rotateZ(-Math.PI / 2); haloGeo.rotateX(Math.PI / 2); // horizontal arc, apex forward, open at the rear
+      const haloGeo = new THREE.TorusGeometry(0.47, 0.034, 10, 28, Math.PI); haloGeo.rotateZ(-Math.PI / 2); haloGeo.rotateX(Math.PI / 2); // horizontal arc, apex forward, open at the rear
       const halo = new THREE.Mesh(haloGeo, carbon); halo.position.set(0.4, 0.95, 0); halo.scale.set(1.35, 1, 1);
       const pylon = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.24, 0.03), carbon); pylon.position.set(1.0, 0.84, 0); pylon.rotation.z = -0.6; this.body.add(halo, pylon);
-      for (const sgn of [1, -1]) { const mf = new THREE.Mesh(new THREE.PlaneGeometry(0.14, 0.07), new THREE.MeshPhongMaterial({ color: 0xbfd6e8, shininess: 200, specular: 0xffffff })); mf.position.set(0.89, 0.8, sgn * 0.66); mf.rotation.y = -Math.PI / 2; this.body.add(mf); }
+      for (const sgn of [1, -1]) { const mf = new THREE.Mesh(new THREE.PlaneGeometry(0.14, 0.07), new THREE.MeshStandardMaterial({ color: 0xdde8f2, metalness: 1.0, roughness: 0.05 })); mf.position.set(0.89, 0.8, sgn * 0.66); mf.rotation.y = -Math.PI / 2; this.body.add(mf); }
       // driver: helmet, shoulders, steering wheel
       this.helmet = new THREE.Group();
-      const hm = new THREE.Mesh(new THREE.SphereGeometry(0.17, 14, 12), new THREE.MeshPhongMaterial({ color: this.team.accent, shininess: 100, envMap: this.envMap || null, reflectivity: 0.3, combine: THREE.MixOperation })); hm.position.set(0.35, 0.8, 0);
+      const hm = new THREE.Mesh(new THREE.SphereGeometry(0.17, 14, 12), new THREE.MeshStandardMaterial({ color: this.team.accent, metalness: 0.3, roughness: 0.25 })); hm.position.set(0.35, 0.8, 0);
       const visor = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.09, 0.22), dark); visor.position.set(0.5, 0.8, 0);
-      const shoulders = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.2, 0.5), new THREE.MeshLambertMaterial({ color: new THREE.Color(this.team.primary) })); shoulders.position.set(0.3, 0.62, 0);
+      const shoulders = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.2, 0.5), new THREE.MeshStandardMaterial({ color: new THREE.Color(this.team.primary), roughness: 0.7 })); shoulders.position.set(0.3, 0.62, 0);
       this.helmet.add(hm, visor, shoulders); this.body.add(this.helmet);
       const wheel = new THREE.Mesh(new THREE.TorusGeometry(0.13, 0.025, 6, 12), dark); wheel.position.set(0.78, 0.72, 0); wheel.rotation.y = Math.PI / 2; this.body.add(wheel);
       // rear wing upper plane + DRS flap (hinge at its rear-top edge)
@@ -143,8 +166,8 @@ window.EI = window.EI || {};
       const rl = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.12, 0.12), new THREE.MeshBasicMaterial({ color: 0xff2020 })); rl.position.set(-2.62, 0.3, 0); this.body.add(rl);
       // wheels
       const wp = wheelParts();
-      const tyreMat = new THREE.MeshPhongMaterial({ map: wp.sidewall(this.tyre.color), color: 0xffffff, shininess: 12, specular: 0x222222 });
-      const rimMat = new THREE.MeshPhongMaterial({ color: 0x9a9da3, shininess: 120, specular: 0x888888, envMap: this.envMap || null, reflectivity: 0.4, combine: THREE.MixOperation });
+      const tyreMat = new THREE.MeshStandardMaterial({ map: U.srgb(wp.sidewall(this.tyre.color)), metalness: 0.0, roughness: 0.8 });
+      const rimMat = new THREE.MeshStandardMaterial({ color: 0xb8bbc0, metalness: 0.95, roughness: 0.28 });
       this.wheels = []; this.frontPivots = [];
       const wpos = [[1.75, 0.95], [1.75, -0.95], [-1.85, 0.98], [-1.85, -0.98]];
       wpos.forEach((pz, k) => {

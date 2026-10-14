@@ -163,8 +163,9 @@ window.EI = window.EI || {};
     buildSurfaces(g) {
       const hw = this.halfWidth, kw = this.kerbWidth, n = this.n, self = this;
       // asphalt: 6 vertex rows -> white lines, grey body with rubbered racing line
-      const asphaltTex = U.noiseTexture(512, 0x46464a, 0.07, 1, { seed: 11 }); asphaltTex.repeat.set(1.5, 1);
-      const mat = new THREE.MeshLambertMaterial({ map: asphaltTex, vertexColors: true });
+      const asphaltTex = U.grainTexture(512, 0x4a4a4e, 0.09, 1, 11, 0.02); asphaltTex.repeat.set(1.5, 1);
+      const asphaltN = U.normalTexture(256, 6, 2.2, 1, 3); asphaltN.repeat.set(1.5, 1);
+      const mat = new THREE.MeshStandardMaterial({ map: asphaltTex, normalMap: asphaltN, normalScale: new THREE.Vector2(0.6, 0.6), vertexColors: true, metalness: 0.0, roughness: 0.92 });
       const grey = new THREE.Color(0x6e6e73), rubber = new THREE.Color(0x4a4a4f), white = new THREE.Color(0xf4f4f4);
       const strips = [[-hw, -hw + 0.25, white], [-hw + 0.25, hw - 0.25, null], [hw - 0.25, hw, white]];
       for (const st of strips) {
@@ -176,21 +177,21 @@ window.EI = window.EI || {};
         for (let i = 0; i < 40; i++) { ctx.strokeStyle = 'rgba(20,20,22,' + (0.15 + r() * 0.35) + ')'; ctx.lineWidth = 2 + r() * 4; ctx.beginPath(); const x = 10 + r() * 108; ctx.moveTo(x, r() * 512); ctx.lineTo(x + (r() - 0.5) * 20, r() * 512); ctx.stroke(); }
         const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; return t; })();
       const lineGeo = this.ribbon(i => this.lineOff[i] - 2.4, i => this.lineOff[i] + 2.4, { y: 0.012, vScale: 30 });
-      g.add(new THREE.Mesh(lineGeo, new THREE.MeshLambertMaterial({ map: marksTex, color: 0x303034, transparent: true, opacity: 0.45, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -1 })));
+      g.add(new THREE.Mesh(lineGeo, new THREE.MeshStandardMaterial({ map: marksTex, color: 0x303034, transparent: true, opacity: 0.45, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -1, roughness: 0.6 })));
       // kerbs: red/white sawtooth
       const kerbTex = (function () { const c = document.createElement('canvas'); c.width = 64; c.height = 128; const ctx = c.getContext('2d'); ctx.fillStyle = '#eceae6'; ctx.fillRect(0, 0, 64, 128); ctx.fillStyle = '#c8101a'; ctx.fillRect(0, 0, 64, 64); ctx.fillStyle = 'rgba(0,0,0,0.12)'; ctx.fillRect(0, 60, 64, 4); ctx.fillRect(0, 124, 64, 4); const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; return t; })();
       const kk = this.smooth(this.k, 6); const kerbMask = i => Math.abs(kk[i]) > 1 / 420;
-      const kerbMat = new THREE.MeshLambertMaterial({ map: kerbTex });
+      const kerbMat = new THREE.MeshStandardMaterial({ map: U.srgb(kerbTex), roughness: 0.55, metalness: 0.0 });
       for (const side of [-1, 1]) {
         const geo = this.ribbon(() => side * hw, () => side * (hw + kw), { mask: kerbMask, vScale: 2.2, ya: () => 0.015, yb: () => 0.07 });
         const m = new THREE.Mesh(geo, kerbMat); m.receiveShadow = true; g.add(m);
       }
       // green painted asphalt strip beyond the kerbs (Silverstone style), then tarmac run-off / gravel
-      const greenMat = new THREE.MeshLambertMaterial({ color: 0x2d8a38, polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 2 });
-      const runoffTex = U.noiseTexture(256, 0x7a7a7e, 0.06, 1, { seed: 12 });
-      const runoffMat = new THREE.MeshLambertMaterial({ map: runoffTex, polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 2 });
-      const gravelTex = U.noiseTexture(256, 0xcdb78a, 0.1, 1, { seed: 5 });
-      const gravelMat = new THREE.MeshLambertMaterial({ map: gravelTex, polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 2 });
+      const greenMat = new THREE.MeshStandardMaterial({ color: 0x2d8a38, roughness: 0.85, polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 2 });
+      const runoffTex = U.grainTexture(256, 0x77777b, 0.07, 1, 12, 0.01);
+      const runoffMat = new THREE.MeshStandardMaterial({ map: runoffTex, normalMap: asphaltN, normalScale: new THREE.Vector2(0.4, 0.4), roughness: 0.95, polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 2 });
+      const gravelTex = U.grainTexture(256, 0xc9b58c, 0.12, 1, 5, 0.03);
+      const gravelMat = new THREE.MeshStandardMaterial({ map: gravelTex, normalMap: U.normalTexture(256, 10, 3.5, 1, 8), roughness: 1.0, polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 2 });
       for (const side of [-1, 1]) {
         const run = side < 0 ? this.runoffL : this.runoffR, grav = side < 0 ? this.gravelL : this.gravelR, wall = side < 0 ? this.wallL : this.wallR;
         const gr = this.ribbon(() => side * (hw + kw - 0.05), () => side * (hw + kw + 2.0), { mask: i => kerbMask(i) || run[i], y: -0.005 });
@@ -202,7 +203,7 @@ window.EI = window.EI || {};
       }
       // grass verge ribbon so the join to the terrain is clean
       const verge = this.ribbon(i => -(this.wallL[i] + 30), i => (this.wallR[i] + 30), { y: -0.03, color: 0x4f8a3a });
-      g.add(new THREE.Mesh(verge, new THREE.MeshLambertMaterial({ map: U.noiseTexture(256, 0x3e6a2b, 0.06, 1, { seed: 3, gMul: 1.4 }), polygonOffset: true, polygonOffsetFactor: 3, polygonOffsetUnits: 6 })));
+      g.add(new THREE.Mesh(verge, new THREE.MeshStandardMaterial({ map: U.grainTexture(256, 0x3b7024, 0.07, 1, 3), roughness: 1.0, polygonOffset: true, polygonOffsetFactor: 3, polygonOffsetUnits: 6 })));
       // start / finish line and grid boxes
       const sfTex = (function () { const c = document.createElement('canvas'); c.width = 128; c.height = 32; const ctx = c.getContext('2d'); for (let i = 0; i < 16; i++) for (let j = 0; j < 4; j++) { ctx.fillStyle = (i + j) % 2 ? '#fff' : '#111'; ctx.fillRect(i * 8, j * 8, 8, 8); } return new THREE.CanvasTexture(c); })();
       const i0 = this.idxAtS(this.sf);
@@ -220,7 +221,7 @@ window.EI = window.EI || {};
       const paint = (s, side, text, color, w) => {
         const i = this.idxAtS(s); const wall = side < 0 ? this.wallL[i] : this.wallR[i]; const d = (hw + kw + 2 + Math.min(wall - 1, hw + kw + 9)) / 2;
         const tex = U.textTexture(text, { w: 1024, h: 256, bg: color, color: '#ffffff', size: 150 });
-        const m = new THREE.Mesh(new THREE.PlaneGeometry(w, w * 0.25), new THREE.MeshLambertMaterial({ map: tex, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -4 }));
+        const m = new THREE.Mesh(new THREE.PlaneGeometry(w, w * 0.25), new THREE.MeshStandardMaterial({ map: U.srgb(tex), roughness: 0.8, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -4 }));
         m.rotation.x = -Math.PI / 2; m.rotation.z = -this.heading[i] + (side < 0 ? Math.PI : 0); m.position.set(this.x[i] + this.nx[i] * side * d, this.y[i] + 0.02, this.z[i] + this.nz[i] * side * d); g.add(m);
       };
       paint(2250, -1, 'EQUATION I', '#1a73e8', 34); paint(5700, -1, 'EI', '#e10600', 18); paint(3150, -1, 'EQUATION I', '#e10600', 30); paint(1000, 1, 'EI', '#1a73e8', 14);
@@ -241,10 +242,10 @@ window.EI = window.EI || {};
       const armcoTex = (function () { const c = document.createElement('canvas'); c.width = 64; c.height = 64; const ctx = c.getContext('2d'); ctx.fillStyle = '#a7abb0'; ctx.fillRect(0, 0, 64, 64); ctx.fillStyle = '#7a7e83'; ctx.fillRect(0, 28, 64, 8); ctx.fillStyle = '#cfd2d5'; ctx.fillRect(0, 10, 64, 6); ctx.fillRect(0, 48, 64, 6); const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; return t; })();
       const tyreCorners = ['Copse', 'Stowe', 'Club', 'Village', 'Vale'];
       const cornerAt = (s) => { let name = null; for (const c of this.data.corners) if (s >= c.s - 60) name = c.name; return name; };
-      const panelMat = new THREE.MeshLambertMaterial({ map: panelTex, side: THREE.DoubleSide });
-      const tyreMat = new THREE.MeshLambertMaterial({ map: tyreTex, side: THREE.DoubleSide });
-      const armMat = new THREE.MeshLambertMaterial({ map: armcoTex, side: THREE.DoubleSide });
-      const concrete = new THREE.MeshLambertMaterial({ color: 0xd9d9d6, side: THREE.DoubleSide });
+      const panelMat = new THREE.MeshStandardMaterial({ map: U.srgb(panelTex), side: THREE.DoubleSide, roughness: 0.5 });
+      const tyreMat = new THREE.MeshStandardMaterial({ map: U.srgb(tyreTex), side: THREE.DoubleSide, roughness: 0.9 });
+      const armMat = new THREE.MeshStandardMaterial({ map: U.srgb(armcoTex), side: THREE.DoubleSide, roughness: 0.4, metalness: 0.6 });
+      const concrete = new THREE.MeshStandardMaterial({ color: 0xd9d9d6, side: THREE.DoubleSide, roughness: 0.9 });
       for (const side of [-1, 1]) {
         const wall = side < 0 ? this.wallL : this.wallR;
         const inCorner = i => Math.abs(kk[i]) > 1 / 600;
@@ -284,7 +285,7 @@ window.EI = window.EI || {};
       }
       for (let i = 0; i < n; i++) { const a = i * 2; idx.push(a, a + 2, a + 1, a + 1, a + 2, a + 3); }
       const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); geo.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2)); geo.setIndex(idx); geo.computeVertexNormals();
-      const m = new THREE.Mesh(geo, new THREE.MeshLambertMaterial({ color: 0x5a5a5e, polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 2 })); m.receiveShadow = true; g.add(m);
+      const m = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ color: 0x5a5a5e, roughness: 0.95, polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 2 })); m.receiveShadow = true; g.add(m);
       this.pitCurve = curve;
     }
 
@@ -303,7 +304,7 @@ window.EI = window.EI || {};
       const addBoard = (s, side, text, opts) => {
         const p = placeAt(s, side, null); const w = opts.w || 6, h = opts.h || 1.4;
         const tex = U.textTexture(text, { w: 512, h: Math.round(512 * h / w), bg: opts.bg, color: opts.color, size: opts.size || 70, stripe: opts.stripe, font: 'italic 900 Arial Black, Arial' });
-        const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshBasicMaterial({ map: tex, side: THREE.DoubleSide }));
+        const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshBasicMaterial({ map: U.srgb(tex), side: THREE.DoubleSide }));
         m.position.set(p.x, p.y + (opts.y || 2.3), p.z); m.rotation.y = -p.heading + (side < 0 ? 0 : Math.PI); g.add(m);
         const post = new THREE.Mesh(new THREE.BoxGeometry(0.15, opts.y || 2.3, 0.15), postMat); post.position.set(p.x, p.y + (opts.y || 2.3) / 2, p.z); g.add(post);
       };
@@ -322,7 +323,7 @@ window.EI = window.EI || {};
         for (const side of [-1, 1]) { const post = new THREE.Mesh(new THREE.BoxGeometry(0.8, 8, 0.8), postMat); post.position.set(0, 4, side * (hw + 3)); post.castShadow = true; grp.add(post); }
         const tex = U.textTexture(text, { w: 1024, h: 128, bg: bg || '#e10600', color: '#fff', size: 80, font: 'italic 900 Arial Black, Arial' });
         const b = new THREE.Mesh(new THREE.BoxGeometry(1.2, 2.2, hw * 2 + 7), new THREE.MeshLambertMaterial({ color: bg ? new THREE.Color(bg) : 0xe10600 })); b.position.y = 8.5; b.castShadow = true; grp.add(b);
-        for (const dir of [-1, 1]) { const f = new THREE.Mesh(new THREE.PlaneGeometry(hw * 2 + 6.8, 2.1), new THREE.MeshBasicMaterial({ map: tex })); f.position.set(dir * 0.62, 8.5, 0); f.rotation.y = dir * Math.PI / 2; grp.add(f); }
+        for (const dir of [-1, 1]) { const f = new THREE.Mesh(new THREE.PlaneGeometry(hw * 2 + 6.8, 2.1), new THREE.MeshBasicMaterial({ map: U.srgb(tex) })); f.position.set(dir * 0.62, 8.5, 0); f.rotation.y = dir * Math.PI / 2; grp.add(f); }
         grp.position.set(this.x[i], this.y[i], this.z[i]); grp.rotation.y = -this.heading[i]; g.add(grp);
       };
       bridge(this.sf + 140, 'EQUATION I', '#e10600'); bridge(4650, 'EI  ·  SILVERSTONE', '#5b2a86'); bridge(2850, 'EQUATION I', '#e10600'); bridge(1600, 'DRS ZONE', '#1a73e8');

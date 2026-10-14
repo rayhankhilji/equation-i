@@ -124,7 +124,7 @@ window.EI = window.EI || {};
     for (const x of [180, 330, 640, 800]) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, 512); ctx.stroke(); }
     // fine panel seams + subtle sheen gradient
     const sheen = ctx.createLinearGradient(0, 0, 0, 512); sheen.addColorStop(0, 'rgba(255,255,255,0.10)'); sheen.addColorStop(0.5, 'rgba(255,255,255,0)'); sheen.addColorStop(1, 'rgba(0,0,0,0.12)'); ctx.fillStyle = sheen; ctx.fillRect(0, 0, 1024, 512);
-    const tex = new THREE.CanvasTexture(c); tex.anisotropy = 8; tex.flipY = false;
+    const tex = new THREE.CanvasTexture(c); tex.anisotropy = 8; tex.flipY = false; tex.encoding = THREE.sRGBEncoding;
     CACHE[key] = tex;
     // optional external decal sheet replaces the painted one when it exists
     const img = new Image();
