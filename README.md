@@ -41,8 +41,13 @@ In single player either key set drives the car.
   and detection lines, sponsor walls, painted run-off decals, a start-light gantry, grid boxes, tyre walls,
   Armco, debris fences, gravel traps, green-painted strips and tarmac run-off.
 - **Rendering.** Physically based materials lit by a Preetham sky model with a matching sun and a PMREM
-  environment for reflections, normal-mapped asphalt and gravel, tone mapping, bloom and FXAA
-  (single player), soft shadows, billboard trees, and dust / gravel / tyre-smoke particles.
+  environment for reflections, normal-mapped asphalt and gravel, tone mapping, soft shadows, billboard
+  trees, and dust / gravel / tyre-smoke particles. A Graphics setting picks Low (1024 shadows, no soft
+  shadows, 1x pixel ratio), Medium (default, MSAA only) or High (adds bloom and FXAA post-processing).
+- **Pit complex and buildings.** A designed pit building with garages, team signs, glass band, cantilever
+  roof and pit wall stands, plus OSM-footprint buildings with office, hall and brick facades and parapets.
+- **Track proportions.** 15 m asphalt, raised red-white kerbs, green-painted strips, tarmac aprons up to
+  14 m, gravel traps beyond, and barriers 12 to 50 m out as at the real circuit.
 - **Three cameras.** Chase, cockpit (behind the halo, helmet hidden) and a trackside TV pod. Name tags float
   over nearby cars.
 - **Sectors.** Three timing sectors with purple / green / yellow flags, plus a live delta to your best lap.
@@ -57,9 +62,12 @@ In single player either key set drives the car.
   from the car physics (an ideal lap is about 1:26, like a real pole lap). They overtake, defend the inside,
   avoid side-by-side contact, use DRS and ERS, make small mistakes, and recover when they spin. Three skill
   levels; team strength and tyre choice vary the pack.
-- **Cars.** Procedural single-seaters built from rounded, reflective bodywork: nose, sidepods with undercut,
-  engine cover and shark fin, halo, multi-element wings, mirrors, suspension arms, spoked rims and branded
-  tyres with compound-coloured sidewalls. Ten teams in recognisable colour schemes, two drivers each, with
+- **Cars.** Detailed procedural single-seaters to 2022 proportions (`js/carmodel.js`): lofted chassis, nose
+  and sidepods with inlets, airbox and shark fin, four-element front wing with curved tips and endplates,
+  rear wing with painted endplates, beam wing, swan-neck mounts and a working DRS flap, floor with edge wings
+  and diffuser strakes, full wishbone / pushrod suspension with uprights and brake-duct winglets, halo,
+  driver with helmet, HANS and arms on a steering wheel with a live display, headrest, mirrors, T-cam, pitot
+  and rain light, 18-inch wheels with covers and branded tyres with compound-coloured sidewalls. Ten teams in recognisable colour schemes, two drivers each, with
   numbers, driver codes and sponsor-style decals painted into a livery sheet. A contact shadow sits under
   every car.
 - **Physics tuned for fun.** Grip rises with speed (downforce), strong brakes, grass and gravel slow you
@@ -91,7 +99,8 @@ js/util.js          helpers, procedural textures
 js/teams.js         teams, drivers, livery painter
 js/track.js         resampling, elevation, lookups, racing line, track surface and furniture
 js/scenery.js       terrain, grandstands + crowd, buildings, trees, sky
-js/car.js           car model + vehicle physics
+js/carmodel.js      detailed procedural car model
+js/car.js           vehicle physics
 js/ai.js            bot drivers and speed profile
 js/race.js          race director: grid, lights, laps, DRS detection, collisions, classification
 js/hud.js           per-player HUD, minimap, tower, results

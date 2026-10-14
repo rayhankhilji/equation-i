@@ -135,56 +135,9 @@ window.EI = window.EI || {};
     }
 
     buildModel() {
-      const g = new THREE.Group(); g.name = 'car-' + this.id;
-      const tex = EI.paintLivery(this.team, this.num, this.isPlayer ? this.name : null, this.driver);
-      this.bodyMat = new THREE.MeshStandardMaterial({ map: tex, metalness: 0.2, roughness: 0.32, envMapIntensity: 1.1 });
-      const body = new THREE.Mesh(buildBodyGeometry(), this.bodyMat); body.castShadow = true;
-      this.body = new THREE.Group(); this.body.add(body); g.add(this.body);
-      const dark = new THREE.MeshStandardMaterial({ color: 0x101114, metalness: 0.1, roughness: 0.7 });
-      const carbon = new THREE.MeshStandardMaterial({ color: 0x1a1b1f, metalness: 0.45, roughness: 0.32 });
-      for (const sgn of [1, -1]) { const inlet = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.3, 0.4), dark); inlet.position.set(0.26, 0.37, sgn * 0.64); this.body.add(inlet); }
-      const cockpit = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.08, 0.5), dark); cockpit.position.set(0.5, 0.72, 0); this.body.add(cockpit);
-      const diffuser = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.26, 1.3), carbon); diffuser.position.set(-2.35, 0.2, 0); this.body.add(diffuser);
-      const airboxHole = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.2, 0.26), dark); airboxHole.position.set(0.24, 1.06, 0); this.body.add(airboxHole);
-      // halo
-      const haloGeo = new THREE.TorusGeometry(0.47, 0.034, 10, 28, Math.PI); haloGeo.rotateZ(-Math.PI / 2); haloGeo.rotateX(Math.PI / 2); // horizontal arc, apex forward, open at the rear
-      const halo = new THREE.Mesh(haloGeo, carbon); halo.position.set(0.4, 0.95, 0); halo.scale.set(1.35, 1, 1);
-      const pylon = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.24, 0.03), carbon); pylon.position.set(1.0, 0.84, 0); pylon.rotation.z = -0.6; this.body.add(halo, pylon);
-      for (const sgn of [1, -1]) { const mf = new THREE.Mesh(new THREE.PlaneGeometry(0.14, 0.07), new THREE.MeshStandardMaterial({ color: 0xdde8f2, metalness: 1.0, roughness: 0.05 })); mf.position.set(0.89, 0.8, sgn * 0.66); mf.rotation.y = -Math.PI / 2; this.body.add(mf); }
-      // driver: helmet, shoulders, steering wheel
-      this.helmet = new THREE.Group();
-      const hm = new THREE.Mesh(new THREE.SphereGeometry(0.17, 14, 12), new THREE.MeshStandardMaterial({ color: this.team.accent, metalness: 0.3, roughness: 0.25 })); hm.position.set(0.35, 0.8, 0);
-      const visor = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.09, 0.22), dark); visor.position.set(0.5, 0.8, 0);
-      const shoulders = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.2, 0.5), new THREE.MeshStandardMaterial({ color: new THREE.Color(this.team.primary), roughness: 0.7 })); shoulders.position.set(0.3, 0.62, 0);
-      this.helmet.add(hm, visor, shoulders); this.body.add(this.helmet);
-      const wheel = new THREE.Mesh(new THREE.TorusGeometry(0.13, 0.025, 6, 12), dark); wheel.position.set(0.78, 0.72, 0); wheel.rotation.y = Math.PI / 2; this.body.add(wheel);
-      // rear wing upper plane + DRS flap (hinge at its rear-top edge)
-      const upper = new THREE.Mesh(roundedBox(0.42, 0.03, 1.0, 0.012), this.bodyMat); upper.position.set(-2.5, 0.9, 0); upper.rotation.z = 0.25; this.body.add(upper);
-      const flapGeo = roundedBox(0.3, 0.03, 1.0, 0.012); flapGeo.translate(0.15, 0, 0);
-      this.flap = new THREE.Mesh(flapGeo, this.bodyMat); this.flap.position.set(-2.75, 0.96, 0); this.flap.rotation.z = 0.12; this.body.add(this.flap);
-      // rain light
-      const rl = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.12, 0.12), new THREE.MeshBasicMaterial({ color: 0xff2020 })); rl.position.set(-2.62, 0.3, 0); this.body.add(rl);
-      // wheels
-      const wp = wheelParts();
-      const tyreMat = new THREE.MeshStandardMaterial({ map: U.srgb(wp.sidewall(this.tyre.color)), metalness: 0.0, roughness: 0.8 });
-      const rimMat = new THREE.MeshStandardMaterial({ color: 0xb8bbc0, metalness: 0.95, roughness: 0.28 });
-      this.wheels = []; this.frontPivots = [];
-      const wpos = [[1.75, 0.95], [1.75, -0.95], [-1.85, 0.98], [-1.85, -0.98]];
-      wpos.forEach((pz, k) => {
-        const pivot = new THREE.Group(); pivot.position.set(pz[0], WHEEL_R, pz[1]);
-        const tyre = new THREE.Mesh(wp.tyre, tyreMat); tyre.castShadow = true;
-        const rim = new THREE.Mesh(wp.rim, rimMat); const spokes = new THREE.Mesh(wp.spokes, rimMat);
-        const spin = new THREE.Group(); spin.add(tyre, rim, spokes); pivot.add(spin);
-        const armMat = carbon;
-        for (const [dx, dy] of [[-0.22, 0.44], [0.22, 0.44], [-0.1, 0.22]]) { const arm = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.035, Math.abs(pz[1]) - 0.3), armMat); arm.position.set(pz[0] + (k < 2 ? dx : -dx), dy, pz[1] * 0.45); this.body.add(arm); }
-        g.add(pivot); this.wheels.push(spin); if (k < 2) this.frontPivots.push(pivot);
-      });
-      // contact shadow blob under the car
-      const sc = document.createElement('canvas'); sc.width = 128; sc.height = 64; const sctx = sc.getContext('2d');
-      const grd = sctx.createRadialGradient(64, 32, 4, 64, 32, 60); grd.addColorStop(0, 'rgba(0,0,0,0.55)'); grd.addColorStop(0.6, 'rgba(0,0,0,0.3)'); grd.addColorStop(1, 'rgba(0,0,0,0)'); sctx.fillStyle = grd; sctx.fillRect(0, 0, 128, 64);
-      const blob = new THREE.Mesh(new THREE.PlaneGeometry(6.2, 3.0), new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(sc), transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -3 }));
-      blob.rotation.x = -Math.PI / 2; blob.position.y = 0.03; blob.position.x = -0.1; g.add(blob);
-      this.group = g; this.wheelSpin = 0;
+      const m = EI.CarModel.build(this);
+      this.group = m.group; this.body = m.body; this.wheels = m.wheels; this.frontPivots = m.frontPivots; this.flap = m.flap; this.helmet = m.helmet; this.bodyMat = m.bodyMat;
+      this.group.name = 'car-' + this.id; this.wheelSpin = 0;
       this._fwd = new THREE.Vector3(); this._up = new THREE.Vector3(); this._right = new THREE.Vector3(); this._m = new THREE.Matrix4();
     }
 
@@ -198,6 +151,7 @@ window.EI = window.EI || {};
       if (absLat <= hw) this.surface = 'asphalt';
       else if (absLat <= hw + kw) { this.surface = 'kerb'; surfGrip = 0.93; }
       else if (absLat <= hw + kw + 2) { this.surface = 'asphalt'; surfGrip = 0.97; }
+      else if ((lat > 0 ? track.runoffL[i] : track.runoffR[i]) && absLat <= hw + kw + ((lat > 0 ? track.gravelL[i] : track.gravelR[i]) ? 7 : 14)) { this.surface = 'runoff'; surfGrip = 0.9; surfRoll = 1.2; }
       else { const grav = lat > 0 ? track.gravelL[i] : track.gravelR[i]; if (grav) { this.surface = 'gravel'; surfGrip = 0.35; surfDrag = 14 + 0.25 * Math.abs(this.v); surfRoll = 3; } else { this.surface = 'grass'; surfGrip = 0.45; surfDrag = 5 + 0.08 * Math.abs(this.v); surfRoll = 2; } }
       this.offTrack = this.surface === 'grass' || this.surface === 'gravel' ? this.offTrack + dt : 0;
       const mu = this.tyre.grip * surfGrip * (1 - 0.3 * Math.min(1, this.wear));
@@ -262,7 +216,7 @@ window.EI = window.EI || {};
       this.body.rotation.x += (roll - this.body.rotation.x) * Math.min(1, dt * 10); this.body.rotation.z += (pitch - this.body.rotation.z) * Math.min(1, dt * 10);
       this.wheelSpin -= (this.v / WHEEL_R) * dt; for (const w of this.wheels) w.rotation.z = this.wheelSpin;
       const sa = this.steer * 0.42 / (1 + Math.abs(this.v) / 18); for (const p of this.frontPivots) p.rotation.y = sa;
-      const ft = this.drsOpen ? -0.95 : 0.12; this.flap.rotation.z += (ft - this.flap.rotation.z) * Math.min(1, dt * 12);
+      const ft = this.drsOpen ? -0.15 : 0.5; this.flap.rotation.z += (ft - this.flap.rotation.z) * Math.min(1, dt * 12);
     }
   }
   EI.Car = Car; EI.CAR = { L, W, WB, VMAX, GEARS, GRIP, BRAKE, PM, CD };

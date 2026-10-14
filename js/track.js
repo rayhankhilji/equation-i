@@ -106,11 +106,11 @@ window.EI = window.EI || {};
       const n = this.n, hw = this.halfWidth; const kw = this.smooth(this.k, 25);
       this.wallL = new Float32Array(n); this.wallR = new Float32Array(n); this.gravelL = new Uint8Array(n); this.gravelR = new Uint8Array(n); this.runoffL = new Uint8Array(n); this.runoffR = new Uint8Array(n);
       for (let i = 0; i < n; i++) {
-        const c = kw[i]; const outside = Math.min(1, Math.abs(c) * 120); let l = hw + 7, r = hw + 7;
-        if (c > 0) { r += 18 * outside; l -= 2 * outside; } else { l += 18 * outside; r -= 2 * outside; }
+        const c = kw[i]; const outside = Math.min(1, Math.abs(c) * 110); let l = hw + 12, r = hw + 12;
+        if (c > 0) { r += 40 * outside; l -= 5 * outside; } else { l += 40 * outside; r -= 5 * outside; }
         this.wallL[i] = l; this.wallR[i] = r;
       }
-      this.wallL = this.smooth(this.wallL, 20); this.wallR = this.smooth(this.wallR, 20);
+      this.wallL = this.smooth(this.wallL, 30); this.wallR = this.smooth(this.wallR, 30);
       const kk = this.smooth(this.k, 8);
       const gravelCorners = ['Copse', 'Becketts', 'Stowe', 'Club', 'Luffield', 'Abbey', 'Brooklands', 'Vale', 'Village', 'Maggotts'];
       const cornerAt = (s) => { let name = null; for (const c of this.data.corners) if (s >= c.s - 60) name = c.name; return name; };
@@ -183,8 +183,9 @@ window.EI = window.EI || {};
       const kk = this.smooth(this.k, 6); const kerbMask = i => Math.abs(kk[i]) > 1 / 420;
       const kerbMat = new THREE.MeshStandardMaterial({ map: U.srgb(kerbTex), roughness: 0.55, metalness: 0.0 });
       for (const side of [-1, 1]) {
-        const geo = this.ribbon(() => side * hw, () => side * (hw + kw), { mask: kerbMask, vScale: 2.2, ya: () => 0.015, yb: () => 0.07 });
-        const m = new THREE.Mesh(geo, kerbMat); m.receiveShadow = true; g.add(m);
+        const g1 = this.ribbon(() => side * hw, () => side * (hw + kw * 0.45), { mask: kerbMask, vScale: 2.2, ya: () => 0.012, yb: () => 0.075 });
+        const g2 = this.ribbon(() => side * (hw + kw * 0.45), () => side * (hw + kw), { mask: kerbMask, vScale: 2.2, ya: () => 0.075, yb: () => 0.02 });
+        for (const geo of [g1, g2]) { const m = new THREE.Mesh(geo, kerbMat); m.receiveShadow = true; m.castShadow = true; g.add(m); }
       }
       // green painted asphalt strip beyond the kerbs (Silverstone style), then tarmac run-off / gravel
       const greenMat = new THREE.MeshStandardMaterial({ color: 0x2d8a38, roughness: 0.85, polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 2 });
@@ -196,13 +197,13 @@ window.EI = window.EI || {};
         const run = side < 0 ? this.runoffL : this.runoffR, grav = side < 0 ? this.gravelL : this.gravelR, wall = side < 0 ? this.wallL : this.wallR;
         const gr = this.ribbon(() => side * (hw + kw - 0.05), () => side * (hw + kw + 2.0), { mask: i => kerbMask(i) || run[i], y: -0.005 });
         g.add(new THREE.Mesh(gr, greenMat));
-        const r = this.ribbon(() => side * (hw + kw + 1.9), i => side * Math.min(hw + kw + 8, wall[i] - 0.4), { mask: i => run[i] && !grav[i], y: -0.01, vScale: 12 });
+        const r = this.ribbon(() => side * (hw + kw + 1.9), i => side * Math.min(hw + kw + (grav[i] ? 7 : 14), wall[i] - 0.4), { mask: i => run[i], y: -0.01, vScale: 12 });
         const rm = new THREE.Mesh(r, runoffMat); rm.receiveShadow = true; g.add(rm);
-        const gg = this.ribbon(() => side * (hw + kw + 1.9), i => side * (wall[i] - 0.3), { mask: i => grav[i], y: -0.01, vScale: 12 });
+        const gg = this.ribbon(i => side * Math.min(hw + kw + 6.9, wall[i] - 0.5), i => side * (wall[i] - 0.3), { mask: i => grav[i], y: -0.012, vScale: 12 });
         const gm = new THREE.Mesh(gg, gravelMat); gm.receiveShadow = true; g.add(gm);
       }
       // grass verge ribbon so the join to the terrain is clean
-      const verge = this.ribbon(i => -(this.wallL[i] + 30), i => (this.wallR[i] + 30), { y: -0.03, color: 0x4f8a3a });
+      const verge = this.ribbon(i => -(this.wallL[i] + 40), i => (this.wallR[i] + 40), { y: -0.03, color: 0x4f8a3a });
       g.add(new THREE.Mesh(verge, new THREE.MeshStandardMaterial({ map: U.grainTexture(256, 0x3b7024, 0.07, 1, 3), roughness: 1.0, polygonOffset: true, polygonOffsetFactor: 3, polygonOffsetUnits: 6 })));
       // start / finish line and grid boxes
       const sfTex = (function () { const c = document.createElement('canvas'); c.width = 128; c.height = 32; const ctx = c.getContext('2d'); for (let i = 0; i < 16; i++) for (let j = 0; j < 4; j++) { ctx.fillStyle = (i + j) % 2 ? '#fff' : '#111'; ctx.fillRect(i * 8, j * 8, 8, 8); } return new THREE.CanvasTexture(c); })();

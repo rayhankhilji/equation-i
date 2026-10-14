@@ -156,34 +156,74 @@ window.EI = window.EI || {};
       inst.name = 'crowd'; this.group.add(inst); this.crowdCount = crowd.length;
     }
 
-    // ---------------------------------------------------------------- buildings from OSM footprints, seated on the terrain
+    // ---------------------------------------------------------------- pit complex (designed) + OSM buildings with proper facades
+    buildPitComplex() {
+      const t = this.track; const pit = t.data.pit; if (!pit || pit.length < 3) return null;
+      // pit lane direction and the side away from the track
+      const a = pit[Math.floor(pit.length * 0.2)], b = pit[Math.floor(pit.length * 0.8)]; const mid = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
+      let dx = b[0] - a[0], dz = b[1] - a[1]; const len = Math.hypot(dx, dz); dx /= len; dz /= len;
+      const pr = t.project(mid[0], mid[1], null); const side = pr.lat > 0 ? 1 : -1; const nx = t.nx[pr.i] * side, nz = t.nz[pr.i] * side; // away from track
+      const baseY = t.y[pr.i];
+      const L = Math.min(len * 0.9, 320), D = 22;
+      const rot = new THREE.Matrix4().makeBasis(new THREE.Vector3(dx, 0, dz), new THREE.Vector3(0, 1, 0), new THREE.Vector3(nx, 0, nz));
+      const grp = new THREE.Group(); grp.applyMatrix4(rot); grp.position.set(mid[0] + nx * 8, baseY, mid[1] + nz * 8);
+      const white = new THREE.MeshStandardMaterial({ color: 0xe9ebee, roughness: 0.55, metalness: 0.1 });
+      const red = new THREE.MeshStandardMaterial({ color: 0xc8102e, roughness: 0.5 });
+      const dark = new THREE.MeshStandardMaterial({ color: 0x1b1d22, roughness: 0.8 });
+      const glassTex = (function () { const c = document.createElement('canvas'); c.width = 256; c.height = 64; const ctx = c.getContext('2d'); ctx.fillStyle = '#56779a'; ctx.fillRect(0, 0, 256, 64); ctx.fillStyle = 'rgba(255,255,255,0.35)'; for (let x = 0; x < 256; x += 16) ctx.fillRect(x, 0, 2, 64); ctx.fillStyle = 'rgba(0,0,0,0.25)'; ctx.fillRect(0, 30, 256, 3); const tt = new THREE.CanvasTexture(c); tt.wrapS = tt.wrapT = THREE.RepeatWrapping; tt.repeat.set(40, 1); tt.encoding = THREE.sRGBEncoding; return tt; })();
+      const glass = new THREE.MeshStandardMaterial({ map: glassTex, roughness: 0.15, metalness: 0.7 });
+      // ground floor: garages (dark openings) separated by white piers, 2nd floor glass band, 3rd floor white, roof slab cantilevered toward the pit lane
+      const ground = new THREE.Mesh(new THREE.BoxGeometry(L, 4.5, D), white); ground.position.set(0, 2.25, D / 2); grp.add(ground);
+      const nGar = Math.floor(L / 10);
+      for (let i = 0; i < nGar; i++) {
+        const x = -L / 2 + 5 + i * 10; const door = new THREE.Mesh(new THREE.BoxGeometry(7.6, 3.6, 0.3), dark); door.position.set(x, 1.8, 0.05); grp.add(door);
+        const team = EI.TEAMS[i % EI.TEAMS.length];
+        const sign = new THREE.Mesh(new THREE.PlaneGeometry(7.6, 0.7), new THREE.MeshBasicMaterial({ map: U.srgb(U.textTexture(team.name.toUpperCase(), { w: 512, h: 48, bg: team.primary, color: team.accent, size: 30, font: 'italic 900 Arial Black, Arial' })) })); sign.position.set(x, 4.1, -0.12); sign.rotation.y = Math.PI; grp.add(sign);
+      }
+      const band = new THREE.Mesh(new THREE.BoxGeometry(L, 3.2, D - 1), glass); band.position.set(0, 6.1, D / 2 - 0.3); grp.add(band);
+      const top = new THREE.Mesh(new THREE.BoxGeometry(L, 2.6, D - 2), white); top.position.set(0, 9.0, D / 2 - 0.6); grp.add(top);
+      const roof = new THREE.Mesh(new THREE.BoxGeometry(L + 6, 0.5, D + 10), white); roof.position.set(0, 10.5, D / 2 - 5); grp.add(roof);
+      const accentBand = new THREE.Mesh(new THREE.BoxGeometry(L + 6.1, 0.8, 0.3), red); accentBand.position.set(0, 10.6, -5.1); grp.add(accentBand);
+      // roof wedge (the sweeping Wing roof) and name on the facade
+      const wedge = new THREE.Mesh(new THREE.BoxGeometry(L * 0.5, 3, D * 0.6), white); wedge.position.set(L * 0.1, 12, D * 0.5); wedge.rotation.z = 0.06; grp.add(wedge);
+      const name = new THREE.Mesh(new THREE.PlaneGeometry(40, 2.2), new THREE.MeshBasicMaterial({ map: U.srgb(U.textTexture('EQUATION I  ·  SILVERSTONE', { w: 1024, h: 64, bg: '#e9ebee', color: '#c8102e', size: 44, font: 'italic 900 Arial Black, Arial' })) })); name.position.set(0, 9.1, -0.62); name.rotation.y = Math.PI; grp.add(name);
+      // hospitality balcony on the track side of the 2nd floor and support columns
+      for (let x = -L / 2 + 3; x < L / 2; x += 12) { const col = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.3, 10.5, 8), white); col.position.set(x, 5.25, -4.6); grp.add(col); }
+      // pit wall on the track side of the pit lane with a row of team stands
+      const wallOff = -(16 + 4); const pw = new THREE.Mesh(new THREE.BoxGeometry(L, 1.0, 0.4), new THREE.MeshStandardMaterial({ color: 0xd9d9d6, roughness: 0.9 })); pw.position.set(0, 0.5, wallOff); grp.add(pw);
+      for (let x = -L / 2 + 8; x < L / 2 - 8; x += 11) { const stand = new THREE.Mesh(new THREE.BoxGeometry(8, 2.6, 2.2), dark); stand.position.set(x, 2.3, wallOff + 1.5); grp.add(stand); const canopy = new THREE.Mesh(new THREE.BoxGeometry(8.4, 0.15, 2.8), white); canopy.position.set(x, 3.7, wallOff + 1.5); grp.add(canopy); }
+      grp.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
+      this.pitBox = { cx: mid[0] + nx * (8 + D / 2), cz: mid[1] + nz * (8 + D / 2), r: L / 2 + 30 };
+      return grp;
+    }
     buildBuildings() {
       const t = this.track, sc = t.data.scenery; const pr = {};
-      const windowTex = (function () { const c = document.createElement('canvas'); c.width = 128; c.height = 64; const ctx = c.getContext('2d'); ctx.fillStyle = '#b9bcc2'; ctx.fillRect(0, 0, 128, 64); ctx.fillStyle = '#3f5f80'; for (let x = 6; x < 128; x += 16) ctx.fillRect(x, 12, 10, 24); ctx.fillStyle = '#9ea2a8'; ctx.fillRect(0, 40, 128, 4); const tt = new THREE.CanvasTexture(c); tt.wrapS = tt.wrapT = THREE.RepeatWrapping; return tt; })();
-      const glassTex = (function () { const c = document.createElement('canvas'); c.width = 128; c.height = 128; const ctx = c.getContext('2d'); ctx.fillStyle = '#e4e6ea'; ctx.fillRect(0, 0, 128, 128); ctx.fillStyle = '#5f7f9f'; ctx.fillRect(0, 20, 128, 34); ctx.fillRect(0, 76, 128, 34); ctx.fillStyle = 'rgba(255,255,255,0.35)'; for (let x = 0; x < 128; x += 16) ctx.fillRect(x, 20, 2, 90); ctx.fillStyle = '#c9ccd2'; ctx.fillRect(0, 0, 128, 6); const tt = new THREE.CanvasTexture(c); tt.wrapS = tt.wrapT = THREE.RepeatWrapping; return tt; })();
-      const plain = [], glass = [], roofs = [];
-      // the pit complex: the largest footprint within 250 m of the start line gets the glass "Wing" treatment
-      let wing = null, wingArea = 0; const sfi = t.idxAtS(t.sf);
-      for (const b of sc.buildings) { let cx = 0, cz = 0; for (const q of b.p) { cx += q[0]; cz += q[1]; } cx /= b.p.length; cz /= b.p.length; const d = Math.hypot(cx - t.x[sfi], cz - t.z[sfi]); const a = Math.abs(U.polyArea(b.p)); if (d < 300 && a > wingArea) { wingArea = a; wing = b; } }
+      const pitGroup = this.buildPitComplex(); if (pitGroup) this.group.add(pitGroup);
+      const mkTex = (draw) => { const c = document.createElement('canvas'); c.width = 256; c.height = 128; const ctx = c.getContext('2d'); draw(ctx); const tt = new THREE.CanvasTexture(c); tt.wrapS = tt.wrapT = THREE.RepeatWrapping; tt.encoding = THREE.sRGBEncoding; return tt; };
+      const officeTex = mkTex(ctx => { ctx.fillStyle = '#d6d8dc'; ctx.fillRect(0, 0, 256, 128); ctx.fillStyle = '#5a7390'; for (let x = 8; x < 256; x += 32) ctx.fillRect(x, 24, 20, 40); ctx.fillStyle = '#b9bcc2'; ctx.fillRect(0, 70, 256, 6); ctx.fillStyle = 'rgba(255,255,255,0.4)'; for (let x = 8; x < 256; x += 32) ctx.fillRect(x, 24, 20, 6); });
+      const hallTex = mkTex(ctx => { ctx.fillStyle = '#c9c6bd'; ctx.fillRect(0, 0, 256, 128); ctx.fillStyle = '#b7b3a8'; for (let x = 0; x < 256; x += 24) ctx.fillRect(x, 0, 2, 128); ctx.fillStyle = '#4e5a68'; ctx.fillRect(0, 86, 256, 24); ctx.fillStyle = '#9a968c'; ctx.fillRect(0, 0, 256, 8); });
+      const brickTex = mkTex(ctx => { ctx.fillStyle = '#b08a6e'; ctx.fillRect(0, 0, 256, 128); ctx.fillStyle = '#9b7658'; for (let y = 0; y < 128; y += 10) for (let x = (y / 10) % 2 ? 0 : 12; x < 256; x += 24) ctx.fillRect(x, y, 22, 8); ctx.fillStyle = '#5a7390'; for (let x = 20; x < 256; x += 64) ctx.fillRect(x, 40, 22, 34); });
+      const plain = [], office = [], hall = [], brick = [], parapets = [];
       for (const b of sc.buildings) {
-        const poly = b.p; if (poly.length < 3 || Math.abs(U.polyArea(poly)) < 60) continue;
+        const poly = b.p; const area = Math.abs(U.polyArea(poly)); if (poly.length < 3 || area < 60) continue;
         let clear = true, cx = 0, cz = 0, minY = Infinity;
         for (const q of poly) { t.project(q[0], q[1], null, pr); if (pr.dist < Math.max(t.wallL[pr.i], t.wallR[pr.i]) + 1) { clear = false; break; } cx += q[0]; cz += q[1]; minY = Math.min(minY, this.height(q[0], q[1])); }
         if (!clear) continue; cx /= poly.length; cz /= poly.length;
+        if (this.pitBox && Math.hypot(cx - this.pitBox.cx, cz - this.pitBox.cz) < this.pitBox.r) continue;
         const shape = new THREE.Shape(); shape.moveTo(poly[0][0], poly[0][1]); for (let i = 1; i < poly.length; i++) shape.lineTo(poly[i][0], poly[i][1]); shape.closePath();
-        const isWing = b === wing;
-        const h = isWing ? 16 : (b.h ? Math.min(b.h, 24) : 4 + Math.min(8, Math.sqrt(Math.abs(U.polyArea(poly))) * 0.12));
+        const h = b.h ? Math.min(b.h, 24) : (area > 2500 ? 9 + Math.min(8, area / 1500) : area > 500 ? 6 + Math.min(6, area / 400) : 3.5 + Math.min(3, area / 80));
         const geo = new THREE.ExtrudeGeometry(shape, { depth: h + 2, bevelEnabled: false }); geo.rotateX(Math.PI / 2); geo.translate(0, h + minY - 1, 0);
         const p = geo.attributes.position, uv = geo.attributes.uv, nrm = geo.attributes.normal;
-        for (let i = 0; i < p.count; i++) { const nx = nrm.getX(i), ny = nrm.getY(i); if (Math.abs(ny) > 0.5) uv.setXY(i, p.getX(i) * 0.05, p.getZ(i) * 0.05); else uv.setXY(i, (Math.abs(nx) > 0.5 ? p.getZ(i) : p.getX(i)) * (isWing ? 0.12 : 0.25), p.getY(i) * (isWing ? 0.125 : 0.25)); }
-        (isWing ? glass : plain).push(geo);
-        if (isWing) { // red roof accent band
-          const r = new THREE.ExtrudeGeometry(shape, { depth: 1.2, bevelEnabled: false }); r.rotateX(Math.PI / 2); r.translate(0, h + minY + 0.2, 0); r.userData.color = new THREE.Color(0xc8102e); roofs.push(r);
-        }
+        for (let i = 0; i < p.count; i++) { const nx = nrm.getX(i), ny = nrm.getY(i); if (Math.abs(ny) > 0.5) uv.setXY(i, p.getX(i) * 0.05, p.getZ(i) * 0.05); else uv.setXY(i, (Math.abs(nx) > 0.5 ? p.getZ(i) : p.getX(i)) * 0.125, (p.getY(i) - minY) * 0.125 / (h > 8 ? 1 : 0.6)); }
+        (area > 2500 ? hall : area > 500 ? office : brick).push(geo);
+        // parapet / roof edge
+        const par = new THREE.ExtrudeGeometry(shape, { depth: 0.6, bevelEnabled: false }); par.rotateX(Math.PI / 2); par.translate(0, h + minY - 0.4, 0); parapets.push(par);
       }
-      if (plain.length) { const m = new THREE.Mesh(mergeGeos(plain), new THREE.MeshStandardMaterial({ map: U.srgb(windowTex), roughness: 0.7 })); m.castShadow = true; m.receiveShadow = true; this.group.add(m); }
-      if (glass.length) { const m = new THREE.Mesh(mergeGeos(glass), new THREE.MeshStandardMaterial({ map: U.srgb(glassTex), roughness: 0.25, metalness: 0.5 })); m.castShadow = true; this.group.add(m); }
-      if (roofs.length) this.group.add(new THREE.Mesh(mergeGeos(roofs, true), new THREE.MeshLambertMaterial({ vertexColors: true })));
+      const add = (geos, mat) => { if (!geos.length) return; const m = new THREE.Mesh(mergeGeos(geos), mat); m.castShadow = true; m.receiveShadow = true; this.group.add(m); };
+      add(office, new THREE.MeshStandardMaterial({ map: officeTex, roughness: 0.6, metalness: 0.1 }));
+      add(hall, new THREE.MeshStandardMaterial({ map: hallTex, roughness: 0.7 }));
+      add(brick, new THREE.MeshStandardMaterial({ map: brickTex, roughness: 0.9 }));
+      add(parapets, new THREE.MeshStandardMaterial({ color: 0x6e7177, roughness: 0.8 }));
     }
 
     buildWater() {

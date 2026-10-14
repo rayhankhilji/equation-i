@@ -5,8 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <title>Equation I</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' fill='%23e10600'/%3E%3Ctext x='32' y='44' font-family='Arial Black,Arial' font-weight='900' font-size='34' text-anchor='middle' fill='white'%3EEI%3C/text%3E%3C/svg%3E">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Titillium+Web:ital,wght@0,600;0,700;0,900;1,700;1,900&display=swap">
+<link rel="stylesheet" href="assets/fonts/fonts.css">
 <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
@@ -74,6 +73,13 @@
               <option value="front">Players at the front</option>
               <option value="back">Players at the back</option>
               <option value="random">Random</option>
+            </select>
+          </label>
+          <label>Graphics
+            <select id="opt-quality">
+              <option value="low">Low (fastest)</option>
+              <option value="medium" selected>Medium</option>
+              <option value="high">High (bloom + FXAA)</option>
             </select>
           </label>
           <label>Assists
@@ -169,6 +175,7 @@
 <script src="js/track.js"></script>
 <script src="js/scenery.js"></script>
 <script src="js/particles.js"></script>
+<script src="js/carmodel.js"></script>
 <script src="js/car.js"></script>
 <script src="js/ai.js"></script>
 <script src="js/audio.js"></script>

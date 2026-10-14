@@ -1,0 +1,6 @@
+/* Titillium Web (SIL Open Font License 1.1) - vendored so the HUD never falls back */
+@font-face { font-family: "Titillium Web"; font-weight: 600; font-style: normal; src: url(TitilliumWeb-600.ttf) format("truetype"); }
+@font-face { font-family: "Titillium Web"; font-weight: 700; font-style: normal; src: url(TitilliumWeb-700.ttf) format("truetype"); }
+@font-face { font-family: "Titillium Web"; font-weight: 900; font-style: normal; src: url(TitilliumWeb-900.ttf) format("truetype"); }
+@font-face { font-family: "Titillium Web"; font-weight: 700; font-style: italic; src: url(TitilliumWeb-i700.ttf) format("truetype"); }
+@font-face { font-family: "Titillium Web"; font-weight: 900; font-style: italic; src: url(TitilliumWeb-i700.ttf) format("truetype"); }

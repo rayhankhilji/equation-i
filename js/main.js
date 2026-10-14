@@ -46,8 +46,16 @@ window.EI = window.EI || {};
     cameras = [new THREE.PerspectiveCamera(60, 1, 0.3, 6000)]; onResize(); requestAnimationFrame(loop);
   }
   let this_sunDir = null;
+  let quality = 'medium';
   function renderView(cam, usePost) {
-    if (usePost && composer) { composer.passes[0].camera = cam; composer.render(); } else renderer.render(scene, cam);
+    if (usePost && composer && quality === 'high') { composer.passes[0].camera = cam; composer.render(); } else renderer.render(scene, cam);
+  }
+  function setQuality(q) {
+    quality = q; const pr = q === 'low' ? 1 : Math.min(window.devicePixelRatio || 1, q === 'high' ? 1.5 : 1.25); renderer.setPixelRatio(pr);
+    const sm = q === 'low' ? 1024 : 2048; if (sun.shadow.mapSize.x !== sm) { sun.shadow.mapSize.set(sm, sm); if (sun.shadow.map) { sun.shadow.map.dispose(); sun.shadow.map = null; } }
+    renderer.shadowMap.type = q === 'low' ? THREE.PCFShadowMap : THREE.PCFSoftShadowMap;
+    if (scenery && scenery.group) scenery.group.traverse(o => { if (o.name === 'trees' || o.name === 'crowd') o.castShadow = q === 'high'; });
+    onResize();
   }
 
   // ------------------------------------------------------------------ menu
@@ -60,7 +68,7 @@ window.EI = window.EI || {};
       const maxBots = 20 - (+$('opt-players').value); $('opt-bots').max = maxBots; if (+$('opt-bots').value > maxBots) $('opt-bots').value = maxBots; $('out-bots').textContent = $('opt-bots').value;
     };
     ['p1-team', 'p2-team', 'p1-name', 'p2-name', 'opt-laps', 'opt-bots', 'opt-players'].forEach(id => $(id).addEventListener('input', refresh)); refresh();
-    $('btn-start').addEventListener('click', () => { EI.Audio.resume(); startRace(readConfig()); });
+    $('btn-start').addEventListener('click', () => { EI.Audio.resume(); setQuality($('opt-quality').value); startRace(readConfig()); });
     $('btn-resume').addEventListener('click', () => setPaused(false));
     $('btn-restart').addEventListener('click', () => { setPaused(false); startRace(race.cfg); });
     $('btn-quit').addEventListener('click', () => { setPaused(false); endRace(); });
@@ -122,10 +130,10 @@ window.EI = window.EI || {};
     if (mode === 'cockpit') {
       // driver's eye: behind the halo, looking down the nose
       const g = car.gradeNow || 0; const bob = Math.sin(performance.now() * 0.03) * v * 0.0006;
-      tmp.set(car.x + fx * 0.05, car.y + 0.9 + bob, car.z + fz * 0.05); cam.position.copy(tmp);
-      tmp2.set(car.x + fx * 30, car.y + 0.55 + g * 30 + bob, car.z + fz * 30);
+      tmp.set(car.x + fx * 0.45, car.y + 0.9 + bob, car.z + fz * 0.45); cam.position.copy(tmp);
+      tmp2.set(car.x + fx * 30, car.y + 0.8 + g * 30 + bob, car.z + fz * 30);
       if (shake > 0) { tmp2.x += (Math.random() - 0.5) * shake * 0.6; tmp2.y += (Math.random() - 0.5) * shake * 0.3; }
-      cam.lookAt(tmp2); cam.fov = 78 + v * 0.05; cam.updateProjectionMatrix(); return;
+      cam.lookAt(tmp2); cam.fov = 68 + v * 0.05; cam.updateProjectionMatrix(); return;
     }
     if (mode === 'tv') {
       // trackside: a fixed pod ahead of the car that pans with it, re-anchored every ~120 m
@@ -207,6 +215,6 @@ window.EI = window.EI || {};
     }
     for (const car of race.players) if (car.wallHit > 0.5 && shake < 0.2) { shake = car.wallHit * 0.5; EI.Audio.thud(car.wallHit); car.wallHit = 0.3; }
   }
-  EI.debug = { snapCameras: () => race && race.players.forEach((car, k) => placeCamera(cameras[k], car, k, true, 0)), setCam: (k, m) => { camModes[k] = m; }, get race() { return race; }, get track() { return track; }, get scenery() { return scenery; }, get scene() { return scene; }, get cameras() { return cameras; }, renderer: () => renderer, startRace, endRace };
+  EI.debug = { setQuality, snapCameras: () => race && race.players.forEach((car, k) => placeCamera(cameras[k], car, k, true, 0)), setCam: (k, m) => { camModes[k] = m; }, get race() { return race; }, get track() { return track; }, get scenery() { return scenery; }, get scene() { return scene; }, get cameras() { return cameras; }, renderer: () => renderer, startRace, endRace };
   window.addEventListener('DOMContentLoaded', () => { setTimeout(init, 30); });
 })();
