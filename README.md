@@ -1,0 +1,96 @@
+# Equation I (EI)
+
+A lightweight browser Grand Prix game: one or two players, up to 19 bots, on a faithful
+Silverstone built from real survey geometry. No build step, no dependencies to install.
+
+![EI](https://img.shields.io/badge/engine-three.js%20r128-blue) ![no build](https://img.shields.io/badge/build-none-brightgreen)
+
+## Play
+
+```bash
+# any static server works; for example
+python3 -m http.server 8000
+# then open http://localhost:8000/
+```
+
+Opening `index.html` straight from disk also works in most browsers (the game uses plain scripts,
+not ES modules). Chrome, Edge, Firefox and Safari on a laptop or desktop are the target; phones get
+on-screen buttons for one player.
+
+### Controls
+
+| Action | Player 1 | Player 2 | Gamepad |
+| --- | --- | --- | --- |
+| Throttle / brake (reverse when stopped) | W / S | ↑ / ↓ | RT / LT |
+| Steer | A / D | ← / → | Left stick |
+| DRS (only in a DRS zone when armed) | Left Shift | Right Shift | A |
+| ERS boost | Left Ctrl or Space | Enter | B / X |
+| Pause | Esc or P | | |
+| Mute / restart | M / R | | |
+
+In single player either key set drives the car.
+
+## What is in the box
+
+- **Silverstone, for real.** The centreline is traced from OpenStreetMap survey data of the Grand Prix
+  circuit (5.88 km versus the official 5.891 km), resampled every 2 m. Corner names, the pit lane, the
+  grandstands, the Wing, the woods and the lakes all come from the same data and sit where they really are.
+  Corner boards, 150/100/50 braking boards, DRS boards and detection lines, a start-light gantry, grid
+  boxes, tyre walls, Armco, debris fences, gravel traps and tarmac run-off are generated around it.
+- **Race weekend rules.** Staggered 20-car grid, five red lights with a random hold, jump-start penalty
+  (+5 s), lap and sector timing, live gaps, fastest lap, a position tower, chequered flag and a full
+  classification with lapped cars.
+- **DRS and ERS.** Two DRS zones (Wellington Straight and Hangar Straight) with real detection points: you
+  must be within 1.0 s of the car ahead at the detection line, from lap 2 onwards, then press DRS inside
+  the zone. The rear-wing flap visibly opens. ERS gives a short power boost and recharges under braking.
+  Slipstream reduces drag behind another car.
+- **Bots that race.** Each bot follows a computed racing line with a braking/acceleration profile derived
+  from the car physics (an ideal lap is about 1:26, like a real pole lap). They overtake, defend the inside,
+  avoid side-by-side contact, use DRS and ERS, make small mistakes, and recover when they spin. Three skill
+  levels; team strength and tyre choice vary the pack.
+- **Cars.** Procedural single-seaters with nose, sidepods, halo, wings, mirrors, suspension arms and
+  compound-coloured tyre sidewalls. Ten teams in recognisable colour schemes, two drivers each, with
+  numbers and sponsor-style decals painted into a livery sheet.
+- **Physics tuned for fun.** Grip rises with speed (downforce), strong brakes, grass and gravel slow you
+  down, barriers scrub speed. Assists: *Full* keeps you at the grip limit so you cannot spin from steering
+  alone; *Medium* removes the steering help; *None* adds locked wheels and wheelspin.
+- **Two players** on one keyboard in split screen (side by side on landscape screens, stacked on portrait).
+
+## Custom liveries
+
+Liveries are painted procedurally in `js/teams.js`. If a file exists at
+`assets/liveries/<teamId>.png` (1024×1024) it is drawn over the painted sheet, so you can drop in your
+own decals. Layout: top view of the car in the upper half (nose on the left, left side of the car at the
+top), left side in rows 512–768, right side in rows 768–1024. Team ids: `rossa argent taurus papaya
+verdant alpenne wilhelm hayes kinetik vector`.
+
+## Adding a circuit
+
+`js/data/silverstone.js` holds the centreline as metres in a local tangent plane plus named corners,
+DRS zones, pit lane and scenery polygons. Any closed loop of points in the same format works; the track
+builder resamples it, computes curvature, walls, kerbs, gravel placement and the racing line automatically.
+
+## Project layout
+
+```
+index.html          page, menu, HUD markup
+css/style.css
+js/data/silverstone.js   circuit geometry (derived from OpenStreetMap)
+js/util.js          helpers, procedural textures
+js/teams.js         teams, drivers, livery painter
+js/track.js         resampling, lookups, racing line, 3D track and scenery
+js/car.js           car model + vehicle physics
+js/ai.js            bot drivers and speed profile
+js/race.js          race director: grid, lights, laps, DRS detection, collisions, classification
+js/hud.js           per-player HUD, minimap, tower, results
+js/audio.js         synthesized engine and cues
+js/input.js         keyboard / gamepad / touch
+js/main.js          renderer, cameras, loop, menu
+vendor/three.min.js three.js r128 (MIT)
+```
+
+## Credits
+
+Circuit geometry derived from [OpenStreetMap](https://www.openstreetmap.org/copyright) data,
+© OpenStreetMap contributors, licensed under the ODbL. three.js is MIT licensed. Team and driver
+names in the game are fictional.

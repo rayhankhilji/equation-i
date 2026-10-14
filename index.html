@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>Equation I</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' fill='%23e10600'/%3E%3Ctext x='32' y='44' font-family='Arial Black,Arial' font-weight='900' font-size='34' text-anchor='middle' fill='white'%3EEI%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<div id="app">
+  <canvas id="gl"></canvas>
+
+  <!-- Per-player viewports (HUD overlays) -->
+  <div id="viewports"></div>
+
+  <!-- Shared race overlays -->
+  <div id="tower" class="hidden"></div>
+  <div id="lights" class="hidden">
+    <div class="light-col"><span></span><span></span></div>
+    <div class="light-col"><span></span><span></span></div>
+    <div class="light-col"><span></span><span></span></div>
+    <div class="light-col"><span></span><span></span></div>
+    <div class="light-col"><span></span><span></span></div>
+  </div>
+  <div id="banner" class="hidden"></div>
+  <div id="toasts"></div>
+
+  <!-- Touch controls (shown on touch devices, single player) -->
+  <div id="touch" class="hidden">
+    <div class="tc-row"><button data-k="up">&#8593;</button></div>
+    <div class="tc-row"><button data-k="left">&#8592;</button><button data-k="down">&#8595;</button><button data-k="right">&#8594;</button></div>
+    <div class="tc-side"><button data-k="drs">DRS</button><button data-k="ers">ERS</button></div>
+  </div>
+
+  <!-- Main menu -->
+  <div id="menu" class="overlay">
+    <div class="menu-card">
+      <div class="title-row">
+        <div class="logo">EI</div>
+        <div>
+          <h1>EQUATION&nbsp;I</h1>
+          <div class="subtitle">Grand Prix racing &middot; Equation I World Championship</div>
+        </div>
+      </div>
+
+      <div class="menu-grid">
+        <section>
+          <h2>Circuit</h2>
+          <div class="track-card">
+            <canvas id="track-preview" width="260" height="260"></canvas>
+            <div class="track-info">
+              <div class="track-name">Silverstone</div>
+              <div class="track-meta">Northamptonshire, United Kingdom</div>
+              <div class="track-meta">5.881 km &middot; 18 turns &middot; 2 DRS zones &middot; clockwise</div>
+              <div class="track-meta small">Geometry traced from real survey data. More circuits coming.</div>
+            </div>
+          </div>
+          <h2>Race</h2>
+          <label>Laps <input type="range" id="opt-laps" min="1" max="15" value="3"><output id="out-laps">3</output></label>
+          <label>Bots <input type="range" id="opt-bots" min="0" max="19" value="9"><output id="out-bots">9</output></label>
+          <label>Bot skill
+            <select id="opt-diff">
+              <option value="rookie">Rookie</option>
+              <option value="pro" selected>Pro</option>
+              <option value="legend">Legend</option>
+            </select>
+          </label>
+          <label>Grid
+            <select id="opt-grid">
+              <option value="quali" selected>Qualifying order (by skill)</option>
+              <option value="front">Players at the front</option>
+              <option value="back">Players at the back</option>
+              <option value="random">Random</option>
+            </select>
+          </label>
+          <label>Assists
+            <select id="opt-assist">
+              <option value="full" selected>Full (steer help + ABS + TC)</option>
+              <option value="medium">Medium (ABS + TC)</option>
+              <option value="none">None</option>
+            </select>
+          </label>
+        </section>
+
+        <section>
+          <h2>Drivers</h2>
+          <label>Players
+            <select id="opt-players">
+              <option value="1" selected>1 player</option>
+              <option value="2">2 players (split screen)</option>
+            </select>
+          </label>
+          <div class="player-setup" id="p1-setup">
+            <div class="ps-head">Player 1 <span class="keys">W A S D &middot; Shift = DRS &middot; Ctrl = ERS</span></div>
+            <input type="text" id="p1-name" maxlength="14" value="YOU" placeholder="Name">
+            <select id="p1-team"></select>
+            <select id="p1-tyre">
+              <option value="soft">Soft tyres (grip, wears)</option>
+              <option value="medium" selected>Medium tyres</option>
+              <option value="hard">Hard tyres (durable)</option>
+            </select>
+            <canvas class="livery-preview" id="p1-preview" width="220" height="110"></canvas>
+          </div>
+          <div class="player-setup hidden" id="p2-setup">
+            <div class="ps-head">Player 2 <span class="keys">Arrow keys &middot; Right Shift = DRS &middot; Enter = ERS</span></div>
+            <input type="text" id="p2-name" maxlength="14" value="RIVAL" placeholder="Name">
+            <select id="p2-team"></select>
+            <select id="p2-tyre">
+              <option value="soft">Soft tyres (grip, wears)</option>
+              <option value="medium" selected>Medium tyres</option>
+              <option value="hard">Hard tyres (durable)</option>
+            </select>
+            <canvas class="livery-preview" id="p2-preview" width="220" height="110"></canvas>
+          </div>
+          <div class="hint">
+            <b>How to race:</b> accelerate, brake before the corner, turn in smoothly. Stay inside the white lines. DRS only opens in the two DRS zones when you are within 1&nbsp;s of the car ahead at the detection line (from lap 2). ERS gives a short power boost and recharges under braking. Hold back until the five red lights go out &mdash; a jump start costs 5 seconds.
+          </div>
+        </section>
+      </div>
+
+      <div class="menu-actions">
+        <button id="btn-start" class="primary">START RACE</button>
+        <span class="small">Esc pauses &middot; M mutes &middot; R restarts</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Pause -->
+  <div id="pause" class="overlay hidden">
+    <div class="menu-card small-card">
+      <h1>PAUSED</h1>
+      <button id="btn-resume" class="primary">RESUME</button>
+      <button id="btn-restart">RESTART RACE</button>
+      <button id="btn-quit">BACK TO MENU</button>
+    </div>
+  </div>
+
+  <!-- Results -->
+  <div id="results" class="overlay hidden">
+    <div class="menu-card results-card">
+      <h1>RACE RESULT</h1>
+      <div class="subtitle" id="results-sub"></div>
+      <table id="results-table"></table>
+      <div class="menu-actions">
+        <button id="btn-again" class="primary">RACE AGAIN</button>
+        <button id="btn-menu">MENU</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="loading" class="overlay"><div class="loader">Building Silverstone&hellip;</div></div>
+</div>
+
+<script src="vendor/three.min.js"></script>
+<script src="js/data/silverstone.js"></script>
+<script src="js/util.js"></script>
+<script src="js/teams.js"></script>
+<script src="js/track.js"></script>
+<script src="js/car.js"></script>
+<script src="js/ai.js"></script>
+<script src="js/audio.js"></script>
+<script src="js/input.js"></script>
+<script src="js/hud.js"></script>
+<script src="js/race.js"></script>
+<script src="js/main.js"></script>
+</body>
+</html>
