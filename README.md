@@ -25,6 +25,7 @@ on-screen buttons for one player.
 | Steer | A / D | ← / → | Left stick |
 | DRS (only in a DRS zone when armed) | Left Shift | Right Shift | A |
 | ERS boost | Left Ctrl or Space | Enter | B / X |
+| Camera (chase / cockpit / TV) | C | / | Y |
 | Pause | Esc or P | | |
 | Mute / restart | M / R | | |
 
@@ -33,10 +34,15 @@ In single player either key set drives the car.
 ## What is in the box
 
 - **Silverstone, for real.** The centreline is traced from OpenStreetMap survey data of the Grand Prix
-  circuit (5.88 km versus the official 5.891 km), resampled every 2 m. Corner names, the pit lane, the
-  grandstands, the Wing, the woods and the lakes all come from the same data and sit where they really are.
-  Corner boards, 150/100/50 braking boards, DRS boards and detection lines, a start-light gantry, grid
-  boxes, tyre walls, Armco, debris fences, gravel traps and tarmac run-off are generated around it.
+  circuit (5.88 km versus the official 5.891 km), resampled every 2 m, with an elevation profile over the
+  lap. Corner names, the pit lane, the grandstands, the Wing, the woods and the lakes all come from the
+  same data and sit where they really are. Around it: tiered grandstands with a 50,000-person instanced
+  crowd, a rolling patchwork of fields with hedgerows, corner boards, 150/100/50 braking boards, DRS boards
+  and detection lines, sponsor walls, painted run-off decals, a start-light gantry, grid boxes, tyre walls,
+  Armco, debris fences, gravel traps, green-painted strips and tarmac run-off.
+- **Three cameras.** Chase, cockpit (behind the halo, helmet hidden) and a trackside TV pod. Name tags float
+  over nearby cars.
+- **Sectors.** Three timing sectors with purple / green / yellow flags, plus a live delta to your best lap.
 - **Race weekend rules.** Staggered 20-car grid, five red lights with a random hold, jump-start penalty
   (+5 s), lap and sector timing, live gaps, fastest lap, a position tower, chequered flag and a full
   classification with lapped cars.
@@ -48,9 +54,11 @@ In single player either key set drives the car.
   from the car physics (an ideal lap is about 1:26, like a real pole lap). They overtake, defend the inside,
   avoid side-by-side contact, use DRS and ERS, make small mistakes, and recover when they spin. Three skill
   levels; team strength and tyre choice vary the pack.
-- **Cars.** Procedural single-seaters with nose, sidepods, halo, wings, mirrors, suspension arms and
-  compound-coloured tyre sidewalls. Ten teams in recognisable colour schemes, two drivers each, with
-  numbers and sponsor-style decals painted into a livery sheet.
+- **Cars.** Procedural single-seaters built from rounded, reflective bodywork: nose, sidepods with undercut,
+  engine cover and shark fin, halo, multi-element wings, mirrors, suspension arms, spoked rims and branded
+  tyres with compound-coloured sidewalls. Ten teams in recognisable colour schemes, two drivers each, with
+  numbers, driver codes and sponsor-style decals painted into a livery sheet. A contact shadow sits under
+  every car.
 - **Physics tuned for fun.** Grip rises with speed (downforce), strong brakes, grass and gravel slow you
   down, barriers scrub speed. Assists: *Full* keeps you at the grip limit so you cannot spin from steering
   alone; *Medium* removes the steering help; *None* adds locked wheels and wheelspin.
@@ -78,7 +86,8 @@ css/style.css
 js/data/silverstone.js   circuit geometry (derived from OpenStreetMap)
 js/util.js          helpers, procedural textures
 js/teams.js         teams, drivers, livery painter
-js/track.js         resampling, lookups, racing line, 3D track and scenery
+js/track.js         resampling, elevation, lookups, racing line, track surface and furniture
+js/scenery.js       terrain, grandstands + crowd, buildings, trees, sky
 js/car.js           car model + vehicle physics
 js/ai.js            bot drivers and speed profile
 js/race.js          race director: grid, lights, laps, DRS detection, collisions, classification

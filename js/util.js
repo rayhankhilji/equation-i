@@ -81,3 +81,34 @@ window.EI = window.EI || {};
   U.isTouch = () => ('ontouchstart' in window) || navigator.maxTouchPoints > 0;
   EI.U = U;
 })();
+// ---- value noise (2D), used for terrain, clouds and textures
+(function () {
+  const U = EI.U;
+  const P = new Uint8Array(512); const r = U.rng(1234);
+  const perm = []; for (let i = 0; i < 256; i++) perm.push(i);
+  for (let i = 255; i > 0; i--) { const j = Math.floor(r() * (i + 1)); [perm[i], perm[j]] = [perm[j], perm[i]]; }
+  for (let i = 0; i < 512; i++) P[i] = perm[i & 255];
+  const hash = (x, y) => P[(P[x & 255] + y) & 255] / 255;
+  U.noise2 = function (x, y) {
+    const xi = Math.floor(x), yi = Math.floor(y); const xf = x - xi, yf = y - yi;
+    const u = xf * xf * (3 - 2 * xf), v = yf * yf * (3 - 2 * yf);
+    const a = hash(xi, yi), b = hash(xi + 1, yi), c = hash(xi, yi + 1), d = hash(xi + 1, yi + 1);
+    return U.lerp(U.lerp(a, b, u), U.lerp(c, d, u), v);
+  };
+  U.fbm = function (x, y, oct, lac, gain) {
+    let a = 0, amp = 0.5, f = 1, norm = 0;
+    for (let i = 0; i < (oct || 4); i++) { a += U.noise2(x * f, y * f) * amp; norm += amp; amp *= (gain || 0.5); f *= (lac || 2); }
+    return a / norm;
+  };
+  // cheap cube env map: sky above, ground below, used for car reflections
+  U.makeEnvMap = function () {
+    const faces = [];
+    const mk = (top, bottom) => {
+      const c = document.createElement('canvas'); c.width = c.height = 64; const ctx = c.getContext('2d');
+      const g = ctx.createLinearGradient(0, 0, 0, 64); g.addColorStop(0, top); g.addColorStop(1, bottom); ctx.fillStyle = g; ctx.fillRect(0, 0, 64, 64); return c;
+    };
+    const side = () => mk('#cfe0f2', '#4a5a3a');
+    faces.push(side(), side(), mk('#eef4fa', '#b9d2ec'), mk('#3a4a2e', '#2d3a24'), side(), side());
+    const tex = new THREE.CubeTexture(faces); tex.needsUpdate = true; return tex;
+  };
+})();

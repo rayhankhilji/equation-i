@@ -5,6 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <title>Equation I</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' fill='%23e10600'/%3E%3Ctext x='32' y='44' font-family='Arial Black,Arial' font-weight='900' font-size='34' text-anchor='middle' fill='white'%3EEI%3C/text%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Titillium+Web:ital,wght@0,600;0,700;0,900;1,700;1,900&display=swap">
 <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
@@ -15,7 +17,6 @@
   <div id="viewports"></div>
 
   <!-- Shared race overlays -->
-  <div id="tower" class="hidden"></div>
   <div id="lights" class="hidden">
     <div class="light-col"><span></span><span></span></div>
     <div class="light-col"><span></span><span></span></div>
@@ -53,6 +54,7 @@
               <div class="track-name">Silverstone</div>
               <div class="track-meta">Northamptonshire, United Kingdom</div>
               <div class="track-meta">5.881 km &middot; 18 turns &middot; 2 DRS zones &middot; clockwise</div>
+              <div class="track-meta">Pole lap around 1:26 &middot; 3 sectors</div>
               <div class="track-meta small">Geometry traced from real survey data. More circuits coming.</div>
             </div>
           </div>
@@ -92,7 +94,7 @@
             </select>
           </label>
           <div class="player-setup" id="p1-setup">
-            <div class="ps-head">Player 1 <span class="keys">W A S D &middot; Shift = DRS &middot; Ctrl = ERS</span></div>
+            <div class="ps-head">Player 1 <span class="keys">W A S D &middot; Shift = DRS &middot; Ctrl = ERS &middot; C = camera</span></div>
             <input type="text" id="p1-name" maxlength="14" value="YOU" placeholder="Name">
             <select id="p1-team"></select>
             <select id="p1-tyre">
@@ -103,7 +105,7 @@
             <canvas class="livery-preview" id="p1-preview" width="220" height="110"></canvas>
           </div>
           <div class="player-setup hidden" id="p2-setup">
-            <div class="ps-head">Player 2 <span class="keys">Arrow keys &middot; Right Shift = DRS &middot; Enter = ERS</span></div>
+            <div class="ps-head">Player 2 <span class="keys">Arrows &middot; R.Shift = DRS &middot; Enter = ERS &middot; / = camera</span></div>
             <input type="text" id="p2-name" maxlength="14" value="RIVAL" placeholder="Name">
             <select id="p2-team"></select>
             <select id="p2-tyre">
@@ -121,7 +123,7 @@
 
       <div class="menu-actions">
         <button id="btn-start" class="primary">START RACE</button>
-        <span class="small">Esc pauses &middot; M mutes &middot; R restarts</span>
+        <span class="small">Esc pauses &middot; M mutes &middot; R restarts &middot; C / &#47; switch camera (chase, cockpit, TV)</span>
       </div>
     </div>
   </div>
@@ -157,6 +159,7 @@
 <script src="js/util.js"></script>
 <script src="js/teams.js"></script>
 <script src="js/track.js"></script>
+<script src="js/scenery.js"></script>
 <script src="js/car.js"></script>
 <script src="js/ai.js"></script>
 <script src="js/audio.js"></script>

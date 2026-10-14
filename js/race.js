@@ -10,7 +10,7 @@ window.EI = window.EI || {};
       this.phase = 'grid'; this.time = 0; this.started = false; this.lightsOn = 0; this.phaseT = 0; this.finishedCount = 0;
       this.events = []; this.fastest = { time: -1, car: null }; this.leaderFinished = false; this.over = false; this.overT = 0;
       this.rng = U.rng(cfg.seed || (Date.now() & 0xffff));
-      this.drsEnabled = false;
+      this.drsEnabled = false; this.bestSectors = [-1, -1, -1];
       this.buildGrid();
     }
 
@@ -23,7 +23,7 @@ window.EI = window.EI || {};
       cfg.players.forEach((p, pi) => {
         const team = teams[p.teamIndex];
         const driver = team.drivers[takenDrivers.has(team.id + ':0') ? 1 : 0]; takenDrivers.add(team.id + ':' + team.drivers.indexOf(driver));
-        const car = new EI.Car({ id: id++, team, driver, name: p.name, num: driver.num, isPlayer: true, playerIndex: pi, tyre: p.tyre, assist: cfg.assist });
+        const car = new EI.Car({ id: id++, team, driver, name: p.name, num: driver.num, isPlayer: true, playerIndex: pi, tyre: p.tyre, assist: cfg.assist, envMap: cfg.envMap });
         car.input = { throttle: 0, brake: 0, steer: 0, drs: false, ers: false };
         this.cars.push(car); this.players.push(car);
       });
@@ -36,7 +36,7 @@ window.EI = window.EI || {};
       const tyreChoices = ['soft', 'medium', 'medium', 'hard'];
       for (let i = 0; i < nb; i++) {
         const e = pool[i];
-        const car = new EI.Car({ id: id++, team: e.team, driver: e.driver, tyre: tyreChoices[Math.floor(rng() * tyreChoices.length)], assist: 'full', skill: e.team.skill });
+        const car = new EI.Car({ id: id++, team: e.team, driver: e.driver, tyre: tyreChoices[Math.floor(rng() * tyreChoices.length)], assist: 'full', skill: e.team.skill, envMap: cfg.envMap });
         this.cars.push(car);
         this.ais.push(new EI.AIDriver(car, track, cfg.difficulty, rng));
       }
@@ -54,10 +54,10 @@ window.EI = window.EI || {};
       }
       order.forEach((car, pos) => {
         const g = track.gridSlot(pos);
-        car.place(g.x, g.z, g.heading);
+        car.place(g.x, g.z, g.heading, g.y);
         car.gridPos = pos + 1; car.pos = pos + 1;
         track.project(car.x, car.z, null, car.trk); car._prevS = car.trk.s; car.dist = car.trk.s;
-        car.crossedStart = false; car.marks = new Float32Array(Math.ceil((this.laps + 2) * track.length / 10) + 10).fill(-1);
+        car.crossedStart = false; car.sectorFlags = ['', '', '']; car.lastLapFlags = ['', '', '']; car.marks = new Float32Array(Math.ceil((this.laps + 2) * track.length / 10) + 10).fill(-1);
         car.lapMarks = new Float32Array(Math.ceil(track.length / 10) + 2); car.bestMarks = null;
       });
       this.order = order.slice();
@@ -133,6 +133,7 @@ window.EI = window.EI || {};
           if (crossed(z.end)) { car.drsEligible = false; car.drsOpen = false; }
         });
         if (this.started && crossed(track.sf)) this.onLapLine(car, b);
+        if (this.started && !car.finished) track.sectors.forEach((ss, si) => { if (crossed(ss)) this.onSector(car, si, b, ss); });
         // time marks every 10 m for live gaps
         if (this.started) { const mi = Math.floor(car.dist / 10); if (mi >= 0 && mi < car.marks.length && car.marks[mi] < 0) car.marks[mi] = this.time; }
         if (this.started && !car.finished) { const li = Math.floor(U.mod(car.trk.s - track.sf, track.length) / 10); if (li < car.lapMarks.length) car.lapMarks[li] = this.time - car.lapStart; }
@@ -145,6 +146,20 @@ window.EI = window.EI || {};
       if (this.over) { this.overT += dt; if (!this.classified && (this.cars.every(c => c.finished) || this.overT > 20)) { this.classified = true; this.emit('classified'); } }
     }
 
+    onSector(car, si, sNow, ss) {
+      // sector si (0 or 1) just ended at ss
+      let over = sNow - ss; if (over < 0) over += this.track.length;
+      const tCross = this.time - over / Math.max(car.v, 1);
+      if (!car.crossedStart) return;
+      const st = tCross - car.sectorStart; car.sectorStart = tCross; car.sector = si + 1;
+      this.recordSector(car, si, st);
+    }
+    recordSector(car, si, st) {
+      car.lastSectorT[si] = st;
+      const personal = car.bestSectors[si] < 0 || st < car.bestSectors[si]; if (personal) car.bestSectors[si] = st;
+      const overall = this.bestSectors[si] < 0 || st < this.bestSectors[si]; if (overall) this.bestSectors[si] = st;
+      car.sectorFlags[si] = overall ? 'purple' : personal ? 'green' : 'yellow';
+    }
     onLapLine(car, sNow) {
       const track = this.track;
       if (car.finished) return;
@@ -154,9 +169,10 @@ window.EI = window.EI || {};
       if (lapsDone <= car.lapsDone && car.crossedStart) return;
       let over = sNow - track.sf; if (over < 0) over += track.length;
       const tCross = this.time - over / Math.max(car.v, 1);
-      if (!car.crossedStart) { car.crossedStart = true; if (lapsDone === 0) return; }
+      if (!car.crossedStart) { car.crossedStart = true; car.sectorStart = tCross; car.sector = 0; car.sectorFlags = ['', '', '']; if (lapsDone === 0) return; }
       car.lapsDone = lapsDone;
       const lt = tCross - car.lapStart;
+      this.recordSector(car, 2, tCross - car.sectorStart); car.sectorStart = tCross; car.sector = 0; car.lastLapFlags = car.sectorFlags.slice(); car.sectorFlags = ['', '', ''];
       if (lt > 20) {
         car.lastLap = lt; car.laps.push(lt);
         if (car.bestLap < 0 || lt < car.bestLap) { car.bestLap = lt; car.bestMarks = car.lapMarks.slice(); }

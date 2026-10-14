@@ -24,8 +24,9 @@ window.EI = window.EI || {};
   //   left side : x 0..1024, y 512..768  (nose at left)
   //   right side: x 0..1024, y 768..1024 (nose at left)
   const CACHE = {};
-  function paintLivery(team, driverNum, playerName) {
+  function paintLivery(team, driverNum, playerName, driver) {
     const key = team.id + ':' + driverNum + ':' + (playerName || '');
+    const code = (playerName || (driver && driver.name) || team.short).replace(/^[A-Z]\. ?/, '').slice(0, 3).toUpperCase();
     if (CACHE[key]) return CACHE[key];
     const c = document.createElement('canvas'); c.width = 1024; c.height = 1024;
     const ctx = c.getContext('2d');
@@ -104,18 +105,25 @@ window.EI = window.EI || {};
       textAt(sponsors[k], 500, y0 + 60, 54, k === 0 ? A : A, 0); textAt(sponsors[2 + k], 500, y0 + 160, 40, A, 0);
       textAt(team.name.toUpperCase(), 280, y0 + 212, 26, A, 0);
       // race number on sidepod
-      textAt(String(driverNum), 700, y0 + 60, 70, team.numberColor, 0);
+      textAt(String(driverNum), 700, y0 + 60, 70, team.numberColor, 0, 'italic 900 Arial Black, Arial');
       // EI stamp on tail
       textAt('EI', 940, y0 + 100, 60, A, 0);
     }
-    // ---- top-view decals: number on nose, sponsors on sidepods/engine cover ----
-    textAt(String(driverNum), 120, 256, 120, team.numberColor, Math.PI / 2);
-    textAt(sponsors[0], 560, 90, 46, A, 0); textAt(sponsors[1], 560, 420, 46, A, 0);
-    textAt(sponsors[2], 860, 256, 40, A, Math.PI / 2);
-    textAt(playerName ? playerName.toUpperCase() : team.name.toUpperCase(), 400, 256, 44, A, 0);
+    // ---- top-view decals: number on nose, sponsors on sidepods/engine cover, driver code on the airbox ----
+    textAt(String(driverNum), 150, 256, 130, team.numberColor, Math.PI / 2, 'italic 900 Arial Black, Arial');
+    textAt(sponsors[0], 560, 80, 44, A, 0); textAt(sponsors[1], 560, 432, 44, A, 0);
+    textAt(sponsors[2], 880, 256, 36, A, Math.PI / 2); textAt(sponsors[3], 700, 256, 30, A, Math.PI / 2);
+    textAt(code, 520, 256, 60, team.numberColor, Math.PI / 2);
+    textAt('EQUATION I', 320, 256, 28, A, Math.PI / 2);
+    // front wing stripe + number plates on the wing endplates region (left/right edge of top view)
+    ctx.fillStyle = A; ctx.fillRect(0, 0, 60, 10); ctx.fillRect(0, 502, 60, 10);
+    // mirror-side driver name on the engine cover sides
+    textAt((driver ? driver.name : team.name).toUpperCase(), 300, 512 + 40, 22, A, 0); textAt((driver ? driver.name : team.name).toUpperCase(), 300, 768 + 40, 22, A, 0);
     // subtle panel lines
     ctx.strokeStyle = 'rgba(0,0,0,0.25)'; ctx.lineWidth = 3;
     for (const x of [180, 330, 640, 800]) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, 512); ctx.stroke(); }
+    // fine panel seams + subtle sheen gradient
+    const sheen = ctx.createLinearGradient(0, 0, 0, 512); sheen.addColorStop(0, 'rgba(255,255,255,0.10)'); sheen.addColorStop(0.5, 'rgba(255,255,255,0)'); sheen.addColorStop(1, 'rgba(0,0,0,0.12)'); ctx.fillStyle = sheen; ctx.fillRect(0, 0, 1024, 512);
     const tex = new THREE.CanvasTexture(c); tex.anisotropy = 8; tex.flipY = false;
     CACHE[key] = tex;
     // optional external decal sheet replaces the painted one when it exists
