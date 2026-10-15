@@ -147,7 +147,7 @@ window.EI = window.EI || {};
       // --- random small errors
       this.noiseT -= dt; if (this.noiseT <= 0) { this.noiseT = 0.6 + this.rng() * 1.5; this.noise = (this.rng() - 0.5) * 2 * this.d.noise * (1.6 - this.consistency); if (this.rng() < 0.03 * (1 - this.consistency)) this.noise *= 4; }
       // --- steering: pursue a point on the (offset) racing line
-      this.steerToLine(5 + av * 0.32);
+      this.steerToLine(5.5 + av * 0.36);
       inp.steer = U.clamp(inp.steer + this.noise * 0.5, -1, 1);
       // --- throttle / brake
       const vErr = target - av;

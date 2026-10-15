@@ -146,40 +146,41 @@ window.EI = window.EI || {};
   function surfaceShake(car) { const v = Math.abs(car.v); const base = { asphalt: 0.0012 * v, runoff: 0.002 * v, kerb: 0.035 + 0.001 * v, grass: 0.05 + 0.002 * v, gravel: 0.07 + 0.002 * v }[car.surface] || 0; return base * Math.min(1, v / 8); }
   function placeCamera(cam, car, k, snap, dt) {
     const mode = CAM_MODES[camModes[k] || 0]; const cs = camState(cam);
-    const v = Math.abs(car.v); const fx = Math.cos(car.heading), fz = Math.sin(car.heading); const lx = fz, lz = -fx;
+    const v = Math.abs(car.v); const cx = car.vx != null ? car.vx : cx, cy = car.vy != null ? car.vy : cy, cz = car.vz != null ? car.vz : cz, ch = car.vh != null ? car.vh : ch; const fx = Math.cos(ch), fz = Math.sin(ch); const lx = fz, lz = -fx;
     const introing = race && !race.started && race.phase === 'grid' && race.players.length === 1 && k === 0 && !EI.debug.freeCam && introT < 6.7;
     if (introing) { introCamera(cam, car); return; }
-    const sh = (shake + surfaceShake(car)) * (mode === 'cockpit' ? 0.6 : 1); const jx = (Math.random() - 0.5) * sh, jy = (Math.random() - 0.5) * sh * 0.6, jz = (Math.random() - 0.5) * sh;
+    const sh = (shake + surfaceShake(car)) * (mode === 'cockpit' ? 0.6 : 1); const tN = performance.now() * 0.001; const fN = car.surface === 'kerb' ? 26 : car.surface === 'grass' || car.surface === 'gravel' ? 9 : 2.5;
+    const jx = sh * (0.6 * Math.sin(tN * fN * 6.283) + 0.4 * Math.sin(tN * fN * 12.1 + 1.3)) * 0.5, jy = sh * (0.6 * Math.sin(tN * fN * 6.283 + 2.1) + 0.4 * Math.sin(tN * fN * 11.3 + 0.4)) * 0.3, jz = sh * (0.5 * Math.sin(tN * fN * 6.283 + 4.0) + 0.5 * Math.sin(tN * fN * 13.7 + 2.2)) * 0.5;
     if (mode === 'cockpit') {
       const glb = EI.CarGLB && EI.CarGLB.ready; const eyeX = EI.debug.eye ? EI.debug.eye.x : (glb ? 0.3 : 0.45), eyeY = EI.debug.eye ? EI.debug.eye.y : (glb ? 0.82 : 0.9);
-      const kSway = 1 - Math.exp(-dt * 9);
-      cs.sway += (U.clamp(car.aLat * 0.0028, -0.06, 0.06) - cs.sway) * kSway;            // head pushed outwards in the corner
+      const kSway = 1 - Math.exp(-dt * 6);
+      cs.sway += (U.clamp(car.aLat * 0.0022, -0.05, 0.05) - cs.sway) * kSway;            // head pushed outwards in the corner
       cs.dip += (U.clamp(-car.aLong * 0.0012, -0.03, 0.045) - cs.dip) * kSway;            // forward under braking, back under power
-      const vib = (0.0015 + car.rpm * 0.003) * (car.throttle > 0.3 ? 1 : 0.5);              // engine vibration
+      const vibA = (0.0006 + car.rpm * 0.0014) * (car.throttle > 0.3 ? 1 : 0.5); const vib = vibA * Math.sin(tN * 2 * Math.PI * (18 + car.rpm * 9));   // engine vibration, smooth
       const g = car.gradeNow || 0;
-      _tgt.set(car.x + fx * (eyeX + cs.dip) + lx * cs.sway, car.y + eyeY - Math.abs(cs.dip) * 0.3 + (Math.random() - 0.5) * vib, car.z + fz * (eyeX + cs.dip) + lz * cs.sway);
+      _tgt.set(cx + fx * (eyeX + cs.dip) + lx * cs.sway, cy + eyeY - Math.abs(cs.dip) * 0.3 + vib, cz + fz * (eyeX + cs.dip) + lz * cs.sway);
       cam.position.copy(_tgt);
-      const apex = car.steer * 0.1 + car.yaw * 0.05;                                        // look towards the apex
-      _look.set(car.x + fx * 30 + lx * (apex * 30 + jx * 8), car.y + eyeY - 0.1 + g * 30 + jy * 8, car.z + fz * 30 + lz * (apex * 30 + jz * 8));
+      const apexT = car.steer * 0.09 + car.yaw * 0.04; cs.apex = (cs.apex || 0) + (apexT - (cs.apex || 0)) * (1 - Math.exp(-dt * 5)); const apex = cs.apex;                                        // look towards the apex
+      _look.set(cx + fx * 30 + lx * (apex * 30 + jx * 8), cy + eyeY - 0.1 + g * 30 + jy * 8, cz + fz * 30 + lz * (apex * 30 + jz * 8));
       cam.up.set(0, 1, 0); cam.lookAt(_look);
       cs.roll += (U.clamp(-car.aLat * 0.0012, -0.03, 0.03) - cs.roll) * kSway; cam.rotateZ(cs.roll);
       cs.fov += ((64 + v * 0.05 + (car.drsOpen ? 1.5 : 0)) - cs.fov) * Math.min(1, dt * 4); cam.fov = cs.fov; cam.updateProjectionMatrix(); return;
     }
     if (mode === 'tv') {
       const t = track; const seg = Math.floor(car.trk.s / 120); if (cam.userData.seg !== seg) { cam.userData.seg = seg; const i = t.idxAtS(seg * 120 + 80); const side = t.lineOff[i] > 0 ? -1 : 1; cam.userData.pos = new THREE.Vector3(t.x[i] + t.nx[i] * side * (t.halfWidth + 6), t.y[i] + 5, t.z[i] + t.nz[i] * side * (t.halfWidth + 6)); }
-      cam.position.copy(cam.userData.pos); _look.set(car.x, car.y + 0.6, car.z); cam.up.set(0, 1, 0); cam.lookAt(_look);
+      cam.position.copy(cam.userData.pos); _look.set(cx, cy + 0.6, cz); cam.up.set(0, 1, 0); cam.lookAt(_look);
       const d = cam.position.distanceTo(_look); cam.fov = U.clamp(1800 / d, 18, 60); cam.updateProjectionMatrix(); return;
     }
     // ---- chase
-    if (cs.yaw == null || snap) cs.yaw = car.heading;
-    const kYaw = 1 - Math.exp(-dt * (v > 5 ? 5.5 : 9)); cs.yaw += U.wrapAngle(car.heading - cs.yaw) * kYaw;   // the camera swings round behind the car with a lag
+    if (cs.yaw == null || snap) cs.yaw = ch;
+    const kYaw = 1 - Math.exp(-dt * (v > 5 ? 5.5 : 9)); cs.yaw += U.wrapAngle(ch - cs.yaw) * kYaw;   // the camera swings round behind the car with a lag
     const cfx = Math.cos(cs.yaw), cfz = Math.sin(cs.yaw), clx = cfz, clz = -cfx;
     const dist = 6.9 + v * 0.032, height = 2.25 + v * 0.009;
     cs.lat += (U.clamp(car.yaw * 1.4, -1.2, 1.2) - cs.lat) * (1 - Math.exp(-dt * 3));                   // drift towards the inside of the turn
-    _tgt.set(car.x - cfx * dist - clx * cs.lat * 0.6, car.y + height, car.z - cfz * dist - clz * cs.lat * 0.6);
+    _tgt.set(cx - cfx * dist - clx * cs.lat * 0.6, cy + height, cz - cfz * dist - clz * cs.lat * 0.6);
     if (snap) cam.position.copy(_tgt); else cam.position.lerp(_tgt, 1 - Math.exp(-dt * 10));
     const minY = track.y[car.trk.i] + 1.0; if (cam.position.y < minY) cam.position.y = minY;
-    _look.set(car.x + fx * 6.5 + lx * (cs.lat * 2.2 + jx * 4), car.y + 0.85 + jy * 4, car.z + fz * 6.5 + lz * (cs.lat * 2.2 + jz * 4));
+    _look.set(cx + fx * 6.5 + lx * (cs.lat * 2.2 + jx * 4), cy + 0.85 + jy * 4, cz + fz * 6.5 + lz * (cs.lat * 2.2 + jz * 4));
     cam.up.set(0, 1, 0); cam.lookAt(_look);
     cs.roll += (U.clamp(-car.aLat * 0.0016, -0.045, 0.045) - cs.roll) * (1 - Math.exp(-dt * 6)); cam.rotateZ(cs.roll);
     const fovT = 56 + v * 0.17 + (car.ersActive ? 2 : 0) + (car.drsOpen ? 1.5 : 0); cs.fov += (fovT - cs.fov) * Math.min(1, dt * 3); cam.fov = cs.fov; cam.updateProjectionMatrix();
@@ -242,7 +243,8 @@ window.EI = window.EI || {};
     const single = race.players.length === 1; const inputs = race.players.map((c, k) => EI.Input.read(k, single));
     // gamepad camera button
     race.players.forEach((c, k) => { const pads = navigator.getGamepads ? navigator.getGamepads() : []; const gp = pads && pads[k]; if (gp && gp.buttons[3] && gp.buttons[3].pressed && !c._camBtn) cycleCam(k); c._camBtn = !!(gp && gp.buttons[3] && gp.buttons[3].pressed); });
-    acc += dt; let steps = 0; while (acc >= DT && steps < 6) { race.update(DT, inputs); acc -= DT; steps++; } if (steps === 6) acc = 0;
+    acc += dt; let steps = 0; while (acc >= DT && steps < 6) { for (const c of race.cars) c.savePose(); race.update(DT, inputs); acc -= DT; steps++; } if (steps === 6) acc = 0;
+    const alpha = U.clamp(acc / DT, 0, 1); for (const c of race.cars) c.blend(alpha);
     const wasIntro = introT < 6.7; introT += dt; if (wasIntro && introT >= 6.7 && race.players.length === 1) { placeCamera(cameras[0], race.players[0], 0, true, 0); shake = 0.25; }
     if (!race.started && race.phase === 'grid' && introT >= introLen) { race.startLights(); $('lights').classList.remove('hidden'); EI.HUD.setLights(0); race.players.forEach((car, k) => placeCamera(cameras[k], car, k, true, 0)); }
     handleEvents(); for (const c of race.cars) { c.updateVisual(dt); if (dt > 0) particles.fromCar(c, dt); } particles.update(dt); shake = Math.max(0, shake - dt * 3); hudT += dt;

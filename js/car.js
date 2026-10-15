@@ -141,7 +141,7 @@ window.EI = window.EI || {};
       this._fwd = new THREE.Vector3(); this._up = new THREE.Vector3(); this._right = new THREE.Vector3(); this._m = new THREE.Matrix4();
     }
 
-    place(x, z, heading, y) { this.x = x; this.z = z; this.y = y || 0; this.heading = heading; this.v = 0; this.vLat = 0; this.steer = 0; this.yaw = 0; this.trk.i = -1; this.updateVisual(0); }
+    place(x, z, heading, y) { this.x = x; this.z = z; this.y = y || 0; this.heading = heading; this.v = 0; this.vLat = 0; this.steer = 0; this.yaw = 0; this.trk.i = -1; this._px = null; this.vx = null; this.updateVisual(0); }
     get speedKmh() { return Math.abs(this.v) * 3.6; }
 
     // ------------------------------------------------------------------ physics
@@ -156,12 +156,18 @@ window.EI = window.EI || {};
       this.offTrack = this.surface === 'grass' || this.surface === 'gravel' ? this.offTrack + dt : 0;
       const mu = this.tyre.grip * surfGrip * (1 - 0.3 * Math.min(1, this.wear));
       const v = this.v, av = Math.abs(v);
-      this.throttle = U.clamp(inp.throttle, 0, 1); this.brake = U.clamp(inp.brake, 0, 1);
+      // pedals: a short first-order lag so digital keys ramp like a foot on a pedal (brake quicker than throttle)
+      const thrT = U.clamp(inp.throttle, 0, 1), brkT = U.clamp(inp.brake, 0, 1);
+      this.throttle += (thrT - this.throttle) * (1 - Math.exp(-dt / (thrT > this.throttle ? 0.14 : 0.08)));
+      this.brake += (brkT - this.brake) * (1 - Math.exp(-dt / (brkT > this.brake ? 0.07 : 0.1)));
+      if (Math.abs(this.throttle - thrT) < 0.004) this.throttle = thrT; if (Math.abs(this.brake - brkT) < 0.004) this.brake = brkT;
       if (this.finished && !this.isPlayer) this.throttle = Math.min(this.throttle, 0.6);
-      let aEng = 0;
+      let aEng = 0; this.shiftCut = Math.max(0, (this.shiftCut || 0) - dt);
       if (this.throttle > 0 && v >= -0.5) { const tract = (this.assist.tc ? 14 : 16) * Math.min(1, mu * 1.3); aEng = this.throttle * Math.min(tract, PM / Math.max(av, 6)); if (!this.assist.tc && this.throttle > 0.9 && av < 30 && this.surface !== 'asphalt') aEng *= 0.5; }
       this.ersActive = !!inp.ers && this.ers > 0.02 && this.throttle > 0.5 && v > 5;
       if (this.ersActive) { aEng += 4.5; this.ers = Math.max(0, this.ers - 0.22 * dt); } else this.ers = Math.min(1, this.ers + (0.012 + this.brake * 0.14) * dt);
+      if (this.shiftCut > 0) aEng *= 0.15;                                        // ignition cut during an upshift
+      if (this.throttle < 0.05 && v > 3) aEng -= 1.2 + 0.02 * av;                 // engine braking off throttle
       this.inDrsZone = -1; track.drs.forEach((z, zi) => { if (pr.s >= z.start && pr.s <= z.end) this.inDrsZone = zi; });
       this.drsOpen = !!inp.drs && this.inDrsZone >= 0 && this.drsEligible && this.drsZone === this.inDrsZone && this.brake < 0.1 && v > 25;
       const dragMul = (this.drsOpen ? 0.74 : 1) * (1 - 0.3 * this.slipstream);
@@ -176,8 +182,12 @@ window.EI = window.EI || {};
       if (inp.reverse || (this.isPlayer && this.brakeHold > 0.5)) nv = Math.max(-6, nv - 4 * dt);
       if (v > 0 && nv < 0 && this.brake > 0) nv = 0;
       this.v = nv;
-      const steerTarget = U.clamp(inp.steer, -1, 1); const rate = 7 + av * 0.04;
-      this.steer += U.clamp(steerTarget - this.steer, -rate * dt, rate * dt);
+      // steering: smooth approach to the target with a speed-sensitive rate limit (slow hands at speed, quick return to centre)
+      const steerTarget = U.clamp(inp.steer, -1, 1); const returning = Math.abs(steerTarget) < Math.abs(this.steer) || Math.sign(steerTarget) !== Math.sign(this.steer);
+      // bots steer through the controller, not a hand on a wheel: a much lighter filter keeps their line-following precise
+      const ai = !this.isPlayer; const rate = (ai ? 4 : 1) * (returning ? 2.0 : 1.0) * (1.6 + 14 / (1 + av / 12));
+      const want = this.steer + (steerTarget - this.steer) * (1 - Math.exp(-dt * (ai ? 30 : 9)));
+      this.steer += U.clamp(want - this.steer, -rate * dt, rate * dt);
       let aLatMax = mu * Math.min(GRIP.cap, GRIP.a0 + GRIP.a1 * v * v);
       if (!this.assist.abs && this.brake > 0.92 && av > 8) aLatMax *= 0.45;
       const dMax = 0.42 / (1 + av / 18); const delta = this.steer * dMax; let omega;
@@ -187,7 +197,9 @@ window.EI = window.EI || {};
         if (Math.abs(this.aLat) > aLatMax && av > 1) { const over = Math.abs(this.aLat) - aLatMax; omega = U.sign(omega) * (aLatMax / av) * 0.92; this.v -= Math.min(over * 0.12, 8) * dt * U.sign(v); this.vLat -= U.sign(this.aLat) * over * 0.35 * dt; this.aLat = v * omega; }
       }
       if (surfGrip < 0.6 && av > 5) this.vLat -= U.sign(this.aLat) * Math.abs(this.aLat) * 0.15 * dt;
-      this.yaw = omega; this.heading = U.wrapAngle(this.heading - omega * dt); this.vLat *= Math.exp(-dt * (surfGrip < 0.6 ? 2.5 : 7));
+      const tauYaw = (this.isPlayer ? 0.05 + 0.06 * Math.min(1, av / 60) : 0.03);                         // tyres take a moment to build slip angle
+      this.yaw += (omega - this.yaw) * (1 - Math.exp(-dt / tauYaw)); this.aLat = v * this.yaw;
+      this.heading = U.wrapAngle(this.heading - this.yaw * dt); this.vLat *= Math.exp(-dt * (surfGrip < 0.6 ? 2.5 : 7));
       const fx = Math.cos(this.heading), fz = Math.sin(this.heading); const lx = fz, lz = -fx;
       this.x += (fx * this.v + lx * this.vLat) * dt; this.z += (fz * this.v + lz * this.vLat) * dt;
       const p2 = track.project(this.x, this.z, this.trk.i, this.trk); const wl = track.wallL[p2.i] - 1.0, wr = track.wallR[p2.i] - 1.0;
@@ -204,18 +216,27 @@ window.EI = window.EI || {};
       const stress = Math.min(1.5, Math.abs(this.aLat) / 40 + Math.abs(this.aLong) / 60); this.wear += this.tyre.wear * 0.01 * (0.4 + stress) * dt;
       let g = 0; while (g < GEARS.length - 1 && av > GEARS[g]) g++;
       const lo = g === 0 ? 0 : GEARS[g - 1], hi = GEARS[g]; this.gear = av < 0.5 && this.throttle === 0 ? 0 : g + 1;
+      if (this.gear > (this._prevGear || 0) && this.gear > 1 && this.throttle > 0.5) this.shiftCut = 0.055; this._prevGear = this.gear;
       const frac = U.clamp((av - lo) / (hi - lo), 0, 1); const target = av < 0.5 ? 0.12 + this.throttle * 0.5 : 0.38 + 0.62 * frac;
       this.rpm += (target - this.rpm) * Math.min(1, dt * 18);
     }
 
+    // called before each physics step so the renderer can interpolate between the previous and current pose
+    savePose() { this._px = this.x; this._py = this.y; this._pz = this.z; this._ph = this.heading; }
+    blend(alpha) {
+      if (this._px == null) { this.vx = this.x; this.vy = this.y; this.vz = this.z; this.vh = this.heading; return; }
+      this.vx = U.lerp(this._px, this.x, alpha); this.vy = U.lerp(this._py, this.y, alpha); this.vz = U.lerp(this._pz, this.z, alpha);
+      this.vh = this._ph + U.wrapAngle(this.heading - this._ph) * alpha;
+    }
     updateVisual(dt) {
-      const g = this.group; g.position.set(this.x, this.y, this.z);
+      if (this.vx == null) this.blend(1);
+      const g = this.group; g.position.set(this.vx, this.vy, this.vz);
       // orientation: forward pitched by the track grade, yaw from heading
-      const fx = Math.cos(this.heading), fz = Math.sin(this.heading); const gr = this.gradeNow || 0;
+      const fx = Math.cos(this.vh), fz = Math.sin(this.vh); const gr = this.gradeNow || 0;
       this._fwd.set(fx, gr, fz).normalize(); this._up.set(0, 1, 0); this._right.crossVectors(this._fwd, this._up).normalize(); this._up.crossVectors(this._right, this._fwd).normalize();
       this._m.makeBasis(this._fwd, this._up, this._right); g.quaternion.setFromRotationMatrix(this._m);
-      const roll = U.clamp(-this.aLat * 0.0022, -0.06, 0.06), pitch = U.clamp(-this.aLong * 0.0018, -0.05, 0.05);
-      this.body.rotation.x += (roll - this.body.rotation.x) * Math.min(1, dt * 10); this.body.rotation.z += (pitch - this.body.rotation.z) * Math.min(1, dt * 10);
+      const roll = U.clamp(-this.aLat * 0.0026, -0.07, 0.07), pitch = U.clamp(-this.aLong * 0.0016 - this.brake * 0.012, -0.05, 0.05);
+      const kB = 1 - Math.exp(-dt / 0.14); this.body.rotation.x += (roll - this.body.rotation.x) * kB; this.body.rotation.z += (pitch - this.body.rotation.z) * kB;
       // suspension heave: kerb rattle, grass/gravel judder, a little squat under acceleration
       const av2 = Math.abs(this.v); this._t = (this._t || 0) + dt;
       const heaveAmp = this.surface === 'kerb' ? 0.012 : (this.surface === 'grass' ? 0.009 : this.surface === 'gravel' ? 0.014 : 0) * Math.min(1, av2 / 20);
