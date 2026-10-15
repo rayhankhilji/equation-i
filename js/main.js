@@ -232,7 +232,7 @@ window.EI = window.EI || {};
   // ------------------------------------------------------------------ main loop
   function loop(now) {
     requestAnimationFrame(loop);
-    let dt = Math.min(0.05, (now - lastT) / 1000); lastT = now;
+    now = performance.now(); let dt = U.clamp((now - lastT) / 1000, 0, 0.05); lastT = now;   // never negative: a rAF timestamp can precede a lastT stamped in an input handler
     if (!race) {
       menuCamera(now / 1000); scenery.update(dt, cameras[0].position.x, cameras[0].position.z);
       renderer.setScissorTest(false); renderer.setViewport(0, 0, renderer.domElement.width, renderer.domElement.height);
@@ -282,6 +282,6 @@ window.EI = window.EI || {};
     for (const car of race.players) { if (car.wallHit > 0.5 && shake < 0.2) { shake = car.wallHit * 0.5; EI.Audio.thud(car.wallHit); car.wallHit = 0.3; }
       if (car._lastThr > 0.8 && car.throttle < 0.2 && car.rpm > 0.7 && Math.random() < 0.6) EI.Audio.pop(); car._lastThr = car.throttle; }
   }
-  EI.debug = { get introT() { return introT; }, set introT(v) { introT = v; }, get viewports() { return viewports; }, setQuality, snapCameras: () => race && race.players.forEach((car, k) => placeCamera(cameras[k], car, k, true, 0)), setCam: (k, m) => { camModes[k] = m; }, get race() { return race; }, get track() { return track; }, get scenery() { return scenery; }, get scene() { return scene; }, get cameras() { return cameras; }, renderer: () => renderer, startRace, endRace };
+  EI.debug = { get shake() { return shake; }, set shake(v) { shake = v; }, get introT() { return introT; }, set introT(v) { introT = v; }, get viewports() { return viewports; }, setQuality, snapCameras: () => race && race.players.forEach((car, k) => placeCamera(cameras[k], car, k, true, 0)), setCam: (k, m) => { camModes[k] = m; }, get race() { return race; }, get track() { return track; }, get scenery() { return scenery; }, get scene() { return scene; }, get cameras() { return cameras; }, renderer: () => renderer, startRace, endRace };
   window.addEventListener('DOMContentLoaded', () => { setTimeout(init, 30); });
 })();

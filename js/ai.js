@@ -60,7 +60,7 @@ window.EI = window.EI || {};
       this.aggression = U.clamp(this.d.aggression + gauss() * 0.22, 0.05, 1);  // how eagerly they attack and defend
       this.consistency = U.clamp(0.75 + gauss() * 0.15 + (this.d.speed - 0.85), 0.3, 1); // lap-to-lap scatter and mistake rate
       this.braker = U.clamp(1 + gauss() * 0.04, 0.9, 1.1);                   // late (<1) vs early (>1) braker
-      this.lineBias = gauss() * 0.6;                                         // prefers running a little inside (-) or outside (+)
+      this.lineBias = gauss() * 0.35;                                         // prefers running a little inside (-) or outside (+)
       this.defender = rng() < 0.35 + this.aggression * 0.4;                  // moves to the inside under threat
       this.ersStyle = rng() < 0.5 ? 'attack' : 'defend';
       const rr = this.d.reaction || [0.15, 0.6]; this.reaction = rr[0] + rng() * (rr[1] - rr[0]);
@@ -94,6 +94,13 @@ window.EI = window.EI || {};
       target *= (this.speedFactor + this.lapForm) / (this.d.brakeMargin * this.braker) * (1 - Math.abs(this.offset) / t.halfWidth * 0.18);
       if (car.tyre.grip < 1) target *= car.tyre.grip; if (car.wear > 0) target *= (1 - 0.2 * Math.min(1, car.wear));
       if (this.d.frontier) target *= 1.0 + 0.012 * Math.min(1, car.ers); // frontier bots exploit every bit of grip
+      // --- mistakes: late braking into a heavy stop (runs wide), more likely for weaker, less consistent drivers under pressure.
+      // Applied before the traffic logic so the follow-distance cap below still stops them rear-ending the car ahead.
+      this.mistakeT = Math.max(0, (this.mistakeT || 0) - dt);
+      const braking = target < av - 12;
+      if (braking && !this.wasBraking) { const pressure = this.underPressure ? 1.5 : 1; if (this.rng() < 0.012 * (1.1 - this.d.speed) * 10 * (1.6 - this.consistency) * pressure) this.mistakeT = 1.6 + this.rng(); }
+      this.wasBraking = braking;
+      if (this.mistakeT > 0) target *= 1.06;
       // --- traffic: find car directly ahead and cars alongside
       let ahead = null, aheadGap = 1e9, alongside = 0, behindClose = false;
       for (const o of cars) {
@@ -123,6 +130,7 @@ window.EI = window.EI || {};
         }
         if (overlap && aheadGap < 7) target = Math.min(target, ahead.v - 1);
       }
+      this.underPressure = behindClose;
       if (alongside !== 0) {
         // car on the left (dl > 0 => alongside positive): move right
         const room = t.halfWidth - 1.0;
@@ -130,10 +138,10 @@ window.EI = window.EI || {};
         target = Math.min(target, Math.max(av, 20));
       }
       // defend the inside line when a faster car is close behind on a straight
-      if (!ahead && behindClose && this.defender && Math.abs(t.lineK[i]) < 1 / 300) {
-        const kAhead = t.smoothK ? 0 : 0;
-        wantOffset = -U.sign(t.lineK[(i + 150) % n] || 1) * 2.5 - t.lineOff[i];
-      }
+      const onStraight = Math.abs(t.lineK[i]) < 1 / 300;
+      if (!onStraight) this.defendedThisStraight = false;
+      if (!ahead && behindClose && this.defender && onStraight && alongside === 0 && !this.defendedThisStraight) { this.defendedThisStraight = true; this.defendOffset = -U.sign(t.lineK[(i + 150) % n] || 1) * 2.2 - t.lineOff[i]; }
+      if (this.defendedThisStraight && onStraight && alongside === 0) wantOffset = this.defendOffset;
       this.offsetTarget = wantOffset;
       this.offset += U.clamp(this.offsetTarget - this.offset, -3.5 * dt, 3.5 * dt);
       // --- random small errors
@@ -141,12 +149,6 @@ window.EI = window.EI || {};
       // --- steering: pursue a point on the (offset) racing line
       this.steerToLine(5 + av * 0.32);
       inp.steer = U.clamp(inp.steer + this.noise * 0.5, -1, 1);
-      // --- mistakes: late braking into a heavy stop (runs wide), more likely for weaker, less consistent drivers under pressure
-      this.mistakeT = Math.max(0, (this.mistakeT || 0) - dt);
-      const braking = target < av - 12;
-      if (braking && !this.wasBraking) { const pressure = behindClose ? 1.5 : 1; if (this.rng() < 0.012 * (1.1 - this.d.speed) * 10 * (1.6 - this.consistency) * pressure) this.mistakeT = 1.6 + this.rng(); }
-      this.wasBraking = braking;
-      if (this.mistakeT > 0) target *= 1.06;
       // --- throttle / brake
       const vErr = target - av;
       if (vErr > 0.8) { inp.throttle = U.clamp(vErr / 3, 0.35, 1); inp.brake = 0; }

@@ -220,7 +220,8 @@ window.EI = window.EI || {};
       // live display plane facing the driver (-x), sized to the screen part if present
       const sc = document.createElement('canvas'); sc.width = 256; sc.height = 128; screenTex = new THREE.CanvasTexture(sc); screenTex.encoding = THREE.sRGBEncoding;
       let sw = Math.min(0.2, size.z * 0.55), sh = sw * 0.5, sy = size.y * 0.12, sx = -size.x * 0.5 - 0.004;
-      steer.traverse(o => { if (o.userData && o.userData.screenBox) { const b = o.userData.screenBox; const c = b.getCenter(new THREE.Vector3()); const sz = b.getSize(new THREE.Vector3()); sw = Math.max(0.06, sz.z); sh = Math.max(0.03, sz.y); sy = c.y - ctr.y; sx = b.min.x - ctr.x - 0.003; } });
+      // the merged screen part is already in wheel-local coordinates (relative to ctr)
+      steer.traverse(o => { if (o.userData && o.userData.screenBox) { const b = o.userData.screenBox; const c = b.getCenter(new THREE.Vector3()); const sz = b.getSize(new THREE.Vector3()); sw = Math.max(0.06, sz.z * 0.92); sh = Math.max(0.03, sz.y * 0.9); sy = c.y; sx = b.min.x - 0.004; } });
       screen = new THREE.Mesh(new THREE.PlaneGeometry(sw, sh), new THREE.MeshBasicMaterial({ map: screenTex })); screen.rotation.y = -Math.PI / 2; screen.position.set(sx, sy, 0); steer.add(screen); screen.userData.canvas = sc;
       // hands (gloves) at quarter-to-three, forearms from the shoulders
       const glove = new THREE.MeshStandardMaterial({ color: 0x15161a, roughness: 0.85 }); const suit = new THREE.MeshStandardMaterial({ color: new THREE.Color(car.team.primary), roughness: 0.8 });
