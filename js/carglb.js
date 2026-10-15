@@ -5,10 +5,14 @@
 //   { group, body, wheels[FL,FR,RL,RR], frontPivots[FL,FR], flap, helmet, bodyMat }
 // The flap keeps CarModel's angle convention (rotation.z = 0.5 closed, -0.15 open); flapClosed / flapOpen are
 // also exposed on the returned object.
-// Materials: triplanar carbon weave under clear coat, clear-coated paint, satin metal, live mirrors, tinted visor,
-// branded tyre walls. Player cars ('hi') also get a detailed cockpit: procedural steering wheel (face texture,
-// buttons, rotary knobs, live LED + display canvas = `screen` / `screenTex`), gloved hands and race-suit sleeves
-// driven by animate(steer), and render-target mirrors (screen.userData.mirrors.update(renderer, scene, every)).
+// Materials: triplanar carbon weave under clear coat (dark satin inside the cockpit opening), clear-coated metallic paint
+// with procedural flake, darker floor carbon, iridium visor, branded tyre walls, brake-disc glow (car.brake) and a rain
+// light that flashes while ERS deploys. Wheels are seated on the road (tyre bottom at y = 0) and a soft contact shadow
+// (tyre patches + footprint, zero alpha at its edges) sits 2 cm above it. Player cars ('hi') also get a detailed cockpit:
+// procedural steering wheel (face texture, buttons, rotary knobs, live LED + display canvas = `screen` / `screenTex`,
+// uploads capped at ~15 Hz), padded gloves and IK-driven race-suit arms re-shaped by animate(steer), torso / HANS, and
+// cheap render-target mirrors (screen.userData.mirrors.update(renderer, scene, every)): small targets, heavy scenery and
+// far cars hidden, own bodywork drawn from the lo LOD.
 window.EI = window.EI || {};
 (function () {
   const BASE = 'assets/models/';
@@ -64,17 +68,22 @@ window.EI = window.EI || {};
     opts = opts || {};
     const m = new THREE.MeshPhysicalMaterial({ color: 0xffffff, metalness: 0.2, roughness: 0.5, clearcoat: opts.clearcoat != null ? opts.clearcoat : 0.45, clearcoatRoughness: 0.14, envMapIntensity: opts.env != null ? opts.env : 0.38 });
     const weave = weaveTexture(); const scale = opts.scale || 20.8;   // 1 / 48 mm tile (3 mm tows)
+    // ckMask = 1 on car bodywork (body space): inside the cockpit opening (and under the halo) the carbon turns into a dark,
+    // low-contrast satin finish, so the tub walls and halo read as dark padding instead of bright grey weave in the cockpit view
+    m.userData.ckMask = opts.ckMask != null ? opts.ckMask : 1;
     m.onBeforeCompile = (sh) => {
-      sh.uniforms.weaveMap = { value: weave }; sh.uniforms.weaveScale = { value: scale };
+      sh.uniforms.weaveMap = { value: weave }; sh.uniforms.weaveScale = { value: scale }; sh.uniforms.ckMask = { value: m.userData.ckMask };
       sh.uniforms.weaveDark = { value: new THREE.Color(opts.dark || 0x030304) }; sh.uniforms.weaveLight = { value: new THREE.Color(opts.light || 0x111215) };
       sh.vertexShader = 'varying vec3 vWvPos;\nvarying vec3 vWvNrm;\n' + sh.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\nvWvPos = position; vWvNrm = normal;');
-      sh.fragmentShader = 'uniform sampler2D weaveMap;\nuniform float weaveScale;\nuniform vec3 weaveDark;\nuniform vec3 weaveLight;\nvarying vec3 vWvPos;\nvarying vec3 vWvNrm;\nvec3 wvSample;\n' +
+      sh.fragmentShader = 'uniform sampler2D weaveMap;\nuniform float weaveScale;\nuniform float ckMask;\nuniform vec3 weaveDark;\nuniform vec3 weaveLight;\nvarying vec3 vWvPos;\nvarying vec3 vWvNrm;\nvec3 wvSample;\nfloat wvCk;\n' +
         sh.fragmentShader.replace('#include <map_fragment>', [
           'vec3 wvN = abs(normalize(vWvNrm)); wvN = pow(wvN, vec3(4.0)); wvN /= (wvN.x + wvN.y + wvN.z);',
           'vec3 wvP = vWvPos * weaveScale;',
           'wvSample = texture2D(weaveMap, wvP.zy).rgb * wvN.x + texture2D(weaveMap, wvP.xz).rgb * wvN.y + texture2D(weaveMap, wvP.xy).rgb * wvN.z;',
-          'diffuseColor.rgb *= mix(weaveDark, weaveLight, wvSample.r * wvSample.r);'].join('\n'))
-        .replace('#include <roughnessmap_fragment>', '#include <roughnessmap_fragment>\nroughnessFactor = clamp(roughnessFactor * (1.25 - 0.6 * wvSample.g), 0.24, 1.0);');
+          'wvCk = ckMask * (1.0 - smoothstep(0.24, 0.31, abs(vWvPos.z))) * smoothstep(-0.06, 0.06, vWvPos.x) * (1.0 - smoothstep(0.86, 1.0, vWvPos.x)) * smoothstep(0.36, 0.46, vWvPos.y);',
+          'diffuseColor.rgb *= mix(weaveDark, weaveLight, mix(wvSample.r * wvSample.r, 0.35 + 0.3 * wvSample.r, wvCk)) * (1.0 - 0.45 * wvCk);'].join('\n'))
+        .replace('#include <roughnessmap_fragment>', '#include <roughnessmap_fragment>\nroughnessFactor = mix(clamp(roughnessFactor * (1.25 - 0.6 * wvSample.g), 0.24, 1.0), 0.78, wvCk);')
+        .replace('#include <lights_physical_fragment>', '#include <lights_physical_fragment>\n#ifdef CLEARCOAT\nmaterial.clearcoat *= 1.0 - 0.85 * wvCk;\n#endif');
     };
     m.customProgramCacheKey = () => 'ei-carbon';
     return m;
@@ -85,8 +94,8 @@ window.EI = window.EI || {};
     const key = '_tyre_' + tyre.name; if (shared[key]) return shared[key];
     const S = 1024, c = document.createElement('canvas'); c.width = c.height = S; const ctx = c.getContext('2d'); const R = S / 2, M = R / 0.335;
     ctx.translate(R, R);
-    ctx.strokeStyle = tyre.color; ctx.lineWidth = 0.006 * M; ctx.beginPath(); ctx.arc(0, 0, 0.323 * M, 0, 6.283); ctx.stroke();
-    const words = ['EQUATION', tyre.name.toUpperCase(), 'EQUATION', tyre.name.toUpperCase()]; const rt = 0.298 * M; const fs = 0.019 * M;
+    ctx.strokeStyle = tyre.color; ctx.lineWidth = 0.007 * M; ctx.beginPath(); ctx.arc(0, 0, 0.3235 * M, 0, 6.283); ctx.stroke(); ctx.strokeStyle = 'rgba(255,255,255,0.10)'; ctx.lineWidth = 0.0015 * M; ctx.beginPath(); ctx.arc(0, 0, 0.2755 * M, 0, 6.283); ctx.stroke();
+    const words = ['EQUATION', tyre.name.toUpperCase(), 'EQUATION', tyre.name.toUpperCase()]; const rt = 0.2985 * M; const fs = 0.03 * M;
     ctx.font = '900 ' + Math.round(fs) + 'px "Titillium Web", "Arial Black", sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     words.forEach((w, k) => {
       const a0 = k * Math.PI / 2 + Math.PI / 4; ctx.fillStyle = k % 2 ? tyre.color : '#f2f2f2';
@@ -95,6 +104,47 @@ window.EI = window.EI || {};
       w.split('').forEach((ch, i) => { const da = ws[i] / rt; ctx.save(); ctx.rotate(a + da / 2); ctx.translate(0, -rt); ctx.fillText(ch, 0, 0); ctx.restore(); a += da; });
     });
     const tex = new THREE.CanvasTexture(c); tex.encoding = THREE.sRGBEncoding; tex.anisotropy = 8; shared[key] = tex; return tex;
+  }
+
+  // clear-coated metallic paint: satin base with a procedural metal-flake normal perturbation (object-space hash cells, ~3 mm,
+  // faded out once a flake is smaller than a pixel so it sparkles close up without shimmering at distance) under a smooth lacquer
+  function paintMaterial(tex) {
+    const m = new THREE.MeshPhysicalMaterial({ map: tex, metalness: 0.18, roughness: 0.42, clearcoat: 1.0, clearcoatRoughness: 0.035, envMapIntensity: 0.62, side: THREE.DoubleSide });
+    m.extensions = { derivatives: true };
+    m.onBeforeCompile = (sh) => {
+      sh.vertexShader = 'varying vec3 vFlkPos;\n' + sh.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\nvFlkPos = position;');
+      sh.fragmentShader = 'varying vec3 vFlkPos;\n' + sh.fragmentShader.replace('#include <normal_fragment_maps>', [
+        '#include <normal_fragment_maps>',
+        '{ vec3 fp = vFlkPos * 380.0; vec3 fc = floor(fp);',
+        '  vec3 fh = fract(sin(vec3(dot(fc, vec3(127.1, 311.7, 74.7)), dot(fc, vec3(269.5, 183.3, 246.1)), dot(fc, vec3(113.5, 271.9, 124.6)))) * 43758.5453) - 0.5;',
+        '  float ffw = length(fwidth(fp)); normal = normalize(normal + fh * 0.07 * (1.0 - smoothstep(0.3, 1.1, ffw))); }'].join('\n'))
+        // inside the cockpit opening the paint/carbon split follows mesh faces (a saw-tooth edge): fade any paint there to the
+        // same dark satin as the cockpit carbon so the opening reads as one dark padded surround
+        .replace('#include <map_fragment>', '#include <map_fragment>\nfloat pCk = (1.0 - smoothstep(0.215, 0.25, abs(vFlkPos.z))) * smoothstep(-0.06, 0.06, vFlkPos.x) * (1.0 - smoothstep(0.88, 0.97, vFlkPos.x)) * smoothstep(0.4, 0.5, vFlkPos.y);\ndiffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.012, 0.012, 0.014), pCk);')
+        .replace('#include <roughnessmap_fragment>', '#include <roughnessmap_fragment>\nroughnessFactor = mix(roughnessFactor, 0.8, pCk);')
+        .replace('#include <lights_physical_fragment>', '#include <lights_physical_fragment>\nmaterial.clearcoat *= 1.0 - 0.85 * pCk;');
+    };
+    m.customProgramCacheKey = () => 'ei-paint';
+    return m;
+  }
+  // soft contact shadow under the car: an elliptical footprint (~0.4 at the centre) plus darker contact patches under the four tyres,
+  // fading to exactly zero alpha on every edge of the plane (5.4 x 2.4 m, centred between the axles)
+  const SHADOW = { w: 5.4, h: 2.4, cx: -0.05 };
+  function contactShadowTexture() {
+    if (shared._contact) return shared._contact;
+    const W = 256, H = 128; const c = document.createElement('canvas'); c.width = W; c.height = H; const ctx = c.getContext('2d'); const img = ctx.createImageData(W, H); const d = img.data;
+    const ss = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
+    const tyres = [[1.75, 0.86, 0.34, 0.2], [1.75, -0.86, 0.34, 0.2], [-1.85, 0.85, 0.36, 0.25], [-1.85, -0.85, 0.36, 0.25]];   // x, z, radius x, radius z
+    for (let j = 0; j < H; j++) for (let i = 0; i < W; i++) {
+      const u = (i + 0.5) / W, v = (j + 0.5) / H; const x = SHADOW.cx + (u - 0.5) * SHADOW.w, z = (v - 0.5) * SHADOW.h;
+      const e = Math.hypot((x + 0.25) / 2.4, z / 0.92);                     // floor + sidepods footprint
+      let a = 0.4 * (1 - ss(0.25, 1.0, e)) * (0.75 + 0.25 * (1 - ss(0.0, 0.8, Math.abs(z) / 0.92)));
+      for (const [tx, tz, rx, rz] of tyres) { const t = Math.hypot((x - tx) / rx, (z - tz) / rz); a = 1 - (1 - a) * (1 - 0.6 * (1 - ss(0.15, 1.0, t))); }
+      a *= ss(0, 0.12, Math.min(u, 1 - u)) * ss(0, 0.16, Math.min(v, 1 - v));
+      const k = (j * W + i) * 4; d[k] = d[k + 1] = d[k + 2] = 0; d[k + 3] = Math.round(Math.min(0.62, a) * 255);
+    }
+    ctx.putImageData(img, 0, 0);
+    const tex = new THREE.CanvasTexture(c); shared._contact = tex; return tex;
   }
 
   // shared (per-material-name) tweaks applied once to the loaded scenes
@@ -109,8 +159,8 @@ window.EI = window.EI || {};
         else if (n === 'metal') { mm = new THREE.MeshStandardMaterial({ name: 'metal', color: 0x7c8088, metalness: 0.92, roughness: 0.34, envMapIntensity: 1.0 }); }        // satin machined metal (rims, hubs)
         else if (n === 'mirror') { mm = new THREE.MeshStandardMaterial({ name: 'mirror', color: 0xe8eef5, metalness: 1.0, roughness: 0.03, envMapIntensity: 1.25 }); }
         else if (n === 'cover') { mm = new THREE.MeshPhysicalMaterial({ name: 'cover', color: 0x0c0d0f, metalness: 0.1, roughness: 0.5, clearcoat: 0.5, clearcoatRoughness: 0.15, envMapIntensity: 0.32 }); }
-        else if (n === 'glass') { mm = new THREE.MeshPhysicalMaterial({ name: 'glass', color: 0x0c0f16, metalness: 0.9, roughness: 0.06, clearcoat: 1, clearcoatRoughness: 0.02, envMapIntensity: 1.1 }); }
-        else if (n === 'tyre') { m.color.set(0x0b0b0c); m.roughness = 0.9; m.metalness = 0.0; m.envMapIntensity = 0.15; }
+        else if (n === 'glass') { mm = new THREE.MeshPhysicalMaterial({ name: 'glass', color: 0x2a3550, metalness: 1.0, roughness: 0.04, clearcoat: 1, clearcoatRoughness: 0.01, envMapIntensity: 1.7 }); }   // mirrored iridium visor
+        else if (n === 'tyre') { m.color.set(0x060607); m.roughness = 0.86; m.metalness = 0.0; m.envMapIntensity = 0.12; }
         else if (n === 'matte' || n === 'fabric') { m.color.set(0x17181c); m.roughness = 0.92; m.metalness = 0.0; m.envMapIntensity = 0.3; }
         else if (n === 'led') { m.emissive.set(0xff1a1a); m.emissiveIntensity = 0.6; }
         else { m.envMapIntensity = 0.6; m.metalness = 0.1; m.roughness = 0.7; }
@@ -125,7 +175,7 @@ window.EI = window.EI || {};
   // ---------------------------------------------------------------- livery composition
   const PART_ROLES = {   // material-ID colour class -> colour role per atlas part
     body: { red: 'primary', yellow: 'primary', orange: 'primary', green: 'carbon', blue: 'carbon' },
-    front_wing: { red: 'primary', blue: 'secondary', yellow: 'secondary', green: 'primary', orange: 'primary' },
+    front_wing: { red: 'carbon', blue: 'secondary', yellow: 'primary', green: 'carbon', orange: 'primary' },   // carbon main plane, painted flaps / endplates
     rear_wing: { green: 'primary', orange: 'secondary', blue: 'secondary', yellow: 'secondary', red: 'secondary' },
     mirrors: { red: 'primary', yellow: 'primary', orange: 'primary', green: 'primary', blue: 'primary' },
     winglets: { blue: 'secondary', green: 'secondary', red: 'carbon', orange: 'carbon' },
@@ -343,22 +393,78 @@ window.EI = window.EI || {};
     ctx.fillStyle = team.primary; ctx.fillRect(70, 118, 116, 6);
     const tex = new THREE.CanvasTexture(c); tex.encoding = THREE.sRGBEncoding; tex.anisotropy = 4; shared[key] = tex; return tex;
   }
-  function sleeveTexture(team) {
-    const key = '_sleeve_' + team.id; if (shared[key]) return shared[key];
-    const c = document.createElement('canvas'); c.width = 512; c.height = 256; const ctx = c.getContext('2d');
-    ctx.fillStyle = team.primary; ctx.fillRect(0, 0, 512, 256);
-    // fabric grain
-    const r = EI.U.rng(5); for (let i = 0; i < 2600; i++) { ctx.fillStyle = r() < 0.5 ? 'rgba(0,0,0,0.06)' : 'rgba(255,255,255,0.05)'; ctx.fillRect(r() * 512, r() * 256, 1 + r() * 3, 1); }
-    // accent piping along the sleeve and a cuff band at the wrist (v = 1 is the wrist end; canvas y = 0)
-    ctx.fillStyle = team.secondary; ctx.fillRect(0, 0, 512, 22); ctx.fillStyle = team.accent; ctx.fillRect(0, 22, 512, 5);
-    ctx.fillStyle = team.secondary; ctx.fillRect(96, 0, 10, 256); ctx.fillRect(406, 0, 10, 256);
-    // sponsor patch facing up (u = 0.5): white embroidered badge with the title sponsor
-    const sp = (team.sponsors && team.sponsors[0]) || { n: team.short };
-    ctx.fillStyle = 'rgba(244,244,244,0.95)'; roundRect(ctx, 196, 52, 120, 40, 6); ctx.fill();
-    ctx.fillStyle = team.primary === '#f2f2f2' || team.primary === '#f5f5f7' ? team.secondary : team.primary; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    let fs = 28; ctx.font = (sp.it ? 'italic ' : '') + '900 ' + fs + 'px ' + FONT; while (ctx.measureText(sp.n).width > 104 && fs > 12) { fs -= 2; ctx.font = (sp.it ? 'italic ' : '') + '900 ' + fs + 'px ' + FONT; } ctx.fillText(sp.n, 256, 73);
-    ctx.fillStyle = 'rgba(255,255,255,0.9)'; ctx.font = '700 22px ' + FONT; ctx.fillText(team.short, 256, 132);
-    const tex = new THREE.CanvasTexture(c); tex.encoding = THREE.sRGBEncoding; tex.anisotropy = 4; shared[key] = tex; return tex;
+  // team kit colours: race suit (team.suit or primary) and gloves (team.glove, else the secondary when dark, else a dark
+  // tint of it) with team-coloured accents (padding, strap) so the hands never read as bright blobs
+  const lumOf = (h) => { const c = new THREE.Color(h); return 0.2126 * c.r + 0.7152 * c.g + 0.0722 * c.b; };
+  function kitColours(team) {
+    const suit = new THREE.Color(team.suit || team.primary);
+    const sec = new THREE.Color(team.secondary); const dark = new THREE.Color(0x141519);
+    const glove = team.glove ? new THREE.Color(team.glove) : (lumOf(team.secondary) < 0.12 ? sec.clone() : sec.clone().lerp(dark, 0.72));
+    let accent = new THREE.Color(team.gloveAccent || team.primary); if (lumOf('#' + accent.getHexString()) < 0.05) accent = new THREE.Color(team.accent);
+    const panel = new THREE.Color(team.suitPanel || (lumOf(team.secondary) < 0.3 ? team.secondary : '#1a1b20'));
+    return { suit, glove, accent, panel, palm: new THREE.Color(0x4b4e55) };
+  }
+  // race-suit sleeve: u runs around the arm (u = 0.5 on top), v along it (v = 0 shoulder, v = 1 wrist; canvas y = 0 is the wrist).
+  // Twill fabric grain, quilting stitch rows, an underside stretch panel with accent piping, a ribbed elastic cuff and sponsor patches.
+  // Returns { map, bump }. Patches are drawn with a vertical squash so they keep their proportions on the anisotropic UVs.
+  function suitTextures(team) {
+    const key = '_suit_' + team.id; if (shared[key]) return shared[key];
+    const W = 1024, H = 512, q = (H / 0.62) / (W / 0.3);   // px per metre along / around the arm
+    const kit = kitColours(team); const hex = (c) => '#' + c.getHexString();
+    const c = document.createElement('canvas'); c.width = W; c.height = H; const ctx = c.getContext('2d');
+    const b = document.createElement('canvas'); b.width = W; b.height = H; const bx = b.getContext('2d');
+    ctx.fillStyle = hex(kit.suit); ctx.fillRect(0, 0, W, H); bx.fillStyle = '#808080'; bx.fillRect(0, 0, W, H);
+    // underside stretch panel (u < 0.2 and u > 0.8) with accent piping on its edges
+    ctx.fillStyle = hex(kit.panel); ctx.fillRect(0, 0, 0.2 * W, H); ctx.fillRect(0.8 * W, 0, 0.2 * W, H);
+    ctx.fillStyle = hex(kit.accent); ctx.fillRect(0.2 * W, 0, 7, H); ctx.fillRect(0.8 * W - 7, 0, 7, H);
+    bx.fillStyle = '#9a9a9a'; bx.fillRect(0.2 * W, 0, 7, H); bx.fillRect(0.8 * W - 7, 0, 7, H);
+    // quilting: stitch rows around the arm every ~3 cm, panel seams along it
+    const rowStep = Math.round(0.03 * H / 0.62);
+    for (let y = 40; y < H; y += rowStep) {
+      for (let x = 0; x < W; x += 9) { ctx.fillStyle = 'rgba(0,0,0,0.16)'; ctx.fillRect(x, y, 5, 1.5); ctx.fillStyle = 'rgba(255,255,255,0.10)'; ctx.fillRect(x, y + 1.5, 5, 1); }
+      const gr = bx.createLinearGradient(0, y - 6, 0, y + 6); gr.addColorStop(0, 'rgba(128,128,128,0)'); gr.addColorStop(0.5, 'rgba(40,40,40,0.9)'); gr.addColorStop(1, 'rgba(128,128,128,0)'); bx.fillStyle = gr; bx.fillRect(0, y - 6, W, 12);
+    }
+    for (const x of [0.2 * W + 14, 0.8 * W - 16, 0.5 * W - 150, 0.5 * W + 150]) { for (let y = 0; y < H; y += 7) { ctx.fillStyle = 'rgba(0,0,0,0.2)'; ctx.fillRect(x, y, 1.5, 4); } bx.fillStyle = '#3a3a3a'; bx.fillRect(x - 1, 0, 3, H); }
+    // twill grain on both maps
+    const im = ctx.getImageData(0, 0, W, H), bi = bx.getImageData(0, 0, W, H); const r = EI.U.rng(11);
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+      const k = (y * W + x) * 4; const tw = (((x + Math.floor(y / q / 2.2)) % 6) < 3 ? 1 : -1); const n = (r() - 0.5);
+      const f = 1 + tw * 0.035 + n * 0.05; im.data[k] *= f; im.data[k + 1] *= f; im.data[k + 2] *= f;
+      bi.data[k] = bi.data[k + 1] = bi.data[k + 2] = EI.U.clamp(bi.data[k] + tw * 10 + n * 14, 0, 255);
+    }
+    ctx.putImageData(im, 0, 0); bx.putImageData(bi, 0, 0);
+    // ribbed elastic cuff at the wrist end
+    ctx.fillStyle = '#121317'; ctx.fillRect(0, 0, W, 34); ctx.fillStyle = hex(kit.accent); ctx.fillRect(0, 34, W, 5);
+    for (let x = 0; x < W; x += 8) { ctx.fillStyle = 'rgba(255,255,255,0.06)'; ctx.fillRect(x, 0, 3, 34); bx.fillStyle = '#c0c0c0'; bx.fillRect(x, 0, 4, 34); bx.fillStyle = '#404040'; bx.fillRect(x + 4, 0, 4, 34); }
+    // sponsor patches: title sponsor on the forearm, team name on the upper arm (both on top, u = 0.5)
+    const FONT2 = '"Titillium Web", "Arial Black", Arial, sans-serif';
+    const patch = (sp, vC, wM, hM, bg, fg) => {
+      const pw = wM * W / 0.3, ph = hM * W / 0.3; ctx.save(); ctx.translate(W / 2, (1 - vC) * H); ctx.scale(1, q);
+      ctx.fillStyle = 'rgba(0,0,0,0.35)'; roundRect(ctx, -pw / 2 - 3, -ph / 2 - 3, pw + 6, ph + 6, ph * 0.18); ctx.fill();
+      ctx.fillStyle = bg; roundRect(ctx, -pw / 2, -ph / 2, pw, ph, ph * 0.16); ctx.fill();
+      ctx.strokeStyle = 'rgba(255,255,255,0.35)'; ctx.setLineDash([5, 4]); ctx.lineWidth = 2; roundRect(ctx, -pw / 2 + 5, -ph / 2 + 5, pw - 10, ph - 10, ph * 0.12); ctx.stroke(); ctx.setLineDash([]);
+      let fs = ph * 0.62; ctx.font = (sp.it ? 'italic ' : '') + '900 ' + fs + 'px ' + FONT2; const tw2 = ctx.measureText(sp.n).width; if (tw2 > pw * 0.84) { fs *= pw * 0.84 / tw2; ctx.font = (sp.it ? 'italic ' : '') + '900 ' + fs + 'px ' + FONT2; }
+      ctx.fillStyle = fg; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(sp.n, 0, fs * 0.04); ctx.restore();
+      bx.save(); bx.translate(W / 2, (1 - vC) * H); bx.scale(1, q); bx.fillStyle = '#b4b4b4'; roundRect(bx, -pw / 2, -ph / 2, pw, ph, ph * 0.16); bx.fill(); bx.restore();
+    };
+    const sp0 = (team.sponsors && team.sponsors[0]) || { n: team.short };
+    const light = lumOf(hex(kit.suit)) > 0.55;
+    patch(sp0, 0.74, 0.085, 0.03, light ? '#16171b' : '#f3f3f3', light ? '#ffffff' : (lumOf(team.primary) > 0.6 ? team.secondary : team.primary));
+    patch({ n: team.short, it: 1 }, 0.3, 0.06, 0.026, hex(kit.panel), '#ffffff');
+    const map = new THREE.CanvasTexture(c); map.encoding = THREE.sRGBEncoding; map.anisotropy = 8;
+    const bump = new THREE.CanvasTexture(b); bump.anisotropy = 4;
+    shared[key] = { map, bump, kit }; return shared[key];
+  }
+  // glove leather / suede grain (tiny bump noise) and the palm grip dots
+  function gloveGrain() {
+    if (shared._gloveGrain) return shared._gloveGrain;
+    const N = 256; const c = document.createElement('canvas'); c.width = c.height = N; const ctx = c.getContext('2d'); const im = ctx.createImageData(N, N); const r = EI.U.rng(21);
+    for (let i = 0; i < N * N; i++) { const v = 128 + (r() - 0.5) * 70; im.data[i * 4] = im.data[i * 4 + 1] = im.data[i * 4 + 2] = v; im.data[i * 4 + 3] = 255; }
+    ctx.putImageData(im, 0, 0);
+    // stitched panel seams
+    ctx.strokeStyle = 'rgba(30,30,30,0.9)'; ctx.lineWidth = 3; for (const y of [64, 192]) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(N, y); ctx.stroke(); }
+    ctx.fillStyle = 'rgba(220,220,220,0.9)'; for (const y of [58, 70, 186, 198]) for (let x = 0; x < N; x += 8) ctx.fillRect(x, y, 4, 2);
+    const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; shared._gloveGrain = t; return t;
   }
   function buildCockpit(car, body) {
     const team = car.team;
@@ -402,68 +508,140 @@ window.EI = window.EI || {};
     const screenTex = new THREE.CanvasTexture(sc); screenTex.encoding = THREE.sRGBEncoding; screenTex.anisotropy = 4;
     const screen = new THREE.Mesh(new THREE.PlaneGeometry(0.134, 0.0838), new THREE.MeshBasicMaterial({ map: screenTex, toneMapped: false }));
     screen.position.set(0, 0.0012, WHEEL.faceW + 0.0007); screen.userData.canvas = sc; frame.add(screen);
-    // ---- gloved hands at quarter-to-three: palm, four curled fingers, thumb on the face, cuff
-    const gc = new THREE.Color(0x17181c);
-    const glove = new THREE.MeshStandardMaterial({ color: gc, roughness: 0.8, metalness: 0.0, envMapIntensity: 0.35 });
-    const tc = new THREE.Color(team.primary).lerp(new THREE.Color(0x101114), 0.5); if (tc.r + tc.g + tc.b < 0.15) tc.copy(new THREE.Color(team.secondary).lerp(new THREE.Color(0x101114), 0.3));
-    const gloveTrim = new THREE.MeshStandardMaterial({ color: tc, roughness: 0.78, envMapIntensity: 0.3 });
-    const cuffMat = new THREE.MeshStandardMaterial({ color: 0x0d0e10, roughness: 0.85, envMapIntensity: 0.2 });
+    // the wheel display is redrawn by main.js at the HUD rate; cap its texture uploads at ~15 Hz and skip mipmaps
+    screenTex.generateMipmaps = false; screenTex.minFilter = THREE.LinearFilter;
+    let upT = 0; Object.defineProperty(screenTex, 'needsUpdate', { configurable: true, set(v) { if (!v) return; const t = performance.now(); if (t - upT < 64) return; upT = t; this.version++; } });
+    // ---- gloved hands at quarter-to-three: padded back of the hand, knuckle pads, three-segment fingers curled round the grip
+    //      (suede tips), thumb resting on the face, gauntlet + team strap. Dark glove with team-colour accents.
+    const kit = kitColours(team); const grain = gloveGrain();
+    const glove = new THREE.MeshStandardMaterial({ color: kit.glove.clone().multiplyScalar(1.15), roughness: 1.3, metalness: 0.0, envMapIntensity: 0.38, roughnessMap: grain });
+    const padMat = new THREE.MeshStandardMaterial({ color: kit.accent, roughness: 0.55, metalness: 0.0, envMapIntensity: 0.5 });
+    const palmMat = new THREE.MeshStandardMaterial({ color: kit.palm.clone().multiplyScalar(0.6), roughness: 1.6, metalness: 0.0, envMapIntensity: 0.15, roughnessMap: grain });
+    const cuffMat = new THREE.MeshStandardMaterial({ color: 0x07080a, roughness: 0.85, envMapIntensity: 0.18 });
     const logoMat = new THREE.MeshBasicMaterial({ map: gloveLogoTexture(team), transparent: true, depthWrite: false, toneMapped: true, polygonOffset: true, polygonOffsetFactor: -2 });
     const wrists = [];
+    const ell = (c, a, b, d, seg) => ({ geo: new THREE.SphereGeometry(1, seg || 20, Math.round((seg || 20) * 0.7)), m: new THREE.Matrix4().makeScale(a, b, d).setPosition(c) });
+    const cap = (p0, p1, r0, r1, rad, side) => ({ geo: capsuleGeo(r0, r1, p0.distanceTo(p1), rad || 10, 3), m: segMatrix(p0, p1, side || V(0, 0, 1), null, true) });
     for (const s of [-1, 1]) {
       const G = (du, dv, dw) => V(s * (0.13 + du), dv, 0.003 + dw);
-      const items = [], trim = [];
-      // glove body: palm + back of the hand enveloping the grip, set out and towards the driver
-      const MC = G(0.008, 0.001, 0.008), MA = [0.027, 0.046, 0.029];
-      trim.push({ geo: new THREE.SphereGeometry(1, 24, 18), m: new THREE.Matrix4().makeScale(MA[0], MA[1], MA[2]).setPosition(MC) });
-      // fingers: capsule chains curling round the back of the grip to the inner side, knuckle ridge on the outer edge
-      const fv = [0.03, 0.011, -0.008, -0.026], fr = [0.0094, 0.0097, 0.0093, 0.0081];
+      const base = [], pads = [], palm = [], cuffs = [];
+      // back of the hand: a flattened shell over the outer-rear of the grip, slightly domed
+      const MC = G(0.011, 0.002, 0.012); base.push(ell(MC, 0.026, 0.05, 0.031, 24));
+      // fingers: proximal / middle / distal phalanges curling from the knuckles (outer side) round the front of the grip
+      const fv = [0.031, 0.011, -0.009, -0.028], fr = [0.0098, 0.0103, 0.0099, 0.0087];
       for (let k = 0; k < 4; k++) {
-        const rf = 0.0215 + fr[k] * 0.55; const ang = [0.15, 0.95, 1.75, 2.5];
-        const pts = ang.map(a => G(Math.cos(a) * rf + 0.004, fv[k] - 0.0015 * Math.sin(a), -Math.sin(a) * rf));
-        for (let i = 0; i < pts.length - 1; i++) { const r0 = fr[k] * (1 - i * 0.06); trim.push({ geo: capsuleGeo(r0, r0 * 0.95, pts[i].distanceTo(pts[i + 1]), 10, 3), m: segMatrix(pts[i], pts[i + 1], V(0, 0, 1), null, true) }); }
-        const kn = G(0.031, fv[k], 0.004); trim.push({ geo: new THREE.SphereGeometry(fr[k] * 1.05, 12, 8), m: new THREE.Matrix4().makeTranslation(kn.x, kn.y, kn.z) });
+        const rf = 0.0205 + fr[k] * 0.62; const ang = [0.12, 0.92, 1.72, 2.42];
+        const pts = ang.map((a, i) => G(Math.cos(a) * rf + 0.004, fv[k] - 0.0018 * i, -Math.sin(a) * rf));
+        for (let i = 0; i < 3; i++) { const r0 = fr[k] * (1 - i * 0.07); (i === 2 ? palm : base).push(cap(pts[i], pts[i + 1], r0, r0 * 0.94)); }
+        // padded knuckle (team accent) and a crease ring at each joint
+        const kn = G(0.03, fv[k], 0.005); pads.push(ell(kn, fr[k] * 1.08, fr[k] * 0.98, fr[k] * 0.95, 12));
+        base.push(ell(pts[1], fr[k] * 1.04, fr[k] * 1.04, fr[k] * 1.04, 10));
       }
-      // thenar + thumb: the part the driver actually sees, wrapping over the near side of the grip onto the wheel face
-      const T0 = G(0.016, 0.006, 0.03), T1 = G(-0.002, 0.027, 0.03), T2 = G(-0.02, 0.034, 0.0235), T3 = G(-0.034, 0.036, 0.0222);
-      trim.push({ geo: capsuleGeo(0.016, 0.0118, T0.distanceTo(T1), 12, 3), m: segMatrix(T0, T1, V(0, 0, 1), null, true) });
-      trim.push({ geo: capsuleGeo(0.0108, 0.0098, T1.distanceTo(T2), 10, 3), m: segMatrix(T1, T2, V(0, 0, 1), null, true) });
-      trim.push({ geo: capsuleGeo(0.0098, 0.0088, T2.distanceTo(T3), 10, 3), m: segMatrix(T2, T3, V(0, 0, 1), null, true) });
-      // grip seams: dark palm panel strip along the near side
-      const S0 = G(0.024, -0.04, 0.02), S1 = G(0.024, 0.036, 0.022); items.push({ geo: capsuleGeo(0.006, 0.006, S0.distanceTo(S1), 8, 2), m: segMatrix(S0, S1, V(1, 0, 0), null, true) });
-      // wrist + cuff running back, out and down towards the forearm
+      // knuckle bar: the padded strip that links the four knuckle pads
+      pads.push(cap(G(0.034, -0.034, 0.008), G(0.034, 0.037, 0.008), 0.0072, 0.0072, 10, V(1, 0, 0)));
+      // thumb: base + two segments wrapping the near side of the grip onto the wheel face, suede tip
+      const T0 = G(0.017, 0.004, 0.031), T1 = G(-0.002, 0.026, 0.031), T2 = G(-0.02, 0.034, 0.0245), T3 = G(-0.035, 0.036, 0.023);
+      base.push(cap(T0, T1, 0.0165, 0.0122, 12)); base.push(cap(T1, T2, 0.0112, 0.0101)); palm.push(cap(T2, T3, 0.0101, 0.0091));
+      // thenar padding on the side the driver sees (accent), palm edge (suede)
+      pads.push(ell(G(0.02, 0.011, 0.034), 0.011, 0.016, 0.009, 14));
+      palm.push(cap(G(0.024, -0.04, 0.02), G(0.024, 0.036, 0.022), 0.006, 0.006, 8, V(1, 0, 0)));
+      // gauntlet running back, out and down to the sleeve, with a team-colour strap
       const C0 = G(0.02, -0.02, 0.024), Wr = G(0.05, -0.046, 0.07); const ax = new THREE.Vector3().subVectors(Wr, C0).normalize();
       const C1 = Wr.clone().addScaledVector(ax, 0.012);
-      items.push({ geo: capsuleGeo(0.024, 0.026, C0.distanceTo(Wr), 12, 3), m: segMatrix(C0, Wr, V(0, 1, 0), null, true) });
-      const cuff = [{ geo: capsuleGeo(0.0285, 0.03, Wr.distanceTo(C1) + 0.02, 14, 3), m: segMatrix(Wr.clone().addScaledVector(ax, -0.014), C1, V(0, 1, 0), null, true) }];
-      frame.add(new THREE.Mesh(mergeGeos(items), glove)); frame.add(new THREE.Mesh(mergeGeos(trim), gloveTrim)); frame.add(new THREE.Mesh(mergeGeos(cuff), cuffMat));
-      // sponsor print on the glove's wrist strap, on the side facing the driver's eyes
-      const wm = C0.clone().lerp(Wr, 0.55); const ln = V(0, 0.55, 0.85).addScaledVector(ax, -V(0, 0.55, 0.85).dot(ax)).normalize();
-      const lx = V(1, 0, 0).addScaledVector(ln, -ln.x).normalize(), ly = new THREE.Vector3().crossVectors(ln, lx).normalize();
-      const logo = new THREE.Mesh(new THREE.PlaneGeometry(0.036, 0.018), logoMat); logo.position.copy(wm).addScaledVector(ln, 0.0262);
-      logo.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(lx, ly, ln)); frame.add(logo);
+      base.push({ geo: capsuleGeo(0.0245, 0.0265, C0.distanceTo(Wr), 14, 3), m: segMatrix(C0, Wr, V(0, 1, 0), null, true) });
+      const sm = C0.clone().lerp(Wr, 0.55);
+      pads.push({ geo: capsuleGeo(0.0272, 0.0274, 0.016, 16, 2), m: segMatrix(sm.clone().addScaledVector(ax, -0.008), sm.clone().addScaledVector(ax, 0.008), V(0, 1, 0), null, true) });
+      cuffs.push({ geo: capsuleGeo(0.0285, 0.03, Wr.distanceTo(C1) + 0.02, 16, 3), m: segMatrix(Wr.clone().addScaledVector(ax, -0.014), C1, V(0, 1, 0), null, true) });
+      frame.add(new THREE.Mesh(mergeGeos(base), glove)); frame.add(new THREE.Mesh(mergeGeos(pads), padMat)); frame.add(new THREE.Mesh(mergeGeos(palm), palmMat)); frame.add(new THREE.Mesh(mergeGeos(cuffs), cuffMat));
+      // glove logo printed on the back of the hand, facing up / back towards the driver's eyes
+      const nd = V(s * 0.62, 0.42, 0.66).normalize(); const ex = [0.026, 0.05, 0.031];
+      const tt = 1 / Math.sqrt((nd.x / ex[0]) ** 2 + (nd.y / ex[1]) ** 2 + (nd.z / ex[2]) ** 2); const lp = MC.clone().addScaledVector(nd, tt);
+      const ln = V(nd.x / ex[0] ** 2, nd.y / ex[1] ** 2, nd.z / ex[2] ** 2).normalize();
+      const ly = V(0, 1, 0).addScaledVector(ln, -ln.y).normalize(), lx = new THREE.Vector3().crossVectors(ly, ln).normalize();
+      const logo = new THREE.Mesh(new THREE.PlaneGeometry(0.03, 0.015), logoMat); logo.position.copy(lp).addScaledVector(ln, 0.0016);
+      logo.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(lx.clone().multiplyScalar(-s), ly, ln.clone().multiplyScalar(1))); logo.rotateZ(s * Math.PI / 2); frame.add(logo);
       const wrist = new THREE.Object3D(); wrist.position.copy(C1); frame.add(wrist); wrists.push(wrist);
     }
-    // ---- sleeves: upper arm + forearm in race-suit colour with a sponsor patch, re-aimed every frame
-    const suit = new THREE.MeshStandardMaterial({ map: sleeveTexture(team), roughness: 0.88, metalness: 0.0, envMapIntensity: 0.3 });
-    const fGeo = new THREE.CylinderGeometry(0.031, 0.044, 1, 16, 1, false), uGeo = new THREE.CylinderGeometry(0.045, 0.05, 1, 12, 1, false);
-    const arms = [-1, 1].map((s) => { const fa = new THREE.Mesh(fGeo, suit), ua = new THREE.Mesh(uGeo, suit); fa.matrixAutoUpdate = false; ua.matrixAutoUpdate = false; body.add(fa); body.add(ua); return { fa, ua, s }; });
-    const shoulder = [V(0.08, 0.56, -0.19), V(0.08, 0.56, 0.19)];
-    const _w = new THREE.Vector3(), _e = new THREE.Vector3(), _up = new THREE.Vector3(0, 1, 0), _dn = new THREE.Vector3(0, -1, 0);
+    // ---- arms: one swept tube per arm (shoulder -> bent elbow -> wrist) in race-suit fabric, re-shaped on the CPU whenever the
+    //      wheel turns. Two-bone IK with the elbow hanging down and out; radius tapers shoulder -> biceps -> elbow -> forearm -> wrist.
+    const suitTex = suitTextures(team);
+    const suitOpts = { map: suitTex.map, bumpMap: suitTex.bump, bumpScale: 0.0015, roughness: 0.74, metalness: 0.0, envMapIntensity: 0.4 };
+    const suit = new THREE.MeshPhysicalMaterial(suitOpts); if ('sheen' in suit) suit.sheen = new THREE.Color(kit.suit).lerp(new THREE.Color(0xffffff), 0.5).multiplyScalar(0.35);
+    const plainSuit = new THREE.MeshStandardMaterial({ color: kit.suit, roughness: 0.8, envMapIntensity: 0.35 });
+    const RINGS = 26, SEG = 18;
+    const shoulder = [V(0.06, 0.6, -0.2), V(0.06, 0.6, 0.2)];
+    const arms = [-1, 1].map((s, k) => {
+      const n = (RINGS + 1) * (SEG + 1); const geo = new THREE.BufferGeometry();
+      geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(n * 3), 3).setUsage(THREE.DynamicDrawUsage));
+      geo.setAttribute('normal', new THREE.BufferAttribute(new Float32Array(n * 3), 3).setUsage(THREE.DynamicDrawUsage));
+      const uv = new Float32Array(n * 2), idx = [];
+      for (let i = 0; i <= RINGS; i++) for (let j = 0; j <= SEG; j++) { uv[(i * (SEG + 1) + j) * 2] = j / SEG; uv[(i * (SEG + 1) + j) * 2 + 1] = i / RINGS; }
+      for (let i = 0; i < RINGS; i++) for (let j = 0; j < SEG; j++) { const a = i * (SEG + 1) + j, b = a + SEG + 1; idx.push(a, b, a + 1, a + 1, b, b + 1); }
+      geo.setAttribute('uv', new THREE.BufferAttribute(uv, 2)); geo.setIndex(idx);
+      const mesh = new THREE.Mesh(geo, suit); mesh.frustumCulled = false; body.add(mesh);
+      return { mesh, geo, s, L: null };
+    });
+    // shoulders, chest and HANS collar (mostly hidden in the tub; they fill the gap at the arm roots in outside views)
+    const torso = [ell(V(-0.02, 0.5, 0), 0.12, 0.17, 0.2, 20)]; for (const sh0 of shoulder) torso.push(ell(sh0, 0.062, 0.058, 0.064, 16));
+    body.add(new THREE.Mesh(mergeGeos(torso), plainSuit));
+    const hans = new THREE.TorusGeometry(0.088, 0.017, 8, 22, Math.PI * 1.25); hans.rotateX(Math.PI / 2); hans.rotateY(Math.PI * 0.375 + Math.PI); hans.translate(0.07, 0.69, 0);
+    const hansMat = carbonMaterial({ dark: 0x020203, light: 0x0c0d10, clearcoat: 0.5, env: 0.35, ckMask: 0 });
+    body.add(new THREE.Mesh(hans, hansMat));
+    const _w = new THREE.Vector3(), _e = new THREE.Vector3(), _d0 = new THREE.Vector3(), _pole = new THREE.Vector3(), _inv = new THREE.Matrix4();
+    const _A = new THREE.Vector3(), _B = new THREE.Vector3(), _P = new THREE.Vector3(), _T = new THREE.Vector3(), _top = new THREE.Vector3(), _side = new THREE.Vector3(), _q0 = new THREE.Vector3(), _q1 = new THREE.Vector3();
+    // radius profile along normalised arc length (eE = elbow position)
+    const radius = (t, eE) => {
+      const knots = [[0, 0.058], [eE * 0.35, 0.054], [eE * 0.82, 0.046], [eE, 0.0435], [eE + (1 - eE) * 0.32, 0.0465], [eE + (1 - eE) * 0.78, 0.038], [1, 0.0335]];
+      for (let i = 1; i < knots.length; i++) if (t <= knots[i][0]) { const [t0, r0] = knots[i - 1], [t1, r1] = knots[i]; const f = (t - t0) / Math.max(1e-6, t1 - t0); return r0 + (r1 - r0) * (f * f * (3 - 2 * f)); }
+      return 0.0335;
+    };
+    const pathPoint = (S, A, E, B, W, lSA, lAB, lBW, d, out) => {
+      if (d <= lSA) return out.lerpVectors(S, A, d / lSA);
+      if (d <= lSA + lAB) { const t = (d - lSA) / lAB, u = 1 - t; return out.set(0, 0, 0).addScaledVector(A, u * u).addScaledVector(E, 2 * u * t).addScaledVector(B, t * t); }
+      return out.lerpVectors(B, W, Math.min(1, (d - lSA - lAB) / lBW));
+    };
+    const shapeArm = (arm, S, W) => {
+      const s = arm.s; _d0.subVectors(W, S); const dist = _d0.length(); _d0.multiplyScalar(1 / dist);
+      if (!arm.L) arm.L = dist * 1.1;                                      // arm length fixed at the straight-ahead pose: elbows slightly bent
+      const Lu = arm.L * 0.52, Lf = arm.L * 0.48, sc = Math.max(1, dist / (arm.L * 0.995)), lu = Lu * sc, lf = Lf * sc;
+      const a = (lu * lu - lf * lf + dist * dist) / (2 * dist), h = Math.sqrt(Math.max(0, lu * lu - a * a));
+      _pole.set(-0.25, -1, s * 0.85); _pole.addScaledVector(_d0, -_pole.dot(_d0)).normalize();
+      _e.copy(S).addScaledVector(_d0, a).addScaledVector(_pole, h);
+      const f = 0.24; _A.lerpVectors(_e, S, f); _B.lerpVectors(_e, W, f);
+      const lSA = S.distanceTo(_A), lAB = (_A.distanceTo(_e) + _e.distanceTo(_B)) * 0.92, lBW = _B.distanceTo(W), tot = lSA + lAB + lBW; const eE = (lSA + lAB * 0.5) / tot;
+      const pos = arm.geo.attributes.position.array, nrm = arm.geo.attributes.normal.array;
+      for (let i = 0; i <= RINGS; i++) {
+        const t = i / RINGS, dd = t * tot; pathPoint(S, _A, _e, _B, W, lSA, lAB, lBW, dd, _P);
+        pathPoint(S, _A, _e, _B, W, lSA, lAB, lBW, Math.max(0, dd - 0.01), _q0); pathPoint(S, _A, _e, _B, W, lSA, lAB, lBW, Math.min(tot, dd + 0.01), _q1); _T.subVectors(_q1, _q0).normalize();
+        _top.set(0, 1, 0).addScaledVector(_T, -_T.y).normalize(); _side.crossVectors(_T, _top).normalize();
+        const r = radius(t, eE);
+        for (let j = 0; j <= SEG; j++) {
+          const ang = (j / SEG - 0.5) * Math.PI * 2; const ca = Math.cos(ang), sa = Math.sin(ang);
+          const ny = ca, nx = sa;   // u = 0.5 on top
+          const o = (i * (SEG + 1) + j) * 3; const ry = r * 0.93, rx = r;
+          pos[o] = _P.x + _top.x * ny * ry + _side.x * nx * rx; pos[o + 1] = _P.y + _top.y * ny * ry + _side.y * nx * rx; pos[o + 2] = _P.z + _top.z * ny * ry + _side.z * nx * rx;
+          nrm[o] = _top.x * ny / 0.93 + _side.x * nx; nrm[o + 1] = _top.y * ny / 0.93 + _side.y * nx; nrm[o + 2] = _top.z * ny / 0.93 + _side.z * nx;
+          const l = Math.hypot(nrm[o], nrm[o + 1], nrm[o + 2]) || 1; nrm[o] /= l; nrm[o + 1] /= l; nrm[o + 2] /= l;
+        }
+      }
+      arm.geo.attributes.position.needsUpdate = true; arm.geo.attributes.normal.needsUpdate = true;
+    };
+    let lastSteer = null;
     const animate = (steerIn) => {
       spin.rotation.x = -steerIn * WHEEL.lock;
-      arms.forEach(({ fa, ua, s }, k) => {
-        wrists[k].getWorldPosition(_w); body.worldToLocal(_w); const sh0 = shoulder[k];
-        _e.lerpVectors(sh0, _w, 0.52); _e.y -= 0.1; _e.z += s * 0.035;   // elbow drops and flares a little
-        segMatrix(_e, _w, _dn, fa.matrix); segMatrix(sh0, _e, _dn, ua.matrix);
-      });
+      if (lastSteer !== null && Math.abs(steerIn - lastSteer) < 2e-4) return; lastSteer = steerIn;
+      steer.updateWorldMatrix(true, true); body.updateWorldMatrix(true, false); _inv.copy(body.matrixWorld).invert();
+      arms.forEach((arm, k) => { _w.setFromMatrixPosition(wrists[k].matrixWorld).applyMatrix4(_inv); shapeArm(arm, shoulder[k], _w); });
     };
     animate(0);
     return { steer, spin, screen, screenTex, animate };
   }
 
-  // live rear-view mirrors: a small render target per mirror, rendered alternately from the glass along the reflected eye ray
-  function buildMirrors(glassMeshes, body) {
+  // live rear-view mirrors: a small render target per mirror, rendered alternately from the glass along the reflected eye ray.
+  // Cheap by design: 128 px wide targets (160 on high), far plane 260 m, and while a mirror renders it hides the heavy
+  // scenery (trees, crowd, grass cards / tufts, flags, parked vehicles, detail instancing) and every other car beyond 150 m.
+  const MIRROR_HIDE = /^(trees|treesFar|treeStripsNear|treeShadows|grassCards|crowd|flags|tents|campervans|parkedCars|runoffLogos|perimeterPosts|tyreStacks|fencePosts|fenceRails|hoardingPosts|pit-tyre)$|tuft|detail|grass|^pit-fig-/i;
+  function buildMirrors(glassMeshes, body, carGroup, swap) {
     const EYE = V(0.23, 0.842, 0);
     const mask = (() => { const c = document.createElement('canvas'); c.width = 128; c.height = 64; const x = c.getContext('2d'); x.fillStyle = '#000'; x.fillRect(0, 0, 128, 64); x.fillStyle = '#fff'; roundRect(x, 2, 2, 124, 60, 22); x.fill(); return new THREE.CanvasTexture(c); })();
     const sides = [];
@@ -482,30 +660,48 @@ window.EI = window.EI || {};
       const up = V(0, 1, 0).addScaledVector(nrm, -nrm.y).normalize(); const rx = new THREE.Vector3().crossVectors(up, nrm).normalize();
       let x0 = 1e9, x1 = -1e9, y0 = 1e9, y1 = -1e9; for (const v of verts) { const d = v.clone().sub(ctr); const px = d.dot(rx), py = d.dot(up); x0 = Math.min(x0, px); x1 = Math.max(x1, px); y0 = Math.min(y0, py); y1 = Math.max(y1, py); }
       const w = (x1 - x0) * 0.94, h = (y1 - y0) * 0.86; const cc = ctr.clone().addScaledVector(rx, (x0 + x1) / 2).addScaledVector(up, (y0 + y1) / 2).addScaledVector(nrm, 0.0025);
-      const rt = new THREE.WebGLRenderTarget(256, Math.max(48, Math.round(256 * h / w)), { encoding: THREE.sRGBEncoding }); rt.texture.encoding = THREE.sRGBEncoding;
+      const rt = new THREE.WebGLRenderTarget(128, 64, { encoding: THREE.sRGBEncoding, depthBuffer: true, stencilBuffer: false }); rt.texture.encoding = THREE.sRGBEncoding; rt.texture.generateMipmaps = false;
       rt.texture.repeat.x = -1; rt.texture.offset.x = 1;   // mirror image
       const plane = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshBasicMaterial({ map: rt.texture, alphaMap: mask, alphaTest: 0.5, toneMapped: false }));
       plane.position.copy(cc); plane.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(rx, up, nrm)); body.add(plane);
       // reflected eye ray -> camera direction (body space)
       const d = cc.clone().sub(EYE).normalize(); const refl = d.clone().addScaledVector(nrm, -2 * d.dot(nrm)).normalize();
-      const cam = new THREE.PerspectiveCamera(16, w / h, 0.3, 450); cam.userData = { local: cc.clone(), dir: refl };
+      const cam = new THREE.PerspectiveCamera(16, w / h, 0.3, 260); cam.userData = { local: cc.clone(), dir: refl };
       cam.fov = 2 * Math.atan(Math.tan(THREE.MathUtils.degToRad(17)) / (w / h)) * 180 / Math.PI;   // ~34 deg horizontal
       cam.updateProjectionMatrix();
-      sides.push({ rt, plane, cam });
+      sides.push({ rt, plane, cam, ar: w / h });
     }
-    let frameN = 0, sideN = 0; const _p = new THREE.Vector3(), _d = new THREE.Vector3(), _u = new THREE.Vector3();
+    let frameN = 0, sideN = 0, hideList = null, carList = null, scanN = 0; const _p = new THREE.Vector3(), _d = new THREE.Vector3(), _u = new THREE.Vector3();
+    const hidden = [];
+    const scan = (scene) => {
+      hideList = []; carList = [];
+      scene.traverse((o) => {
+        if (o === scene) return;
+        if (o.parent === scene && /^car-/.test(o.name || '')) { if (o !== carGroup) carList.push(o); return; }
+        if (MIRROR_HIDE.test(o.name || '')) hideList.push(o);
+      });
+    };
     return {
       sides,
       update(renderer, scene, every) {
         frameN++; if (every > 1 && frameN % every) return;
+        if (!hideList || ++scanN % 600 === 0) scan(scene);
         const sd = sides[(sideN++) % sides.length]; const cam = sd.cam;
+        const W = every <= 1 ? 160 : 128, H = Math.max(40, Math.min(80, Math.round(W / sd.ar))); if (sd.rt.width !== W || sd.rt.height !== H) sd.rt.setSize(W, H);
         body.updateWorldMatrix(true, false);
         _p.copy(cam.userData.local).applyMatrix4(body.matrixWorld); _d.copy(cam.userData.dir).transformDirection(body.matrixWorld); _u.set(0, 1, 0).transformDirection(body.matrixWorld);
         cam.position.copy(_p); cam.up.copy(_u); cam.lookAt(_p.add(_d)); cam.updateMatrixWorld();
+        hidden.length = 0;
+        for (const o of hideList) if (o.visible) { o.visible = false; hidden.push(o); }
+        const R2 = 150 * 150; for (const o of carList) if (o.visible && o.position.distanceToSquared(cam.position) > R2) { o.visible = false; hidden.push(o); }
         for (const s of sides) s.plane.visible = false;
+        // the car's own bodywork renders from the lo LOD in the mirrors (~35k instead of ~130k triangles)
+        if (swap) { for (const m of swap.hi) m.visible = false; for (const m of swap.lo) m.visible = true; }
         const prevRT = renderer.getRenderTarget(), au = renderer.shadowMap.autoUpdate; renderer.shadowMap.autoUpdate = false;
         renderer.setRenderTarget(sd.rt); renderer.render(scene, cam); renderer.setRenderTarget(prevRT); renderer.shadowMap.autoUpdate = au;
         for (const s of sides) s.plane.visible = true;
+        if (swap) { for (const m of swap.hi) m.visible = true; for (const m of swap.lo) m.visible = false; }
+        for (const o of hidden) o.visible = true;
       },
     };
   }
@@ -516,9 +712,12 @@ window.EI = window.EI || {};
     const src = lod === 'lo' ? cache.lo : cache.hi; const meta = cache.meta || {};
     const code = (car.isPlayer && car.name ? car.name : (car.driver && car.driver.name) || car.team.short).replace(/^[A-Z]\. ?/, '').slice(0, 3).toUpperCase();
     const tex = composeLivery(car.team, car.num, code, lod === 'lo' ? 1024 : 4096);
-    // glossy clear-coated paint: a satin base under a sharp lacquer layer
-    const paint = new THREE.MeshPhysicalMaterial({ map: tex, metalness: 0.0, roughness: 0.5, clearcoat: 0.65, clearcoatRoughness: 0.07, envMapIntensity: 0.42, side: THREE.DoubleSide });
+    const paint = paintMaterial(tex);
     if (!helmetMats[car.team.id]) helmetMats[car.team.id] = new THREE.MeshPhysicalMaterial({ color: new THREE.Color(car.team.accent), metalness: 0.1, roughness: 0.35, clearcoat: 1, clearcoatRoughness: 0.04, envMapIntensity: 0.7 });
+    // underside: darker, less glossy carbon for the floor, plank surround, diffuser and gearbox
+    if (!shared._floor) shared._floor = carbonMaterial({ dark: 0x010102, light: 0x07080a, clearcoat: 0.18, env: 0.22, ckMask: 0 });
+    // per-car rain light (flashes while ERS deploys)
+    const ledMat = new THREE.MeshStandardMaterial({ color: 0x220405, emissive: 0xff1a1a, emissiveIntensity: 0.6, roughness: 0.4 });
     const clone = src.clone(true);
     const g = new THREE.Group(); const body = new THREE.Group(); g.add(body);
     const helmet = new THREE.Group(); body.add(helmet);
@@ -541,39 +740,80 @@ window.EI = window.EI || {};
       const n = o.name || ''; const mname = o.material && o.material.name;
       // the cockpit surround is bare carbon (its paint/carbon split follows mesh faces, which reads as a saw-tooth edge)
       if (mname === 'paint') o.material = n.startsWith('body_cockpit') ? shared.carbon : paint; else if (mname === 'helmet') o.material = helmetMats[car.team.id];
+      else if (mname === 'led') o.material = ledMat;
+      else if (mname === 'carbon' && /^(floor_|body_gearbox|misc_rearled)/.test(n)) o.material = shared._floor;
       if (n.startsWith('driver_wheel')) { if (detailed) steerList.push(o); else bodyList.push(o); continue; }
       if (detailed && n === 'mirror_glass') mirrorGlass.push(o);
       const w = /^wheel_(fl|fr|rl|rr)_/.exec(n);
       if (w) { const c = w[1]; if (/tyre/.test(n) || pivots[c].userData.set !== true) { pivots[c].position.set(o.position.x, o.position.y, o.position.z); pivots[c].userData.set = /tyre/.test(n); } wheelLists[c].push(o); continue; }
       if (n.startsWith('drsflap_')) { flapList.push(o); continue; }
-      if (n.startsWith('helmet_') || n === 'driver_belts') { helmetList.push(o); continue; }
+      // the belts stay with the body (visible from the cockpit, where the helmet group is hidden)
+      if (n.startsWith('helmet_') || (n === 'driver_belts' && !detailed)) { helmetList.push(o); continue; }
       bodyList.push(o);
     }
     const world = (o) => o.matrixWorld;
-    for (const m of mergeMeshes(bodyList, world)) body.add(m);
+    const hiBody = mergeMeshes(bodyList, world); for (const m of hiBody) body.add(m);
     for (const m of mergeMeshes(helmetList, world)) helmet.add(m);
     // flap: geometry is local to the hinge node, keep it local
     for (const m of mergeMeshes(flapList, (o) => new THREE.Matrix4())) flapB.add(m);
-    for (const c of corners) { const pv = pivots[c].position; const inv = new THREE.Matrix4().makeTranslation(-pv.x, -pv.y, -pv.z); for (const m of mergeMeshes(wheelLists[c], (o) => inv.clone().multiply(o.matrixWorld))) spins[c].add(m); }
+    // wheels: merge per corner, then seat each pivot so the tyre's lowest point is on the road (y = 0), less ~5 mm of tyre squash
+    const tyreHalfW = {};
+    for (const c of corners) {
+      const pv = pivots[c].position; const inv = new THREE.Matrix4().makeTranslation(-pv.x, -pv.y, -pv.z);
+      const bb = new THREE.Box3();
+      for (const m of mergeMeshes(wheelLists[c], (o) => inv.clone().multiply(o.matrixWorld))) { spins[c].add(m); m.geometry.computeBoundingBox(); bb.union(m.geometry.boundingBox); if (/tyre/.test(m.name)) tyreHalfW[c] = Math.max(Math.abs(m.geometry.boundingBox.min.z), Math.abs(m.geometry.boundingBox.max.z)); }
+      if (!bb.isEmpty()) pv.y = -bb.min.y - 0.005;
+    }
     // ---- cockpit: detailed steering wheel with live display, gloved hands, sleeves, live mirrors (player cars only)
     let cockpit = null, screen = null, screenTex = null; const steer = new THREE.Group();
     if (detailed) {
       cockpit = buildCockpit(car, body); steer.add(cockpit.steer); body.add(steer); screen = cockpit.screen; screenTex = cockpit.screenTex;
-      if (mirrorGlass.length) { const mir = buildMirrors(mirrorGlass, body); if (mir) screen.userData.mirrors = mir; }
+      // lo-LOD copy of the bodywork, shown only while the mirrors render
+      const loClone = cache.lo.clone(true); loClone.updateMatrixWorld(true); const loList = [];
+      loClone.traverse((o) => {
+        if (!o.isMesh) return; const n = o.name || ''; const mname = o.material && o.material.name;
+        if (/^(wheel_|drsflap_|helmet_|driver_wheel|mirror_)/.test(n) || n === 'driver_belts') return;
+        if (mname === 'paint') o.material = n.startsWith('body_cockpit') ? shared.carbon : paint; else if (mname === 'led') o.material = ledMat;
+        else if (mname === 'carbon' && /^(floor_|body_gearbox|misc_rearled)/.test(n)) o.material = shared._floor;
+        loList.push(o);
+      });
+      const loBody = mergeMeshes(loList, world); for (const m of loBody) { m.visible = false; m.castShadow = false; body.add(m); }
+      if (mirrorGlass.length) { const mir = buildMirrors(mirrorGlass, body, g, { hi: hiBody, lo: loBody }); if (mir) screen.userData.mirrors = mir; }
     }
+    // brake glow: hot discs show through the gap between the rim lip and the wheel cover (outer face) and on the inner face
+    const glowMat = new THREE.MeshBasicMaterial({ color: 0xff6a1c, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
+    let heat = 0, lastT = 0, ledOn = -1;
     const animate = (steerIn, helmetYaw) => {
       if (cockpit) cockpit.animate(steerIn);
       if (helmet && helmetYaw != null) helmet.rotation.y = helmetYaw;
+      const now = performance.now() * 0.001; const dt = Math.min(0.1, Math.max(0, now - (lastT || now))); lastT = now;
+      // discs heat with brake pressure x speed, cool over ~1.5 s
+      const v = Math.abs(car.v || 0), target = (car.brake || 0) * Math.min(1, Math.max(0, (v - 12) / 45));
+      heat += (target - heat) * (1 - Math.exp(-dt / (target > heat ? 0.35 : 1.4)));
+      const op = Math.min(1, heat * 1.15); if (Math.abs(op - glowMat.opacity) > 0.01) { glowMat.opacity = op; glowMat.visible = op > 0.02; }
+      // rain light: steady, flashing at 4 Hz while ERS deploys
+      const on = car.ersActive ? ((now * 8) | 0) % 2 : 2; if (on !== ledOn) { ledOn = on; ledMat.emissiveIntensity = on === 2 ? 0.6 : on ? 3.2 : 0.15; }
     };
-    // tyre compound stripe (soft/medium/hard colour) on both sidewalls
+    glowMat.visible = false;
+    // tyre sidewalls (compound stripe + lettering) on both faces, sitting just proud of each tyre's own width; brake glow rings
     const ringMat = new THREE.MeshStandardMaterial({ map: tyreWallTexture(car.tyre), transparent: false, alphaTest: 0.4, roughness: 0.75, envMapIntensity: 0.3, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -1 });
-    const r1 = new THREE.RingGeometry(0.27, 0.335, 64, 1); r1.translate(0, 0, 0.176); const r2 = new THREE.RingGeometry(0.27, 0.335, 64, 1); r2.rotateY(Math.PI); r2.translate(0, 0, -0.176);
-    const ringGeo = mergeMeshes([new THREE.Mesh(r1, ringMat), new THREE.Mesh(r2, ringMat)], () => new THREE.Matrix4())[0].geometry;
-    for (const c of corners) { const r = new THREE.Mesh(ringGeo, ringMat); spins[c].add(r); }
+    const ringGeos = {}; const glowGeos = {};
+    for (const c of corners) {
+      const hw = (tyreHalfW[c] || 0.176) + 0.003; const key = hw.toFixed(3);
+      if (!ringGeos[key]) {
+        const r1 = new THREE.RingGeometry(0.27, 0.335, 64, 1); r1.translate(0, 0, hw); const r2 = new THREE.RingGeometry(0.27, 0.335, 64, 1); r2.rotateY(Math.PI); r2.translate(0, 0, -hw);
+        ringGeos[key] = mergeMeshes([new THREE.Mesh(r1, ringMat), new THREE.Mesh(r2, ringMat)], () => new THREE.Matrix4())[0].geometry;
+        const g1 = new THREE.RingGeometry(0.232, 0.273, 48, 1); g1.translate(0, 0, hw + 0.0015); const g2 = new THREE.RingGeometry(0.1, 0.165, 40, 1); g2.translate(0, 0, -hw + 0.04);
+        const g4 = g1.clone(); g4.rotateY(Math.PI); const g5 = g2.clone(); g5.rotateY(Math.PI);
+        glowGeos[key] = mergeGeos([{ geo: g1 }, { geo: g2 }, { geo: g4 }, { geo: g5 }]);
+      }
+      spins[c].add(new THREE.Mesh(ringGeos[key], ringMat));
+      const gl = new THREE.Mesh(glowGeos[key], glowMat); gl.renderOrder = 2; gl.frustumCulled = false; spins[c].add(gl);
+    }
     const wheels = corners.map((c) => spins[c]); const frontPivots = [pivots.fl, pivots.fr];
-    // contact shadow (same as CarModel)
-    const sc = document.createElement('canvas'); sc.width = 128; sc.height = 64; const sctx = sc.getContext('2d'); const grd = sctx.createRadialGradient(64, 32, 4, 64, 32, 60); grd.addColorStop(0, 'rgba(0,0,0,0.6)'); grd.addColorStop(0.6, 'rgba(0,0,0,0.3)'); grd.addColorStop(1, 'rgba(0,0,0,0)'); sctx.fillStyle = grd; sctx.fillRect(0, 0, 128, 64);
-    const blob = new THREE.Mesh(new THREE.PlaneGeometry(6.2, 3.0), new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(sc), transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -3 })); blob.rotation.x = -Math.PI / 2; blob.position.set(-0.1, 0.03, 0); g.add(blob);
+    // contact shadow: soft footprint + tyre contact patches, alpha 0 at every edge, just above the road
+    const blob = new THREE.Mesh(new THREE.PlaneGeometry(SHADOW.w, SHADOW.h), new THREE.MeshBasicMaterial({ map: contactShadowTexture(), transparent: true, depthWrite: false, toneMapped: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 }));
+    blob.rotation.x = -Math.PI / 2; blob.position.set(SHADOW.cx, 0.02, 0); blob.name = 'contactShadow'; blob.renderOrder = -1; g.add(blob);
     return { group: g, body, wheels, frontPivots, flap, helmet, bodyMat: paint, flapClosed: FLAP_CLOSED, flapOpen: FLAP_OPEN, lod: lod || 'hi', steer, animate, screen, screenTex };
   }
 

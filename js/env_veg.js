@@ -96,29 +96,55 @@ window.EI = window.EI || {};
     return Env.cutout(c, { aniso: 4 });
   }
 
-  // ---------------------------------------------------------------- tree geometry: two crossed cards + a horizontal canopy card, rounded normals
+  // ---------------------------------------------------------------- tree geometry
+  // near LOD: three vertical cards 60 degrees apart (the second shows the other side view, each card a slightly different tint,
+  // so the crown has depth from every angle) + a horizontal canopy card; rounded normals
   function treeGeometry() {
-    const pos = [], nrm = [], uv = [], top = [], idx = [];
-    const card = (ax, az) => {
-      const b = pos.length / 3;
+    const pos = [], nrm = [], uv = [], top = [], idx = [], tint = [], cvar = [];
+    const card = (ang, tn, vr) => {
+      const b = pos.length / 3; const ax = Math.cos(ang), az = Math.sin(ang);
       for (const [u, v] of [[0, 0], [1, 0], [1, 1], [0, 1]]) {
-        const s = u - 0.5; pos.push(ax * s, v, az * s); uv.push(u, v); top.push(0);
+        const s = u - 0.5; pos.push(ax * s, v, az * s); uv.push(u, v); top.push(0); tint.push(tn[0], tn[1], tn[2]); cvar.push(vr);
         const nx = ax * s * 1.1, ny = 0.45 + v * 0.7, nz = az * s * 1.1; const l = Math.hypot(nx, ny, nz); nrm.push(nx / l, ny / l, nz / l);
       }
       idx.push(b, b + 1, b + 2, b, b + 2, b + 3);
     };
-    card(1, 0); card(0, 1);
+    card(0, [1, 1, 1], 0); card(Math.PI / 3, [0.84, 0.88, 0.8], 1); card(Math.PI * 2 / 3, [1.08, 1.06, 0.96], 0);
     const b = pos.length / 3; const y = 0.62, s = 0.44;
-    for (const [u, v] of [[0, 0], [1, 0], [1, 1], [0, 1]]) { pos.push((u - 0.5) * 2 * s, y, (0.5 - v) * 2 * s); uv.push(u, v); top.push(1); nrm.push(0, 1, 0); }
+    for (const [u, v] of [[0, 0], [1, 0], [1, 1], [0, 1]]) { pos.push((u - 0.5) * 2 * s, y, (0.5 - v) * 2 * s); uv.push(u, v); top.push(1); nrm.push(0, 1, 0); tint.push(1.04, 1.04, 1); cvar.push(0); }
     idx.push(b, b + 1, b + 2, b, b + 2, b + 3);
-    const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute('normal', new THREE.Float32BufferAttribute(nrm, 3)); g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2)); g.setAttribute('isTop', new THREE.Float32BufferAttribute(top, 1)); g.setIndex(idx);
+    const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute('normal', new THREE.Float32BufferAttribute(nrm, 3)); g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+    g.setAttribute('isTop', new THREE.Float32BufferAttribute(top, 1)); g.setAttribute('ctint', new THREE.Float32BufferAttribute(tint, 3)); g.setAttribute('cvar', new THREE.Float32BufferAttribute(cvar, 1)); g.setIndex(idx);
     return g;
   }
-  // atlas lookup per instance: uv = (uv + (species, isTop ? 2 : variant)) / (4, 3)
-  function atlasPatch(sh) {
-    sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nattribute vec2 tcell;\nattribute float isTop;')
-      .replace('#include <begin_vertex>', '#include <begin_vertex>\nif (isTop > 0.5) { float sp = tcell.x; transformed.xz *= sp < 0.5 ? 1.0 : sp < 1.5 ? 0.4 : sp < 2.5 ? 0.8 : 1.05; transformed.y = sp < 0.5 ? 0.6 : sp < 1.5 ? 0.55 : sp < 2.5 ? 0.74 : 0.52; }')
-      .replace('#include <uv_vertex>', '#include <uv_vertex>\n#ifdef USE_UV\nvUv = (uv * vec2(0.98, 0.985) + vec2(0.01, 0.004) + vec2(tcell.x, isTop > 0.5 ? 2.0 : tcell.y)) * vec2(0.25, 1.0 / 3.0);\n#endif');
+  // per-instance records (vec4 x3): iA = (x, y, z, yaw), iB = (width, height, species, variant), iC = (r, g, b, blob)
+  // the LOD window uLod = (inner, outer) metres from the eye is applied per tree in the vertex shader (collapsed outside), so the
+  // near and far sets never overlap even between two CPU regathers
+  const TREE_HEAD = '#include <common>\nattribute vec4 iA;\nattribute vec4 iB;\nattribute vec4 iC;\nuniform vec3 uEye;\nuniform vec2 uLod;\nvarying vec3 vTint;\n';
+  function nearPatch(sh, uni, depth) {
+    Object.assign(sh.uniforms, uni);
+    sh.vertexShader = sh.vertexShader.replace('#include <common>', TREE_HEAD + 'attribute float isTop;\nattribute vec3 ctint;\nattribute float cvar;')
+      .replace('#include <beginnormal_vertex>', 'float nY = iA.w; vec3 objectNormal = vec3(cos(nY) * normal.x + sin(nY) * normal.z, normal.y, -sin(nY) * normal.x + cos(nY) * normal.z);')
+      .replace('#include <begin_vertex>', [
+        'vec3 transformed = vec3(position); float sp = iB.z;',
+        'if (isTop > 0.5) { transformed.xz *= sp < 0.5 ? 1.0 : sp < 1.5 ? 0.4 : sp < 2.5 ? 0.8 : 1.05; transformed.y = sp < 0.5 ? 0.6 : sp < 1.5 ? 0.55 : sp < 2.5 ? 0.74 : 0.52; }',
+        'transformed.xz *= iB.x; transformed.y *= iB.y; float tc = cos(iA.w), ts = sin(iA.w);',
+        'transformed = vec3(tc * transformed.x + ts * transformed.z, transformed.y, -ts * transformed.x + tc * transformed.z) + iA.xyz;',
+        'float dE = distance(iA.xz, uEye.xz); if (dE < uLod.x || dE >= uLod.y) transformed = iA.xyz;',
+        'vTint = iC.rgb * ctint;'].join('\n'))
+      .replace('#include <uv_vertex>', '#include <uv_vertex>\n#ifdef USE_UV\nvUv = (uv * vec2(0.98, 0.985) + vec2(0.01, 0.004) + vec2(iB.z, isTop > 0.5 ? 2.0 : mod(iB.w + cvar, 2.0))) * vec2(0.25, 1.0 / 3.0);\n#endif');
+    if (depth) sh.vertexShader = sh.vertexShader.replace('vTint = iC.rgb * ctint;', 'vTint = iC.rgb * ctint; if (dE > 200.0) transformed = iA.xyz;');
+    if (!depth) { sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nvarying vec3 vTint;').replace('#include <map_fragment>', '#include <map_fragment>\ndiffuseColor.rgb *= vTint;'); Env.noFlip(sh); }
+  }
+  // far LOD: one card turned to the camera about the vertical axis (side view A of the species)
+  function farPatch(sh, uni) {
+    Object.assign(sh.uniforms, uni);
+    sh.vertexShader = sh.vertexShader.replace('#include <common>', TREE_HEAD)
+      .replace('#include <beginnormal_vertex>', 'vec2 bdv = cameraPosition.xz - iA.xz; vec2 bdd = length(bdv) > 0.01 ? normalize(bdv) : vec2(0.0, 1.0); vec3 brt = vec3(bdd.y, 0.0, -bdd.x);\nvec3 objectNormal = normalize(brt * position.x * 1.1 + vec3(0.0, 0.45 + position.y * 0.7, 0.0) + vec3(bdd.x, 0.0, bdd.y) * 0.35);')
+      .replace('#include <begin_vertex>', 'vec3 transformed = iA.xyz + brt * position.x * iB.x * 0.95 + vec3(0.0, position.y * iB.y, 0.0);\nfloat dE = distance(iA.xz, uEye.xz); if (dE < uLod.x || dE >= uLod.y) transformed = iA.xyz;\nvTint = iC.rgb;')
+      .replace('#include <uv_vertex>', '#include <uv_vertex>\n#ifdef USE_UV\nvUv = (uv * vec2(0.98, 0.985) + vec2(0.01, 0.004) + vec2(iB.z, iB.w)) * vec2(0.25, 1.0 / 3.0);\n#endif');
+    sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nvarying vec3 vTint;').replace('#include <map_fragment>', '#include <map_fragment>\ndiffuseColor.rgb *= vTint;');
+    Env.noFlip(sh);
   }
 
   // ---------------------------------------------------------------- placement
@@ -134,6 +160,9 @@ window.EI = window.EI || {};
     const oakSize = (k) => { const s = 0.75 + rng() * 0.5; return [11 * s * (k || 1), 13.5 * s * (k || 1)]; };
     // ---- woodland blocks: dense along the edge (closed canopy wall), lighter inside
     const woods = t.data.scenery.woods.concat(E.data.woods || []); E.allWoods = woods;
+    // tree-line strips standing in for the billboards beyond the far LOD radius (medium / low): [points, height]
+    const inner = E.innerStrips = []; const H = Env.CARD_HALF;
+    for (const w of woods) if (Math.abs(U.polyArea(w)) >= 150) inner.push([w.concat([w[0]]), 17]);
     let nWood = 0;
     for (const w of woods) {
       const b = U.polyBounds(w); const area = Math.abs(U.polyArea(w)); if (area < 150) continue;
@@ -153,16 +182,18 @@ window.EI = window.EI || {};
     let nCopse = 0;
     for (const [k, poly] of E.fieldPolys || []) {
       if (E.fType[k] !== 8) continue; const sx = E.seedX[k], sz = E.seedZ[k]; if (E.isVenue(sx, sz) || Math.max(Math.abs(sx), Math.abs(sz)) > Env.CARD_HALF) continue; const R = 45 + E.fTone[k] * 35;
+      { const ring = []; for (let a = 0; a <= 12; a++) ring.push([sx + Math.cos(a / 12 * 6.283) * R * 1.1, sz + Math.sin(a / 12 * 6.283) * R * 0.8]); inner.push([ring, 14]); }
       for (let i = 0; i < R * R * 0.032; i++) { const a = rng() * 6.283, d = Math.sqrt(rng()) * R; const x = sx + Math.cos(a) * d * 1.2, z = sz + Math.sin(a) * d * 0.85; const [wd, ht] = oakSize(); if (!ok(x, z, wd)) continue; add(x, z, rng() < 0.15 ? SP.PINE : SP.OAK, wd, ht); nCopse++; }
     }
     // ---- hedgerows along the field boundaries (outside the venue): shrubs every ~3 m, standard oaks, some poplar rows and tree lines
-    const seen = new Set(); let nHedge = 0; const H = Env.CARD_HALF; const hc = {};
+    const seen = new Set(); let nHedge = 0; const hc = {};
     for (const [k, poly] of E.fieldPolys || []) {
       for (let i = 0; i < poly.length; i++) {
         const a = poly[i], b = poly[(i + 1) % poly.length]; const key = Math.round((a[0] + b[0]) / 4) + ',' + Math.round((a[1] + b[1]) / 4); if (seen.has(key)) continue; seen.add(key);
         const L = Math.hypot(b[0] - a[0], b[1] - a[1]); if (L < 2) continue; if (!E.hedgeOn(a, b, hc)) continue; const h = Env.hash2(Math.round(a[0]), Math.round(b[1]), 77);
         const style = h < 0.05 ? 'poplar' : h < 0.3 ? 'trees' : h < 0.9 ? 'hedge' : 'none'; if (style === 'none') continue;
         const gate = rng() * L, mx = (a[0] + b[0]) / 2, mz = (a[1] + b[1]) / 2; const fMid = E.fAt(mx, mz);
+        if ((Math.abs(a[0]) < H && Math.abs(a[1]) < H) || (Math.abs(b[0]) < H && Math.abs(b[1]) < H)) if (!E.isVenue(mx, mz)) inner.push([[a, b], style === 'poplar' ? 19 : style === 'trees' ? 12 : 6]);
         const dense = fMid < 950; const spacing = style === 'poplar' ? 7 : dense ? 4.2 : 26;
         for (let s = spacing * rng(); s < L; s += spacing * (0.8 + rng() * 0.4)) {
           if (Math.abs(s - gate) < 6) continue; const u = s / L; const x = a[0] + (b[0] - a[0]) * u + (rng() - 0.5) * 1.2, z = a[1] + (b[1] - a[1]) * u + (rng() - 0.5) * 1.2;
@@ -175,24 +206,36 @@ window.EI = window.EI || {};
         }
       }
     }
-    // ---- roadside hedges and trees along the public roads
+    // ---- roadside hedges and trees: public roads everywhere, and close to the circuit (within ~700 m of the barriers) a dense
+    // double hedgerow with standard oaks along every road, the estate service roads included
     let nRoad = 0;
     for (const r of E.roads || []) {
-      if (r.kind !== 'public') continue; const pts = r.line;
+      const pts = r.line; const pub = r.kind === 'public';
       for (let i = 0; i + 1 < pts.length; i++) {
-        const a = pts[i], b = pts[i + 1]; const L = Math.hypot(b[0] - a[0], b[1] - a[1]); const nx = -(b[1] - a[1]) / L, nz = (b[0] - a[0]) / L;
-        for (const sd of [-1, 1]) for (let s = rng() * 3; s < L; s += 3.4) {
-          const off = r.w / 2 + 4 + rng(); const x = a[0] + (b[0] - a[0]) * s / L + nx * sd * off, z = a[1] + (b[1] - a[1]) * s / L + nz * sd * off;
-          if (Math.abs(x) > H || Math.abs(z) > H || E.isVenue(x, z)) continue; const std = rng() < 0.08;
-          if (std) { const [wd, ht] = oakSize(); if (!ok(x, z, 6, OCC.WOOD)) continue; add(x, z, SP.OAK, wd, ht); } else { if (!ok(x, z, 4, OCC.WOOD)) continue; add(x, z, SP.SHRUB, 3.5 + rng() * 2, 2.3 + rng() * 1.5); }
-          nRoad++;
+        const a = pts[i], b = pts[i + 1]; const L = Math.hypot(b[0] - a[0], b[1] - a[1]); if (L < 0.5) continue; const nx = -(b[1] - a[1]) / L, nz = (b[0] - a[0]) / L;
+        const fm = E.fAt((a[0] + b[0]) / 2, (a[1] + b[1]) / 2); const close = fm < 700 && fm > 25;
+        if ((!pub && !close) || r.name === 'infield') continue;
+        const rows = close && r.name !== 'perimeter' ? 2 : 1; const step = close ? (rows > 1 ? 2.3 : 3.0) : 3.4; let segRun = null;
+        for (const sd of [-1, 1]) {
+          const gap = rng() * L; segRun = [];
+          for (let s = rng() * step; s < L; s += step * (0.85 + rng() * 0.3)) {
+            if (close && Math.abs(s - gap) < 5 && rng() < 0.7) continue;
+            for (let row = 0; row < rows; row++) {
+              const off = r.w / 2 + 3.8 + row * 1.7 + rng() * 0.8; const sj = s + row * step * 0.5; if (sj > L) continue;
+              const x = a[0] + (b[0] - a[0]) * sj / L + nx * sd * off, z = a[1] + (b[1] - a[1]) * sj / L + nz * sd * off;
+              if (Math.abs(x) > H || Math.abs(z) > H || (!close && E.isVenue(x, z))) continue; const std = row === 0 && rng() < (close ? 0.12 : 0.08);
+              if (std) { const [wd, ht] = oakSize(); if (!ok(x, z, 6, OCC.WOOD)) continue; add(x, z, rng() < 0.9 ? SP.OAK : SP.POPLAR, wd, ht); } else { if (!ok(x, z, 4, OCC.WOOD)) continue; add(x, z, SP.SHRUB, 3.4 + rng() * 2.2, 2.4 + rng() * 1.6); }
+              if (row === 0) segRun.push([x, z]); nRoad++;
+            }
+          }
+          if (segRun.length > 3) for (let k = 0; k + 1 < segRun.length; k += 6) inner.push([segRun.slice(k, k + 7), close ? 6 : 4]);
         }
       }
     }
     // ---- tree lines behind the grandstands and along the outside of the perimeter fence
     let nLine = 0;
     for (const [x0, z0, x1, z1] of E.treeLines || []) {
-      const L = Math.hypot(x1 - x0, z1 - z0);
+      const L = Math.hypot(x1 - x0, z1 - z0); inner.push([[[x0, z0], [x1, z1]], 13]);
       for (let s = rng() * 5; s < L; s += 6 + rng() * 5) { const u = s / L; const x = x0 + (x1 - x0) * u + (rng() - 0.5) * 2, z = z0 + (z1 - z0) * u + (rng() - 0.5) * 2; const kind = rng(); const pop = kind < 0.1; const [wd, ht] = pop ? [4.5 + rng() * 2, 16 + rng() * 6] : oakSize(); if (!ok(x, z, wd)) continue; add(x, z, pop ? SP.POPLAR : SP.OAK, wd, ht); nLine++; }
     }
     // ---- scattered clumps around the estate (between stands, car parks and roads)
@@ -210,43 +253,57 @@ window.EI = window.EI || {};
     E.timings.trees = Math.round(performance.now() - T0);
   };
 
-  // ---------------------------------------------------------------- instancing: trees split into a 3x3 grid of InstancedMeshes (culling), one shadow-blob mesh
+  // ---------------------------------------------------------------- instancing: one cell-sorted record set feeding the near (3-card) LOD,
+  // the soft contact shadows under near trees and the far (1-card billboard) LOD; both regathered around the eye
   Veg.instance = function (E, trees) {
-    const sc = E.sc; const atlas = paintAtlas(); const geo = treeGeometry();
-    const mat = new THREE.MeshStandardMaterial({ map: atlas, alphaTest: 0.42, side: THREE.DoubleSide, roughness: 0.92, metalness: 0, emissive: 0x1d2a12, emissiveMap: atlas, emissiveIntensity: 0.0 });
-    mat.onBeforeCompile = (sh) => { atlasPatch(sh); Env.noFlip(sh); };
-    mat.customProgramCacheKey = () => 'tree-atlas';
-    const depth = new THREE.MeshDepthMaterial({ depthPacking: THREE.RGBADepthPacking, map: atlas, alphaTest: 0.42 });
-    depth.onBeforeCompile = atlasPatch; depth.customProgramCacheKey = () => 'tree-atlas-depth';
-    const groups = new Map(); const GS = 900;
-    for (const tr of trees) { const key = U.clamp(Math.floor(tr[0] / GS + 2), 0, 3) * 4 + U.clamp(Math.floor(tr[1] / GS + 2), 0, 3); let l = groups.get(key); if (!l) groups.set(key, l = []); l.push(tr); }
-    const m = new THREE.Matrix4(), q = new THREE.Quaternion(), s = new THREE.Vector3(), p = new THREE.Vector3(), up = new THREE.Vector3(0, 1, 0), col = new THREE.Color();
-    const rng = U.rng(99); sc.treeMeshes = [];
-    const blobs = [];
-    for (const [key, list] of groups) {
-      const g = geo.clone(); const cells = new Float32Array(list.length * 2); g.setAttribute('tcell', new THREE.InstancedBufferAttribute(cells, 2));
-      const inst = new THREE.InstancedMesh(g, mat, list.length);
-      list.forEach((tr, k) => {
-        const [x, z, sp, w, h, v, tint] = tr; const y = sc.height(x, z) - 0.15;
-        q.setFromAxisAngle(up, rng() * Math.PI); s.set(w, h, w); p.set(x, y, z); m.compose(p, q, s); inst.setMatrixAt(k, m);
-        cells[k * 2] = sp; cells[k * 2 + 1] = v;
-        const br = 0.82 + tint * 0.3; const warm = (rng() - 0.5) * 0.12; col.setRGB(br * (1 + warm), br, br * (1 - warm * 1.5)); inst.setColorAt(k, col);
-        if (sp !== SP.SHRUB && !tr[7]) blobs.push([x, y, z, w, h]);
-      });
-      inst.instanceMatrix.needsUpdate = true; inst.instanceColor.needsUpdate = true;
-      Env.fitInstances(inst, 30);
-      inst.customDepthMaterial = depth; inst.castShadow = false; inst.receiveShadow = false; inst.name = 'trees';
-      sc.group.add(inst); sc.treeMeshes.push(inst);
+    const sc = E.sc; const atlas = paintAtlas(); const rng = U.rng(99);
+    const set = new Env.CellSet([4, 4, 4], 60);
+    for (const tr of trees) {
+      const [x, z, sp, w, h, v, tint, interior] = tr; const y = sc.height(x, z) - 0.15;
+      const br = 0.82 + tint * 0.3; const warm = (rng() - 0.5) * 0.12; const yaw = rng() * Math.PI;
+      set.push(x, z, [[x, y, z, yaw], [w, h, sp, v], [br * (1 + warm), br, br * (1 - warm * 1.5), sp !== SP.SHRUB && !interior ? 1 : 0]]);
     }
-    sc.treeMat = mat;
-    // soft contact shadow under each tree, pushed away from the sun (sun at azimuth 205, elevation 42)
-    const [bc, bctx] = Env.canvas(128, 128); const gr = bctx.createRadialGradient(64, 64, 4, 64, 64, 62); gr.addColorStop(0, 'rgba(0,0,0,0.75)'); gr.addColorStop(0.55, 'rgba(0,0,0,0.42)'); gr.addColorStop(1, 'rgba(0,0,0,0)'); bctx.fillStyle = gr; bctx.fillRect(0, 0, 128, 128);
-    const btex = new THREE.CanvasTexture(bc);
-    const bgeo = new THREE.PlaneGeometry(1, 1); bgeo.rotateX(-Math.PI / 2);
-    const bmat = new THREE.MeshBasicMaterial({ map: btex, color: 0x0c1408, transparent: true, opacity: 0.55, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -4 });
-    const binst = new THREE.InstancedMesh(bgeo, bmat, blobs.length); const sdx = 0.42, sdz = 0.91;
-    blobs.forEach((b, k) => { const [x, y, z, w, h] = b; const off = Math.min(h * 0.32, 6); p.set(x + sdx * off, y + 0.25, z + sdz * off); q.setFromAxisAngle(up, Math.atan2(sdx, sdz)); s.set(w * 1.15, 1, w * 1.15 + h * 0.35); m.compose(p, q, s); binst.setMatrixAt(k, m); });
-    binst.instanceMatrix.needsUpdate = true; Env.fitInstances(binst, 10); binst.name = 'treeShadows'; binst.renderOrder = 1; sc.group.add(binst);
+    set.finalize(); const N = trees.length;
+    const uni = { uEye: { value: new THREE.Vector3() }, uLodN: { value: new THREE.Vector2(0, 500) }, uLodF: { value: new THREE.Vector2(500, 1e5) } };
+    // near
+    const [ng, nattr] = Env.instGeo(treeGeometry(), ['iA', 'iB', 'iC'], N);
+    const nmat = new THREE.MeshStandardMaterial({ map: atlas, alphaTest: 0.42, side: THREE.DoubleSide, roughness: 0.92, metalness: 0 });
+    nmat.onBeforeCompile = (sh) => nearPatch(sh, { uEye: uni.uEye, uLod: uni.uLodN }); nmat.customProgramCacheKey = () => 'tree-near';
+    const depth = new THREE.MeshDepthMaterial({ depthPacking: THREE.RGBADepthPacking, map: atlas, alphaTest: 0.42 });
+    depth.onBeforeCompile = (sh) => nearPatch(sh, { uEye: uni.uEye, uLod: uni.uLodN }, true); depth.customProgramCacheKey = () => 'tree-near-depth';
+    const near = new THREE.Mesh(ng, nmat); near.frustumCulled = false; near.customDepthMaterial = depth; near.name = 'trees'; sc.group.add(near);
+    // contact shadows share the near records: a flat quad pushed away from the sun (azimuth 205, elevation 42); shrubs and wood interiors have none
+    const [bc, bctx] = Env.canvas(128, 128); const gr = bctx.createRadialGradient(64, 64, 4, 64, 64, 62); gr.addColorStop(0, 'rgba(0,0,0,0.6)'); gr.addColorStop(0.5, 'rgba(0,0,0,0.3)'); gr.addColorStop(1, 'rgba(0,0,0,0)'); bctx.fillStyle = gr; bctx.fillRect(0, 0, 128, 128);
+    const bbase = new THREE.PlaneGeometry(1, 1); bbase.rotateX(-Math.PI / 2);
+    const bg = new THREE.InstancedBufferGeometry(); bg.index = bbase.index; for (const k in bbase.attributes) bg.setAttribute(k, bbase.attributes[k]); ['iA', 'iB', 'iC'].forEach((k, j) => bg.setAttribute(k, nattr[j])); bg.instanceCount = 0;
+    const bmat = new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(bc), color: 0x16200f, transparent: true, opacity: 0.3, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -4 });
+    bmat.onBeforeCompile = (sh) => {
+      Object.assign(sh.uniforms, { uEye: uni.uEye, uLod: uni.uLodN });
+      sh.vertexShader = sh.vertexShader.replace('#include <common>', TREE_HEAD).replace('#include <begin_vertex>', [
+        'float off = min(iB.y * 0.32, 6.0); const vec2 sd = vec2(0.42, 0.91);',
+        'vec2 lp = vec2(position.x * iB.x * 1.1, position.z * (iB.x * 1.1 + iB.y * 0.3));',
+        'vec3 transformed = vec3(iA.x + sd.x * off + lp.x * sd.y + lp.y * sd.x, iA.y + 0.25, iA.z + sd.y * off - lp.x * sd.x + lp.y * sd.y);',
+        'float dE = distance(iA.xz, uEye.xz); if (iC.w < 0.5 || dE >= uLod.y) transformed = iA.xyz; vTint = iC.rgb;'].join('\n'));
+    };
+    bmat.customProgramCacheKey = () => 'tree-blob';
+    const blobs = new THREE.Mesh(bg, bmat); blobs.frustumCulled = false; blobs.name = 'treeShadows'; blobs.renderOrder = 1; sc.group.add(blobs);
+    // far
+    const fbase = new THREE.PlaneGeometry(1, 1); fbase.translate(0, 0.5, 0);
+    const [fg, fattr] = Env.instGeo(fbase, ['iA', 'iB', 'iC'], N);
+    const fmat = new THREE.MeshStandardMaterial({ map: atlas, alphaTest: 0.45, side: THREE.DoubleSide, roughness: 0.95, metalness: 0 });
+    fmat.onBeforeCompile = (sh) => farPatch(sh, { uEye: uni.uEye, uLod: uni.uLodF }); fmat.customProgramCacheKey = () => 'tree-far';
+    const far = new THREE.Mesh(fg, fmat); far.frustumCulled = false; far.name = 'treesFar'; sc.group.add(far);
+    const dn = new Env.DynSet(set, nattr, (n) => { ng.instanceCount = n; bg.instanceCount = n; near.visible = n > 0; blobs.visible = n > 0 && sc.treeBlobs !== false; }, 25);
+    const df = new Env.DynSet(set, fattr, (n) => { fg.instanceCount = n; far.visible = n > 0; }, 90);
+    sc.treeLod = {
+      near, far, blobs, uni,
+      // nearR: 3-card trees inside; farR: billboards out to here (nothing beyond)
+      setRange(nearR, farR) { this.nearR = nearR; this.farR = farR; uni.uLodN.value.set(0, nearR); uni.uLodF.value.set(nearR, farR); dn.range(0, nearR + 60); df.range(Math.max(0, nearR - 160), farR + 160); },
+      update(x, z) { uni.uEye.value.set(x, 0, z); dn.update(x, z); df.update(x, z); },
+      get counts() { return { near: dn.n, far: df.n }; },
+    };
+    sc.treeLod.setRange(500, 1e5);
+    sc.treeMat = nmat;
   };
 
   // ---------------------------------------------------------------- distant tree-line strips: hedgerow trees and woods beyond the field map, out to the horizon
@@ -291,9 +348,31 @@ window.EI = window.EI || {};
       }
     }
     const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); geo.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2)); geo.setAttribute('normal', new THREE.Float32BufferAttribute(nrm, 3)); geo.setIndex(idx); geo.computeBoundingSphere();
-    const mat = new THREE.MeshStandardMaterial({ map: stripTexture(), alphaTest: 0.45, side: THREE.DoubleSide, roughness: 1, metalness: 0 });
+    const stex = stripTexture();
+    const mat = new THREE.MeshStandardMaterial({ map: stex, alphaTest: 0.45, side: THREE.DoubleSide, roughness: 1, metalness: 0 });
     mat.onBeforeCompile = Env.noFlip;
     const m = new THREE.Mesh(geo, mat); m.name = 'treeStrips'; sc.group.add(m); E.stats.stripEdges = edges; E.stats.stripTris = idx.length / 3;
+    // inner strips (woods edges, copses, hedgerows, tree lines and road hedges inside the billboard area): shown only by the
+    // medium / low tiers, where they grow out of the ground beyond the far tree radius (uStripR) and replace the culled billboards
+    const ip = [], iu = [], inr = [], ib = [], ii = [];
+    for (const [line, hgt] of E.innerStrips || []) {
+      const pts = []; for (let k = 0; k + 1 < line.length; k++) { const a = line[k], b = line[k + 1]; const L = Math.hypot(b[0] - a[0], b[1] - a[1]); const n = Math.max(1, Math.round(L / 20)); for (let j = 0; j < n; j++) pts.push([a[0] + (b[0] - a[0]) * j / n, a[1] + (b[1] - a[1]) * j / n]); } pts.push(line[line.length - 1]);
+      if (pts.length < 2) continue; let v0 = ip.length / 3, u = rng() * 8;
+      for (let i = 0; i < pts.length; i++) {
+        const [x, z] = pts[i]; const y = sc.height(x, z) - 0.6; const hh = hgt * (0.8 + 0.4 * U.noise2(x / 70, z / 70));
+        if (i > 0) u += Math.hypot(x - pts[i - 1][0], z - pts[i - 1][1]) / (hgt * 6);
+        ip.push(x, y, z, x, y + hh, z); iu.push(u, 0, u, 1); inr.push(0, 1, 0, 0, 1, 0); ib.push(y, y);
+        if (i > 0) { const a = v0 + (i - 1) * 2; ii.push(a, a + 2, a + 1, a + 1, a + 2, a + 3); }
+      }
+    }
+    if (ii.length) {
+      const g2 = new THREE.BufferGeometry(); g2.setAttribute('position', new THREE.Float32BufferAttribute(ip, 3)); g2.setAttribute('uv', new THREE.Float32BufferAttribute(iu, 2)); g2.setAttribute('normal', new THREE.Float32BufferAttribute(inr, 3)); g2.setAttribute('sBase', new THREE.Float32BufferAttribute(ib, 1)); g2.setIndex(ii); g2.computeBoundingSphere();
+      const uni = { uEye: { value: new THREE.Vector3() }, uStripR: { value: 1500 } };
+      const m2mat = new THREE.MeshStandardMaterial({ map: stex, alphaTest: 0.45, side: THREE.DoubleSide, roughness: 1, metalness: 0 });
+      m2mat.onBeforeCompile = (sh) => { Object.assign(sh.uniforms, uni); Env.noFlip(sh); sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nattribute float sBase;\nuniform vec3 uEye;\nuniform float uStripR;').replace('#include <begin_vertex>', '#include <begin_vertex>\ntransformed.y = mix(sBase - 0.5, transformed.y, smoothstep(uStripR - 30.0, uStripR + 50.0, distance(position.xz, uEye.xz)));'); };
+      m2mat.customProgramCacheKey = () => 'tree-strips-inner';
+      const m2 = new THREE.Mesh(g2, m2mat); m2.name = 'treeStripsNear'; m2.visible = false; sc.group.add(m2); sc.innerStrips = { mesh: m2, uni }; E.stats.innerStripTris = ii.length / 3;
+    }
   };
 
   // ---------------------------------------------------------------- verge grass cards: tufts 3-30 m from the track edge, shown around the camera only
@@ -310,9 +389,10 @@ window.EI = window.EI || {};
   }
   Veg.buildGrass = function (E) {
     const sc = E.sc, t = E.t, rng = U.rng(4040), hw = t.halfWidth, kw = t.kerbWidth; const OCC = Env.OCC;
-    // candidate tufts: x, y, z, rot, scale, r, g, b ; bucketed in 32 m cells
-    const CELL = 32; const buckets = new Map(); let total = 0; const col = new THREE.Color();
-    const push = (x, y, z, s) => { const key = Math.floor(x / CELL) * 4096 + Math.floor(z / CELL); let b = buckets.get(key); if (!b) buckets.set(key, b = []); E.mapColor(x, z, col); const k = 1.45 + rng() * 0.45; b.push(x, y, z, rng() * Math.PI, s, col.r * k * 1.1, col.g * k * 1.04, col.b * k); total++; };
+    // candidate tufts, cell-sorted: a ready instance matrix + colour each (the regather around the eye is then a few block copies)
+    const set = new Env.CellSet([16, 3], 32); let total = 0; const col = new THREE.Color();
+    const m = new THREE.Matrix4(), q = new THREE.Quaternion(), sv = new THREE.Vector3(), p = new THREE.Vector3(), up = new THREE.Vector3(0, 1, 0);
+    const push = (x, y, z, s) => { E.mapColor(x, z, col); const k = 1.45 + rng() * 0.45; p.set(x, y, z); q.setFromAxisAngle(up, rng() * Math.PI); sv.set(s, s * (0.8 + (total % 5) * 0.1), s); m.compose(p, q, sv); set.push(x, z, [m.elements, [col.r * k * 1.1, col.g * k * 1.04, col.b * k]]); total++; };
     for (let i = 0; i < t.n; i++) {
       for (const side of [-1, 1]) {
         const run = side < 0 ? t.runoffL[i] : t.runoffR[i], grav = side < 0 ? t.gravelL[i] : t.gravelR[i];
@@ -330,34 +410,37 @@ window.EI = window.EI || {};
         }
       }
     }
+    set.finalize();
     const MAX = 22000; const geo = new THREE.BufferGeometry();
     const pos = [], uv = [], nrm = [];
     for (const [ax, az] of [[1, 0], [0.5, 0.866], [-0.5, 0.866]]) { const w = 0.55; for (const [u, v] of [[0, 0], [1, 0], [1, 1], [0, 0], [1, 1], [0, 1]]) { pos.push(ax * (u - 0.5) * 2 * w, v * 0.34, az * (u - 0.5) * 2 * w); uv.push(u, v); nrm.push(0, 1, 0); } }
     geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); geo.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2)); geo.setAttribute('normal', new THREE.Float32BufferAttribute(nrm, 3));
     const mat = new THREE.MeshStandardMaterial({ map: grassCardTexture(), alphaTest: 0.5, side: THREE.DoubleSide, roughness: 1, metalness: 0 });
-    const uniforms = { gTime: { value: 0 }, gCam: { value: new THREE.Vector3() } };
+    const uniforms = { gTime: { value: 0 }, gCam: { value: new THREE.Vector3() }, gFade: { value: new THREE.Vector2(55, 85) }, gTint: { value: new THREE.Vector3(1, 1, 1) } };
     mat.onBeforeCompile = (sh) => {
-      sh.uniforms.gTime = uniforms.gTime; sh.uniforms.gCam = uniforms.gCam; Env.noFlip(sh);
-      sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nuniform float gTime;\nuniform vec3 gCam;')
-        .replace('#include <begin_vertex>', '#include <begin_vertex>\n#ifdef USE_INSTANCING\nvec3 ip = vec3(instanceMatrix[3][0], instanceMatrix[3][1], instanceMatrix[3][2]);\nfloat fade = (1.0 - smoothstep(55.0, 85.0, distance(ip.xz, gCam.xz))) * (1.0 - smoothstep(7.0, 16.0, cameraPosition.y - ip.y));\ntransformed *= fade;\ntransformed.x += sin(gTime * 1.7 + ip.x * 0.35 + ip.z * 0.21) * 0.07 * uv.y;\ntransformed.z += cos(gTime * 1.3 + ip.z * 0.31) * 0.05 * uv.y;\n#endif');
+      Object.assign(sh.uniforms, uniforms); Env.noFlip(sh);
+      sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nuniform float gTime;\nuniform vec3 gCam;\nuniform vec2 gFade;')
+        .replace('#include <begin_vertex>', '#include <begin_vertex>\n#ifdef USE_INSTANCING\nvec3 ip = vec3(instanceMatrix[3][0], instanceMatrix[3][1], instanceMatrix[3][2]);\nfloat fade = (1.0 - smoothstep(gFade.x, gFade.y, distance(ip.xz, gCam.xz))) * (1.0 - smoothstep(7.0, 16.0, cameraPosition.y - ip.y));\ntransformed *= fade;\ntransformed.x += sin(gTime * 1.7 + ip.x * 0.35 + ip.z * 0.21) * 0.07 * uv.y;\ntransformed.z += cos(gTime * 1.3 + ip.z * 0.31) * 0.05 * uv.y;\n#endif');
+      sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nuniform vec3 gTint;').replace('#include <color_fragment>', '#include <color_fragment>\ndiffuseColor.rgb *= gTint;');
     };
     mat.customProgramCacheKey = () => 'grass-cards';
-    const inst = new THREE.InstancedMesh(geo, mat, MAX); inst.setColorAt(0, new THREE.Color(1, 1, 1)); inst.count = 0; inst.frustumCulled = false; inst.name = 'grassCards';
+    const cap = Math.min(MAX, total);
+    const inst = new THREE.InstancedMesh(geo, mat, Math.max(1, cap)); inst.setColorAt(0, new THREE.Color(1, 1, 1)); inst.count = 0; inst.frustumCulled = false; inst.name = 'grassCards';
     inst.instanceMatrix.setUsage(THREE.DynamicDrawUsage); inst.instanceColor.setUsage(THREE.DynamicDrawUsage);
     sc.group.add(inst);
     E.stats.grassCandidates = total;
-    const m = new THREE.Matrix4(), q = new THREE.Quaternion(), s = new THREE.Vector3(), p = new THREE.Vector3(), up = new THREE.Vector3(0, 1, 0);
-    let lastKey = null; const R = 3; const ONE = [1, 1, 1];
+    // the set is gathered into a scratch buffer and clipped to the capacity (nearest cells first is not needed: the radius keeps it small)
+    const scratch = [new Float32Array(total * 16), new Float32Array(total * 3)];
+    let last = null, R = 85, on = true;
     sc.grass = {
+      inst, uniforms,
+      setRange(fade0, fade1) { on = fade1 > 0; R = fade1; if (on) uniforms.gFade.value.set(fade0, fade1); last = null; inst.visible = on; },
       update(dt, cx, cz) {
-        uniforms.gTime.value += dt; uniforms.gCam.value.set(cx, 0, cz);
-        const gx = Math.floor(cx / CELL), gz = Math.floor(cz / CELL); const key = gx * 4096 + gz; if (key === lastKey) return; lastKey = key;
-        let n = 0; const ma = inst.instanceMatrix.array, ca = inst.instanceColor.array;
-        for (let dz = -R; dz <= R && n < MAX; dz++) for (let dx = -R; dx <= R && n < MAX; dx++) {
-          const b = buckets.get((gx + dx) * 4096 + (gz + dz)); if (!b) continue;
-          for (let o = 0; o < b.length && n < MAX; o += 8) { p.set(b[o], b[o + 1], b[o + 2]); q.setFromAxisAngle(up, b[o + 3]); s.set(b[o + 4], b[o + 4] * (0.8 + (o % 5) * 0.1), b[o + 4]); m.compose(p, q, s); m.toArray(ma, n * 16); const tn = sc.grassTint || ONE; ca[n * 3] = b[o + 5] * tn[0]; ca[n * 3 + 1] = b[o + 6] * tn[1]; ca[n * 3 + 2] = b[o + 7] * tn[2]; n++; }
-        }
-        inst.count = n; inst.instanceMatrix.needsUpdate = true; inst.instanceColor.needsUpdate = true;
+        uniforms.gTime.value += dt; uniforms.gCam.value.set(cx, 0, cz); const tn = sc.grassTint; if (tn) uniforms.gTint.value.set(tn[0], tn[1], tn[2]);
+        if (!on || (last && Math.hypot(cx - last[0], cz - last[1]) < 12)) return; last = [cx, cz];
+        let n = set.gather(cx, cz, 0, R + 16, scratch); n = Math.min(n, cap);
+        inst.instanceMatrix.array.set(scratch[0].subarray(0, n * 16)); inst.instanceColor.array.set(scratch[1].subarray(0, n * 3));
+        inst.count = n; for (const [a, st] of [[inst.instanceMatrix, 16], [inst.instanceColor, 3]]) { a.updateRange.offset = 0; a.updateRange.count = Math.max(1, n * st); a.needsUpdate = true; }
       },
     };
   };

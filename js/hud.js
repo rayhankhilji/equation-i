@@ -48,16 +48,19 @@ window.EI = window.EI || {};
     r.showMsg = (text, cls, dur) => { r.msgText.textContent = text; r.msg.className = 'msg ' + (cls || ''); void r.msg.offsetWidth; r.msg.classList.add('show'); r.msgT = dur || 2.5; };
     r.update = (race, dt) => {
       const c = car, t = race.track;
-      // cockpit view: the wheel display carries gear / speed / ERS / DRS, so the centre dash steps aside
+      // cockpit view: the wheel display carries gear / speed / ERS / DRS, so the centre dash (and the corner / driver chips) go away;
+      // only the lap tower, timing box, minimap and name tags stay, plus a vignette that frames the cockpit
       const ck = !!(c._cockpitT && performance.now() - c._cockpitT < 400); if (ck !== r.ck) { r.ck = ck; el.classList.toggle('cockpit', ck); }
-      // ---- dash
-      setText(r.speed, String(Math.round(c.speedKmh))); setText(r.gear, c.gear === 0 ? 'N' : c.v < -0.5 ? 'R' : String(c.gear));
-      const lit = Math.round(c.rpm * 15); for (let i = 0; i < 15; i++) r.leds[i].classList.toggle('on', i < lit);
-      r.ledsEl.classList.toggle('shift', c.rpm > 0.96 && c.gear > 0 && c.gear < 8);
-      setText(r.rpm, Math.round((4000 + c.rpm * 8500) / 50) * 50 + ' RPM');
-      r.thr.style.setProperty('--v', (c.throttle * 100).toFixed(0) + '%'); r.brk.style.setProperty('--v', (c.brake * 100).toFixed(0) + '%');
-      const ep = Math.round(c.ers * 100); setText(r.ersPct, ep + '%'); r.ersBar.style.width = ep + '%'; r.ersBatt.style.width = ep + '%'; r.ers.classList.toggle('active', !!c.ersActive);
-      r.drs.className = 'drs' + (c.drsOpen ? ' open' : c.drsEligible ? ' armed' : '');
+      // ---- dash (hidden in the cockpit, where the wheel display carries it: skip the DOM work entirely)
+      if (!ck) {
+        setText(r.speed, String(Math.round(c.speedKmh))); setText(r.gear, c.gear === 0 ? 'N' : c.v < -0.5 ? 'R' : String(c.gear));
+        const lit = Math.round(c.rpm * 15); for (let i = 0; i < 15; i++) r.leds[i].classList.toggle('on', i < lit);
+        r.ledsEl.classList.toggle('shift', c.rpm > 0.96 && c.gear > 0 && c.gear < 8);
+        setText(r.rpm, Math.round((4000 + c.rpm * 8500) / 50) * 50 + ' RPM');
+        r.thr.style.setProperty('--v', (c.throttle * 100).toFixed(0) + '%'); r.brk.style.setProperty('--v', (c.brake * 100).toFixed(0) + '%');
+        const ep = Math.round(c.ers * 100); setText(r.ersPct, ep + '%'); r.ersBar.style.width = ep + '%'; r.ersBatt.style.width = ep + '%'; r.ers.classList.toggle('active', !!c.ersActive);
+        r.drs.className = 'drs' + (c.drsOpen ? ' open' : c.drsEligible ? ' armed' : '');
+      }
       // ---- lap tower: 2 ahead, me, 2 behind
       const lapNow = c.finished ? 'FIN' : String(Math.min(c.lap, race.laps));
       if (lapNow !== r.prevLap) { setText(r.lapN, lapNow); if (r.prevLap !== -1) flash(r.lapWrap, 'bump', 600); r.prevLap = lapNow; }

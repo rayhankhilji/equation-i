@@ -68,6 +68,10 @@ window.EI = window.EI || {};
     const sm = q === 'low' ? 1024 : 2048; if (sun.shadow.mapSize.x !== sm) { sun.shadow.mapSize.set(sm, sm); if (sun.shadow.map) { sun.shadow.map.dispose(); sun.shadow.map = null; } }
     renderer.shadowMap.type = q === 'low' ? THREE.PCFShadowMap : THREE.PCFSoftShadowMap;
     if (scenery && scenery.group) scenery.group.traverse(o => { if (o.name === 'trees' || o.name === 'crowd') o.castShadow = q === 'high'; });
+    EI.quality = q; if (scenery && scenery.setQuality) scenery.setQuality(q); if (EI.Pit && EI.Pit.setQuality) EI.Pit.setQuality(q); if (track && track.setQuality) track.setQuality(q);
+    // low: no live mirrors, no grass tufts / decorative instancing named 'detail', fog closer
+    scene.traverse(o => { if (/tuft|detail/i.test(o.name || '')) o.visible = q !== 'low'; });
+    if (scene.fog) { scene.fog.near = q === 'low' ? 700 : 1300; scene.fog.far = q === 'low' ? 3200 : 6000; }
     onResize();
   }
 
@@ -172,9 +176,11 @@ window.EI = window.EI || {};
       cam.up.set(0, 1, 0); cam.lookAt(_look);
       cs.roll += (U.clamp(-car.aLat * 0.0006, -0.015, 0.015) - cs.roll) * kSway; cam.rotateZ(cs.roll);
       cs.fov += ((61 + Math.min(v, 95) * 0.03 + (car.drsOpen ? 1 : 0)) - cs.fov) * (snap ? 1 : Math.min(1, dt * 3)); cam.fov = cs.fov; cam.updateProjectionMatrix();
-      const mir = car.screen && car.screen.userData.mirrors; if (mir && !EI.debug.noMirrors) mir.update(renderer, scene, quality === 'low' ? 3 : 1);
+      cam.near = 0.04; cam.updateProjectionMatrix();
+      const mir = car.screen && car.screen.userData.mirrors; if (mir && !EI.debug.noMirrors && quality !== 'low') mir.update(renderer, scene, quality === 'high' ? 1 : 3);
       return;
     }
+    if (cam.near !== 0.25) { cam.near = 0.25; cam.updateProjectionMatrix(); }
     if (mode === 'tv') {
       const t = track; const seg = Math.floor(car.trk.s / 120); if (cam.userData.seg !== seg) { cam.userData.seg = seg; const i = t.idxAtS(seg * 120 + 80); const side = t.lineOff[i] > 0 ? -1 : 1; cam.userData.pos = new THREE.Vector3(t.x[i] + t.nx[i] * side * (t.halfWidth + 6), t.y[i] + 5, t.z[i] + t.nz[i] * side * (t.halfWidth + 6)); }
       cam.position.copy(cam.userData.pos); _look.set(cx, cy + 0.6, cz); cam.up.set(0, 1, 0); cam.lookAt(_look);
@@ -184,15 +190,15 @@ window.EI = window.EI || {};
     if (cs.yaw == null || snap) cs.yaw = ch;
     const kYaw = 1 - Math.exp(-dt * (v > 5 ? 5.5 : 9)); cs.yaw += U.wrapAngle(ch - cs.yaw) * kYaw;   // the camera swings round behind the car with a lag
     const cfx = Math.cos(cs.yaw), cfz = Math.sin(cs.yaw), clx = cfz, clz = -cfx;
-    const dist = 6.4 + v * 0.018, height = 2.1 + v * 0.007;
+    const dist = 5.7 + v * 0.011, height = 2.05 + v * 0.004;
     cs.lat += (U.clamp(car.yaw * 0.6, -0.4, 0.4) - cs.lat) * (1 - Math.exp(-dt * 2.5));                   // drift towards the inside of the turn
     _tgt.set(cx - cfx * dist - clx * cs.lat * 0.6, cy + height, cz - cfz * dist - clz * cs.lat * 0.6);
     if (snap) cam.position.copy(_tgt); else cam.position.lerp(_tgt, 1 - Math.exp(-dt * 14));
     const minY = track.y[car.trk.i] + 1.0; if (cam.position.y < minY) cam.position.y = minY;
-    _look.set(cx + fx * 6.5 + lx * (cs.lat * 1.3 + jx * 4), cy + 0.85 + jy * 4, cz + fz * 6.5 + lz * (cs.lat * 1.3 + jz * 4));
+    _look.set(cx + fx * 5.5 + lx * (cs.lat * 1.3 + jx * 4), cy + 0.6 + jy * 4, cz + fz * 5.5 + lz * (cs.lat * 1.3 + jz * 4));
     cam.up.set(0, 1, 0); cam.lookAt(_look);
     cs.roll += (U.clamp(-car.aLat * 0.0009, -0.025, 0.025) - cs.roll) * (1 - Math.exp(-dt * 6)); cam.rotateZ(cs.roll);
-    const fovT = 56 + v * 0.17 + (car.ersActive ? 2 : 0) + (car.drsOpen ? 1.5 : 0); cs.fov += (fovT - cs.fov) * Math.min(1, dt * 3); cam.fov = cs.fov; cam.updateProjectionMatrix();
+    const fovT = 54 + v * 0.11 + (car.ersActive ? 2 : 0) + (car.drsOpen ? 1.5 : 0); cs.fov += (fovT - cs.fov) * Math.min(1, dt * 3); cam.fov = cs.fov; cam.updateProjectionMatrix();
   }
   // pre-race cinematic: a slow dolly down the grid, then an orbit around the player's car, then cut to the player camera
   let introT = 0, introLen = 8.2;
@@ -296,6 +302,7 @@ window.EI = window.EI || {};
     acc += dt; let steps = 0; while (acc >= DT && steps < 6) { for (const c of race.cars) c.savePose(); race.update(DT, inputs); acc -= DT; steps++; } if (steps === 6) acc = 0;
     if (EI.Pit) EI.Pit.frame(race, dt);
     const alpha = U.clamp(acc / DT, 0, 1); for (const c of race.cars) c.blend(alpha);
+    for (const c of race.cars) { let d = 1e9; for (const pl of race.players) { const dd = Math.hypot(c.x - pl.x, c.z - pl.z); if (dd < d) d = dd; } c.setLOD(c.lodIsFar ? d > 120 : d > 150, d); }
     const wasIntro = introT < 6.7; introT += dt; if (wasIntro && introT >= 6.7 && race.players.length === 1) { placeCamera(cameras[0], race.players[0], 0, true, 0); shake = 0.25; }
     if (!race.started && race.phase === 'grid' && introT >= introLen) { race.startLights(); $('lights').classList.remove('hidden'); EI.HUD.setLights(0); race.players.forEach((car, k) => placeCamera(cameras[k], car, k, true, 0)); }
     handleEvents(); for (const c of race.cars) { c.updateVisual(dt); if (dt > 0) particles.fromCar(c, dt); } particles.update(dt); shake = Math.max(0, shake - dt * 3); hudT += dt;

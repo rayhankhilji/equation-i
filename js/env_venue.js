@@ -198,38 +198,120 @@ window.EI = window.EI || {};
     ctx.fillStyle = '#f0f0ea'; ctx.fillRect(258, 0, 7, 512); ctx.fillRect(375, 0, 7, 512); ctx.fillStyle = 'rgba(25,25,28,0.35)'; ctx.fillRect(300, 0, 40, 512);
     const t = Env.tex(c, true, 8); t.wrapS = THREE.ClampToEdgeWrapping; return t;
   }
-  function crowdAtlas() {
-    const [c, ctx] = Env.canvas(1024, 256); ctx.clearRect(0, 0, 1024, 256); const r = U.rng(4321);
-    const shirts = ['#b8141c', '#d0702a', '#24467e', '#ededed', '#dcdcdc', '#161616', '#222428', '#3b404a', '#5c6370', '#8b8f98', '#c4c4c4', '#c81010', '#2b5ba8', '#0d5e52', '#b8962a', '#4a2f6b', '#f4f4f4', '#1b2a4a', '#6d1f1f', '#9aa7b8'];
-    const skins = ['#f1c7a5', '#e0ac87', '#c68a62', '#8d5a3b', '#f5d3b8', '#d49a72'];
-    const hairs = ['#2a1d14', '#4b3020', '#111', '#a07a4a', '#d9b46a', '#6b6b6b'];
-    const hx = 155, vy = 116; // px per metre in a 1.65 x 1.1 m cell of 256 x 128
-    for (let cell = 0; cell < 8; cell++) {
-      const ox = (cell % 4) * 256, oy = Math.floor(cell / 4) * 128;
-      for (let k = 0; k < 3; k++) {
-        if (r() < 0.08) continue; const x = ox + 43 + k * 85 + (r() - 0.5) * 10; const stand = r() < 0.18; const base = oy + 128; const torsoH = (0.5 + r() * 0.08) * vy, torsoW = (0.36 + r() * 0.08) * hx; const top = base - (stand ? 0.62 : 0.45) * vy - torsoH;
-        const shirt = shirts[Math.floor(r() * shirts.length)], skin = skins[Math.floor(r() * skins.length)];
-        // torso with rounded shoulders
-        ctx.fillStyle = shirt; ctx.beginPath(); ctx.moveTo(x - torsoW / 2, base); ctx.lineTo(x - torsoW / 2, top + 8); ctx.quadraticCurveTo(x - torsoW / 2, top, x - torsoW / 2 + 9, top); ctx.lineTo(x + torsoW / 2 - 9, top); ctx.quadraticCurveTo(x + torsoW / 2, top, x + torsoW / 2, top + 8); ctx.lineTo(x + torsoW / 2, base); ctx.fill();
-        ctx.fillStyle = 'rgba(0,0,0,0.18)'; ctx.fillRect(x + torsoW * 0.15, top + 4, torsoW * 0.35, base - top);
-        // arms: down, one raised waving, or both up
-        const pose = r(); ctx.strokeStyle = shirt; ctx.lineWidth = 9; ctx.lineCap = 'round';
-        if (pose < 0.2) { for (const sd of [-1, 1]) { ctx.beginPath(); ctx.moveTo(x + sd * torsoW / 2, top + 6); ctx.lineTo(x + sd * (torsoW / 2 + 8), top - 30); ctx.stroke(); ctx.fillStyle = skin; ctx.beginPath(); ctx.arc(x + sd * (torsoW / 2 + 8), top - 34, 5, 0, 6.283); ctx.fill(); } }
-        else if (pose < 0.32) { ctx.beginPath(); ctx.moveTo(x + torsoW / 2, top + 6); ctx.lineTo(x + torsoW / 2 + 14, top - 26); ctx.stroke(); const fc = shirts[Math.floor(r() * shirts.length)]; ctx.fillStyle = '#5a4a3a'; ctx.fillRect(x + torsoW / 2 + 12, top - 62, 3, 40); ctx.fillStyle = fc; ctx.fillRect(x + torsoW / 2 + 15, top - 62, 34, 22); ctx.fillStyle = 'rgba(255,255,255,0.5)'; ctx.fillRect(x + torsoW / 2 + 15, top - 54, 34, 5); }
-        else { ctx.lineWidth = 8; for (const sd of [-1, 1]) { ctx.beginPath(); ctx.moveTo(x + sd * (torsoW / 2 - 3), top + 8); ctx.lineTo(x + sd * (torsoW / 2 + 1), top + torsoH * 0.8); ctx.stroke(); } }
-        // head, hair or cap, sunglasses now and then
-        const hy = top - 0.13 * vy; ctx.fillStyle = skin; ctx.fillRect(x - 4, hy + 8, 8, 10); ctx.beginPath(); ctx.ellipse(x, hy, 0.1 * hx, 0.12 * vy, 0, 0, 6.283); ctx.fill();
-        const hat = r(); if (hat < 0.3) { ctx.fillStyle = shirts[Math.floor(r() * shirts.length)]; ctx.beginPath(); ctx.ellipse(x, hy - 6, 0.105 * hx, 0.07 * vy, 0, Math.PI, 0); ctx.fill(); ctx.fillRect(x - 2, hy - 7, 0.15 * hx, 4); }
-        else { ctx.fillStyle = hairs[Math.floor(r() * hairs.length)]; ctx.beginPath(); ctx.ellipse(x, hy - 4, 0.1 * hx, 0.09 * vy, 0, Math.PI, 0); ctx.fill(); }
-        if (r() < 0.3) { ctx.fillStyle = '#111'; ctx.fillRect(x - 10, hy - 2, 20, 4); }
-      }
+  // ---------------------------------------------------------------- spectators
+  // 16 poses painted procedurally (seated: hands on lap, arms crossed, phone, clapping, drink, leaning, small flag, binoculars,
+  // long hair, child; standing: arms down, waving, both arms up, filming, flag, scarf). Atlas mode paints the shirt, accessory
+  // (cap / flag / scarf), hair and skin as shaded greys plus a mask copy in the right half (R shirt, G accessory, B hair 0.5 /
+  // skin 1.0) so every spectator gets its own colours in the shader; carpet mode paints real colours (distant crowd texture).
+  const POSES = [
+    { arms: 'lap', cap: 0 }, { arms: 'crossed', cap: 1 }, { arms: 'phone', long: 1 }, { arms: 'clap', cap: 0 }, { arms: 'drink', cap: 1, shades: 1 },
+    { arms: 'lean', cap: 0 }, { arms: 'flag', cap: 1 }, { arms: 'bino', cap: 0 }, { arms: 'lap', long: 1, shades: 1 }, { arms: 'up1', kid: 1, cap: 1 },
+    { stand: 1, arms: 'down', cap: 0 }, { stand: 1, arms: 'up1', cap: 1 }, { stand: 1, arms: 'up2', long: 1 }, { stand: 1, arms: 'phone', cap: 0, shades: 1 }, { stand: 1, arms: 'flag', cap: 1 }, { stand: 1, arms: 'scarf', cap: 0 },
+  ];
+  const TROUSERS = ['#2b3a55', '#1d1f24', '#6b6250', '#34445e', '#4a4d52', '#2b3a55', '#7a6a50', '#1d1f24'];
+  // paint one spectator in a 128 x 320 cell (0.8 x 2.0 m, feet / seat base at the bottom) at (ox, oy) scaled by k
+  function paintSpectator(ctx, mctx, ox, oy, k, pose, pal, r) {
+    const st = pose.stand, kid = pose.kid ? 0.78 : 1; const S = k * kid; const cx = ox + 64 * k, by = oy + 320 * k;
+    const X = (x) => cx + x * S, Y = (y) => by - y * S; // y: px above the base
+    const hip = st ? 144 : 72, sh = hip + (st ? 88 : 86) - (pose.arms === 'lean' ? 12 : 0), headC = sh + 30, headR = 15;
+    const fillCol = { shirt: pal.shirt, acc: pal.acc, hair: pal.hair, skin: pal.skin }, mcol = { shirt: '#ff0000', acc: '#00ff00', hair: '#000080', skin: '#0000ff' };
+    const shadeGrad = (x0, x1, col) => { const g = ctx.createLinearGradient(X(x0), 0, X(x1), 0); g.addColorStop(0, shadeHex(col, 1.12)); g.addColorStop(0.4, col); g.addColorStop(1, shadeHex(col, 0.66)); return g; };
+    const fillPath = (kind, path, x0, x1) => { const col = fillCol[kind] || kind; ctx.fillStyle = shadeGrad(x0, x1, col); path(ctx); ctx.fill(); if (mctx) { mctx.fillStyle = mcol[kind] || '#000000'; path(mctx); mctx.fill(); } };
+    const limb = (kind, pts, w) => { const col = fillCol[kind] || kind; for (const [c, cc] of [[ctx, col], [mctx, mcol[kind] || '#000000']]) { if (!c) continue; c.strokeStyle = cc; c.lineWidth = w * S; c.lineCap = 'round'; c.lineJoin = 'round'; c.beginPath(); c.moveTo(X(pts[0][0]), Y(pts[0][1])); for (let i = 1; i < pts.length; i++) c.lineTo(X(pts[i][0]), Y(pts[i][1])); c.stroke(); } };
+    const blob = (kind, x, y, rx, ry) => fillPath(kind, (c) => { c.beginPath(); c.ellipse(X(x), Y(y), rx * S, ry * S, 0, 0, 6.283); }, x - rx, x + rx);
+    const trousers = pal.trousers;
+    // legs
+    if (st) { for (const sd of [-1, 1]) fillPath(trousers, (c) => { c.beginPath(); c.moveTo(X(sd * 3), Y(hip)); c.lineTo(X(sd * 26), Y(hip)); c.lineTo(X(sd * 20), Y(8)); c.lineTo(X(sd * 6), Y(8)); c.closePath(); }, sd < 0 ? -26 : 3, sd < 0 ? -3 : 26); for (const sd of [-1, 1]) blob('#26221e', sd * 14, 5, 10, 6); }
+    else {
+      // seated: knees forward (a lighter band), shins down to the tread
+      for (const sd of [-1, 1]) { fillPath(trousers, (c) => { c.beginPath(); c.moveTo(X(sd * 2), Y(hip + 8)); c.lineTo(X(sd * 25), Y(hip + 8)); c.lineTo(X(sd * 23), Y(hip - 14)); c.lineTo(X(sd * 3), Y(hip - 14)); c.closePath(); }, sd < 0 ? -25 : 2, sd < 0 ? -2 : 25); }
+      const shorts = r() < 0.3;
+      for (const sd of [-1, 1]) { fillPath(shorts ? 'skin' : trousers, (c) => { c.beginPath(); c.moveTo(X(sd * 5), Y(hip - 12)); c.lineTo(X(sd * 21), Y(hip - 12)); c.lineTo(X(sd * 19), Y(6)); c.lineTo(X(sd * 7), Y(6)); c.closePath(); }, sd < 0 ? -21 : 5, sd < 0 ? -5 : 21); blob('#2a2622', sd * 14, 4, 9, 5); }
+      ctx.fillStyle = 'rgba(0,0,0,0.28)'; ctx.fillRect(X(-24), Y(hip - 10), 48 * S, 6 * S);
     }
+    // long hair falls behind the shoulders
+    if (pose.long) fillPath('hair', (c) => { c.beginPath(); c.ellipse(X(0), Y(headC - 18), 19 * S, 30 * S, 0, 0, 6.283); }, -19, 19);
+    // torso: rounded shoulders, slight taper to the waist
+    const tw = st ? 30 : 31, ww = st ? 25 : 27;
+    fillPath('shirt', (c) => { c.beginPath(); c.moveTo(X(-ww), Y(hip - (st ? 4 : 0))); c.lineTo(X(-tw), Y(sh - 10)); c.quadraticCurveTo(X(-tw), Y(sh), X(-tw + 11), Y(sh + 2)); c.lineTo(X(tw - 11), Y(sh + 2)); c.quadraticCurveTo(X(tw), Y(sh), X(tw), Y(sh - 10)); c.lineTo(X(ww), Y(hip - (st ? 4 : 0))); c.closePath(); }, -tw, tw);
+    // shirt details: collar shadow, a print / stripe now and then, fold shadow at the waist
+    ctx.fillStyle = 'rgba(0,0,0,0.22)'; ctx.beginPath(); ctx.ellipse(X(0), Y(sh - 2), 9 * S, 5 * S, 0, 0, 6.283); ctx.fill();
+    const print = r(); if (print < 0.35) { ctx.fillStyle = print < 0.15 ? 'rgba(255,255,255,0.55)' : 'rgba(0,0,0,0.35)'; ctx.fillRect(X(-tw + 2), Y(sh - 30), (tw * 2 - 4) * S, 6 * S); } else if (print < 0.55) { ctx.fillStyle = 'rgba(255,255,255,0.6)'; ctx.fillRect(X(-8), Y(sh - 22), 16 * S, 12 * S); }
+    ctx.fillStyle = 'rgba(0,0,0,0.18)'; ctx.fillRect(X(-ww), Y(hip + 8), ww * 2 * S, 8 * S);
+    // neck + head (skin), ears, eyes, hair or cap
+    fillPath('skin', (c) => { c.beginPath(); c.rect(X(-6), Y(sh + 12), 12 * S, 14 * S); }, -6, 6);
+    ctx.fillStyle = 'rgba(0,0,0,0.3)'; ctx.fillRect(X(-6), Y(sh + 6), 12 * S, 4 * S);
+    blob('skin', 0, headC, headR - 2, headR + 1); blob('skin', -headR + 1, headC, 3, 5); blob('skin', headR - 1, headC, 3, 5);
+    ctx.fillStyle = 'rgba(40,24,16,0.85)'; ctx.fillRect(X(-7), Y(headC + 2), 4 * S, 2.5 * S); ctx.fillRect(X(3), Y(headC + 2), 4 * S, 2.5 * S);
+    ctx.fillStyle = 'rgba(120,60,50,0.5)'; ctx.fillRect(X(-4), Y(headC - 8), 8 * S, 2 * S);
+    if (pose.shades) { ctx.fillStyle = '#121214'; ctx.fillRect(X(-10), Y(headC + 4), 20 * S, 5 * S); }
+    if (pose.cap) { fillPath('acc', (c) => { c.beginPath(); c.ellipse(X(0), Y(headC + 6), (headR + 1) * S, 11 * S, 0, Math.PI, 0); c.closePath(); }, -headR, headR); fillPath('acc', (c) => { c.beginPath(); c.rect(X(-headR - 1), Y(headC + 7), (headR * 2 + 7) * S, 4 * S); }, -headR, headR + 6); }
+    else fillPath('hair', (c) => { c.beginPath(); c.ellipse(X(0), Y(headC + 7), headR * S, 11 * S, 0, Math.PI, 0); c.lineTo(X(headR), Y(headC + 2)); c.lineTo(X(-headR), Y(headC + 2)); c.closePath(); }, -headR, headR);
+    // arms: shirt sleeve on the upper arm, skin forearm, a hand blob
+    const arm = (sd, elbow, hand) => { limb('shirt', [[sd * (tw - 4), sh - 4], elbow], 13); limb('skin', [elbow, hand], 10); blob('skin', hand[0], hand[1], 6, 6); };
+    const A = pose.arms, e = sh - 44;
+    if (A === 'lap') { arm(-1, [-tw - 3, e], [-14, hip + 6]); arm(1, [tw + 3, e], [14, hip + 6]); }
+    else if (A === 'crossed') { for (const sd of [-1, 1]) limb('shirt', [[sd * (tw - 4), sh - 4], [sd * (tw + 1), sh - 40]], 13); limb('skin', [[-tw, sh - 40], [tw - 6, sh - 34]], 11); limb('shirt', [[tw, sh - 42], [-tw + 6, sh - 36]], 12); }
+    else if (A === 'phone') { arm(-1, [-tw - 3, e], [-14, hip + 6]); arm(1, [tw + 2, sh - 30], [10, headC + (st ? 34 : -2)]); ctx.fillStyle = '#16181c'; ctx.fillRect(X(2), Y(headC + (st ? 46 : 12)), 13 * S, 20 * S); ctx.fillStyle = 'rgba(160,190,230,0.6)'; ctx.fillRect(X(4), Y(headC + (st ? 44 : 10)), 9 * S, 15 * S); }
+    else if (A === 'clap') { arm(-1, [-tw - 2, e + 4], [-3, sh - 22]); arm(1, [tw + 2, e + 4], [3, sh - 22]); }
+    else if (A === 'drink') { arm(-1, [-tw - 3, e], [-14, hip + 6]); arm(1, [tw + 3, e + 2], [18, sh - 30]); ctx.fillStyle = r() < 0.5 ? '#f2f2f2' : '#c8102e'; ctx.fillRect(X(13), Y(sh - 18), 11 * S, 16 * S); }
+    else if (A === 'lean') { arm(-1, [-22, hip + 2], [-8, headC - 18]); arm(1, [22, hip + 2], [8, headC - 18]); }
+    else if (A === 'bino') { arm(-1, [-tw - 2, e + 6], [-9, headC - 2]); arm(1, [tw + 2, e + 6], [9, headC - 2]); ctx.fillStyle = '#1b1c1f'; ctx.fillRect(X(-13), Y(headC + 6), 26 * S, 9 * S); }
+    else if (A === 'down') { arm(-1, [-tw - 4, e], [-tw - 2, hip - 6]); arm(1, [tw + 4, e], [tw + 2, hip - 6]); }
+    else if (A === 'up1') { arm(-1, [-tw - 3, e], [-16, hip + 4]); arm(1, [tw + 12, sh + 30], [tw + 14, sh + 72]); }
+    else if (A === 'up2') { arm(-1, [-tw - 12, sh + 30], [-tw - 10, sh + 70]); arm(1, [tw + 12, sh + 30], [tw + 10, sh + 70]); }
+    else if (A === 'flag') {
+      arm(-1, [-tw - 3, e], [-16, hip + 4]); arm(1, [tw + 10, sh + 26], [tw + 8, sh + 56]);
+      const fx = tw + 8, fy = sh + 56; limb('#5a4a3a', [[fx, fy - 10], [fx, fy + 62]], 3); fillPath('acc', (c) => { c.beginPath(); c.moveTo(X(fx), Y(fy + 62)); c.quadraticCurveTo(X(fx - 22), Y(fy + 70), X(fx - 46), Y(fy + 58)); c.lineTo(X(fx - 44), Y(fy + 26)); c.quadraticCurveTo(X(fx - 22), Y(fy + 36), X(fx), Y(fy + 30)); c.closePath(); }, fx - 46, fx);
+      ctx.fillStyle = 'rgba(255,255,255,0.55)'; ctx.fillRect(X(fx - 40), Y(fy + 48), 36 * S, 6 * S);
+    }
+    else if (A === 'scarf') { arm(-1, [-tw - 10, sh + 26], [-tw - 6, sh + 58]); arm(1, [tw + 10, sh + 26], [tw + 6, sh + 58]); fillPath('acc', (c) => { c.beginPath(); c.rect(X(-tw - 8), Y(sh + 66), (tw * 2 + 16) * S, 12 * S); }, -tw, tw); ctx.fillStyle = 'rgba(255,255,255,0.6)'; for (let x = -tw - 4; x < tw + 6; x += 12) ctx.fillRect(X(x), Y(sh + 64), 5 * S, 8 * S); }
+  }
+  function shadeHex(col, k) { const c = new THREE.Color(col); return 'rgb(' + Math.min(255, c.r * 255 * k | 0) + ',' + Math.min(255, c.g * 255 * k | 0) + ',' + Math.min(255, c.b * 255 * k | 0) + ')'; }
+  function crowdAtlas() {
+    const [c, ctx] = Env.canvas(1024, 1280); ctx.clearRect(0, 0, 1024, 1280); const r = U.rng(4321);
+    const grey = '#bababa', pal = { shirt: grey, acc: grey, hair: '#9a9a9a', skin: '#b4b4b4' };
+    POSES.forEach((pose, k) => {
+      const ox = (k % 4) * 128, oy = Math.floor(k / 4) * 320; pal.trousers = TROUSERS[k % TROUSERS.length];
+      ctx.save(); ctx.beginPath(); ctx.rect(ox + 1, oy + 1, 126, 318); ctx.rect(ox + 513, oy + 1, 126, 318); ctx.clip();
+      // the mask copy lands 512 px to the right: a translated view of the same canvas
+      const m = { set strokeStyle(v) { ctx.strokeStyle = v; }, set fillStyle(v) { ctx.fillStyle = v; }, set lineWidth(v) { ctx.lineWidth = v; }, set lineCap(v) { ctx.lineCap = v; }, set lineJoin(v) { ctx.lineJoin = v; },
+        beginPath() { ctx.beginPath(); }, moveTo(x, y) { ctx.moveTo(x + 512, y); }, lineTo(x, y) { ctx.lineTo(x + 512, y); }, quadraticCurveTo(a, b, x, y) { ctx.quadraticCurveTo(a + 512, b, x + 512, y); }, closePath() { ctx.closePath(); },
+        ellipse(x, y, rx, ry, rot, a0, a1) { ctx.ellipse(x + 512, y, rx, ry, rot, a0, a1); }, rect(x, y, w, h) { ctx.rect(x + 512, y, w, h); }, fill() { ctx.fill(); }, stroke() { ctx.stroke(); } };
+      paintSpectator(ctx, m, ox, oy, 1, pose, pal, r);
+      ctx.restore();
+    });
     return Env.cutout(c, { aniso: 4 });
   }
+  // distant crowd: a tiling strip of seated spectators in real colours (2048 px = 64 seats = 35.2 m, 128 px = 2.2 m)
+  function crowdCarpetTexture(shirts) {
+    const [c, ctx] = Env.canvas(2048, 128); ctx.clearRect(0, 0, 2048, 128); const r = U.rng(9191);
+    const skins = ['#f1c7a5', '#e0ac87', '#c68a62', '#8d5a3b', '#f5d3b8'], hairs = ['#2a1d14', '#4b3020', '#141414', '#a07a4a', '#d9b46a', '#7a7a7a'];
+    const k = 128 / 320 * 2.2 / 2.2 * (2.0 / 2.2); // card 2.0 m in a 2.2 m strip
+    for (let i = 0; i < 64; i++) {
+      if (r() < 0.08) continue; const pose = r() < 0.12 ? POSES[10 + Math.floor(r() * 6)] : POSES[Math.floor(r() * 10)];
+      const pal = { shirt: shirts[Math.floor(r() * shirts.length)], acc: shirts[Math.floor(r() * shirts.length)], hair: hairs[Math.floor(r() * hairs.length)], skin: skins[Math.floor(r() * skins.length)], trousers: TROUSERS[Math.floor(r() * TROUSERS.length)] };
+      const x = i * 32 + 16 - 64 * k + (r() - 0.5) * 4;
+      for (const ox of [0, -2048, 2048]) { if (x + ox > 2048 || x + ox + 128 * k < 0) continue; ctx.save(); paintSpectator(ctx, null, x + ox, 128 - 320 * k, k, pose, pal, U.rng(i * 7 + 1)); ctx.restore(); }
+    }
+    const t = Env.cutout(c, { repeat: true, aniso: 4 }); t.wrapT = THREE.ClampToEdgeWrapping; return t;
+  }
   function sponsorTexture() {
-    const [c, ctx] = Env.canvas(2048, 128);
+    // top half: sponsor boards (8 x 256 px); bottom half: fan banners (8 x 256 px)
+    const [c, ctx] = Env.canvas(2048, 256);
     const brands = [['EQUATION I', '#e10600', '#fff'], ['EIRELLI', '#ffd500', '#111'], ['SILVERSTONE', '#0b3d2e', '#fff'], ['DRS', '#1a73e8', '#fff'], ['KINETIK', '#0e0e0e', '#00e701'], ['EI', '#fff', '#e10600'], ['VECTOR', '#1434cb', '#fff'], ['APEX FUELS', '#f2f2f2', '#0c2b63']];
     brands.forEach((b, k) => { const x = k * 256; ctx.fillStyle = b[1]; ctx.fillRect(x, 0, 256, 128); ctx.fillStyle = b[2]; ctx.font = 'italic 900 ' + (b[0].length > 8 ? 36 : 48) + 'px Arial Black, Arial'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(b[0], x + 128, 62); ctx.fillStyle = 'rgba(0,0,0,0.35)'; ctx.fillRect(x + 252, 0, 4, 128); });
+    const teams = EI.TEAMS || []; const tc = (k, f) => (teams[k % Math.max(1, teams.length)] || {})[f] || ['#c8102e', '#1a73e8', '#ff8000', '#00843d'][k % 4];
+    const ban = (k, draw) => { ctx.save(); ctx.translate(k * 256, 128); ctx.beginPath(); ctx.rect(0, 0, 256, 128); ctx.clip(); draw(); ctx.restore(); };
+    const text = (str, col, size, y, stroke) => { ctx.font = 'italic 900 ' + size + 'px Arial Black, Arial'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; if (stroke) { ctx.lineWidth = 6; ctx.strokeStyle = stroke; ctx.strokeText(str, 128, y); } ctx.fillStyle = col; ctx.fillText(str, 128, y); };
+    ban(0, () => { for (let y = 0; y < 4; y++) for (let x = 0; x < 8; x++) { ctx.fillStyle = (x + y) % 2 ? '#111' : '#f4f4f4'; ctx.fillRect(x * 32, y * 32, 32, 32); } });
+    ban(1, () => { ctx.fillStyle = '#012169'; ctx.fillRect(0, 0, 256, 128); ctx.strokeStyle = '#fff'; ctx.lineWidth = 24; ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(256, 128); ctx.moveTo(256, 0); ctx.lineTo(0, 128); ctx.stroke(); ctx.strokeStyle = '#c8102e'; ctx.lineWidth = 8; ctx.stroke(); ctx.fillStyle = '#fff'; ctx.fillRect(108, 0, 40, 128); ctx.fillRect(0, 44, 256, 40); ctx.fillStyle = '#c8102e'; ctx.fillRect(116, 0, 24, 128); ctx.fillRect(0, 52, 256, 24); });
+    ban(2, () => { ctx.fillStyle = tc(0, 'primary'); ctx.fillRect(0, 0, 256, 128); ctx.fillStyle = tc(0, 'secondary'); ctx.fillRect(0, 96, 256, 32); text('GO GO GO!', '#fff', 40, 50, 'rgba(0,0,0,0.5)'); });
+    ban(3, () => { ctx.fillStyle = '#ffd500'; ctx.fillRect(0, 0, 256, 128); text('ALLEZ!', '#111', 56, 64); });
+    ban(4, () => { ctx.fillStyle = '#f2f2f2'; ctx.fillRect(0, 0, 256, 128); ctx.fillStyle = tc(1, 'primary'); ctx.fillRect(0, 0, 256, 24); ctx.fillRect(0, 104, 256, 24); text('#1 FANS', tc(1, 'primary'), 46, 64); });
+    ban(5, () => { ctx.fillStyle = '#c8102e'; ctx.fillRect(0, 0, 256, 128); text('FORZA', '#fff', 54, 64); });
+    ban(6, () => { ctx.fillStyle = '#ff8000'; ctx.fillRect(0, 0, 256, 128); ctx.fillStyle = '#1b1b1b'; ctx.fillRect(0, 0, 256, 18); ctx.fillRect(0, 110, 256, 18); text('VAMOS!', '#fff', 50, 64, 'rgba(0,0,0,0.35)'); });
+    ban(7, () => { const g = ctx.createLinearGradient(0, 0, 256, 0); g.addColorStop(0, tc(2, 'primary')); g.addColorStop(1, tc(3, 'primary')); ctx.fillStyle = g; ctx.fillRect(0, 0, 256, 128); text('SILVERSTONE', '#fff', 30, 48, 'rgba(0,0,0,0.4)'); text('GRAND PRIX', '#fff', 26, 92, 'rgba(0,0,0,0.4)'); });
     return Env.tex(c, true, 8);
   }
   function fenceTexture() {
@@ -241,11 +323,15 @@ window.EI = window.EI || {};
 
   // ================================================================ build
   V.build = function (E) {
-    const sc = E.sc, t = E.t, T0 = performance.now(); const stats = E.stats;
-    const B = new Env.Builder();     // stands, roofs, structures (vertex colours)
-    const H = new Env.Builder();     // hospitality, buildings, sheds, gates, light towers
-    const fronts = [], crowd = [], flags = [];
-    const conc = C(0xd6d7d3), concDark = C(0xa9aaa6), clad = C(0x3c4654), white = C(0xeef0f2), steel = C(0x9aa0a6), dark = C(0x2a2d33), red = C(0xc8102e), glass = C(0x50657e), roofGrey = C(0xc9ccd0);
+    const sc = E.sc, t = E.t, T0 = performance.now(); const stats = E.stats; const ST = sc.statics;
+    const B = new Env.Builder();     // stands: concrete, seats, cladding, roofs (main layer)
+    const M = new Env.Builder();     // steel: columns, roof stays, cladding ribs (main layer, metallic)
+    const MD = new Env.Builder();    // fine steel + trim: handrails, under-roof lattice, purlins, lights, rear stairs, step nosings (clutter layer)
+    const H = new Env.Builder();     // hospitality, BRDC clubhouse, sheds (main layer)
+    const D = new Env.Builder();     // clutter: light towers, gates, lorries, flag poles (dropped in the distance on low / medium)
+    const fronts = [], flags = [], banners = [];
+    const crowd = new Env.CellSet([4, 4, 4, 4], 50); const carpet = { p: [], n: [], c: [], uv: [] };
+    const conc = C(0xd6d7d3), concDark = C(0xa9aaa6), clad = C(0x3c4654), white = C(0xeef0f2), steel = C(0x9aa0a6), dark = C(0x2a2d33), red = C(0xc8102e), glass = C(0x50657e), roofGrey = C(0xc9ccd0), yellow = C(0xe8c21c), steelDark = C(0x6d737a);
     // ---- grandstand blocks (added runs + the OSM stands)
     const blocks = E.blocks.slice();
     const pr = {};
@@ -257,27 +343,61 @@ window.EI = window.EI || {};
       const fx = cx + tx * (a0 + a1) / 2 + nx * b0, fz = cz + tz * (a0 + a1) / 2 + nz * b0;
       blocks.push({ cx: fx, cz: fz, ax: tx, az: tz, nx, nz, len, rows, roof: true, seat: [0x24418f, 0x8c1d24, 0x2b3a55][Math.floor(Math.abs(cx) % 3)], y: E.ground(cx, cz) - 0.4, first: true, last: true, osm: true });
     }
-    const rng = U.rng(777); let seats = 0;
+    // spectator colours (sRGB): everyday clothes, a lot of team merchandise
+    const teams = EI.TEAMS || [{ primary: '#e10600', secondary: '#ffffff' }];
+    const everyday = ['#d8d8d4', '#cfd0cc', '#bfc0bc', '#1a1a1a', '#2a2b2e', '#2a2b2e', '#3b404a', '#4f5560', '#6c717a', '#8b8f98', '#1b2a4a', '#1f2f50', '#2a4a78', '#4a6a92', '#7d8ea4', '#8a1c22', '#a3262b', '#5a1f22', '#1f4d45', '#3c5a3a', '#8a7a4a', '#b39a4a', '#b0652e', '#4a3a5a', '#9a6a7e', '#a8987a', '#6a5440'];
+    const merch = teams.map(tm => tm.primary).concat(teams.map(tm => tm.secondary || tm.primary));
+    const flagCols = ['#c8102e', '#ffffff', '#012169', '#ffd500', '#ff8000', '#00843d', '#e10600', '#1a73e8'];
+    const pick = (r, list) => list[Math.floor(r() * list.length)];
+    const lin = (hex) => { const c = C(hex); return [c.r, c.g, c.b]; };
+    const SEATED = [[0, 25], [1, 12], [2, 10], [3, 12], [4, 8], [5, 7], [6, 4], [7, 4], [8, 13], [9, 5]], STANDING = [[10, 30], [11, 20], [12, 14], [13, 12], [14, 14], [15, 10]];
+    const wpick = (r, list) => { let tot = 0; for (const [, w] of list) tot += w; let x = r() * tot; for (const [k, w] of list) { x -= w; if (x <= 0) return k; } return list[0][0]; };
+    const rng = U.rng(777); let seats = 0, people = 0, bi = 0;
     for (const b of blocks) {
+      bi++;
       const m = Env.frame(b.cx, b.y, b.cz, b.ax, b.az, b.nx, b.nz); const L = b.len, hl = L / 2, rows = b.rows;
       const seatC = C(b.seat), seatD = C(b.seat).multiplyScalar(0.55), rise = 0.42, tread = 0.82, y0 = 1.4, z0 = 0.4;
       const P = (x, y, z) => Env.xf(m, x, y, z);
-      // front wall + sponsor board
+      const fwd = (() => { const o = P(0, 0, 0), f = P(0, 0, -1); return [f[0] - o[0], f[2] - o[2]]; })(); const yaw = Math.atan2(fwd[0], fwd[1]);
+      const nrmW = (() => { const o = P(0, 0, 0), q = P(0, 0.55, -0.83); return [q[0] - o[0], q[1] - o[1], q[2] - o[2]]; })();
+      // front wall + sponsor board, handrail along its top
       B.box(m, L, y0, 0.3, 0, 0, 0.15, conc);
-      const strip = new THREE.PlaneGeometry(L, 1.0); strip.rotateY(Math.PI); const suv = strip.attributes.uv; const u0 = rng() * 8; for (let v = 0; v < suv.count; v++) suv.setXY(v, u0 + suv.getX(v) * L / 5, suv.getY(v)); strip.translate(0, 0.72, -0.02); strip.applyMatrix4(m); fronts.push(strip);
-      // tiers: riser (dark seat backs) + tread (seat colour), aisles every ~14 m
+      const strip = (yb, h, zz) => { const g = new THREE.PlaneGeometry(L, h); g.rotateY(Math.PI); const suv = g.attributes.uv; const u0 = rng() * 8; for (let v = 0; v < suv.count; v++) suv.setXY(v, u0 + suv.getX(v) * L / (5 * h), 0.52 + suv.getY(v) * 0.46); g.translate(0, yb + h / 2, zz); g.applyMatrix4(m); fronts.push(g); };
+      strip(0.22, 1.0, -0.02);
+      for (let a = -hl + 0.2; a <= hl - 0.1; a += Math.max(2.8, (L - 0.3) / Math.max(1, Math.round((L - 0.3) / 3.3)))) MD.beam(m, [a, y0, 0.12], [a, y0 + 1.0, 0.12], 0.05, steelDark);
+      MD.beam(m, [-hl, y0 + 1.0, 0.12], [hl, y0 + 1.0, 0.12], 0.07, steel); MD.beam(m, [-hl, y0 + 0.55, 0.12], [hl, y0 + 0.55, 0.12], 0.04, steelDark);
+      // fan banners hung over the front wall
+      for (let k = 0; k < (rng() < 0.45 ? 1 : 0) + (rng() < 0.15 ? 1 : 0); k++) { const bw = 2.4 + rng() * 1.6; const ax = (rng() - 0.5) * Math.max(0, L - bw - 1); banners.push([m, ax, bw, Math.floor(rng() * 8), (rng() - 0.5) * 0.06]); }
+      // tiers: riser (dark seat backs) + tread (seat colour), aisles every ~14 m with step nosings and a centre handrail
       const aisles = []; for (let a = -hl + 7; a < hl - 4; a += 14) aisles.push(a);
+      const roofShade = b.roof ? 0.74 : 0.95;
+      // crowd character of this block: fill, a team section, standing patches
+      const fill = 0.74 + rng() * 0.24; const team = rng() < 0.45 ? teams[Math.floor(rng() * teams.length)] : null; const tsA = -hl + rng() * L * 0.7, tsL = 5 + rng() * 12, tsR = Math.floor(rng() * rows * 0.5);
       for (let r = 0; r < rows; r++) {
         const y = y0 + r * rise, za = z0 + r * tread, zb = za + tread;
         B.quad(P(-hl, y + rise, za), P(hl, y + rise, za), P(hl, y, za), P(-hl, y, za), seatD);
         B.quad(P(-hl, y + rise, za), P(-hl, y + rise, zb), P(hl, y + rise, zb), P(hl, y + rise, za), r % 2 ? seatC : C(b.seat).multiplyScalar(0.85));
-        for (const a of aisles) B.quad(P(a - 0.6, y + rise + 0.01, za), P(a - 0.6, y + rise + 0.01, zb), P(a + 0.6, y + rise + 0.01, zb), P(a + 0.6, y + rise + 0.01, za), concDark);
-        // crowd: quads of three seats
-        for (let a = -hl + 0.9; a < hl - 0.8; a += 1.65) {
-          let inAisle = false; for (const q of aisles) if (Math.abs(a - q) < 1.4) inAisle = true; if (inAisle || rng() < 0.1) continue;
-          crowd.push([P(a, y + rise, za + 0.42), b.ax, b.az, b.nx, b.nz, Math.floor(rng() * 8), 0.78 + rng() * 0.3]); seats += 3;
+        for (const a of aisles) { B.quad(P(a - 0.6, y + rise + 0.01, za), P(a - 0.6, y + rise + 0.01, zb), P(a + 0.6, y + rise + 0.01, zb), P(a + 0.6, y + rise + 0.01, za), concDark); MD.quad(P(a - 0.6, y + rise + 0.015, za), P(a - 0.6, y + rise + 0.015, za + 0.07), P(a + 0.6, y + rise + 0.015, za + 0.07), P(a + 0.6, y + rise + 0.015, za), yellow); }
+        // spectators, one record per seat (0.55 m pitch)
+        let segA = -hl + 0.15;
+        const flushSeg = (a1) => { if (a1 - segA > 1.2) { const A0 = P(segA, y + rise, za + 0.5), A1 = P(a1, y + rise, za + 0.5); const sh = roofShade * (0.9 + rng() * 0.18); const u0 = rng() * 64, u1 = u0 + (a1 - segA) / 35.2; for (const [p0, p1, uu0, uu1] of [[A0, A1, u0, u1]]) { const q = [[p0[0], p0[1], p0[2], uu0, 0], [p1[0], p1[1], p1[2], uu1, 0], [p1[0], p1[1] + 2.2, p1[2], uu1, 1], [p0[0], p0[1] + 2.2, p0[2], uu0, 1]]; for (const k of [0, 1, 2, 0, 2, 3]) { carpet.p.push(q[k][0], q[k][1], q[k][2]); carpet.uv.push(q[k][3], q[k][4]); carpet.n.push(nrmW[0], nrmW[1], nrmW[2]); carpet.c.push(sh, sh, sh); } } } };
+        for (const a of aisles) { flushSeg(a - 0.75); segA = a + 0.75; } flushSeg(hl - 0.15);
+        for (let a = -hl + 0.45; a < hl - 0.4; a += 0.55) {
+          let inAisle = false; for (const q of aisles) if (Math.abs(a - q) < 0.85) inAisle = true; if (inAisle) continue; seats++;
+          const w = P(a, y + rise, za + 0.5); const occ = fill * (0.62 + 0.75 * U.noise2(w[0] / 6 + bi * 3.1, w[2] / 6 + r * 0.41));
+          if (rng() > occ) continue;
+          const inTeam = team && a > tsA && a < tsA + tsL && r >= tsR; const standZone = U.noise2(w[0] / 14 + 40, w[2] / 14 + 7) > 0.7;
+          const standing = standZone ? rng() < 0.85 : rng() < 0.035;
+          const pose = standing ? wpick(rng, STANDING) : wpick(rng, SEATED);
+          const tr = rng(); const shirt = inTeam ? (tr < 0.72 ? team.primary : tr < 0.88 ? (team.secondary || team.primary) : pick(rng, everyday)) : (tr < 0.2 ? pick(rng, merch) : pick(rng, everyday));
+          const acc = pose === 14 || pose === 6 ? (inTeam ? team.primary : pick(rng, flagCols)) : pose === 15 ? (inTeam ? team.primary : pick(rng, merch)) : (inTeam && rng() < 0.6 ? team.primary : pick(rng, rng() < 0.5 ? merch : everyday));
+          const mo = (pose === 11 || pose === 12 || pose === 14 || pose === 15) ? (rng() < 0.55 ? 2 : 1) : pose === 6 ? 1 : rng() < 0.02 ? 1 : 0;
+          const sv = lin(shirt), av = lin(acc); const shade = roofShade * (0.84 + rng() * 0.22) * (b.roof && r < 2 ? 1.18 : 1);
+          const jx = (rng() - 0.5) * 0.1, jz = (rng() - 0.5) * 0.08; const pw = P(a + jx, y + rise, za + 0.5 + jz);
+          crowd.push(pw[0], pw[2], [[pw[0], pw[1], pw[2], yaw + (rng() - 0.5) * 0.25], [pose, 0.93 + rng() * 0.13, rng(), mo], [sv[0], sv[1], sv[2], shade], [av[0], av[1], av[2], 0]]); people++;
         }
       }
+      for (const a of aisles) { MD.beam(m, [a, y0 + rise + 0.95, z0 + 0.3], [a, y0 + rows * rise + 0.95, z0 + rows * tread - 0.3], 0.05, steel); for (let r = 1; r < rows; r += 4) MD.beam(m, [a, y0 + (r + 1) * rise, z0 + r * tread + 0.4], [a, y0 + (r + 1) * rise + 0.95, z0 + r * tread + 0.4], 0.045, steelDark); }
       const yTop = y0 + rows * rise, zBack = z0 + rows * tread;
       // back wall (both faces), rail band, underside and end panels
       B.quad(P(hl, yTop + 1.2, zBack), P(-hl, yTop + 1.2, zBack), P(-hl, 0, zBack), P(hl, 0, zBack), clad);
@@ -285,28 +405,42 @@ window.EI = window.EI || {};
       B.quad(P(-hl, yTop + 0.9, zBack + 0.02), P(hl, yTop + 0.9, zBack + 0.02), P(hl, yTop + 1.25, zBack + 0.02), P(-hl, yTop + 1.25, zBack + 0.02), red);
       B.quad(P(hl, y0, z0), P(hl, yTop, zBack), P(-hl, yTop, zBack), P(-hl, y0, z0), concDark);
       for (const sx of [-hl, hl]) { const f = sx < 0 ? 1 : -1; const a1 = P(sx, 0, 0), a2 = P(sx, y0, 0), a3 = P(sx, yTop + 1.2, zBack), a4 = P(sx, 0, zBack); if (f > 0) { B.quad(a4, a3, a2, a1, conc); } else B.quad(a1, a2, a3, a4, conc); }
+      // sponsor boards along the top of the back wall, facing the track over the crowd
+      if (L > 8) strip(yTop + 0.15, 1.0, zBack - 0.06);
       // vertical ribs on the back cladding
-      for (let a = -hl + 3; a < hl - 1; a += 6) B.box(m, 0.25, yTop + 1.2, 0.25, a, 0, zBack + 0.14, steel);
-      // roof: cantilevered slab on rear columns with a truss and a coloured fascia
+      for (let a = -hl + 3; a < hl - 1; a += 6) M.box(m, 0.25, yTop + 1.2, 0.25, a, 0, zBack + 0.14, steel);
+      // roof: cantilevered slab on rear columns with back stays, an under-roof lattice girder along the front edge,
+      // purlins and a row of lights - all visible from the track
       if (b.roof) {
         const ry = yTop + 4.0, front = -1.6;
         B.box(m, L + 0.4, 0.32, zBack - front + 1.0, 0, ry, (front + zBack + 1.0) / 2, roofGrey, { top: white, bottom: true });
         B.box(m, L + 0.42, 0.8, 0.18, 0, ry - 0.45, front - 0.02, red);
-        for (let a = -hl + 1; a <= hl - 0.9; a += Math.max(7, L / Math.max(1, Math.round(L / 9)))) {
-          B.box(m, 0.36, ry, 0.36, a, 0, zBack + 0.5, steel);
-          B.beam(m, [a, ry - 0.05, zBack + 0.5], [a, ry - 1.4, zBack - 3], 0.16, steel); B.beam(m, [a, ry - 1.4, zBack - 3], [a, ry - 0.1, front + 0.6], 0.14, steel);
+        const span = Math.max(7, L / Math.max(1, Math.round(L / 9)));
+        for (let a = -hl + 1; a <= hl - 0.9; a += span) {
+          M.box(m, 0.36, ry, 0.36, a, 0, zBack + 0.5, steel);
+          M.beam(m, [a, ry - 0.05, zBack + 0.5], [a, ry - 1.4, zBack - 3], 0.16, steel); M.beam(m, [a, ry - 1.4, zBack - 3], [a, ry - 0.1, front + 0.6], 0.14, steel);
+          M.beam(m, [a, ry - 1.4, zBack - 3], [a, ry - 0.05, zBack - 3], 0.08, steel);
         }
+        const gz = front + 0.7; MD.beam(m, [-hl, ry - 0.12, gz], [hl, ry - 0.12, gz], 0.14, steel); MD.beam(m, [-hl, ry - 1.1, gz], [hl, ry - 1.1, gz], 0.12, steel);
+        let up = true; for (let a = -hl; a < hl - 0.1; a += 2.2) { const a2 = Math.min(hl, a + 2.2); MD.beam(m, [a, up ? ry - 1.1 : ry - 0.12, gz], [a2, up ? ry - 0.12 : ry - 1.1, gz], 0.06, steelDark); up = !up; }
+        for (const pz of [(front + zBack) * 0.35, (front + zBack) * 0.7]) MD.beam(m, [-hl, ry - 0.2, pz], [hl, ry - 0.2, pz], 0.1, steelDark);
+        for (let a = -hl + 3; a < hl - 1; a += 6) { MD.box(m, 0.5, 0.25, 0.3, a, ry - 1.38, gz, dark); MD.box(m, 0.4, 0.05, 0.22, a, ry - 1.42, gz - 0.02, C(0xfff6d8)); }
       }
-      // stair towers at the ends of each run
+      // stair towers at the ends of each run, rear stair towers along long runs
       for (const [flag, sx] of [[b.first, -hl - 1.9], [b.last, hl + 1.9]]) {
         if (!flag) continue; B.box(m, 3.4, yTop + 2.4, 4.0, sx, 0, zBack - 2.0, C(0xb5b8bd));
         for (let y = 2.2; y < yTop + 1; y += 2.2) B.box(m, 3.6, 0.2, 4.2, sx, y, zBack - 2.0, C(0x8e9196));
         B.box(m, 1.2, 2.1, 0.1, sx, 0, zBack + 0.02, dark); B.box(m, 3.6, 0.3, 4.2, sx, yTop + 2.4, zBack - 2.0, white);
       }
+      if (!b.first && !b.last && rows >= 10 && bi % 3 === 0 && L > 12) {
+        const tz = zBack + 2.0, tw = 3.0; const H2 = yTop + 0.6;
+        for (const [px, pz] of [[-tw / 2, tz - 1.4], [tw / 2, tz - 1.4], [-tw / 2, tz + 1.4], [tw / 2, tz + 1.4]]) MD.beam(m, [px, 0, pz], [px, H2 + 1.1, pz], 0.12, steelDark);
+        let dir = 1; for (let yy = 0; yy < H2 - 0.5; yy += 2.4) { const y2 = Math.min(H2, yy + 2.4); MD.beam(m, [-dir * tw / 2 * 0.8, yy, tz], [dir * tw / 2 * 0.8, y2, tz], 0.5, C(0x8e9196)); MD.box(m, tw, 0.12, 2.8, 0, y2, tz, C(0x9a9da2)); MD.beam(m, [-tw / 2, y2 + 1.0, tz - 1.4], [tw / 2, y2 + 1.0, tz - 1.4], 0.04, steel); MD.beam(m, [-tw / 2, y2 + 1.0, tz + 1.4], [tw / 2, y2 + 1.0, tz + 1.4], 0.04, steel); dir = -dir; }
+      }
       // flag poles behind roofed stands
-      if (b.roof && !b.osm) for (let a = -hl + 4; a < hl - 2; a += 12) { B.box(m, 0.12, 9.5, 0.12, a, 0, zBack + 2.4, steel); flags.push([P(a, 8.0, zBack + 2.4), Math.atan2(b.nx, b.nz)]); }
+      if (b.roof && !b.osm) for (let a = -hl + 4; a < hl - 2; a += 12) { D.box(m, 0.12, 9.5, 0.12, a, 0, zBack + 2.4, steel); flags.push([P(a, 8.0, zBack + 2.4), Math.atan2(b.nx, b.nz)]); }
     }
-    stats.standTris = B.count / 3; stats.crowdQuads = crowd.length; sc.crowdCount = seats;
+    stats.standTris = (B.count + M.count) / 3; stats.standDetailTris = MD.count / 3; stats.crowdPeople = people; stats.seats = seats; sc.crowdCount = people;
     // ---- hospitality marquees (white tent roofs) and decks
     for (const h of E.hosp) {
       const y = E.ground(h.cx, h.cz) - 0.05; const m = Env.frame(h.cx, y, h.cz, h.tx, h.tz, h.nx, h.nz); const L = h.L, D = h.D, P = (x, yy, z) => Env.xf(m, x, yy, z);
@@ -338,44 +472,88 @@ window.EI = window.EI || {};
       for (let x = -Lz / 2 + 6; x < Lz / 2 - 4; x += 9) H.box(m, 4.5, 5, 0.2, x, 0, Wx / 2 + 0.05, C(0x5e6a74));
       H.box(m, Math.min(16, Lz * 0.4), h * 0.75, 6, -Lz / 2 + 8, 0, Wx / 2 + 3, C(0xe3e5e8)); H.box(m, Math.min(16, Lz * 0.4) + 0.05, 1.4, 6.05, -Lz / 2 + 8, 2.4, Wx / 2 + 3, glass);
       // parked articulated lorries on the yard
-      for (let k = 0; k < 3; k++) { const tz = Wx / 2 + 14, tx = -Lz / 2 + 14 + k * 7; if (tx > Lz / 2 - 8) break; H.box(m, 2.5, 3.0, 13.6, tx, 1.0, tz + 2, C([0xf2f2f2, 0x2b4c7e, 0xc8102e][k % 3])); H.box(m, 2.4, 2.6, 2.3, tx, 0.6, tz - 6.3, C(0xe8e8e8)); H.box(m, 2.3, 0.9, 12, tx, 0.1, tz + 2, C(0x26282c)); }
+      for (let k = 0; k < 3; k++) { const tz = Wx / 2 + 14, tx = -Lz / 2 + 14 + k * 7; if (tx > Lz / 2 - 8) break; D.box(m, 2.5, 3.0, 13.6, tx, 1.0, tz + 2, C([0xf2f2f2, 0x2b4c7e, 0xc8102e][k % 3])); D.box(m, 2.4, 2.6, 2.3, tx, 0.6, tz - 6.3, C(0xe8e8e8)); D.box(m, 2.3, 0.9, 12, tx, 0.1, tz + 2, C(0x26282c)); }
     }
-    // ---- light towers in the car parks and camp sites
+    // ---- light towers in the car parks and camp sites (clutter layer)
     for (const p of E.parks.concat(E.camps)) {
       for (const sx of [-0.55, 0.55]) {
         const x = p.cx + p.ax * p.hl * sx, z = p.cz + p.az * p.hl * sx; const y = E.ground(x, z); const m = Env.frame(x, y, z, p.ax, p.az, -p.az, p.ax);
-        H.box(m, 0.35, 16, 0.35, 0, 0, 0, C(0x8d9298)); H.box(m, 2.6, 1.0, 0.5, 0, 16, 0, C(0x2a2d31)); H.box(m, 2.4, 0.8, 0.1, 0, 16.1, 0.26, C(0xf4f1e2)); H.box(m, 1.2, 0.8, 0.8, 0, 0, 0, C(0xa0a39f));
+        D.box(m, 0.35, 16, 0.35, 0, 0, 0, C(0x8d9298)); D.box(m, 2.6, 1.0, 0.5, 0, 16, 0, C(0x2a2d31)); D.box(m, 2.4, 0.8, 0.1, 0, 16.1, 0.26, C(0xf4f1e2)); D.box(m, 1.2, 0.8, 0.8, 0, 0, 0, C(0xa0a39f));
       }
     }
     // ---- gates: two pillars, a banner beam and a ticket booth
     E.gates.forEach((g, k) => {
       const L = Math.hypot(g.tx, g.tz) || 1; const tx = g.tx / L, tz = g.tz / L; const y = E.ground(g.x, g.z); const m = Env.frame(g.x, y, g.z, tx, tz, -tz, tx);
-      for (const sx of [-6.5, 6.5]) { H.box(m, 1.0, 6.2, 1.0, sx, 0, 0, C(0x2a2d33)); }
-      H.box(m, 14, 1.6, 0.6, 0, 5.0, 0, C(k % 2 ? 0xc8102e : 0x0b3d2e)); H.box(m, 14.1, 0.25, 0.65, 0, 6.6, 0, white);
-      H.box(m, 3, 2.6, 2.4, 9.5, 0, 0, C(0xe9eaea)); H.box(m, 3.1, 0.9, 2.5, 9.5, 1.1, 0, glass); H.box(m, 3.6, 0.25, 3.0, 9.5, 2.6, 0, C(0xc8102e));
+      for (const sx of [-6.5, 6.5]) { D.box(m, 1.0, 6.2, 1.0, sx, 0, 0, C(0x2a2d33)); }
+      D.box(m, 14, 1.6, 0.6, 0, 5.0, 0, C(k % 2 ? 0xc8102e : 0x0b3d2e)); D.box(m, 14.1, 0.25, 0.65, 0, 6.6, 0, white);
+      D.box(m, 3, 2.6, 2.4, 9.5, 0, 0, C(0xe9eaea)); D.box(m, 3.1, 0.9, 2.5, 9.5, 1.1, 0, glass); D.box(m, 3.6, 0.25, 3.0, 9.5, 2.6, 0, C(0xc8102e));
     });
-    const standMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.78, metalness: 0.05 });
-    const sm = new THREE.Mesh(B.geometry(), standMat); sm.castShadow = true; sm.receiveShadow = true; sm.name = 'stands'; sc.group.add(sm);
-    if (H.count) { const hm = new THREE.Mesh(H.geometry(), new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.6, metalness: 0.08 })); hm.castShadow = true; hm.receiveShadow = true; hm.name = 'venueBuildings'; sc.group.add(hm); stats.venueTris = H.count / 3; }
-    if (fronts.length) { const fm = new THREE.Mesh(Env.merge(fronts), new THREE.MeshStandardMaterial({ map: sponsorTexture(), roughness: 0.5 })); fm.name = 'standBoards'; sc.group.add(fm); }
-    V.crowd(E, crowd); V.flags(E, flags);
+    ST.add(B.geometry(), 0.8, 0.04, 'main'); ST.add(M.geometry(), 0.42, 0.65, 'main'); ST.add(MD.geometry(), 0.45, 0.55, 'clutter');
+    if (H.count) { ST.add(H.geometry(), 0.6, 0.08, 'main'); stats.venueTris = H.count / 3; }
+    if (D.count) ST.add(D.geometry(), 0.55, 0.25, 'clutter');
+    // sponsor boards (top half of the atlas) and fan banners (bottom half) share one textured mesh
+    for (const [m, ax, bw, k, tilt] of banners) { const g = new THREE.PlaneGeometry(bw, 1.15, 4, 1); g.rotateY(Math.PI); const uv = g.attributes.uv, pp = g.attributes.position; for (let v = 0; v < uv.count; v++) { uv.setXY(v, (k + 0.02 + uv.getX(v) * 0.96) / 8, 0.02 + uv.getY(v) * 0.46); pp.setZ(v, pp.getZ(v) - 0.05 - Math.sin(uv.getX(v) * 8 * Math.PI) * 0.02); } g.rotateZ(tilt); g.translate(ax, 0.2 + 0.575 + 0.05, -0.08); g.applyMatrix4(m); fronts.push(g); }
+    if (fronts.length) { const fm = new THREE.Mesh(Env.merge(fronts), new THREE.MeshStandardMaterial({ map: sponsorTexture(), roughness: 0.55, side: THREE.DoubleSide })); fm.name = 'standBoards'; sc.group.add(fm); }
+    V.crowd(E, crowd.finalize(), carpet); V.flags(E, flags);
     V.roads(E); V.fence(E); V.cars(E); V.camps(E);
     E.timings.venue = Math.round(performance.now() - T0);
   };
 
-  // ---- crowd: one InstancedMesh of 3-seat cards from an 8-variant atlas
-  V.crowd = function (E, list) {
-    if (!list.length) return; const sc = E.sc; const atlas = crowdAtlas();
-    const geo = new THREE.PlaneGeometry(1.65, 1.1); geo.translate(0, 0.55, 0); geo.rotateY(Math.PI); // faces -z (the track) in the block frame
-    const nr = geo.attributes.normal; for (let i = 0; i < nr.count; i++) nr.setXYZ(i, 0, 0.55, -0.83);
-    const cells = new Float32Array(list.length * 2); geo.setAttribute('ccell', new THREE.InstancedBufferAttribute(cells, 2));
-    const patch = (sh) => { sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nattribute vec2 ccell;').replace('#include <uv_vertex>', '#include <uv_vertex>\n#ifdef USE_UV\nvUv = (vec2(1.0 - uv.x, uv.y) * vec2(0.996, 0.99) + vec2(0.002, 0.005) + ccell) * vec2(0.25, 0.5);\n#endif'); };
-    const mat = new THREE.MeshStandardMaterial({ map: atlas, alphaTest: 0.5, roughness: 0.85, metalness: 0 }); mat.onBeforeCompile = patch; mat.customProgramCacheKey = () => 'crowd-atlas';
-    const depth = new THREE.MeshDepthMaterial({ depthPacking: THREE.RGBADepthPacking, map: atlas, alphaTest: 0.5 }); depth.onBeforeCompile = patch; depth.customProgramCacheKey = () => 'crowd-depth';
-    const inst = new THREE.InstancedMesh(geo, mat, list.length); const m = new THREE.Matrix4(); const col = new THREE.Color();
-    list.forEach((c, k) => { const [p, ax0, az0, nx, nz, cell, br] = c; const flip = -az0 * nx + ax0 * nz < 0 ? -1 : 1; const ax = ax0 * flip, az = az0 * flip; m.set(ax, 0, nx, p[0], 0, 1, 0, p[1], az, 0, nz, p[2], 0, 0, 0, 1); inst.setMatrixAt(k, m); cells[k * 2] = cell % 4; cells[k * 2 + 1] = 1 - Math.floor(cell / 4); inst.setColorAt(k, col.setRGB(br, br, br)); });
-    inst.instanceMatrix.needsUpdate = true; inst.instanceColor.needsUpdate = true; Env.fitInstances(inst, 5);
-    inst.customDepthMaterial = depth; inst.castShadow = false; inst.name = 'crowd'; sc.group.add(inst);
+  // ---- crowd: per-spectator sprites near the eye (16 poses, own shirt / cap / skin / hair colours, a few bobbing and swaying),
+  // a painted crowd strip on each row beyond (the two meet exactly at uLod.x, per spectator / per pixel)
+  V.crowd = function (E, set, carpet) {
+    const sc = E.sc; if (!set.n) return; const atlas = crowdAtlas(); const N = set.n;
+    const uni = { uEye: { value: new THREE.Vector3() }, uLod: { value: new THREE.Vector2(400, 1e5) }, uTime: { value: 0 } };
+    const L3 = (hex) => { const c = C(hex); return 'vec3(' + c.r.toFixed(4) + ',' + c.g.toFixed(4) + ',' + c.b.toFixed(4) + ')'; };
+    const head = '#include <common>\nattribute vec4 cP;\nattribute vec4 cD;\nattribute vec4 cS;\nattribute vec4 cA;\nuniform vec3 uEye;\nuniform vec2 uLod;\nuniform float uTime;\nvarying vec3 vShirt;\nvarying vec3 vAcc;\nvarying vec3 vSkin;\nvarying vec3 vHair;\nvarying float vShade;\n';
+    const place = [
+      'vec2 fd = vec2(sin(cP.w), cos(cP.w)); vec2 tc = cameraPosition.xz - cP.xz; float tl = length(tc); vec2 td = tl > 0.01 ? tc / tl : fd;',
+      'float ang = clamp(atan(fd.x * td.y - fd.y * td.x, dot(fd, td)), -0.7, 0.7); vec2 f2 = vec2(fd.x * cos(ang) - fd.y * sin(ang), fd.x * sin(ang) + fd.y * cos(ang));',
+      'vec3 crt = vec3(f2.y, 0.0, -f2.x);'].join('\n');
+    const body = [
+      'float ph = cD.z * 6.283; float bob = cD.w > 1.5 ? max(0.0, sin(uTime * (6.0 + cD.z * 3.0) + ph)) * 0.07 : 0.0;',
+      'vec3 transformed = cP.xyz + crt * position.x * 0.8 * cD.y + vec3(0.0, position.y * 2.0 * cD.y + bob, 0.0);',
+      'if (cD.w > 0.5) transformed += crt * sin(uTime * 2.2 + ph) * 0.05 * position.y;',
+      'if (distance(cP.xz, uEye.xz) >= uLod.x) transformed = cP.xyz;'].join('\n');
+    const uvc = '#include <uv_vertex>\n#ifdef USE_UV\nfloat cc = cD.x; float ccol = mod(cc, 4.0), crow = floor(cc / 4.0 + 0.01);\nvUv = vec2((ccol + 0.01 + uv.x * 0.98) * 0.125, 1.0 - (crow + 1.0 - (0.004 + uv.y * 0.992)) * 0.25);\n#endif';
+    const patch = (sh, depth) => {
+      Object.assign(sh.uniforms, uni);
+      let vs = sh.vertexShader.replace('#include <common>', head).replace('#include <uv_vertex>', uvc);
+      if (depth) vs = vs.replace('#include <begin_vertex>', place + '\n' + body + '\nif (distance(cP.xz, uEye.xz) > 160.0) transformed = cP.xyz;');
+      else vs = vs.replace('#include <beginnormal_vertex>', place + '\nvec3 objectNormal = normalize(vec3(f2.x, 0.0, f2.y) * 0.83 + vec3(0.0, 0.55, 0.0));').replace('#include <begin_vertex>', body + [
+        '\nvShirt = cS.rgb; vAcc = cA.rgb; vShade = cS.w; float h1 = fract(cD.z * 7.31), h2 = fract(cD.z * 13.7);',
+        'vSkin = (h1 < 0.5 ? ' + L3('#efc6a4') + ' : h1 < 0.75 ? ' + L3('#d9a47e') + ' : h1 < 0.88 ? ' + L3('#a86f4c') + ' : ' + L3('#6e4630') + ');',
+        'vHair = (h2 < 0.3 ? ' + L3('#3a2a1c') + ' : h2 < 0.5 ? ' + L3('#1c1612') + ' : h2 < 0.66 ? ' + L3('#6b4a2e') + ' : h2 < 0.8 ? ' + L3('#c9a466') + ' : h2 < 0.92 ? ' + L3('#8a8a86') + ' : ' + L3('#8c4a2a') + ');'].join('\n'));
+      sh.vertexShader = vs;
+      if (!depth) sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nvarying vec3 vShirt;\nvarying vec3 vAcc;\nvarying vec3 vSkin;\nvarying vec3 vHair;\nvarying float vShade;').replace('#include <map_fragment>', [
+        'vec4 texelColor = mapTexelToLinear(texture2D(map, vUv)); vec4 mk = texture2D(map, vUv + vec2(0.5, 0.0));',
+        'float skinW = smoothstep(0.62, 0.9, mk.b); float hairW = clamp(smoothstep(0.08, 0.2, mk.b) - skinW, 0.0, 1.0);',
+        'vec3 cc = texelColor.rgb * mix(vec3(1.0), vShirt * 2.05, mk.r) * mix(vec3(1.0), vAcc * 2.05, mk.g) * mix(vec3(1.0), vSkin * 2.05, skinW) * mix(vec3(1.0), vHair * 2.05, hairW);',
+        'diffuseColor *= vec4(cc * vShade, texelColor.a);'].join('\n'));
+    };
+    const base = new THREE.PlaneGeometry(1, 1); base.translate(0, 0.5, 0);
+    const [g, attrs] = Env.instGeo(base, ['cP', 'cD', 'cS', 'cA'], N);
+    const mat = new THREE.MeshStandardMaterial({ map: atlas, alphaTest: 0.5, roughness: 0.85, metalness: 0, side: THREE.DoubleSide }); mat.onBeforeCompile = (sh) => patch(sh, false); mat.customProgramCacheKey = () => 'crowd-sprites';
+    const depth = new THREE.MeshDepthMaterial({ depthPacking: THREE.RGBADepthPacking, map: atlas, alphaTest: 0.5 }); depth.onBeforeCompile = (sh) => patch(sh, true); depth.customProgramCacheKey = () => 'crowd-sprites-depth';
+    const inst = new THREE.Mesh(g, mat); inst.frustumCulled = false; inst.customDepthMaterial = depth; inst.castShadow = false; inst.name = 'crowd'; sc.group.add(inst);
+    // distant crowd strips
+    let cm = null;
+    if (carpet.p.length) {
+      const cg = new THREE.BufferGeometry(); cg.setAttribute('position', new THREE.Float32BufferAttribute(carpet.p, 3)); cg.setAttribute('normal', new THREE.Float32BufferAttribute(carpet.n, 3)); cg.setAttribute('color', new THREE.Float32BufferAttribute(carpet.c, 3)); cg.setAttribute('uv', new THREE.Float32BufferAttribute(carpet.uv, 2)); cg.computeBoundingSphere();
+      const shirts = ['#f2f2f2', '#e6e6e6', '#1a1a1a', '#2a2b2e', '#3b404a', '#5c6370', '#1b2a4a', '#24467e', '#2b5ba8', '#b8141c', '#c81010', '#0d5e52', '#e0c341', '#ff8000', '#c9b28a', '#9aa7b8'].concat((EI.TEAMS || []).map(tm => tm.primary));
+      const cmat = new THREE.MeshStandardMaterial({ map: crowdCarpetTexture(shirts), vertexColors: true, alphaTest: 0.5, roughness: 0.9, metalness: 0, side: THREE.DoubleSide });
+      cmat.onBeforeCompile = (sh) => { Object.assign(sh.uniforms, uni); sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nvarying vec3 vWP;').replace('#include <begin_vertex>', '#include <begin_vertex>\nvWP = position;'); sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nvarying vec3 vWP;\nuniform vec3 uEye;\nuniform vec2 uLod;').replace('#include <clipping_planes_fragment>', '#include <clipping_planes_fragment>\nfloat dC = distance(vWP.xz, uEye.xz); if (dC < uLod.x || dC > uLod.y) discard;'); };
+      cmat.customProgramCacheKey = () => 'crowd-carpet';
+      cm = new THREE.Mesh(cg, cmat); cm.name = 'crowdFar'; sc.group.add(cm); E.stats.crowdCarpetTris = carpet.p.length / 9;
+    }
+    const dyn = new Env.DynSet(set, attrs, (n) => { g.instanceCount = n; inst.visible = n > 0; }, 30);
+    sc.crowdLod = {
+      inst, carpet: cm, uni,
+      setRange(spriteR, farR) { uni.uLod.value.set(spriteR, farR); dyn.range(0, spriteR + 40); if (cm) cm.visible = farR > spriteR; },
+      update(dt, x, z) { uni.uEye.value.set(x, 0, z); uni.uTime.value += dt; dyn.update(x, z); },
+      get count() { return dyn.n; },
+    };
+    sc.crowdLod.setRange(400, 1e5);
   };
   V.flags = function (E, list) {
     if (!list.length) return; const sc = E.sc;
@@ -420,8 +598,9 @@ window.EI = window.EI || {};
     const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); geo.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2)); geo.setAttribute('normal', new THREE.Float32BufferAttribute(nrm, 3)); geo.setIndex(idx); geo.computeBoundingSphere();
     const mat = new THREE.MeshStandardMaterial({ map: fenceTexture(), alphaTest: 0.35, side: THREE.DoubleSide, roughness: 0.7, metalness: 0.2 }); mat.onBeforeCompile = Env.noFlip;
     const fm = new THREE.Mesh(geo, mat); fm.name = 'perimeterFence'; sc.group.add(fm);
-    const pg = new THREE.CylinderGeometry(0.06, 0.06, 2.6, 4, 1, true); pg.translate(0, 1.2, 0); const inst = new THREE.InstancedMesh(pg, new THREE.MeshStandardMaterial({ color: 0x3a4a3e, roughness: 0.6, metalness: 0.4 }), posts.length); const m = new THREE.Matrix4();
-    posts.forEach((p, k) => { m.makeTranslation(p[0], p[1], p[2]); inst.setMatrixAt(k, m); }); inst.instanceMatrix.needsUpdate = true; Env.fitInstances(inst, 3); inst.name = 'perimeterPosts'; sc.group.add(inst);
+    // posts (every other fence vertex, ~6.4 m) go to the clutter layer of the static chunks
+    const PB = new Env.Builder(), I4 = new THREE.Matrix4(), pc = C(0x3a4a3e); posts.forEach((p, k) => { if (k % 2) return; PB.beam(I4, [p[0], p[1] - 0.1, p[2]], [p[0], p[1] + 2.5, p[2]], 0.08, pc); });
+    sc.statics.add(PB.geometry(), 0.6, 0.4, 'clutter');
     E.stats.fencePosts = posts.length;
   };
   // ---- parked cars: rows nose to nose with aisles, varied paint, tilted to the ground
@@ -452,12 +631,17 @@ window.EI = window.EI || {};
     const geo = Bd.geometry(); const mat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.35, metalness: 0.4 });
     const inst = new THREE.InstancedMesh(geo, mat, list.length); const m = new THREE.Matrix4(), q = new THREE.Quaternion(), q2 = new THREE.Quaternion(), s = new THREE.Vector3(1, 1, 1), p = new THREE.Vector3(), up = new THREE.Vector3(0, 1, 0), nrm = new THREE.Vector3(); const col = new THREE.Color();
     const pal = [0xf2f2f2, 0xf2f2f2, 0x15171a, 0x15171a, 0x9ea3a8, 0x9ea3a8, 0x5c6168, 0x1d3557, 0x8c1d24, 0x2f5fa8, 0xd8d8d4, 0x40454c, 0x7a1f2b, 0x2b4a3a, 0xc9b28a, 0xe0661c];
-    list.forEach((c, k) => {
+    // cell-sorted so the low / medium tiers only draw the car parks near the eye
+    const set = new Env.CellSet([16, 3], 80);
+    list.forEach((c) => {
       const [x, z, yaw] = c; const y = E.ground(x, z); const hx = E.ground(x + 1.5, z) - E.ground(x - 1.5, z), hz = E.ground(x, z + 1.5) - E.ground(x, z - 1.5); nrm.set(-hx / 3, 1, -hz / 3).normalize();
-      q.setFromAxisAngle(up, yaw); q2.setFromUnitVectors(up, nrm); q.premultiply(q2); p.set(x, y, z); m.compose(p, q, s); inst.setMatrixAt(k, m);
-      col.setHex(pal[Math.floor(rng() * pal.length)]).convertSRGBToLinear(); inst.setColorAt(k, col);
+      q.setFromAxisAngle(up, yaw); q2.setFromUnitVectors(up, nrm); q.premultiply(q2); p.set(x, y, z); m.compose(p, q, s);
+      col.setHex(pal[Math.floor(rng() * pal.length)]).convertSRGBToLinear(); set.push(x, z, [m.elements, [col.r, col.g, col.b]]);
     });
-    inst.instanceMatrix.needsUpdate = true; inst.instanceColor.needsUpdate = true; Env.fitInstances(inst, 5); inst.receiveShadow = true; inst.name = 'parkedCars'; sc.group.add(inst);
+    set.finalize(); inst.setColorAt(0, col); inst.instanceMatrix.setUsage(THREE.DynamicDrawUsage); inst.instanceColor.setUsage(THREE.DynamicDrawUsage);
+    inst.frustumCulled = false; inst.receiveShadow = true; inst.name = 'parkedCars'; sc.group.add(inst);
+    const dyn = new Env.DynSet(set, [inst.instanceMatrix, inst.instanceColor], (n) => { inst.count = n; inst.visible = n > 0; }, 60);
+    sc.parkedCars = { inst, dyn }; dyn.range(0, 1e5);
     E.stats.cars = list.length;
   };
   // ---- camp sites: dome and ridge tents, campervans, a few gazebos
@@ -478,11 +662,14 @@ window.EI = window.EI || {};
     const tcols = [0x2f6db5, 0x3c8d3f, 0xe06c1b, 0xd8c23a, 0xb02e2e, 0x6c757d, 0x1f3a5f, 0x8a5a9e, 0xe9e9e9, 0x2a9d8f];
     [dome, ridge].forEach((bld, kind) => {
       const list = tents.filter(tn => tn[3] === kind); if (!list.length) return;
-      const inst = new THREE.InstancedMesh(bld.geometry(), new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.8, side: THREE.DoubleSide }), list.length); const m = new THREE.Matrix4(), q = new THREE.Quaternion(), s = new THREE.Vector3(), p = new THREE.Vector3(), up = new THREE.Vector3(0, 1, 0), col = new THREE.Color();
-      list.forEach((tn, k) => { p.set(tn[0], E.ground(tn[0], tn[1]) - 0.02, tn[1]); q.setFromAxisAngle(up, tn[2]); s.set(tn[4], tn[4], tn[4]); m.compose(p, q, s); inst.setMatrixAt(k, m); inst.setColorAt(k, col.setHex(tcols[Math.floor(rng() * tcols.length)]).convertSRGBToLinear()); });
-      inst.instanceMatrix.needsUpdate = true; inst.instanceColor.needsUpdate = true; Env.fitInstances(inst, 3); inst.name = 'tents'; sc.group.add(inst);
+      const inst = new THREE.InstancedMesh(bld.geometry(), sc.tentMat || (sc.tentMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.8, side: THREE.DoubleSide })), list.length); const m = new THREE.Matrix4(), q = new THREE.Quaternion(), s = new THREE.Vector3(), p = new THREE.Vector3(), up = new THREE.Vector3(0, 1, 0), col = new THREE.Color();
+      const set = new Env.CellSet([16, 3], 80);
+      list.forEach((tn) => { p.set(tn[0], E.ground(tn[0], tn[1]) - 0.02, tn[1]); q.setFromAxisAngle(up, tn[2]); s.set(tn[4], tn[4], tn[4]); m.compose(p, q, s); col.setHex(tcols[Math.floor(rng() * tcols.length)]).convertSRGBToLinear(); set.push(tn[0], tn[1], [m.elements, [col.r, col.g, col.b]]); });
+      set.finalize(); inst.setColorAt(0, col); inst.frustumCulled = false; inst.name = 'tents'; sc.group.add(inst);
+      const dyn = new Env.DynSet(set, [inst.instanceMatrix, inst.instanceColor], (n) => { inst.count = n; inst.visible = n > 0; }, 60); dyn.range(0, 1e5);
+      (sc.tents = sc.tents || []).push({ inst, dyn });
     });
-    if (vans.count) { const vm = new THREE.Mesh(vans.geometry(), new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.55, metalness: 0.1 })); vm.castShadow = true; vm.receiveShadow = true; vm.name = 'campervans'; sc.group.add(vm); }
+    if (vans.count) sc.statics.add(vans.geometry(), 0.55, 0.1, 'clutter');
     E.stats.tents = tents.length;
   };
   function campervan(B, m, color) {

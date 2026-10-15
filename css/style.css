@@ -86,7 +86,13 @@ html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text);
 
 /* ----- dash (bottom-centre) ----- */
 .vp .dash { left: 50%; bottom: var(--pad); width: 520px; transform-origin: bottom center; transform: translateX(-50%) scale(var(--s)); padding: 0 0 8px; overflow: visible; transition: opacity 0.35s ease, transform 0.35s cubic-bezier(.2,.9,.3,1); }
-.vp.cockpit .dash { opacity: 0; transform: translateX(-50%) translateY(30px) scale(var(--s)); }
+.vp.cockpit .dash { opacity: 0; visibility: hidden; transform: translateX(-50%) translateY(30px) scale(var(--s)); transition: opacity 0.25s ease, transform 0.25s ease, visibility 0s linear 0.25s; }
+.vp.cockpit .corner, .vp.cockpit .pname { opacity: 0; visibility: hidden; }
+/* cockpit vignette: darkens the frame edges (strongest at the top corners, around the halo) so the cockpit reads as close */
+.vp::before { content: ""; position: absolute; inset: 0; pointer-events: none; opacity: 0; transition: opacity 0.3s ease;
+  background: radial-gradient(ellipse 78% 74% at 50% 58%, rgba(0,0,0,0) 58%, rgba(0,0,0,0.28) 82%, rgba(0,0,0,0.6) 100%),
+              linear-gradient(180deg, rgba(0,0,0,0.32) 0%, rgba(0,0,0,0) 14%, rgba(0,0,0,0) 86%, rgba(0,0,0,0.25) 100%); }
+.vp.cockpit::before { opacity: 1; }
 .vp .leds { display: flex; justify-content: center; gap: 8px; height: 26px; align-items: center; border-bottom: 1px solid var(--line-2); background: linear-gradient(180deg, rgba(0,0,0,0.35), rgba(0,0,0,0)); border-radius: var(--radius) var(--radius) 0 0; }
 .vp .leds i { width: 11px; height: 11px; border-radius: 50%; background: #1b1f27; box-shadow: inset 0 1px 2px rgba(0,0,0,0.8); }
 .vp .leds i.g.on { background: #35f07a; box-shadow: 0 0 9px #35f07a, 0 0 2px #fff inset; }

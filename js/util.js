@@ -318,3 +318,80 @@ window.EI = window.EI || {};
     return { map: U.dataTex(cd, size, size, { srgb: true }), normalMap: U.heightToNormal(hgt, size, opts.bump || 1.4) };
   };
 })();
+// ---- gravel bed maps and geometry merging (track surfaces / draw-call batching)
+(function () {
+  const U = EI.U;
+  // gravel trap bed: packed rounded stones (varied size, tone and warm beige-grey hue) over darker fines, with crevice occlusion.
+  // Tileable. { map (sRGB), normalMap, roughnessMap (R = stone height 0..1, G = roughness), mean (linear rgb) }
+  U.gravelBedMaps = function (size, opts) {
+    opts = opts || {}; const seed = opts.seed || 41; const r = U.rng(seed); const N = size * size; const sc = size / 1024;
+    const hgt = new Float32Array(N), cr = new Float32Array(N), cg = new Float32Array(N), cb = new Float32Array(N), rough = new Float32Array(N);
+    const fines = opts.fines || [80, 73, 64];
+    const lo = U.resample(U.fbmGrid(64, 64, 4, 4, 4, 0.55, seed), 64, 64, size, size);
+    for (let i = 0; i < N; i++) { const t = (lo[i] - 0.5) * 0.3 + (r() - 0.5) * 0.35; cr[i] = fines[0] * (1 + t); cg[i] = fines[1] * (1 + t); cb[i] = fines[2] * (1 + t * 0.9); hgt[i] = r() * 0.05 + lo[i] * 0.08; rough[i] = 0.97; }
+    // sRGB stone tones with weights: light grey-beige, grey, warm beige, dark grey-beige, off-white quartz, tan / brown, dark flint
+    const PAL = opts.palette || [[150, 143, 131, 0.26], [131, 128, 123, 0.2], [160, 148, 129, 0.15], [108, 102, 94, 0.15], [182, 176, 165, 0.07], [132, 113, 92, 0.1], [84, 82, 79, 0.07]];
+    const pick = () => { let x = r(); for (const p of PAL) { x -= p[3]; if (x <= 0) return p; } return PAL[0]; };
+    const stone = (cx, cy, rx, ry, ang, top, base) => {
+      const p = pick(); const v = 0.86 + r() * 0.26, warm = (r() - 0.5) * 0.06; const col = [p[0] * v * (1 + warm), p[1] * v, p[2] * v * (1 - warm)];
+      const ro = 0.62 + r() * 0.22; const ca = Math.cos(ang), sa = Math.sin(ang); const R = Math.max(rx, ry);
+      const x0 = Math.floor(cx - R), x1 = Math.ceil(cx + R), y0 = Math.floor(cy - R), y1 = Math.ceil(cy + R);
+      for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) {
+        const dx = x - cx, dy = y - cy; const u = (dx * ca + dy * sa) / rx, w = (-dx * sa + dy * ca) / ry; const q = u * u + w * w; if (q > 1) continue;
+        const e = Math.sqrt(1 - q); const h = base + top * Math.pow(e, 0.6); const i = (((y % size) + size) % size) * size + (((x % size) + size) % size);
+        if (h <= hgt[i]) continue;
+        hgt[i] = h; const sh = (0.8 + 0.2 * e) * (1 + (r() - 0.5) * 0.07); cr[i] = col[0] * sh; cg[i] = col[1] * sh; cb[i] = col[2] * sh; rough[i] = ro + (1 - e) * 0.12;
+      }
+    };
+    // [count per megapixel, rMin, rMax, base height range]
+    const passes = [[30000, 1.0, 2.0, 0.05], [28000, 2.0, 3.6, 0.12], [30000, 3.2, 7.0, 0.3], [140, 9, 16, 0.25]];
+    for (const [cnt, a, b, bh] of passes) {
+      const nS = Math.round(cnt * N / 1048576);
+      for (let k = 0; k < nS; k++) { const rad = (a + (b - a) * Math.pow(r(), 1.4)) * sc; const asp = 0.62 + r() * 0.38; stone(r() * size, r() * size, rad, rad * asp, r() * Math.PI, (0.35 + rad / sc * 0.08) * (0.8 + r() * 0.4), r() * bh); }
+    }
+    // crevice occlusion: darken pixels lying below their neighbourhood (separable wrapping box blur of the height field)
+    const blur = (src, rad) => { const tmp = new Float32Array(N), out = new Float32Array(N); const k = 2 * rad + 1;
+      for (let y = 0; y < size; y++) { let s = 0; for (let x = -rad; x <= rad; x++) s += src[y * size + ((x + size) % size)]; for (let x = 0; x < size; x++) { tmp[y * size + x] = s / k; s += src[y * size + ((x + rad + 1) % size)] - src[y * size + ((x - rad + size) % size)]; } }
+      for (let x = 0; x < size; x++) { let s = 0; for (let y = -rad; y <= rad; y++) s += tmp[((y + size) % size) * size + x]; for (let y = 0; y < size; y++) { out[y * size + x] = s / k; s += tmp[((y + rad + 1) % size) * size + x] - tmp[((y - rad + size) % size) * size + x]; } }
+      return out; };
+    const bl = blur(hgt, Math.max(2, Math.round(5 * sc)));
+    let hMax = 0; for (let i = 0; i < N; i++) hMax = Math.max(hMax, hgt[i]);
+    const cd = new Uint8Array(N * 4), rd = new Uint8Array(N * 4); const mean = [0, 0, 0];
+    for (let i = 0; i < N; i++) {
+      const ao = U.clamp(1 - (bl[i] - hgt[i]) * 0.9, 0.5, 1.05);
+      const R = U.clamp(cr[i] * ao, 0, 255), G = U.clamp(cg[i] * ao, 0, 255), B = U.clamp(cb[i] * ao, 0, 255);
+      cd[i * 4] = R; cd[i * 4 + 1] = G; cd[i * 4 + 2] = B; cd[i * 4 + 3] = 255;
+      mean[0] += Math.pow(R / 255, 2.2); mean[1] += Math.pow(G / 255, 2.2); mean[2] += Math.pow(B / 255, 2.2);
+      rd[i * 4] = U.clamp(hgt[i] / hMax * 255, 0, 255); rd[i * 4 + 1] = U.clamp(rough[i] * 255, 0, 255); rd[i * 4 + 2] = 0; rd[i * 4 + 3] = 255;
+    }
+    return { map: U.dataTex(cd, size, size, { srgb: true }), normalMap: U.heightToNormal(hgt, size, (opts.bump || 2.6) / sc), roughnessMap: U.dataTex(rd, size, size), mean: mean.map(v => v / N) };
+  };
+
+  // merge geometries into one indexed BufferGeometry. items: [{ geo, matrix (Matrix4, optional) }]. Attributes are the union over all items
+  // (missing ones filled with 0, colour with 1, normal with +Y); positions / normals are transformed by the item matrix.
+  U.mergeGeometries = function (items) {
+    const sizes = {}; let nv = 0, ni = 0;
+    for (const it of items) { const g = it.geo; for (const k in g.attributes) if (!sizes[k]) sizes[k] = g.attributes[k].itemSize; nv += g.attributes.position.count; ni += g.index ? g.index.count : g.attributes.position.count; }
+    const out = {}; for (const k in sizes) out[k] = new Float32Array(nv * sizes[k]);
+    const idx = nv > 65535 ? new Uint32Array(ni) : new Uint16Array(ni);
+    const nm = new THREE.Matrix3(), v = new THREE.Vector3(); let ov = 0, oi = 0;
+    for (const it of items) {
+      const g = it.geo, n = g.attributes.position.count, M = it.matrix || null; if (M) nm.getNormalMatrix(M);
+      for (const k in sizes) {
+        const sz = sizes[k], dst = out[k], a = g.attributes[k];
+        if (!a) { const def = k === 'color' ? 1 : 0; for (let i = 0; i < n * sz; i++) dst[ov * sz + i] = def; if (k === 'normal') for (let i = 0; i < n; i++) dst[(ov + i) * 3 + 1] = 1; continue; }
+        const src = a.array, isz = a.itemSize;
+        if (M && (k === 'position' || k === 'normal')) {
+          for (let i = 0; i < n; i++) { v.set(src[i * isz], src[i * isz + 1], src[i * isz + 2]); if (k === 'position') v.applyMatrix4(M); else v.applyMatrix3(nm).normalize(); dst[(ov + i) * 3] = v.x; dst[(ov + i) * 3 + 1] = v.y; dst[(ov + i) * 3 + 2] = v.z; }
+        } else for (let i = 0; i < n; i++) for (let c = 0; c < sz; c++) dst[(ov + i) * sz + c] = c < isz ? src[i * isz + c] : 0;
+      }
+      if (g.index) { const ia = g.index.array; for (let j = 0; j < ia.length; j++) idx[oi + j] = ia[j] + ov; oi += ia.length; }
+      else { for (let j = 0; j < n; j++) idx[oi + j] = ov + j; oi += n; }
+      ov += n;
+    }
+    const geo = new THREE.BufferGeometry();
+    for (const k in sizes) geo.setAttribute(k, new THREE.BufferAttribute(out[k], sizes[k]));
+    geo.setIndex(new THREE.BufferAttribute(idx, 1)); geo.computeBoundingSphere(); geo.computeBoundingBox();
+    return geo;
+  };
+})();

@@ -88,6 +88,8 @@ window.EI = window.EI || {};
       return null;
     }
     add(mesh, name) { mesh.name = name || mesh.name; this.group.add(mesh); return mesh; }
+    // untextured vertex-coloured structures go to the scenery's merged, spatially chunked statics (one material for everything)
+    static(geos, rough, metal, layer, name) { if (!geos.length) return; const g = merge(geos); if (this.sc.statics) { this.sc.statics.add(g, rough, metal, layer); this.stats[name + 'Tris'] = g.attributes.position.count / 3; return; } const m = new THREE.Mesh(g, stdMat({ roughness: rough, metalness: metal })); m.castShadow = true; m.receiveShadow = true; this.add(m, name); }
   }
 
   // ---------------------------------------------------------------- 1. advertising hoardings
@@ -109,7 +111,7 @@ window.EI = window.EI || {};
   };
   function buildHoardings(cx) {
     const t = cx.t, rng = U.rng(901);
-    const atlas = Infra.hoardingAtlas();
+    const atlas = cx.hoardAtlas || (cx.hoardAtlas = Infra.hoardingAtlas());
     const geo = new THREE.BoxGeometry(5.0, 1.0, 0.08); const uv = geo.attributes.uv;
     for (let i = 0; i < uv.count; i++) { if (i >= 16 && i < 20) uv.setXY(i, uv.getX(i), 0.08 + uv.getY(i) * 0.9); else uv.setXY(i, 0.5, 0.03); }
     const spots = [];
@@ -272,7 +274,7 @@ window.EI = window.EI || {};
       cx.reserve(p.s, side, 9); placed++;
     });
     if (!frames.length) return;
-    const fm = new THREE.Mesh(merge(frames), stdMat({ roughness: 0.45, metalness: 0.5 })); fm.castShadow = true; fm.receiveShadow = true; cx.add(fm, 'screenFrames');
+    cx.static(frames, 0.45, 0.5, 'main', 'screenFrames');
     screens.forEach((list, k) => { if (!list.length) return; const m = new THREE.Mesh(merge(list), new THREE.MeshBasicMaterial({ map: Infra.broadcastTexture(k === 0 ? 'timing' : 'logo') })); cx.add(m, 'screen' + k); });
     cx.stats.screens = placed;
   }
@@ -298,63 +300,145 @@ window.EI = window.EI || {};
       cx.reserve(p.s, side, 4); placed++;
     }
     if (!geos.length) return;
-    const mesh = new THREE.Mesh(merge(geos), stdMat({ roughness: 0.5, metalness: 0.5 })); mesh.castShadow = true; cx.add(mesh, 'cameraTowers'); cx.stats.cameraTowers = placed;
+    cx.static(geos, 0.5, 0.5, 'main', 'cameraTowers'); cx.stats.cameraTowers = placed;
   }
 
-  // ---------------------------------------------------------------- 6. marshal posts with booths, flag marshals, number boards and LED panels
-  function marshalTexture() {
-    const [c, ctx] = canvas(128, 128); ctx.clearRect(0, 0, 128, 128);
-    const figure = (x, flag) => {
-      ctx.fillStyle = '#f4f4f0'; ctx.beginPath(); ctx.arc(x, 16, 9, 0, 6.283); ctx.fill(); // helmet/hat
-      ctx.fillStyle = '#e8b592'; ctx.fillRect(x - 5, 20, 10, 7);
-      ctx.fillStyle = '#ff6a00'; ctx.fillRect(x - 12, 27, 24, 42); ctx.fillRect(x - 10, 69, 8, 40); ctx.fillRect(x + 2, 69, 8, 40);
-      ctx.fillStyle = '#ffffff'; ctx.fillRect(x - 12, 40, 24, 4); ctx.fillRect(x - 12, 60, 24, 4);
-      ctx.fillStyle = '#1a1a1a'; ctx.fillRect(x - 10, 108, 8, 8); ctx.fillRect(x + 2, 108, 8, 8);
-      if (flag) { ctx.fillStyle = '#ff6a00'; ctx.fillRect(x + 10, 10, 5, 30); ctx.fillStyle = '#5a4a3a'; ctx.fillRect(x + 13, 0, 2, 22); ctx.fillStyle = '#ffd500'; ctx.beginPath(); ctx.moveTo(x + 15, 2); ctx.lineTo(x + 46, 8); ctx.lineTo(x + 42, 30); ctx.lineTo(x + 15, 22); ctx.fill(); }
-      else { ctx.fillStyle = '#ff6a00'; ctx.fillRect(x - 17, 28, 5, 32); ctx.fillRect(x + 12, 28, 5, 32); }
-    };
-    figure(28, true); figure(90, false);
-    return tex(c);
-  }
+  // ---------------------------------------------------------------- 6. marshal posts with huts, flag marshals, number boards, flag racks and LED panels
   function numberAtlas() {
     const [c, ctx] = canvas(512, 768);
     for (let k = 0; k < 24; k++) { const x = (k % 4) * 128, y = Math.floor(k / 4) * 128; ctx.fillStyle = '#f6f6f2'; ctx.fillRect(x, y, 128, 128); ctx.fillStyle = '#111'; ctx.fillRect(x, y, 128, 6); ctx.fillRect(x, y + 122, 128, 6); ctx.font = '900 92px Arial Black, Arial'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(String(k + 1), x + 64, y + 66); }
     return tex(c);
   }
+  // a low-poly person (local frame m: +z faces the track): orange overalls with reflective bands, white cap; pose 0 standing,
+  // 1 waving a flag, 2 with a fire extinguisher, 3 camera operator (dark clothes)
+  function person(geos, m, x, y, z, pose, flagCol) {
+    const op = pose === 3; const suit = op ? C(0x2b2f36) : C(0xff6a00), band = C(0xd9dbd2), skin = C(0xd9a47e), boot = C(0x1c1c1c), cap = op ? C(0x1d3557) : C(0xf2f2ee);
+    for (const sx of [-0.11, 0.11]) { box(geos, 0.16, 0.84, 0.2, x + sx, y + 0.48, z, suit, m); box(geos, 0.18, 0.1, 0.28, x + sx, y + 0.05, z + 0.03, boot, m); }
+    box(geos, 0.46, 0.62, 0.26, x, y + 1.21, z, suit, m); if (!op) { box(geos, 0.47, 0.05, 0.27, x, y + 1.08, z, band, m); box(geos, 0.47, 0.05, 0.27, x, y + 1.34, z, band, m); }
+    box(geos, 0.1, 0.08, 0.1, x, y + 1.56, z, skin, m); box(geos, 0.2, 0.24, 0.22, x, y + 1.71, z, skin, m); box(geos, 0.23, 0.08, 0.25, x, y + 1.85, z, cap, m); box(geos, 0.2, 0.02, 0.12, x, y + 1.82, z + 0.17, cap, m);
+    box(geos, 0.12, 0.6, 0.14, x - 0.3, y + 1.18, z, suit, m);
+    if (pose === 1) { beam(geos, [x + 0.29, y + 1.44, z], [x + 0.42, y + 1.98, z + 0.05], 0.12, suit, m); beam(geos, [x + 0.42, y + 1.9, z + 0.06], [x + 0.46, y + 2.75, z + 0.06], 0.03, C(0x5a4a3a), m); box(geos, 0.7, 0.46, 0.02, x + 0.82, y + 2.48, z + 0.06, flagCol || C(0xffd500), m); }
+    else if (pose === 2) { box(geos, 0.12, 0.6, 0.14, x + 0.3, y + 1.18, z, suit, m); cyl(geos, 0.08, 0.08, 0.5, 6, x + 0.38, y + 0.6, z + 0.05, C(0xc8102e), m); }
+    else if (pose === 3) { beam(geos, [x + 0.28, y + 1.44, z], [x + 0.2, y + 1.62, z + 0.32], 0.11, suit, m); beam(geos, [x - 0.28, y + 1.44, z], [x - 0.2, y + 1.62, z + 0.32], 0.11, suit, m); }
+    else box(geos, 0.12, 0.6, 0.14, x + 0.3, y + 1.18, z, suit, m);
+  }
   function buildMarshalPosts(cx) {
-    const t = cx.t; const geos = [], boards = [], marshalsA = [], marshalsB = [];
-    const white = C(0xf2f2ee), orange = C(0xff6a00), dark = C(0x1e2024), grey = C(0xcfd0cc), led = C(0x2c2f34), post = C(0x3a3d42);
-    const seen = {}; let num = 0;
+    const t = cx.t, rng = U.rng(616); const geos = [], boards = [];
+    const white = C(0xf2f2ee), orange = C(0xff6a00), dark = C(0x1e2024), grey = C(0xcfd0cc), led = C(0x2c2f34), post = C(0x3a3d42), green = C(0x19c24a);
+    const flagsC = [C(0xffd500), C(0x1a73e8), C(0xf4f4f4), C(0xc8102e), C(0x19a34a), C(0x111111)];
+    // corner posts first (outside of each named corner), then fill every gap longer than ~300 m along the straights, alternating sides
+    const spots = []; const seen = {};
     for (const c of t.data.corners) {
       if (/Straight/i.test(c.name) || seen[c.name]) continue; seen[c.name] = true;
-      const i = t.idxAtS(c.s + 30); const side = cx.outsideSide(i);
-      const p = cx.freeSpot(c.s - 28, side, 2.6, 3, 3); if (!p) continue;
+      const i = t.idxAtS(c.s + 30); const side = cx.outsideSide(i); const p = cx.freeSpot(c.s - 28, side, 2.6, 3, 3); if (p) { spots.push([p, side]); cx.reserve(p.s, side, 5); cx.reserve(p.s + 14, side, 3); }
+    }
+    const gapAt = (s) => { let best = Infinity; for (const [p] of spots) { let d = Math.abs(U.mod(s - p.s, t.length)); d = Math.min(d, t.length - d); best = Math.min(best, d); } return best; };
+    let alt = 1;
+    for (let s = 0; s < t.length; s += 20) {
+      if (gapAt(s) < 290) continue; alt = -alt; const side = cx.inPit(s, alt) ? -alt : alt;
+      const p = cx.freeSpot(s, side, 2.6, 3, 3) || cx.freeSpot(s, -side, 2.6, 3, 3); if (!p) continue;
+      const sd = Math.sign(p.nx * t.nx[p.i] + p.nz * t.nz[p.i]) || side; spots.push([p, sd]); cx.reserve(p.s, sd, 5); cx.reserve(p.s + 14, sd, 3);
+    }
+    spots.sort((a, b) => a[0].s - b[0].s);
+    let num = 0;
+    for (const [p, side] of spots) {
       frame(_m, p.x, p.y, p.z, side, p.tx, p.tz); const m = _m.clone(); num++;
       // raised post: concrete plinth, low wall in front, hut on top with an orange band, dark window strip and a roof slab
       box(geos, 3.2, 1.0, 3.2, 0, 0.5, 0, C(0xb9b9b4), m); box(geos, 3.4, 0.9, 0.3, 0, 1.45, 1.5, grey, m); box(geos, 0.3, 0.9, 3.2, -1.55, 1.45, 0, grey, m);
       box(geos, 2.4, 2.1, 2.0, 0, 2.05, -0.2, white, m); box(geos, 2.44, 0.34, 2.04, 0, 3.1, -0.2, orange, m); box(geos, 2.1, 0.55, 0.1, 0, 2.55, 0.82, dark, m); box(geos, 0.08, 0.55, 2.0, 1.2, 2.55, -0.2, dark, m);
       box(geos, 2.9, 0.12, 2.5, 0, 3.33, -0.2, grey, m); box(geos, 2.6, 0.12, 0.3, 0, 3.1, -1.3, orange, m);
+      // steps up to the platform and a handrail
+      for (let k = 0; k < 3; k++) box(geos, 0.9, 0.12, 0.3, -2.1, 0.3 + k * 0.33, -0.9 + k * 0.3, grey, m);
+      beam(geos, [-1.55, 1.0, -1.55], [-1.55, 1.95, -1.55], 0.05, post, m); beam(geos, [-1.55, 1.95, -1.55], [1.55, 1.95, -1.55], 0.05, post, m);
+      // flag rack on the hut side: the six signal flags rolled out on a board
+      box(geos, 0.05, 0.8, 1.3, -1.24, 2.1, -0.2, C(0x5b5e63), m); flagsC.forEach((fc, k) => box(geos, 0.04, 0.3, 0.36, -1.28, 2.32 - Math.floor(k / 3) * 0.4, -0.62 + (k % 3) * 0.42, fc, m));
       // number board on a post beside the hut
       box(geos, 0.08, 3.4, 0.08, 1.9, 1.7, 0.3, post, m);
       const b = new THREE.PlaneGeometry(0.9, 0.9); const uv = b.attributes.uv; const k = (num - 1) % 24; for (let v = 0; v < uv.count; v++) uv.setXY(v, (k % 4 + uv.getX(v)) / 4, 1 - (Math.floor(k / 4) + 1 - uv.getY(v)) / 6); b.translate(1.9, 3.75, 0.36); b.applyMatrix4(m); boards.push(b);
-      // LED flag panel just behind the fence line, ahead of the post
+      // LED flag panel just behind the fence line, ahead of the post (green = track clear)
       const lp = cx.at(p.s + 14, side, 1.4); frame(_m, lp.x, lp.y, lp.z, side, lp.tx, lp.tz); const lm = _m.clone();
       box(geos, 0.12, 2.3, 0.12, 0, 1.15, 0, post, lm); box(geos, 1.1, 0.75, 0.2, 0, 2.5, 0.05, dark, lm); box(geos, 0.98, 0.63, 0.04, 0, 2.5, 0.17, led, lm);
-      // marshals: one waving a flag beside the wall, one standing by the hut
-      const local = (lx, lz) => [p.x + p.tx * lx * side - p.nx * lz, p.z + p.tz * lx * side - p.nz * lz];
-      let w = local(-2.3, 1.2); marshalsA.push(frame(new THREE.Matrix4(), w[0], p.y, w[1], side, p.tx, p.tz));
-      w = local(0.6, 1.0); marshalsB.push(frame(new THREE.Matrix4(), w[0], p.y + 1.0, w[1], side, p.tx, p.tz)); w = local(-2.6, -1.2); marshalsB.push(frame(new THREE.Matrix4(), w[0], p.y, w[1], side, p.tx, p.tz));
-      cx.reserve(p.s, side, 5); cx.reserve(p.s + 14, side, 3);
+      for (let r = 0; r < 3; r++) for (let q = 0; q < 5; q++) box(geos, 0.12, 0.12, 0.03, -0.36 + q * 0.18, 2.32 + r * 0.18, 0.2, green, lm);
+      // marshals: a flag marshal at the wall, one on the platform, one by the steps with the extinguisher
+      person(geos, m, -2.3, 0, 1.0, 1, flagsC[num % 3 === 0 ? 1 : 0]); person(geos, m, 0.7, 1.0, 1.0, 0); if (rng() < 0.7) person(geos, m, -2.6, 0, -1.4, 2);
     }
     if (!geos.length) return;
-    const mesh = new THREE.Mesh(merge(geos), stdMat({ roughness: 0.7 })); mesh.castShadow = true; mesh.receiveShadow = true; cx.add(mesh, 'marshalPosts');
+    cx.static(geos, 0.7, 0.05, 'clutter', 'marshalPosts');
     cx.add(new THREE.Mesh(merge(boards), new THREE.MeshStandardMaterial({ map: numberAtlas(), roughness: 0.6 })), 'marshalBoards');
-    const mt = marshalTexture();
-    const quadA = new THREE.PlaneGeometry(1.0, 1.85); quadA.translate(0, 0.925, 0); const ua = quadA.attributes.uv; for (let v = 0; v < ua.count; v++) ua.setXY(v, ua.getX(v) * 0.5, ua.getY(v));
-    const quadB = new THREE.PlaneGeometry(0.6, 1.85); quadB.translate(0, 0.925, 0); const ub = quadB.attributes.uv; for (let v = 0; v < ub.count; v++) ub.setXY(v, 0.55 + ub.getX(v) * 0.4, ub.getY(v));
-    const mmat = new THREE.MeshLambertMaterial({ map: mt, alphaTest: 0.5, side: THREE.DoubleSide, emissive: 0xffffff, emissiveMap: mt, emissiveIntensity: 0.15 });
-    [[quadA, marshalsA], [quadB, marshalsB]].forEach(([q, list], k) => { const inst = new THREE.InstancedMesh(q, mmat, list.length); list.forEach((mm, j) => inst.setMatrixAt(j, mm)); cx.add(inst, 'marshals' + k); });
     cx.stats.marshalPosts = num;
+  }
+
+  // ---------------------------------------------------------------- 7. TV: camera scaffolds with operators and umbrellas, camera cranes, advertising gantries
+  // and the concrete spectator walls with sponsor covers behind the tyre walls
+  function buildBroadcast(cx) {
+    const t = cx.t, rng = U.rng(4545); const geos = [], boards = [];
+    const tube = C(0xa3a8ae), plank = C(0x8a6d4a), cam = C(0x1a1b1e), dark = C(0x2a2d31);
+    const atlas = cx.hoardAtlas || (cx.hoardAtlas = Infra.hoardingAtlas());
+    const tile = (geo, brand, u0, u1) => { const uv = geo.attributes.uv; for (let v = 0; v < uv.count; v++) uv.setXY(v, ((brand % 4) + u0 + (u1 - u0) * uv.getX(v)) * 0.25, 0.5 - Math.floor(brand / 4) * 0.5 + 0.06 + uv.getY(v) * 0.4); };
+    // camera scaffolds: tube towers ~2.6 m with a plank deck, rails, tripod camera, operator and an umbrella
+    let scaff = 0;
+    for (const s0 of [610, 1130, 1960, 2470, 3470, 3790, 4230, 5290, 5560, 760, 2860]) {
+      const i = t.idxAtS(s0 + 20); const side = cx.outsideSide(i); const p = cx.freeSpot(s0, side, 4.2, 1.6, 2.4); if (!p) continue;
+      frame(_m, p.x, p.y, p.z, side, p.tx, p.tz); const m = _m.clone(); const Hh = 2.4 + (scaff % 3) * 0.6;
+      for (const [x, z] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) beam(geos, [x, 0, z], [x, Hh + 1.05, z], 0.06, tube, m);
+      for (const y of [0.15, Hh * 0.5]) { beam(geos, [-1, y, -1], [1, y, -1], 0.05, tube, m); beam(geos, [-1, y, 1], [1, y, 1], 0.05, tube, m); beam(geos, [-1, y, -1], [-1, y, 1], 0.05, tube, m); beam(geos, [1, y, -1], [1, y, 1], 0.05, tube, m); }
+      beam(geos, [-1, 0.15, -1], [1, Hh, -1], 0.04, tube, m); beam(geos, [-1, 0.15, 1], [1, Hh, 1], 0.04, tube, m);
+      box(geos, 2.3, 0.08, 2.3, 0, Hh, 0, plank, m); for (const y of [Hh + 0.55, Hh + 1.05]) { beam(geos, [-1, y, -1], [1, y, -1], 0.04, tube, m); beam(geos, [-1, y, -1], [-1, y, 1], 0.04, tube, m); beam(geos, [1, y, -1], [1, y, 1], 0.04, tube, m); }
+      for (const [x, z] of [[0, 0.7], [-0.25, 0.2], [0.25, 0.2]]) beam(geos, [0.0, Hh + 1.35, 0.4], [x, Hh + 0.05, z], 0.03, dark, m);
+      box(geos, 0.3, 0.32, 0.6, 0, Hh + 1.5, 0.45, cam, m); const lens = new THREE.CylinderGeometry(0.1, 0.13, 0.5, 8); lens.rotateX(Math.PI / 2); lens.translate(0, Hh + 1.52, 0.95); lens.applyMatrix4(m); lens.userData.color = cam; geos.push(lens);
+      person(geos, m, 0.1, Hh + 0.04, -0.35, 3);
+      beam(geos, [-0.7, Hh, -0.7], [-0.7, Hh + 2.6, -0.7], 0.04, dark, m); cyl(geos, 0.05, 1.15, 0.38, 8, -0.7, Hh + 2.75, -0.7, [C(0xc8102e), C(0xf2f2f2), C(0x1a73e8)][scaff % 3], m);
+      cx.reserve(p.s, side, 4); scaff++;
+    }
+    // camera cranes (jibs): ballast base, mast, lattice arm reaching out over the debris fence, remote head at the tip
+    let cranes = 0;
+    for (const s0 of [5130, 3330, 2290]) {
+      const i = t.idxAtS(s0); const side = cx.outsideSide(t.idxAtS(s0 + 40)); const p = cx.freeSpot(s0, side, 7.5, 3, 4); if (!p) continue;
+      frame(_m, p.x, p.y, p.z, side, p.tx, p.tz); const m = _m.clone();
+      box(geos, 2.4, 0.9, 3.2, 0, 0.45, -1, C(0x3a3d42), m); for (const x of [-1, 1]) for (const z of [-2.4, 0.4]) cyl(geos, 0.3, 0.3, 0.25, 8, x * 1.25, 0.3, z, C(0x1c1c1c), m);
+      beam(geos, [0, 0.9, -1], [0, 4.6, -1], 0.32, C(0x55595f), m); box(geos, 0.7, 0.5, 0.7, 0, 4.6, -1, dark, m);
+      const a0 = [0, 5.0, -4.5], a1 = [0, 6.6, 6.2]; const dx = a1[1] - a0[1], dz = a1[2] - a0[2];
+      for (const o of [-0.22, 0.22]) { beam(geos, [o, a0[1], a0[2]], [o, a1[1], a1[2]], 0.08, tube, m); beam(geos, [o, a0[1] - 0.35, a0[2]], [o, a1[1] - 0.3, a1[2]], 0.06, tube, m); }
+      for (let u = 0; u < 1; u += 0.08) { const y = a0[1] + dx * u, z = a0[2] + dz * u, y2 = a0[1] + dx * (u + 0.08), z2 = a0[2] + dz * (u + 0.08); beam(geos, [-0.22, y, z], [0.22, y2 - 0.3, z2], 0.03, tube, m); beam(geos, [0.22, y - 0.3, z], [-0.22, y2, z2], 0.03, tube, m); }
+      box(geos, 0.9, 0.9, 0.9, 0, a0[1] - 0.6, a0[2], C(0x8e9196), m); box(geos, 0.5, 0.6, 0.5, 0, a1[1] - 0.7, a1[2], dark, m); box(geos, 0.28, 0.3, 0.5, 0, a1[1] - 1.15, a1[2] + 0.1, cam, m);
+      person(geos, m, 1.2, 0, -2.6, 3); cx.reserve(p.s, side, 5); cranes++;
+    }
+    // advertising gantries over the straights: two lattice towers outside the barriers, a box truss and sponsor panels both ways
+    let gantries = 0;
+    for (const s0 of [1660, 4610]) {
+      let ok = false, s = s0;
+      for (const ds of [0, 30, -30, 60, -60]) { s = s0 + ds; if (!cx.isReserved(s, 1) && !cx.isReserved(s, -1) && !cx.inPit(s, 1) && !cx.inPit(s, -1)) { const A = cx.at(s, -1, 3.0), B = cx.at(s, 1, 3.0); if (!cx.inObstacle(A.x, A.z) && !cx.inObstacle(B.x, B.z)) { ok = true; break; } } }
+      if (!ok) continue;
+      const A = cx.at(s, -1, 3.0), Bp = cx.at(s, 1, 3.0); const i = t.idxAtS(s); const yDeck = t.y[i] + 7.2;
+      const ux = Bp.x - A.x, uz = Bp.z - A.z, span = Math.hypot(ux, uz); const ax = ux / span, az = uz / span; const tx = t.tx[i], tz = t.tz[i];
+      const W = (u, y, v) => [A.x + ax * u + tx * v, y, A.z + az * u + tz * v];
+      const tw = (u) => { const g0 = cx.ground(A.x + ax * u, A.z + az * u); for (const [du, dv] of [[-0.6, -0.6], [0.6, -0.6], [-0.6, 0.6], [0.6, 0.6]]) beam(geos, W(u + du, g0, dv), W(u + du, yDeck + 1.6, dv), 0.14, tube); for (let y = g0 + 1.2; y < yDeck; y += 1.4) { beam(geos, W(u - 0.6, y, -0.6), W(u + 0.6, y + 1.4, -0.6), 0.05, tube); beam(geos, W(u - 0.6, y, 0.6), W(u + 0.6, y + 1.4, 0.6), 0.05, tube); beam(geos, W(u - 0.6, y, -0.6), W(u - 0.6, y + 1.4, 0.6), 0.05, tube); beam(geos, W(u + 0.6, y, -0.6), W(u + 0.6, y + 1.4, 0.6), 0.05, tube); } box(geos, 2.0, 0.4, 2.0, 0, 0.2, 0, C(0x8e8e8a), new THREE.Matrix4().makeTranslation(...W(u, g0, 0))); };
+      tw(-1.2); tw(span + 1.2);
+      for (const y of [yDeck, yDeck + 1.6]) for (const v of [-0.6, 0.6]) beam(geos, W(-1.8, y, v), W(span + 1.8, y, v), 0.12, tube);
+      for (let u = -1.8; u < span + 1.8; u += 1.6) { beam(geos, W(u, yDeck, -0.6), W(u + 1.6, yDeck + 1.6, -0.6), 0.05, tube); beam(geos, W(u, yDeck, 0.6), W(u + 1.6, yDeck + 1.6, 0.6), 0.05, tube); beam(geos, W(u, yDeck, -0.6), W(u, yDeck, 0.6), 0.05, tube); }
+      // sponsor panels on both faces, one brand tile per 5 m
+      const n = Math.max(1, Math.round((span + 2) / 5)); const pl = (span + 2) / n; const brand0 = Math.floor(rng() * 8);
+      for (const v of [-0.68, 0.68]) for (let k = 0; k < n; k++) {
+        const g = new THREE.PlaneGeometry(pl - 0.05, 1.3); tile(g, (brand0 + k) % 8, 0, 1); const c0 = W(-1 + pl * (k + 0.5), yDeck + 0.8, v);
+        const sg = v > 0 ? 1 : -1; const mm = new THREE.Matrix4().makeBasis(_x.set(sg * tz, 0, -sg * tx), _y.set(0, 1, 0), _z.set(sg * tx, 0, sg * tz)).setPosition(c0[0], c0[1], c0[2]); g.applyMatrix4(mm); boards.push(g);
+      }
+      cx.reserve(s, 1, 5); cx.reserve(s, -1, 5); gantries++;
+    }
+    // concrete spectator walls with sponsor covers behind the tyre walls (corners without hoardings)
+    let walls = 0;
+    for (const side of [-1, 1]) {
+      let lp = null;
+      for (let s = 0; s < t.length; s += 4.2) {
+        const i = t.idxAtS(s); if (!cx.tyreZone(i, side) || cx.inPit(s, side) || cx.isReserved(s, side)) { lp = null; continue; }
+        const p = cx.at(s, side, 3.1); if (lp && Math.hypot(p.x - lp.x, p.z - lp.z) < 3.9) continue; if (cx.inObstacle(p.x, p.z)) { lp = null; continue; } lp = p;
+        frame(_m, p.x, p.y, p.z, side, p.tx, p.tz); const m = _m.clone();
+        box(geos, 4.0, 1.25, 0.35, 0, 0.625, 0, C(0xc9c9c4), m); box(geos, 4.0, 0.1, 0.45, 0, 1.27, 0, C(0xb0b0aa), m);
+        const g = new THREE.PlaneGeometry(3.9, 0.95); tile(g, Math.floor(s / 21) % 8, 0, 1); g.translate(0, 0.62, 0.19); g.applyMatrix4(m); boards.push(g); walls++;
+      }
+    }
+    cx.static(geos, 0.5, 0.35, 'clutter', 'broadcast');
+    if (boards.length) { const bm = new THREE.Mesh(merge(boards), new THREE.MeshStandardMaterial({ map: atlas, roughness: 0.55, side: THREE.DoubleSide })); bm.receiveShadow = true; cx.add(bm, 'infraBoards'); }
+    Object.assign(cx.stats, { cameraScaffolds: scaff, cranes, gantries, sponsorWalls: walls });
   }
 
   // ---------------------------------------------------------------- 8a. worn, dusty band along the outside of corners between the run-off and the fence
@@ -421,7 +505,7 @@ window.EI = window.EI || {};
       _q.setFromAxisAngle(_y, Math.atan2(-dz, dx)); _p.set(x, sc.height(x, z) - 0.05, z); _s.set(1, 1, 1); _m.compose(_p, _q, _s);
       motorhome(geos, _m, teams[homes % teams.length]); homes++;
     }
-    if (geos.length) { const mesh = new THREE.Mesh(merge(geos), stdMat({ roughness: 0.5, metalness: 0.1 })); mesh.castShadow = true; mesh.receiveShadow = true; cx.add(mesh, 'paddock'); }
+    cx.static(geos, 0.5, 0.1, 'main', 'paddock');
     cx.stats.trucks = trucks; cx.stats.motorhomes = homes;
   }
   function buildCarParks(cx) {
@@ -453,8 +537,32 @@ window.EI = window.EI || {};
         campervan(geos, _m, C(palette[Math.floor(rng() * palette.length)])); vans++;
       }
     }
-    if (geos.length) { const mesh = new THREE.Mesh(merge(geos), stdMat({ roughness: 0.55, metalness: 0.1 })); mesh.castShadow = true; mesh.receiveShadow = true; cx.add(mesh, 'carParks'); }
+    cx.static(geos, 0.55, 0.1, 'clutter', 'carParks');
     cx.stats.campervans = vans;
+  }
+
+  function splitNearFar(cx, inst) {
+    const Env = EI.Env; const n = inst.count, a = inst.instanceMatrix.array; const g0 = inst.geometry;
+    const iattrs = Object.keys(g0.attributes).filter(k => g0.attributes[k].isInstancedBufferAttribute);
+    const strides = [16].concat(inst.instanceColor ? [3] : [], iattrs.map(k => g0.attributes[k].itemSize));
+    const set = new Env.CellSet(strides, 80);
+    for (let i = 0; i < n; i++) {
+      const recs = [Array.from(a.subarray(i * 16, i * 16 + 16))]; if (inst.instanceColor) recs.push(Array.from(inst.instanceColor.array.subarray(i * 3, i * 3 + 3)));
+      for (const k of iattrs) { const at = g0.attributes[k]; recs.push(Array.from(at.array.subarray(i * at.itemSize, (i + 1) * at.itemSize))); }
+      set.push(a[i * 16 + 12], a[i * 16 + 14], recs);
+    }
+    set.finalize();
+    const make = (name, shadow) => {
+      const g = new THREE.BufferGeometry(); g.index = g0.index; for (const k in g0.attributes) if (iattrs.indexOf(k) < 0) g.setAttribute(k, g0.attributes[k]);
+      const ia = iattrs.map(k => { const at = new THREE.InstancedBufferAttribute(new Float32Array(n * g0.attributes[k].itemSize), g0.attributes[k].itemSize); at.setUsage(THREE.DynamicDrawUsage); g.setAttribute(k, at); return at; });
+      const m = new THREE.InstancedMesh(g, inst.material, n); m.instanceMatrix.setUsage(THREE.DynamicDrawUsage); if (inst.instanceColor) { m.setColorAt(0, _c.setRGB(1, 1, 1)); m.instanceColor.setUsage(THREE.DynamicDrawUsage); }
+      m.count = 0; m.frustumCulled = false; m.castShadow = shadow; m.receiveShadow = inst.receiveShadow; m.customDepthMaterial = inst.customDepthMaterial; m.name = name; cx.group.add(m);
+      const dyn = new Env.DynSet(set, [m.instanceMatrix].concat(inst.instanceColor ? [m.instanceColor] : [], ia), (k) => { m.count = k; m.visible = k > 0; }, shadow ? 30 : 60);
+      return dyn;
+    };
+    const far = make(inst.name, false), near = make(inst.name + 'Near', inst.castShadow);
+    cx.group.remove(inst);
+    return { name: inst.name, far, near, count: n };
   }
 
   // ---------------------------------------------------------------- build
@@ -466,10 +574,17 @@ window.EI = window.EI || {};
     buildScreens(cx);
     buildCameraTowers(cx);
     buildMarshalPosts(cx);
+    buildBroadcast(cx);
     buildHoardings(cx);
     buildFencePosts(cx);
     buildDirtBands(cx);
     buildPaddock(cx);
+    // the lap-long instanced families are cut into ~600 m tiles with fitted bounds, so the camera and (above all) the shadow
+    // camera only draw the tiles they can see instead of every board / post / tyre of the lap
+    // lap-long instanced families: one mesh draws everything beyond ~100 m of the eye (no shadows, dropped beyond the tier's
+    // clutter distance) and a small near set within ~200 m casts the shadows - the shadow pass no longer draws the whole lap
+    cx.sc.nearFar = cx.sc.nearFar || [];
+    for (const nm of ['tyreStacks', 'hoardings', 'hoardingPosts', 'fencePosts', 'fenceRails']) { const o = cx.group.getObjectByName(nm); if (o && o.isInstancedMesh) cx.sc.nearFar.push(splitNearFar(cx, o)); }
     // triangle budget bookkeeping (instances x geometry)
     let tris = 0, draws = 0; cx.group.traverse(o => { if (!o.isMesh) return; draws++; const g = o.geometry; const n = g.index ? g.index.count : g.attributes.position.count; tris += (n / 3) * (o.isInstancedMesh ? o.count : 1); });
     cx.stats.triangles = Math.round(tris); cx.stats.meshes = draws;

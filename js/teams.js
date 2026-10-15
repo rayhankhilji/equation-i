@@ -1,7 +1,8 @@
 // Equation I - teams, drivers and liveries.
 // Each livery is painted procedurally into a canvas in the team's colour scheme. If a PNG exists at
 // assets/liveries/<teamId>.png (1024x1024, same layout as the painted sheet: top view in the upper half,
-// left side in the lower-left, right side lower-right), it is used instead - drop your own decals there.
+// left side in the lower-left, right side lower-right), it is used instead - drop your own decals there and add the team id
+// to LIVERY_PNGS below (only listed ids are requested, so missing sheets never log 404s).
 window.EI = window.EI || {};
 (function () {
   const TEAMS = [
@@ -31,6 +32,21 @@ window.EI = window.EI || {};
     vector:  [{ n: 'VYSA', fg: '#1434cb', it: 1 }, { n: 'CASHLY', fg: '#ffffff', bg: '#00b84f' }, { n: 'HONDEX', fg: '#c8102e', ls: 0.06 }, { n: 'HUBO', fg: '#101010' }],
   };
   TEAMS.forEach((t) => { t.sponsors = SPONSORS[t.id] || [{ n: 'EQUATION', fg: '#ffffff' }]; });
+  // driver kit seen from the cockpit: race suit, suit underside panel, gloves and glove accent (padding / strap).
+  // Gloves stay dark with team accents so the hands never read as bright blobs on the wheel.
+  const KIT = {
+    rossa:   { suit: '#c8141a', suitPanel: '#1b1b1b', glove: '#17171a', gloveAccent: '#d8141a' },
+    argent:  { suit: '#141418', suitPanel: '#2a2c31', glove: '#16171a', gloveAccent: '#00d2be' },
+    taurus:  { suit: '#1e2a6b', suitPanel: '#141a40', glove: '#141a3a', gloveAccent: '#c8102e' },
+    papaya:  { suit: '#ef6a00', suitPanel: '#101010', glove: '#141414', gloveAccent: '#f26d00' },
+    verdant: { suit: '#00594f', suitPanel: '#0f2b27', glove: '#0f1d1b', gloveAccent: '#cedc00' },
+    alpenne: { suit: '#0b1d4f', suitPanel: '#ff4fa3', glove: '#0d1530', gloveAccent: '#ff4fa3' },
+    wilhelm: { suit: '#0c2b63', suitPanel: '#0a1c40', glove: '#0c1834', gloveAccent: '#37bedd' },
+    hayes:   { suit: '#eeeeee', suitPanel: '#b6002a', glove: '#1a1a1d', gloveAccent: '#b6002a' },
+    kinetik: { suit: '#101010', suitPanel: '#1c1c1c', glove: '#121212', gloveAccent: '#00e701' },
+    vector:  { suit: '#f2f2f4', suitPanel: '#1434cb', glove: '#14183a', gloveAccent: '#1434cb' },
+  };
+  TEAMS.forEach((t) => Object.assign(t, KIT[t.id] || {}));
   TEAMS.forEach((t, i) => { t.index = i; });
 
   // ---- livery painter -----------------------------------------------------------------------------
@@ -39,6 +55,7 @@ window.EI = window.EI || {};
   //   left side : x 0..1024, y 512..768  (nose at left)
   //   right side: x 0..1024, y 768..1024 (nose at left)
   const CACHE = {};
+  const LIVERY_PNGS = [];   // team ids that ship an assets/liveries/<id>.png decal sheet
   function paintLivery(team, driverNum, playerName, driver) {
     const key = team.id + ':' + driverNum + ':' + (playerName || '');
     const code = (playerName || (driver && driver.name) || team.short).replace(/^[A-Z]\. ?/, '').slice(0, 3).toUpperCase();
@@ -135,11 +152,14 @@ window.EI = window.EI || {};
     const sheen = ctx.createLinearGradient(0, 0, 0, 512); sheen.addColorStop(0, 'rgba(255,255,255,0.10)'); sheen.addColorStop(0.5, 'rgba(255,255,255,0)'); sheen.addColorStop(1, 'rgba(0,0,0,0.12)'); ctx.fillStyle = sheen; ctx.fillRect(0, 0, 1024, 512);
     const tex = new THREE.CanvasTexture(c); tex.anisotropy = 8; tex.flipY = false; tex.encoding = THREE.sRGBEncoding;
     CACHE[key] = tex;
-    // optional external decal sheet replaces the painted one when it exists
-    const img = new Image();
-    img.onload = function () { ctx.drawImage(img, 0, 0, 1024, 1024); tex.needsUpdate = true; };
-    img.onerror = function () { /* keep procedural livery */ };
-    img.src = 'assets/liveries/' + team.id + '.png';
+    // optional external decal sheet replaces the painted one: only requested for teams listed in LIVERY_PNGS
+    // (add a team id there after dropping assets/liveries/<id>.png in), so no 404s are logged on every load
+    if (LIVERY_PNGS.indexOf(team.id) >= 0) {
+      const img = new Image();
+      img.onload = function () { ctx.drawImage(img, 0, 0, 1024, 1024); tex.needsUpdate = true; };
+      img.onerror = function () { /* keep procedural livery */ };
+      img.src = 'assets/liveries/' + team.id + '.png';
+    }
     return tex;
   }
 

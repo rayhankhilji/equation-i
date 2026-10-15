@@ -25,6 +25,7 @@ window.EI = window.EI || {};
       const Env = EI.Env, Venue = EI.EnvVenue, Veg = EI.EnvVeg;
       const E = this.env = new Env.Ctx(this); lap('distanceField');
       this.cellOf = (x, z) => E.cellAt(x, z).k;
+      this.statics = new Env.Statics();
       Venue.layout(E); E.allWoods = this.track.data.scenery.woods.concat(E.data.woods || []); lap('layout');
       E.paintFieldMap([Venue.paint(E)]); lap('fieldMap');
       E.buildTerrain(); E.buildVerge(); lap('terrain');
@@ -35,8 +36,48 @@ window.EI = window.EI || {};
       Veg.build(E); lap('trees');
       Veg.buildGrass(E); lap('grass');
       if (EI.Infra) this.group.add(EI.Infra.build(this.track, this)); lap('infra');
+      this.statics.build(this.group); E.stats.staticChunks = this.statics.chunks.length; E.stats.staticTris = this.statics.tris; lap('statics');
+      // everything that is dropped beyond the tier's clutter distance: small static chunks + the chunked trackside instanced families
+      this.clutter = this.statics.chunks.filter(c => c.userData.layer === 'clutter'); this.group.traverse(o => { if (o.userData.clutter && o.userData.box) this.clutter.push(o); });
+      this.shadowTiles = this.statics.chunks;
       this.envStats = E.stats;
+      this.setQuality(EI.quality || 'medium');
       return this.group;
+    }
+
+    // ---------------------------------------------------------------- quality tiers
+    // low: no grass tufts, 3-card trees to 300 m and billboards to 900 m (tree-line strips beyond), crowd sprites to 250 m and the
+    //      painted crowd strips to 600 m, parked cars / tents / small clutter near only, no tree / crowd shadows, closer fog (main.js)
+    // medium: tufts to ~60 m, 3-card trees to 500 m, billboards to 1.5 km and tree-line strips beyond, crowd sprites to 400 m and
+    //      the painted crowd strips beyond, parked cars and small trackside / stand detail to ~0.8-0.9 km
+    // high: everything (tufts to 85 m, billboards everywhere, crowd sprites to 650 m), tree and crowd shadows (casters within ~160 m)
+    setQuality(q) {
+      q = q === 'low' || q === 'high' ? q : 'medium'; this.quality = q;
+      const T = Scenery.TIERS[q]; this.tier = T;
+      if (this.treeLod) this.treeLod.setRange(T.treeNear, T.treeFar);
+      if (this.innerStrips) { this.innerStrips.mesh.visible = T.treeFar < 1e4; this.innerStrips.uni.uStripR.value = T.treeFar; }
+      if (this.grass) this.grass.setRange(T.grass[0], T.grass[1]);
+      if (this.crowdLod) this.crowdLod.setRange(T.crowd, T.crowdFar);
+      if (this.parkedCars) this.parkedCars.dyn.range(0, T.cars);
+      for (const tn of this.tents || []) tn.dyn.range(0, T.tents);
+      this.treeBlobs = T.blobs;
+      if (this.treeLod) { this.treeLod.near.castShadow = T.shadows; this.treeLod.blobs.visible = T.blobs && this.treeLod.near.visible; }
+      if (this.crowdLod) this.crowdLod.inst.castShadow = T.shadows;
+      this._forceLod = true;
+    }
+    // per-frame LOD bookkeeping (cheap: a few distance tests, buffer regathers only after the eye has moved tens of metres)
+    updateLod(dt, x, z) {
+      const T = this.tier || Scenery.TIERS.medium; const force = this._forceLod; this._forceLod = false;
+      if (this.treeLod) this.treeLod.update(x, z);
+      if (this.innerStrips) this.innerStrips.uni.uEye.value.set(x, 0, z);
+      if (this.crowdLod) this.crowdLod.update(dt, x, z);
+      if (this.parkedCars) this.parkedCars.dyn.update(x, z, force);
+      for (const tn of this.tents || []) tn.dyn.update(x, z, force);
+      for (const c of this.clutter || []) c.visible = EI.Env.boxDist(c.userData.box, x, z) < T.clutter;
+      for (const f of this.nearFar || []) { f.far.range(100, T.clutter); f.near.range(0, 200); f.far.update(x, z, force); f.near.update(x, z, force); }
+      // shadow casters: the sun shadow covers ~70 m round a point just ahead of the camera and the sun is 42 degrees up, so
+      // static tiles further than ~170 m away cannot reach it - they skip the shadow pass (the bulk of its cost)
+      for (const c of this.shadowTiles || []) c.castShadow = EI.Env.boxDist(c.userData.box, x, z) < 170;
     }
 
     // visible ground height: the verge ribbons (track level) near the circuit, the terrain mesh beyond
@@ -73,8 +114,9 @@ window.EI = window.EI || {};
     update(dt, camX, camZ) {
       const fc = EI.debug && EI.debug.freeCam; if (fc && fc.pos) { camX = fc.pos[0]; camZ = fc.pos[2]; }
       // the track draws its own detailed grass verge (named 'verge', ei-track shader): when present, our overlay ribbon steps aside
-      if (!this._vergeChecked && this.env && this.env.vergeMesh) { this._vergeChecked = true; const tv = this.track.group && this.track.group.getObjectByName('verge'); if (tv && tv.material && tv.material.customProgramCacheKey && /ei-track/.test(tv.material.customProgramCacheKey())) { this.env.vergeMesh.visible = false; this.grassTint = [1.08, 1.4, 0.82]; } }
+      if (!this._vergeChecked && this.env && this.env.vergeMesh) { this._vergeChecked = true; const tv = this.track.group && this.track.group.getObjectByName('verge'); if (tv && tv.material && tv.material.customProgramCacheKey && /ei-track/.test(tv.material.customProgramCacheKey())) { this.env.vergeMesh.visible = false; this.grassTint = [0.96, 1.0, 0.94]; } }
       if (this.grass) this.grass.update(dt, camX, camZ);
+      this.updateLod(dt, camX, camZ);
       if (this.clouds) { this.clouds.material.map.offset.x += dt * 0.0015; this.clouds.position.x = camX; this.clouds.position.z = camZ; this.clouds2.position.x = camX; this.clouds2.position.z = camZ; this.clouds2.material.map.offset.x += dt * 0.0008; }
     }
 
@@ -139,5 +181,10 @@ window.EI = window.EI || {};
       const m = new THREE.Mesh(mergeGeos(geos), new THREE.MeshStandardMaterial({ color: 0x2c4f5e, roughness: 0.06, metalness: 0.55, side: THREE.DoubleSide })); m.name = 'water'; this.group.add(m);
     }
   }
+  Scenery.TIERS = {
+    low: { treeNear: 300, treeFar: 900, grass: [0, 0], crowd: 250, crowdFar: 600, cars: 400, tents: 400, clutter: 450, blobs: true, shadows: false },
+    medium: { treeNear: 500, treeFar: 1500, grass: [38, 60], crowd: 400, crowdFar: 1e5, cars: 800, tents: 1e5, clutter: 900, blobs: true, shadows: false },
+    high: { treeNear: 500, treeFar: 1e5, grass: [55, 85], crowd: 650, crowdFar: 1e5, cars: 1e5, tents: 1e5, clutter: 1e5, blobs: true, shadows: true },
+  };
   EI.Scenery = Scenery;
 })();

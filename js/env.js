@@ -120,6 +120,99 @@ window.EI = window.EI || {};
     g.boundingSphere = new THREE.Sphere(new THREE.Vector3((x0 + x1) / 2, (y0 + y1) / 2, (z0 + z1) / 2), Math.hypot(x1 - x0, y1 - y0, z1 - z0) / 2 + g.boundingSphere.radius + (pad || 0));
   };
 
+  // ---------------------------------------------------------------- cell-sorted instance sets
+  // Items carry several parallel float records (one per stride). After finalize() they are sorted by grid cell, so the set of
+  // items around the eye is gathered with a few block copies (typed-array set) instead of per-item work; rebuilt only when the
+  // eye has moved a few tens of metres.
+  class CellSet {
+    constructor(strides, cell) { this.strides = strides; this.cell = cell || 50; this.raw = strides.map(() => []); this.keys = []; this.n = 0; }
+    push(x, z, recs) { const C = this.cell; this.keys.push(((Math.floor(x / C) + 2048) << 12) | (Math.floor(z / C) + 2048)); for (let k = 0; k < recs.length; k++) { const a = this.raw[k], r = recs[k]; for (let j = 0; j < r.length; j++) a.push(r[j]); } this.n++; }
+    finalize() {
+      const n = this.n, keys = this.keys, order = new Uint32Array(n); for (let i = 0; i < n; i++) order[i] = i;
+      order.sort((a, b) => keys[a] - keys[b] || a - b);
+      this.data = this.strides.map((st, k) => { const src = this.raw[k], out = new Float32Array(n * st); for (let i = 0; i < n; i++) { const o = order[i] * st; for (let j = 0; j < st; j++) out[i * st + j] = src[o + j]; } return out; });
+      const C = this.cell; this.cells = [];
+      for (let i = 0; i < n;) { const key = keys[order[i]]; let j = i; while (j < n && keys[order[j]] === key) j++; this.cells.push({ x: ((key >> 12) - 2048 + 0.5) * C, z: ((key & 4095) - 2048 + 0.5) * C, start: i, count: j - i }); i = j; }
+      this.raw = null; this.keys = null; return this;
+    }
+    // copy every cell whose square may hold items at distance r0..r1 from (x, z) into the target arrays; returns the item count
+    gather(x, z, r0, r1, targets) {
+      const h = this.cell * 0.7072, st = this.strides; let n = 0;
+      for (const c of this.cells) {
+        const d = Math.hypot(c.x - x, c.z - z); if (d + h < r0 || d - h > r1) continue;
+        for (let k = 0; k < st.length; k++) targets[k].set(this.data[k].subarray(c.start * st[k], (c.start + c.count) * st[k]), n * st[k]);
+        n += c.count;
+      }
+      return n;
+    }
+  }
+  Env.CellSet = CellSet;
+  // a CellSet bound to buffer attributes (InstancedMesh instanceMatrix / instanceColor or InstancedBufferAttributes):
+  // regather when the eye has moved more than `move` metres or the range changed; uploads only the used range
+  class DynSet {
+    constructor(set, attrs, setCount, move) { this.set = set; this.attrs = attrs; this.setCount = setCount; this.move = move || 30; this.last = null; this.r0 = 0; this.r1 = 0; this.n = 0; }
+    range(r0, r1) { if (r0 !== this.r0 || r1 !== this.r1) { this.r0 = r0; this.r1 = r1; this.last = null; } }
+    update(x, z, force) {
+      if (!force && this.last && (this.r0 <= 0 && this.r1 >= 1e4 || Math.hypot(x - this.last[0], z - this.last[1]) < this.move)) return false;
+      this.last = [x, z]; const st = this.set.strides;
+      const n = this.r1 > this.r0 ? this.set.gather(x, z, this.r0, this.r1, this.attrs.map(a => a.array)) : 0;
+      this.attrs.forEach((a, k) => { a.updateRange.offset = 0; a.updateRange.count = Math.max(1, n * st[k]); a.needsUpdate = true; });
+      this.n = n; this.setCount(n); return true;
+    }
+  }
+  Env.DynSet = DynSet;
+  // InstancedBufferGeometry from a base geometry + per-instance vec4 attributes sized for `cap` instances
+  Env.instGeo = function (base, names, cap) {
+    const g = new THREE.InstancedBufferGeometry(); g.index = base.index; for (const k in base.attributes) g.setAttribute(k, base.attributes[k]);
+    const attrs = names.map(nm => { const a = new THREE.InstancedBufferAttribute(new Float32Array(Math.max(1, cap) * 4), 4); a.setUsage(THREE.DynamicDrawUsage); g.setAttribute(nm, a); return a; });
+    g.instanceCount = 0; g.boundingSphere = new THREE.Sphere(new THREE.Vector3(), 1e5); return [g, attrs];
+  };
+
+  // ---------------------------------------------------------------- static scenery merged by material and split into spatial chunks
+  // Every untextured vertex-coloured structure (stands, roofs, marquees, towers, marshal posts, lorries...) goes into one material
+  // (roughness / metalness per vertex) and is cut into CHUNK x CHUNK m tiles, so the camera and the shadow camera only draw the
+  // tiles they see. layer 'main' = buildings and stands (always shown), 'clutter' = small things that the low / medium tiers drop
+  // beyond a distance.
+  class Statics {
+    constructor() { this.src = []; }
+    add(geo, rough, metal, layer) { if (geo && geo.attributes.position.count) this.src.push({ g: geo.index ? geo.toNonIndexed() : geo, rough, metal, layer: layer || 'main' }); }
+    build(group, CH) {
+      CH = CH || 600; const buckets = new Map();
+      for (const s of this.src) {
+        const p = s.g.attributes.position.array, nt = p.length / 9; const keys = new Int32Array(nt);
+        for (let t = 0; t < nt; t++) { const o = t * 9; const x = (p[o] + p[o + 3] + p[o + 6]) / 3, z = (p[o + 2] + p[o + 5] + p[o + 8]) / 3; const key = (Math.floor(x / CH) + 64) * 128 + (Math.floor(z / CH) + 64); keys[t] = key; const bk = s.layer + key; let b = buckets.get(bk); if (!b) buckets.set(bk, b = { layer: s.layer, key, n: 0, parts: [] }); b.n++; }
+        s.keys = keys;
+      }
+      for (const b of buckets.values()) b.pos = new Float32Array(b.n * 9), b.nrm = new Float32Array(b.n * 9), b.col = new Float32Array(b.n * 9), b.rm = new Float32Array(b.n * 6), b.o = 0;
+      for (const s of this.src) {
+        const A = s.g.attributes, p = A.position.array, nr = A.normal.array, c = A.color ? A.color.array : null; const nt = p.length / 9;
+        for (let t = 0; t < nt; t++) {
+          const b = buckets.get(s.layer + s.keys[t]); const o = b.o; b.o++;
+          b.pos.set(p.subarray(t * 9, t * 9 + 9), o * 9); b.nrm.set(nr.subarray(t * 9, t * 9 + 9), o * 9);
+          if (c) b.col.set(c.subarray(t * 9, t * 9 + 9), o * 9); else b.col.fill(1, o * 9, o * 9 + 9);
+          for (let v = 0; v < 3; v++) { b.rm[o * 6 + v * 2] = s.rough; b.rm[o * 6 + v * 2 + 1] = s.metal; }
+        }
+      }
+      const mat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.7, metalness: 0.1 });
+      mat.onBeforeCompile = (sh) => {
+        sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nattribute vec2 rm;\nvarying vec2 vRM;').replace('#include <begin_vertex>', '#include <begin_vertex>\nvRM = rm;');
+        sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nvarying vec2 vRM;').replace('#include <roughnessmap_fragment>', 'float roughnessFactor = vRM.x;').replace('#include <metalnessmap_fragment>', 'float metalnessFactor = vRM.y;');
+      };
+      mat.customProgramCacheKey = () => 'env-static-rm';
+      const chunks = []; let tris = 0;
+      for (const b of buckets.values()) {
+        const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(b.pos, 3)); g.setAttribute('normal', new THREE.BufferAttribute(b.nrm, 3)); g.setAttribute('color', new THREE.BufferAttribute(b.col, 3)); g.setAttribute('rm', new THREE.BufferAttribute(b.rm, 2)); g.computeBoundingSphere(); g.computeBoundingBox();
+        const m = new THREE.Mesh(g, mat); m.castShadow = true; m.receiveShadow = true; m.name = b.layer === 'clutter' ? 'venueClutter' : 'venueStatic'; m.userData.box = g.boundingBox; m.userData.layer = b.layer;
+        group.add(m); chunks.push(m); tris += b.n;
+      }
+      this.src = []; this.chunks = chunks; this.mat = mat; this.tris = tris;
+      return chunks;
+    }
+  }
+  Env.Statics = Statics;
+  // horizontal distance from (x, z) to a Box3
+  Env.boxDist = function (b, x, z) { const dx = Math.max(b.min.x - x, 0, x - b.max.x), dz = Math.max(b.min.z - z, 0, z - b.max.z); return Math.hypot(dx, dz); };
+
   // ---------------------------------------------------------------- the environment context (per scenery build)
   const DG = 10, DHALF = 2400, DN = DHALF * 2 / DG + 1;         // track distance field
   const OG = 4, OHALF = 2000, ON = OHALF * 2 / OG;               // occupancy grid
