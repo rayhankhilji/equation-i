@@ -299,8 +299,8 @@ window.EI = window.EI || {};
   function sponsorTexture() {
     // top half: sponsor boards (8 x 256 px); bottom half: fan banners (8 x 256 px)
     const [c, ctx] = Env.canvas(2048, 256);
-    const brands = [['EQUATION I', '#e10600', '#fff'], ['EIRELLI', '#ffd500', '#111'], ['SILVERSTONE', '#0b3d2e', '#fff'], ['DRS', '#1a73e8', '#fff'], ['KINETIK', '#0e0e0e', '#00e701'], ['EI', '#fff', '#e10600'], ['VECTOR', '#1434cb', '#fff'], ['APEX FUELS', '#f2f2f2', '#0c2b63']];
-    brands.forEach((b, k) => { const x = k * 256; ctx.fillStyle = b[1]; ctx.fillRect(x, 0, 256, 128); ctx.fillStyle = b[2]; ctx.font = 'italic 900 ' + (b[0].length > 8 ? 36 : 48) + 'px Arial Black, Arial'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(b[0], x + 128, 62); ctx.fillStyle = 'rgba(0,0,0,0.35)'; ctx.fillRect(x + 252, 0, 4, 128); });
+    // the eight partner ad designs (EI.Ads.TILES), laid out for the 2:1 board
+    for (let k = 0; k < 8; k++) { const x = k * 256; EI.Ads.paintTile(ctx, k, x, 0, 256, 128); ctx.fillStyle = 'rgba(0,0,0,0.35)'; ctx.fillRect(x + 252, 0, 4, 128); }
     const teams = EI.TEAMS || []; const tc = (k, f) => (teams[k % Math.max(1, teams.length)] || {})[f] || ['#c8102e', '#1a73e8', '#ff8000', '#00843d'][k % 4];
     const ban = (k, draw) => { ctx.save(); ctx.translate(k * 256, 128); ctx.beginPath(); ctx.rect(0, 0, 256, 128); ctx.clip(); draw(); ctx.restore(); };
     const text = (str, col, size, y, stroke) => { ctx.font = 'italic 900 ' + size + 'px Arial Black, Arial'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; if (stroke) { ctx.lineWidth = 6; ctx.strokeStyle = stroke; ctx.strokeText(str, 128, y); } ctx.fillStyle = col; ctx.fillText(str, 128, y); };
@@ -415,6 +415,7 @@ window.EI = window.EI || {};
         const ry = yTop + 4.0, front = -1.6;
         B.box(m, L + 0.4, 0.32, zBack - front + 1.0, 0, ry, (front + zBack + 1.0) / 2, roofGrey, { top: white, bottom: true });
         B.box(m, L + 0.42, 0.8, 0.18, 0, ry - 0.45, front - 0.02, red);
+        if (L > 12) strip(ry - 0.85, 0.8, front - 0.14);   // partner ads along the roof fascia
         const span = Math.max(7, L / Math.max(1, Math.round(L / 9)));
         for (let a = -hl + 1; a <= hl - 0.9; a += span) {
           M.box(m, 0.36, ry, 0.36, a, 0, zBack + 0.5, steel);

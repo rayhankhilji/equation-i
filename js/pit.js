@@ -182,6 +182,7 @@ window.EI = window.EI || {};
     return canvasTex(512, 256, (ctx) => {
       ctx.fillStyle = '#05080e'; ctx.fillRect(0, 0, 512, 256);
       ctx.fillStyle = '#e10600'; ctx.fillRect(0, 0, 512, 22); ctx.fillStyle = '#fff'; ctx.font = '700 15px Arial'; ctx.fillText('LIVE TIMING  ·  SILVERSTONE', 10, 16);
+      if (EI.Ads) { EI.Ads.lumiLogo(ctx, 372, 3, 16, '#fff'); EI.Ads.intakeLogo(ctx, 438, 3, 16, '#fff'); }
       const r = U.rng(77); const teams = EI.TEAMS;
       for (let i = 0; i < 10; i++) { const y = 30 + i * 22; ctx.fillStyle = i % 2 ? '#0d1320' : '#111a2b'; ctx.fillRect(0, y, 300, 21); ctx.fillStyle = teams[i % teams.length].primary; ctx.fillRect(28, y + 3, 5, 15); ctx.fillStyle = '#dfe6f2'; ctx.font = '700 13px Arial'; ctx.fillText(String(i + 1), 8, y + 15); ctx.fillText(teams[(i * 3) % teams.length].short + '  ' + (1 + r() * 9).toFixed(3), 40, y + 15); }
       ctx.strokeStyle = '#2fe36d'; ctx.lineWidth = 2; ctx.beginPath(); for (let x = 0; x < 200; x += 4) { const y = 80 + Math.sin(x * 0.07) * 30 + (r() - 0.5) * 16; x ? ctx.lineTo(310 + x, y) : ctx.moveTo(310, y); } ctx.stroke();

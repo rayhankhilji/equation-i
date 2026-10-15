@@ -137,4 +137,5 @@ Netlify or GitHub Pages. Serve it over HTTP; the car model is loaded with fetch.
 
 Circuit geometry derived from [OpenStreetMap](https://www.openstreetmap.org/copyright) data,
 © OpenStreetMap contributors, licensed under the ODbL. three.js is MIT licensed. Team and driver
-names in the game are fictional.
+names in the game are fictional. The trackside advertising, the two works teams (Lumi Racing and Intake Racing) and the
+menu partner links are for [Lumi](https://www.trylumi.co) and [Intake](https://www.intake.ink); see CREDITS.md.

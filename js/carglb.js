@@ -225,14 +225,17 @@ window.EI = window.EI || {};
     const band = (name, x0, x1, y0, y1, color) => withFrame(name, (ppm) => { ctx.fillStyle = color; ctx.fillRect(x0 * ppm, -y1 * ppm, (x1 - x0) * ppm, (y1 - y0) * ppm); });
     const FONT = '"Titillium Web", "Arial Black", Arial, sans-serif';
     const fontReady = !document.fonts || document.fonts.check('900 20px "Titillium Web"');
-    const fontOf = (sp, px) => (sp.it ? 'italic ' : '') + (sp.w || 900) + ' ' + px.toFixed(1) + 'px ' + (fontReady ? FONT : '"Arial Black", Arial, sans-serif');
+    const fontOf = (sp, px) => (sp.it ? 'italic ' : '') + (sp.w || 900) + ' ' + px.toFixed(1) + 'px ' + (sp.ff || (fontReady ? FONT : '"Arial Black", Arial, sans-serif'));
     // sponsor decal: optional rounded box behind fitted text. dr = metres towards the tail (mirrored per side), dy = metres up
     const logo = (name, sp, dr, dy, hM, maxW) => withFrame(name, (ppm) => {
-      const x = (isR(name) ? -dr : dr) * ppm, y = -dy * ppm; let fs = hM * ppm;
+      let x = (isR(name) ? -dr : dr) * ppm; const y = -dy * ppm; let fs = hM * ppm;
       ctx.font = fontOf(sp, fs); ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
       const ls = sp.ls || 0; const tw = (t) => ctx.measureText(t).width + ls * fs * (t.length - 1);
-      let w = tw(sp.n); const mw = maxW * ppm; if (w > mw) { fs *= mw / w; ctx.font = fontOf(sp, fs); w = tw(sp.n); }
-      if (sp.bg) { const pw = w + fs * 0.7, ph = fs * 1.18; ctx.fillStyle = sp.bg; roundRect(ctx, x - pw / 2, y - ph / 2, pw, ph, fs * 0.16); ctx.fill(); }
+      // sp.mk: the brand mark (EI.Ads) drawn ahead of the text as a lock-up; mark height = 1.15 x the cap height
+      const mkW = (f) => (sp.mk ? f * 1.15 * 1.12 : 0);
+      let w = tw(sp.n); const mw = maxW * ppm; if (w + mkW(fs) > mw) { fs *= mw / (w + mkW(fs)); ctx.font = fontOf(sp, fs); w = tw(sp.n); }
+      if (sp.bg) { const pw = w + mkW(fs) + fs * 0.7, ph = fs * 1.18; ctx.fillStyle = sp.bg; roundRect(ctx, x - pw / 2, y - ph / 2, pw, ph, fs * 0.16); ctx.fill(); }
+      if (sp.mk && EI.Ads) { const ms = fs * 1.15; const mx = x - (w + mkW(fs)) / 2; if (sp.mk === 'lumi') EI.Ads.lumiMark(ctx, mx, y - ms / 2, ms); else EI.Ads.intakeMark(ctx, mx, y - ms / 2, ms); x += mkW(fs) / 2; }
       ctx.fillStyle = sp.fg || '#fff';
       if (sp.ul) ctx.fillRect(x - w / 2, y + fs * 0.42, w, fs * 0.09);
       if (!ls) ctx.fillText(sp.n, x, y + fs * 0.04); else { let cx = x - w / 2; ctx.textAlign = 'left'; for (const ch of sp.n) { ctx.fillText(ch, cx, y + fs * 0.04); cx += ctx.measureText(ch).width + ls * fs; } }
@@ -251,8 +254,8 @@ window.EI = window.EI || {};
         case 'papaya': band(eng, -1.7, -0.6, -0.3, 0.34, S); band(eng, -0.6, 1.6, 0.2, 0.34, A); band(pod, -0.9, 0.9, -0.02, 0.06, A); break;
         case 'verdant': band(eng, -1.7, 1.6, 0.16, 0.26, S); band(pod, -0.9, 0.9, -0.16, -0.04, S); band(cha, -0.4, 0.6, -0.16, -0.02, S); break;
         case 'alpenne': band(eng, -1.7, 1.6, -0.3, -0.06, S); band(eng, -1.7, 1.6, 0.16, 0.3, A); band(pod, -0.9, 0.9, -0.16, 0.0, S); break;
-        case 'wilhelm': band(eng, -1.7, 1.6, 0.04, 0.28, S); band(pod, -0.9, 0.9, -0.18, 0.0, S); band(cha, -0.4, 0.6, -0.1, 0.06, S); break;
-        case 'hayes': band(eng, -1.7, 1.6, 0.1, 0.34, S); band(pod, -0.9, 0.9, -0.2, -0.02, S); band(cha, -0.4, 0.6, -0.16, 0.04, A); break;
+        case 'intake': band(eng, -1.7, 1.6, 0.14, 0.34, S); band(eng, -1.7, 1.6, 0.1, 0.14, A); band(pod, -0.9, 0.9, -0.2, -0.08, S); band(pod, -0.9, 0.9, -0.08, -0.06, A); band(cha, -0.4, 0.6, -0.16, 0.0, S); break;
+        case 'lumi': band(eng, -1.7, 1.6, 0.14, 0.34, S); band(eng, -1.7, 1.6, 0.1, 0.14, '#e6c8ff'); band(pod, -0.9, 0.9, -0.2, -0.1, S); band(pod, -0.9, 0.9, -0.1, -0.08, A); band(cha, -0.4, 0.6, -0.16, 0.0, S); break;
         case 'kinetik': band(eng, -1.7, 1.6, 0.06, 0.14, S); band(pod, -0.9, 0.9, -0.14, -0.04, S); band(cha, -0.4, 0.6, -0.16, 0.06, S); break;
         case 'vector': band(eng, -1.7, 1.6, -0.3, 0.0, S); band(pod, -0.9, 0.9, -0.2, -0.04, S); band(cha, -0.4, 0.6, -0.14, 0.1, A); break;
         default: band(eng, -1.7, 1.6, 0.1, 0.3, S);
@@ -272,6 +275,12 @@ window.EI = window.EI || {};
     }
     text('nose', String(num), 0.22, NC, 0, 0.2, { it: 1 }); logo('nose', Object.assign({}, sp(2), { bg: null, fg: SC }), 0, 0.535, 0.075, 0.26);
     text('nose2', 'EI', 0.1, NC, 0, 0);
+    // the works teams: the brand mark large on the sidepods, the airbox and the nose
+    if ((team.id === 'lumi' || team.id === 'intake') && EI.Ads) {
+      const mark = (name, dr, dy, hM) => withFrame(name, (ppm) => { const s = hM * ppm, x = (isR(name) ? -dr : dr) * ppm - s / 2, y = -dy * ppm - s / 2; if (team.id === 'lumi') EI.Ads.lumiMark(ctx, x, y, s); else EI.Ads.intakeMark(ctx, x, y, s); });
+      for (const [eng, pod] of sides) { mark(pod, 0.62, 0.0, 0.2); mark(eng, -1.25, 0.02, 0.17); }
+      mark('nose', 0, 0.36, 0.12);
+    }
     const tname = team.name.length > 13 ? team.short : team.name.toUpperCase();
     for (const ep of ['endplateL', 'endplateR']) { logo(ep, Object.assign({}, sp(0), { bg: null, fg: SC }), -0.07, 0.08, 0.08, 0.28); text(ep, String(num), 0.12, SC, 0, -0.12, { it: 1 }); text(ep, tname, 0.035, SC, 0, -0.24, { ls: 0.12, w: 700 }); }
     logo('wingtop', Object.assign({}, sp(0), { bg: null, fg: NC }), 0, 0, 0.09, 0.85); text('airbox', String(num), 0.08, NC, 0, 0, { it: 1 });

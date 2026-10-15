@@ -22,3 +22,9 @@ data, © OpenStreetMap contributors, ODbL 1.0.
 
 - three.js r128 and its example modules (MIT)
 - Titillium Web (SIL Open Font License 1.1)
+- Plus Jakarta Sans, Unbounded and Instrument Sans (SIL Open Font License 1.1), used for the race partners' trackside advertising
+
+## Race partners
+
+The in-game advertising is for [Lumi](https://www.trylumi.co) and [Intake](https://www.intake.ink); their names, marks and
+colours belong to them.

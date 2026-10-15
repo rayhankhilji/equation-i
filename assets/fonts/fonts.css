@@ -4,3 +4,10 @@
 @font-face { font-family: "Titillium Web"; font-weight: 900; font-style: normal; src: url(TitilliumWeb-900.ttf) format("truetype"); }
 @font-face { font-family: "Titillium Web"; font-weight: 700; font-style: italic; src: url(TitilliumWeb-i700.ttf) format("truetype"); }
 @font-face { font-family: "Titillium Web"; font-weight: 900; font-style: italic; src: url(TitilliumWeb-i700.ttf) format("truetype"); }
+/* Lumi (trylumi.co) brand face: Plus Jakarta Sans (SIL OFL 1.1) */
+@font-face { font-family: "Plus Jakarta Sans"; font-weight: 700; font-style: normal; src: url(PlusJakartaSans-700.ttf) format("truetype"); }
+@font-face { font-family: "Plus Jakarta Sans"; font-weight: 800; font-style: normal; src: url(PlusJakartaSans-800.ttf) format("truetype"); }
+/* Intake (intake.ink) brand faces: Unbounded + Instrument Sans (SIL OFL 1.1) */
+@font-face { font-family: "Unbounded"; font-weight: 800; font-style: normal; src: url(Unbounded-800.ttf) format("truetype"); }
+@font-face { font-family: "Instrument Sans"; font-weight: 500; font-style: normal; src: url(InstrumentSans-600.ttf) format("truetype"); }
+@font-face { font-family: "Instrument Sans"; font-weight: 600; font-style: normal; src: url(InstrumentSans-600.ttf) format("truetype"); }

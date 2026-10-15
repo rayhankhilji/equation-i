@@ -93,20 +93,11 @@ window.EI = window.EI || {};
   }
 
   // ---------------------------------------------------------------- 1. advertising hoardings
-  const BRANDS = [
-    ['EQUATION I', '#e10600', '#ffffff'], ['EI', '#ffffff', '#e10600', 'bars'], ['DRS', '#1a73e8', '#ffffff'], ['EIRELLI', '#ffd500', '#111111'],
-    ['SILVERSTONE', '#0b3d2e', '#ffffff'], ['KINETIK', '#0e0e0e', '#00e701'], ['VECTOR', '#1434cb', '#ffffff'], ['APEX FUELS', '#f2f2f2', '#0c2b63', 'stripe'],
-  ];
-  function paintBrand(ctx, x, y, w, h, b, size) {
-    ctx.fillStyle = b[1]; ctx.fillRect(x, y, w, h);
-    if (b[3] === 'bars') { ctx.fillStyle = '#111'; ctx.fillRect(x, y, w * 0.06, h); ctx.fillRect(x + w * 0.94, y, w * 0.06, h); }
-    if (b[3] === 'stripe') { ctx.fillStyle = '#c8102e'; ctx.fillRect(x, y + h * 0.78, w, h * 0.1); }
-    ctx.fillStyle = b[2]; ctx.font = 'italic 900 ' + size + 'px Arial Black, Arial, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.fillText(b[0], x + w / 2, y + h * 0.48);
-  }
+  // the eight board designs are the race partners' ads (EI.Ads.TILES: four Lumi, four Intake), 512 x 128 each in a 4 x 2 atlas
+  const NBRANDS = 8;
   Infra.hoardingAtlas = function () {
     const [c, ctx] = canvas(2048, 256);
-    BRANDS.forEach((b, k) => { const x = (k % 4) * 512, y = Math.floor(k / 4) * 128; paintBrand(ctx, x, y, 512, 128, b, b[0].length > 8 ? 52 : 68); ctx.fillStyle = '#2a2d31'; ctx.fillRect(x, y + 120, 512, 8); });
+    for (let k = 0; k < NBRANDS; k++) { const x = (k % 4) * 512, y = Math.floor(k / 4) * 128; EI.Ads.paintTile(ctx, k, x, y, 512, 128); ctx.fillStyle = '#2a2d31'; ctx.fillRect(x, y + 120, 512, 8); }
     return tex(c);
   };
   function buildHoardings(cx) {
@@ -144,12 +135,37 @@ window.EI = window.EI || {};
       frame(_m, p.x, p.y, p.z, sp[1], p.tx, p.tz); posts.setMatrixAt(k, _m);
       _m.multiply(new THREE.Matrix4().makeTranslation(0, 1.5, 0)); inst.setMatrixAt(k, _m);
       // brands come in runs of 3-6 identical boards, like real sponsor blocks
-      if (run-- <= 0) { brand = Math.floor(rng() * BRANDS.length); run = 1 + Math.floor(rng() * 4); }
+      if (run-- <= 0) { brand = Math.floor(rng() * NBRANDS); run = 1 + Math.floor(rng() * 4); }
       tiles[k * 2] = (brand % 4) * 0.25; tiles[k * 2 + 1] = 0.5 - Math.floor(brand / 4) * 0.5;
     });
     geo.setAttribute('tileOff', new THREE.InstancedBufferAttribute(tiles, 2));
     inst.castShadow = true; inst.receiveShadow = true; posts.castShadow = true;
     cx.add(inst, 'hoardings'); cx.add(posts, 'hoardingPosts'); cx.stats.hoardings = spots.length;
+  }
+
+  // ---------------------------------------------------------------- 1b. billboards: 10 x 3.5 m partner boards on two posts behind the fences
+  Infra.billboardAtlas = function () {
+    const [c, ctx] = canvas(2048, 1024);
+    for (let k = 0; k < 4; k++) EI.Ads.paintBillboard(ctx, k, (k % 2) * 1024, Math.floor(k / 2) * 512, 1024, 512);
+    return tex(c);
+  };
+  function buildBillboards(cx) {
+    const t = cx.t; const geos = [], panels = []; const steel = C(0x6f7479), dark = C(0x2a2d31);
+    const atlas = Infra.billboardAtlas();
+    const cell = (g, k) => { const uv = g.attributes.uv; for (let v = 0; v < uv.count; v++) uv.setXY(v, (k % 2) * 0.5 + 0.004 + uv.getX(v) * 0.492, 0.5 - Math.floor(k / 2) * 0.5 + 0.006 + uv.getY(v) * 0.488); };
+    let n = 0;
+    [330, 790, 1240, 1760, 2300, 2660, 3300, 3740, 4210, 4760, 5310, 5700].forEach((s0, k) => {
+      const i = t.idxAtS(s0 + 30); const side = cx.outsideSide(i);
+      const p = cx.freeSpot(s0, side, 6.5, 6, 2.5); if (!p) return;
+      frame(_m, p.x, p.y, p.z, side, p.tx, p.tz); const m = _m.clone();
+      for (const x of [-3.8, 3.8]) { box(geos, 0.34, 5.8, 0.34, x, 2.9, 0, steel, m); box(geos, 1.2, 0.3, 1.2, x, 0.15, 0, C(0x8e8e8a), m); }
+      box(geos, 10.4, 3.9, 0.22, 0, 7.45, 0, dark, m);
+      for (const dir of [1, -1]) { const g = new THREE.PlaneGeometry(10, 3.5); cell(g, k % 4); if (dir < 0) g.rotateY(Math.PI); g.translate(0, 7.45, dir * 0.13); g.applyMatrix4(m); panels.push(g); }
+      cx.reserve(p.s, side, 6); n++;
+    });
+    cx.static(geos, 0.5, 0.4, 'main', 'billboardPosts');
+    if (panels.length) { const bm = new THREE.Mesh(merge(panels), new THREE.MeshStandardMaterial({ map: atlas, roughness: 0.5 })); bm.castShadow = true; bm.receiveShadow = true; cx.add(bm, 'billboards'); }
+    cx.stats.billboards = n;
   }
 
   // ---------------------------------------------------------------- 2. debris-fence posts and top rail
@@ -238,20 +254,17 @@ window.EI = window.EI || {};
         ctx.fillStyle = '#fff'; ctx.font = '700 26px Arial'; ctx.textAlign = 'left'; ctx.fillText(team.drivers[0].name.split(' ').pop().toUpperCase().slice(0, 3), 112, y + 21);
         gap += r === 0 ? 0 : 0.6 + ((r * 7) % 5) * 0.55; ctx.fillStyle = r === 0 ? '#ffd500' : '#dfe3ea'; ctx.font = '500 24px Arial'; ctx.textAlign = 'right'; ctx.fillText(r === 0 ? 'LEADER' : '+' + gap.toFixed(3), 515, y + 21);
       });
-      // right-hand side: live picture placeholder with a big EI mark
-      ctx.fillStyle = '#263b2a'; ctx.fillRect(560, 100, 424, 300); ctx.fillStyle = '#6e6e73'; ctx.fillRect(560, 330, 424, 70); ctx.fillStyle = '#3f7a33'; ctx.fillRect(560, 100, 424, 230);
-      ctx.fillStyle = '#e10600'; ctx.fillRect(590, 120, 90, 34); ctx.fillStyle = '#fff'; ctx.font = '900 22px Arial'; ctx.textAlign = 'center'; ctx.fillText('LIVE', 635, 138);
-      ctx.fillStyle = 'rgba(255,255,255,0.9)'; ctx.font = 'italic 900 150px Arial Black, Arial'; ctx.fillText('EI', 772, 265);
+      // right-hand side: the partners' panel in the picture slot
+      EI.Ads.paintTimingSlot(ctx, 560, 100, 424, 300);
       ctx.fillStyle = '#fff'; ctx.font = '700 30px Arial'; ctx.textAlign = 'left'; ctx.fillText('SILVERSTONE  ·  GRAND PRIX', 560, 450); ctx.fillStyle = '#9fb3d1'; ctx.font = '500 24px Arial'; ctx.fillText('DRS ENABLED   ·   TRACK TEMP 31°C', 560, 495);
     } else {
-      ctx.fillStyle = '#e10600'; ctx.fillRect(0, 0, 1024, 576); const g2 = ctx.createLinearGradient(0, 0, 0, 576); g2.addColorStop(0, 'rgba(0,0,0,0)'); g2.addColorStop(1, 'rgba(0,0,0,0.45)'); ctx.fillStyle = g2; ctx.fillRect(0, 0, 1024, 576);
-      ctx.fillStyle = '#fff'; ctx.font = 'italic 900 230px Arial Black, Arial'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('EI', 512, 230);
-      ctx.font = 'italic 900 64px Arial Black, Arial'; ctx.fillText('EQUATION I', 512, 410); ctx.font = '700 34px Arial'; ctx.fillStyle = '#ffd1cf'; ctx.fillText('BRITISH GRAND PRIX  ·  SILVERSTONE', 512, 480);
+      // full-screen partner ad ('lumi' or 'intake')
+      EI.Ads.paintScreen(ctx, kind, 1024, 576);
     }
     return tex(c);
   };
   function buildScreens(cx) {
-    const t = cx.t; const frames = [], screens = [[], []];
+    const t = cx.t; const frames = [], screens = [[], [], []];
     const steel = C(0x9ba1a8), dark = C(0x15171a), rail = C(0x6b7178);
     const want = [[3040, 'out'], [4990, 'out'], [2190, 'out'], [t.sf + 90, 'nonpit']];
     let placed = 0;
@@ -270,12 +283,12 @@ window.EI = window.EI || {};
       box(frames, 12.7, 7.5, 0.45, 0, 8.55, 0.35, dark, m);
       // maintenance walkway behind the screen
       box(frames, 12.7, 0.12, 1.0, 0, 4.75, -0.9, rail, m); for (let x = -6.2; x <= 6.2; x += 2.07) beam(frames, [x, 4.8, -1.4], [x, 5.9, -1.4], 0.05, rail, m); beam(frames, [-6.2, 5.9, -1.4], [6.2, 5.9, -1.4], 0.05, rail, m);
-      const sg = new THREE.PlaneGeometry(12, 6.75); sg.translate(0, 8.55, 0.59); sg.applyMatrix4(m); screens[placed % 2].push(sg);
+      const sg = new THREE.PlaneGeometry(12, 6.75); sg.translate(0, 8.55, 0.59); sg.applyMatrix4(m); screens[placed % 3].push(sg);
       cx.reserve(p.s, side, 9); placed++;
     });
     if (!frames.length) return;
     cx.static(frames, 0.45, 0.5, 'main', 'screenFrames');
-    screens.forEach((list, k) => { if (!list.length) return; const m = new THREE.Mesh(merge(list), new THREE.MeshBasicMaterial({ map: Infra.broadcastTexture(k === 0 ? 'timing' : 'logo') })); cx.add(m, 'screen' + k); });
+    screens.forEach((list, k) => { if (!list.length) return; const m = new THREE.Mesh(merge(list), new THREE.MeshBasicMaterial({ map: Infra.broadcastTexture(['timing', 'lumi', 'intake'][k]) })); cx.add(m, 'screen' + k); });
     cx.stats.screens = placed;
   }
   function buildCameraTowers(cx) {
@@ -572,6 +585,7 @@ window.EI = window.EI || {};
     const cx = new Ctx(track, scenery);
     buildTyreStacks(cx);
     buildScreens(cx);
+    buildBillboards(cx);
     buildCameraTowers(cx);
     buildMarshalPosts(cx);
     buildBroadcast(cx);

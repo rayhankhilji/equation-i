@@ -9,6 +9,14 @@ window.EI = window.EI || {};
   const CAM_MODES = ['chase', 'cockpit', 'tv'];
 
   let composer = null, bloomPass = null, fxaaPass = null, speedPass = null, particles = null, skyMesh = null;
+  // the race partners' logos in the menu footer (drawn with the same painters as the trackside boards)
+  function drawPartnerLogos() {
+    if (!EI.Ads) return;
+    document.querySelectorAll('canvas.partner-logo').forEach((c) => {
+      const ctx = c.getContext('2d'); const h = c.height * 0.8; ctx.clearRect(0, 0, c.width, c.height);
+      if (c.dataset.brand === 'lumi') EI.Ads.lumiLogo(ctx, 2, c.height * 0.1, h, '#efe2ff'); else EI.Ads.intakeLogo(ctx, 2, c.height * 0.1, h, '#ffffff');
+    });
+  }
   function init() {
     const canvas = $('gl');
     renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
@@ -50,7 +58,7 @@ window.EI = window.EI || {};
       fragmentShader: 'uniform sampler2D tDiffuse; uniform float strength; uniform float vignette; varying vec2 vUv; void main(){ vec2 c = vec2(0.5, 0.42); vec2 d = vUv - c; float r = length(d); vec4 col = vec4(0.0); float s = strength * smoothstep(0.15, 0.7, r); for (int i = 0; i < 8; i++) { float t = 1.0 - s * float(i) * 0.012; col += texture2D(tDiffuse, c + d * t); } col /= 8.0; col.rgb *= 1.0 - vignette * smoothstep(0.45, 0.95, r); gl_FragColor = col; }'
     }); composer.addPass(speedPass);
     EI.HUD.drawTrackPreview(track, $('track-preview'));
-    setupMenu();
+    setupMenu(); drawPartnerLogos();
     // the GLB car is optional: hide the loading overlay once it is in (or has failed and we fall back to the procedural car)
     const hideLoading = () => $('loading').classList.add('hidden');
     const tp = performance.now(); if (EI.CarGLB) EI.CarGLB.preload().then(() => { timings.preload = Math.round(performance.now() - tp); hideLoading(); }, hideLoading); else hideLoading();
@@ -187,13 +195,15 @@ window.EI = window.EI || {};
       const d = cam.position.distanceTo(_look); cam.fov = U.clamp(1800 / d, 18, 60); cam.updateProjectionMatrix(); return;
     }
     // ---- chase
-    if (cs.yaw == null || snap) cs.yaw = ch;
+    // The camera is rigid to the car's (interpolated) position: only its orientation and distance are smoothed. Smoothing the
+    // world position itself lagged metres behind at speed and the catch-up snapped it every frame, which read as the car jittering.
+    const dist = 5.7 + v * 0.011, height = 2.05 + v * 0.004;
+    if (cs.yaw == null || snap) { cs.yaw = ch; cs.dist = dist; cs.h = height; }
     const kYaw = 1 - Math.exp(-dt * (v > 5 ? 5.5 : 9)); cs.yaw += U.wrapAngle(ch - cs.yaw) * kYaw;   // the camera swings round behind the car with a lag
     const cfx = Math.cos(cs.yaw), cfz = Math.sin(cs.yaw), clx = cfz, clz = -cfx;
-    const dist = 5.7 + v * 0.011, height = 2.05 + v * 0.004;
+    const kD = 1 - Math.exp(-dt * 4); cs.dist += (dist - cs.dist) * kD; cs.h += (height - cs.h) * kD;
     cs.lat += (U.clamp(car.yaw * 0.6, -0.4, 0.4) - cs.lat) * (1 - Math.exp(-dt * 2.5));                   // drift towards the inside of the turn
-    _tgt.set(cx - cfx * dist - clx * cs.lat * 0.6, cy + height, cz - cfz * dist - clz * cs.lat * 0.6);
-    if (snap) cam.position.copy(_tgt); else { cam.position.lerp(_tgt, 1 - Math.exp(-dt * 14)); if (cam.position.distanceTo(_tgt) > 2.5) cam.position.lerp(_tgt, 0.85); }   // never trail the car after a dropped frame
+    cam.position.set(cx - cfx * cs.dist - clx * cs.lat * 0.6, cy + cs.h, cz - cfz * cs.dist - clz * cs.lat * 0.6);
     const minY = track.y[car.trk.i] + 1.0; if (cam.position.y < minY) cam.position.y = minY;
     _look.set(cx + fx * 5.5 + lx * (cs.lat * 1.3 + jx * 4), cy + 0.6 + jy * 4, cz + fz * 5.5 + lz * (cs.lat * 1.3 + jz * 4));
     cam.up.set(0, 1, 0); cam.lookAt(_look);
@@ -343,5 +353,5 @@ window.EI = window.EI || {};
       if (car._lastThr > 0.8 && car.throttle < 0.2 && car.rpm > 0.7 && Math.random() < 0.6) EI.Audio.pop(); car._lastThr = car.throttle; }
   }
   EI.debug = { get shake() { return shake; }, set shake(v) { shake = v; }, get introT() { return introT; }, set introT(v) { introT = v; }, get viewports() { return viewports; }, setQuality, snapCameras: () => race && race.players.forEach((car, k) => placeCamera(cameras[k], car, k, true, 0)), setCam: (k, m) => { camModes[k] = m; }, get race() { return race; }, get track() { return track; }, get scenery() { return scenery; }, get scene() { return scene; }, get cameras() { return cameras; }, renderer: () => renderer, startRace, endRace };
-  window.addEventListener('DOMContentLoaded', () => { setTimeout(init, 30); });
+  window.addEventListener('DOMContentLoaded', () => { (EI.Ads ? EI.Ads.ready() : Promise.resolve()).then(() => setTimeout(init, 30)); });
 })();

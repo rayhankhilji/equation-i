@@ -12,26 +12,15 @@ window.EI = window.EI || {};
     { id: 'papaya',  name: 'Papaya Racing',      short: 'PAP', primary: '#f26d00', secondary: '#101010', accent: '#47c7fc', numberColor: '#101010', skill: 0.99, drivers: [{ name: 'L. Norrington', num: 4 }, { name: 'O. Piastro', num: 81 }] },
     { id: 'verdant', name: 'Verdant Aramco',     short: 'VER', primary: '#00594f', secondary: '#cedc00', accent: '#ffffff', numberColor: '#cedc00', skill: 0.94, drivers: [{ name: 'F. Alonzo', num: 14 }, { name: 'L. Strode', num: 18 }] },
     { id: 'alpenne', name: 'Alpenne',            short: 'ALP', primary: '#0b1d4f', secondary: '#ff4fa3', accent: '#2a8af6', numberColor: '#ffffff', skill: 0.93, drivers: [{ name: 'P. Gasly', num: 10 }, { name: 'F. Colapinto', num: 43 }] },
-    { id: 'wilhelm', name: 'Wilhelm Racing',     short: 'WIL', primary: '#0c2b63', secondary: '#37bedd', accent: '#ffffff', numberColor: '#ffffff', skill: 0.94, drivers: [{ name: 'A. Albon', num: 23 }, { name: 'C. Sainz', num: 55 }] },
-    { id: 'hayes',   name: 'Hayes EI Team',      short: 'HAY', primary: '#f2f2f2', secondary: '#b6002a', accent: '#101010', numberColor: '#101010', skill: 0.92, drivers: [{ name: 'E. Ocon', num: 31 }, { name: 'O. Bearman', num: 87 }] },
+    { id: 'intake',  name: 'Intake Racing',      short: 'INT', primary: '#5bbcff', secondary: '#2b211c', accent: '#fff8ec', numberColor: '#2b211c', skill: 0.94, drivers: [{ name: 'A. Albon', num: 23 }, { name: 'C. Sainz', num: 55 }] },
+    { id: 'lumi',    name: 'Lumi Racing',        short: 'LUM', primary: '#fffaf2', secondary: '#5e3a5f', accent: '#7fcf9b', numberColor: '#5e3a5f', skill: 0.92, drivers: [{ name: 'E. Ocon', num: 31 }, { name: 'O. Bearman', num: 87 }] },
     { id: 'kinetik', name: 'Kinetik Sauber',     short: 'KIN', primary: '#0e0e0e', secondary: '#00e701', accent: '#ffffff', numberColor: '#00e701', skill: 0.91, drivers: [{ name: 'N. Hulk', num: 27 }, { name: 'G. Bortoleto', num: 5 }] },
     { id: 'vector',  name: 'Vector RB',          short: 'VRB', primary: '#f5f5f7', secondary: '#1434cb', accent: '#c8102e', numberColor: '#1434cb', skill: 0.93, drivers: [{ name: 'I. Hadjar', num: 6 }, { name: 'L. Lawson', num: 30 }] },
   ];
-  // fictional sponsor sets: title sponsor first (engine cover, rear wing), then sidepod / nose / chassis partners.
-  // n = name, fg/bg = text / optional box colour, it = italic, w = font weight, ls = letter spacing (em)
-  const SPONSORS = {
-    rossa:   [{ n: 'VELTRA', fg: '#ffffff', it: 1 }, { n: 'MARENA', fg: '#d8141a', bg: '#ffd200' }, { n: 'KORE', fg: '#ffffff', ls: 0.1 }, { n: 'SANTEX', fg: '#ffffff' }],
-    argent:  [{ n: 'PETRAX', fg: '#00d2be', ls: 0.06 }, { n: 'NEONIS', fg: '#0f0f12', bg: '#c6c9cf' }, { n: 'HALVER', fg: '#ffffff' }, { n: 'CROWNLINE', fg: '#ffffff', w: 700 }],
-    taurus:  [{ n: 'ORAXIS', fg: '#ffffff', ls: 0.08 }, { n: 'BYTEX', fg: '#1e2a6b', bg: '#ffc906', it: 1 }, { n: 'MOBYLA', fg: '#ffffff', bg: '#c8102e' }, { n: 'TAGORA', fg: '#ffffff' }],
-    papaya:  [{ n: 'MERIDIAN', fg: '#101010', it: 1 }, { n: 'GOLYX', fg: '#ffffff', bg: '#101010' }, { n: 'OKTA', fg: '#101010', ls: 0.12 }, { n: 'DELTRON', fg: '#101010' }],
-    verdant: [{ n: 'ARAMIS', fg: '#ffffff', ls: 0.06 }, { n: 'COGNIS', fg: '#00594f', bg: '#cedc00' }, { n: 'VALEX', fg: '#ffffff' }, { n: 'BORNE', fg: '#cedc00', ls: 0.1 }],
-    alpenne: [{ n: 'BWX', fg: '#ffffff', bg: '#ff4fa3', it: 1 }, { n: 'RENOX', fg: '#ffffff', ls: 0.08 }, { n: 'CASTERO', fg: '#ffffff' }, { n: 'BINARIA', fg: '#f3ba2f' }],
-    wilhelm: [{ n: 'ATLASIA', fg: '#ffffff', ls: 0.04 }, { n: 'KOMATO', fg: '#0c2b63', bg: '#37bedd' }, { n: 'DURACORE', fg: '#ffffff' }, { n: 'GULFRAY', fg: '#ffffff', bg: '#f47b20' }],
-    hayes:   [{ n: 'MONEYGO', fg: '#101010', it: 1 }, { n: 'TOKAI', fg: '#ffffff', bg: '#b6002a' }, { n: 'CHIPPA', fg: '#b6002a' }, { n: 'PIRANO', fg: '#101010', ls: 0.06 }],
-    kinetik: [{ n: 'STAKO', fg: '#00e701', it: 1 }, { n: 'KIKK', fg: '#0e0e0e', bg: '#00e701' }, { n: 'AUREX', fg: '#ffffff', ls: 0.1 }, { n: 'ALLIA', fg: '#ffffff' }],
-    vector:  [{ n: 'VYSA', fg: '#1434cb', it: 1 }, { n: 'CASHLY', fg: '#ffffff', bg: '#00b84f' }, { n: 'HONDEX', fg: '#c8102e', ls: 0.06 }, { n: 'HUBO', fg: '#101010' }],
-  };
-  TEAMS.forEach((t) => { t.sponsors = SPONSORS[t.id] || [{ n: 'EQUATION', fg: '#ffffff' }]; });
+  // car sponsors: the race partners (Lumi on the even grid slots, Intake on the odd ones). Title sponsor first (engine cover,
+  // rear wing), then sidepod / nose / chassis partners. n = name, fg/bg = text / optional box colour, w = weight, ff = font family
+  const lumOf = (hex) => { const c = parseInt(hex.slice(1), 16); return (0.2126 * (c >> 16) + 0.7152 * ((c >> 8) & 255) + 0.0722 * (c & 255)) / 255; };
+  TEAMS.forEach((t, k) => { t.sponsors = EI.Ads ? EI.Ads.sponsorsFor(k, lumOf(t.primary) > 0.55, t.id) : [{ n: 'EQUATION', fg: '#ffffff' }]; });
   // driver kit seen from the cockpit: race suit, suit underside panel, gloves and glove accent (padding / strap).
   // Gloves stay dark with team accents so the hands never read as bright blobs on the wheel.
   const KIT = {
@@ -41,8 +30,8 @@ window.EI = window.EI || {};
     papaya:  { suit: '#ef6a00', suitPanel: '#101010', glove: '#141414', gloveAccent: '#f26d00' },
     verdant: { suit: '#00594f', suitPanel: '#0f2b27', glove: '#0f1d1b', gloveAccent: '#cedc00' },
     alpenne: { suit: '#0b1d4f', suitPanel: '#ff4fa3', glove: '#0d1530', gloveAccent: '#ff4fa3' },
-    wilhelm: { suit: '#0c2b63', suitPanel: '#0a1c40', glove: '#0c1834', gloveAccent: '#37bedd' },
-    hayes:   { suit: '#eeeeee', suitPanel: '#b6002a', glove: '#1a1a1d', gloveAccent: '#b6002a' },
+    intake:  { suit: '#5bbcff', suitPanel: '#2b211c', glove: '#1a1512', gloveAccent: '#5bbcff' },
+    lumi:    { suit: '#fffaf2', suitPanel: '#5e3a5f', glove: '#2d1a3b', gloveAccent: '#7fcf9b' },
     kinetik: { suit: '#101010', suitPanel: '#1c1c1c', glove: '#121212', gloveAccent: '#00e701' },
     vector:  { suit: '#f2f2f4', suitPanel: '#1434cb', glove: '#14183a', gloveAccent: '#1434cb' },
   };
@@ -105,10 +94,10 @@ window.EI = window.EI || {};
       case 'alpenne':
         band(0, 512, P); band(0, 512, S, 0, 1024); band(0, 512, P, 140, 1024, 0); band(0, 512, A, 700, 1024, 0); band(0, 512, P, 860, 1024, 0);
         break;
-      case 'wilhelm':
+      case 'intake':
         band(0, 512, P); band(0, 512, S, 300, 1024, 0); band(0, 512, P, 520, 1024, 0); band(0, 512, S, 720, 1024, 0); band(0, 512, P, 760, 1024, 0);
         break;
-      case 'hayes':
+      case 'lumi':
         band(0, 512, P); band(0, 512, S, 0, 180, 0); band(0, 512, A, 860, 1024, 0); band(236, 276, S, 180, 860, 0);
         break;
       case 'kinetik':

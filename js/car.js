@@ -161,7 +161,7 @@ window.EI = window.EI || {};
       else if (absLat <= hw + kw) { this.surface = 'kerb'; surfGrip = 0.93; }
       else if (absLat <= hw + kw + 2) { this.surface = 'asphalt'; surfGrip = 0.97; }
       else if ((lat < 0 ? track.runoffL[i] : track.runoffR[i]) && absLat <= hw + kw + ((lat < 0 ? track.gravelL[i] : track.gravelR[i]) ? 7 : 14)) { this.surface = 'runoff'; surfGrip = 0.9; surfRoll = 1.2; }
-      else { const grav = lat < 0 ? track.gravelL[i] : track.gravelR[i]; if (grav) { this.surface = 'gravel'; surfGrip = 0.35; surfDrag = 14 + 0.25 * Math.abs(this.v); surfRoll = 3; } else { this.surface = 'grass'; surfGrip = 0.45; surfDrag = 5 + 0.08 * Math.abs(this.v); surfRoll = 2; } }
+      else { const grav = lat < 0 ? track.gravelL[i] : track.gravelR[i]; if (grav) { this.surface = 'gravel'; surfGrip = 0.55; surfDrag = 3.0 + 0.07 * Math.abs(this.v); surfRoll = 2.6; } else { this.surface = 'grass'; surfGrip = 0.62; surfDrag = 1.8 + 0.045 * Math.abs(this.v); surfRoll = 2; } }
       this.offTrack = this.surface === 'grass' || this.surface === 'gravel' ? this.offTrack + dt : 0;
       const mu = this.tyre.grip * surfGrip * (1 - 0.3 * Math.min(1, this.wear));
       const v = this.v, av = Math.abs(v);
@@ -224,6 +224,9 @@ window.EI = window.EI || {};
       this._prevS = p2.s;
       const stress = Math.min(1.5, Math.abs(this.aLat) / 40 + Math.abs(this.aLong) / 60); this.wear += this.tyre.wear * 0.01 * (0.4 + stress) * dt;
       let g = 0; while (g < GEARS.length - 1 && av > GEARS[g]) g++;
+      // hold the gear through a 1.2 m/s band below the upshift point: on grass or gravel the ignition cut used to cost more speed than
+      // the engine could win back, so the box shifted 1-2-1-2 for ever and the car sat at the first shift speed
+      const pg = Math.max(0, (this._prevGear || 1) - 1); if (g === pg - 1 && av > GEARS[g] - 1.2) g = pg;
       const lo = g === 0 ? 0 : GEARS[g - 1], hi = GEARS[g]; this.gear = av < 0.5 && this.throttle === 0 ? 0 : g + 1;
       if (this.gear > (this._prevGear || 0) && this.gear > 1 && this.throttle > 0.5) this.shiftCut = 0.055; this._prevGear = this.gear;
       const frac = U.clamp((av - lo) / (hi - lo), 0, 1); const target = av < 0.5 ? 0.12 + this.throttle * 0.5 : 0.38 + 0.62 * frac;

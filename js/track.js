@@ -255,7 +255,7 @@ window.EI = window.EI || {};
   // sub-rectangle of a canvas atlas (canvas pixels, y down) -> function mapping the sub-texture's own (u, v) (v up) to atlas uv; 2 px inset
   function atlasRect(W, H, x, y, w, h) { const p = 2; return (u, v) => [(x + p + u * (w - 2 * p)) / W, 1 - (y + p + (1 - v) * (h - 2 * p)) / H]; }
   // painted markings atlas (2048 x 1024, transparent ground): grid slots (5 x 4 cells: number ahead of the front line, bracket going back),
-  // four rows of fictional run-off paint logos, the start / finish chequer band and a solid white cell for plain lines
+  // four rows of run-off paint logos (the race partners), the start / finish chequer band and a solid white cell for plain lines
   function paintAtlas() {
     const W = 2048, H = 1024; const c = document.createElement('canvas'); c.width = W; c.height = H; const ctx = c.getContext('2d'); ctx.clearRect(0, 0, W, H);
     const cw = 204.8, ch = 256;
@@ -265,7 +265,7 @@ window.EI = window.EI || {};
       ctx.font = 'italic 900 64px Arial Black, Arial'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(String(p + 1), x0 + cw / 2, y0 + ch * 0.16);
     }
     weather(ctx, 1024, 1024, 77, 9000, 0, 0);
-    ['EQUATION I', 'APEX FUELS', 'EI RACING', 'KINETIK'].forEach((t, k) => { ctx.fillStyle = '#f2f1ec'; ctx.font = 'italic 900 104px Arial Black, Arial'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(t, 1024 + 512, k * 128 + 68, 980); });
+    for (let k = 0; k < 4; k++) EI.Ads.paintRunoff(ctx, k, 1024, k * 128, 1024, 128, '#f2f1ec');
     weather(ctx, 1024, 512, 91, 26000, 1024, 0);
     const q = 21; for (let i = 0; i < 48; i++) for (let j = 0; j < 4; j++) { ctx.fillStyle = (i + j) % 2 ? '#e9e8e3' : '#151517'; ctx.fillRect(1032 + i * q, 560 + j * q, q, q); }
     ctx.fillStyle = '#ecebe6'; ctx.fillRect(1032, 680, 64, 64);
@@ -705,7 +705,7 @@ window.EI = window.EI || {};
       const wh = () => A.white(0.5, 0.5);
       for (const z of this.drs) { this.addDecal(b, z.detect - 0.15, z.detect + 0.15, -hw + 0.2, hw - 0.2, wh, 1); this.addDecal(b, z.start - 0.2, z.start + 0.2, -hw + 0.2, hw - 0.2, wh, 1); }
       const m = Track.batchMesh(b, mat); m.name = 'paint'; g.add(m);
-      // painted sponsor logos on the run-off at the big corners (fictional EI brands); decorative: dropped on low quality
+      // painted partner logos on the run-off at the big corners; decorative: dropped on low quality
       const lb = { pos: [], uv: [], idx: [] }; const aw0 = hw + kw + 2.0;
       const place = (s, side, slot, len) => {
         const outer = side < 0 ? this.runoffOuterL : this.runoffOuterR; const i = this.idxAtS(s); const wdt = outer[i] - aw0 - 1.4; if (wdt < 2.5) return;
@@ -714,7 +714,7 @@ window.EI = window.EI || {};
         this.addDecal(lb, s - len / 2, s + len / 2, la, lb2, (fs, fl) => { const u = side < 0 ? 1 - fs : fs; return A.logos(u, 1 - (slot + 1 - fl) / 4); }, Math.ceil(len / 1.5), 0.015);
       };
       const L = this.length;
-      const spots = [['Copse', 0, 28], ['Luffield', 1, 24], ['Stowe', 2, 26], ['Club', 3, 22], ['Abbey', 0, 26], ['Village', 2, 22], ['Brooklands', 1, 22], ['Vale', 0, 20], ['Woodcote', 3, 22]];
+      const spots = [['Copse', 0, 34], ['Luffield', 1, 30], ['Stowe', 1, 32], ['Club', 2, 26], ['Abbey', 0, 32], ['Village', 1, 26], ['Brooklands', 0, 28], ['Vale', 3, 24], ['Woodcote', 1, 26], ['Maggotts', 0, 26], ['Becketts', 1, 26], ['Chapel Curve', 2, 24], ['The Loop', 3, 20], ['Aintree', 0, 22], ['Farm Curve', 1, 24]];
       for (const [name, slot, len] of spots) {
         const c = this.data.corners.find(cc => cc.name === name); if (!c) continue;
         // the painted run-off is on the outside: find the widest run-off point in the corner
@@ -730,14 +730,14 @@ window.EI = window.EI || {};
       // sponsor wall panels (concrete wall with advertising) in corners, Armco on straights, tyre walls at the big stops.
       // One atlas for all four: each is a band across u (0 = bottom of the wall, 1 = top) and repeats along v (the lap distance);
       // a second texture with the same layout carries roughness (G) and metalness (B)
-      const AW = 512, AH = 1024;
+      const AW = 640, AH = 1024;
       const ca = document.createElement('canvas'); ca.width = AW; ca.height = AH; const cx = ca.getContext('2d');
       const cr = document.createElement('canvas'); cr.width = AW; cr.height = AH; const rx = cr.getContext('2d');
       const band = (k, rough, metal) => { rx.fillStyle = 'rgb(255,' + Math.round(rough * 255) + ',' + Math.round(metal * 255) + ')'; rx.fillRect(k * 128, 0, 128, AH); };
-      // panels: 5 boards along 25.6 m, text running along the wall (drawn rotated: canvas y is the lap direction)
-      { const panels = [['#b3122b', '#ffffff', 'EQUATION I'], ['#ffffff', '#111111', 'EI RACING'], ['#1a73e8', '#ffffff', 'DRS'], ['#b3122b', '#ffffff', 'EQUATION I'], ['#111111', '#ffffff', 'SILVERSTONE']];
-        const ph = AH / 5; panels.forEach((p, i) => { cx.fillStyle = p[0]; cx.fillRect(0, i * ph, 128, ph); cx.save(); cx.translate(64, i * ph + ph / 2); cx.rotate(Math.PI / 2); cx.fillStyle = p[1]; cx.font = 'italic 900 64px Arial Black, Arial'; cx.textAlign = 'center'; cx.textBaseline = 'middle'; cx.fillText(p[2], 0, 0, ph - 16); cx.restore(); });
-        band(0, 0.5, 0); }
+      // panels: 5 partner boards along 25.6 m, text running along the wall (drawn rotated: canvas y is the lap direction).
+      // Band 0 reads left to right along +s (left-hand wall), band 4 is the same art flipped along the lap for the right-hand wall
+      { const ph = AH / 5; EI.Ads.BARRIER.forEach((paint, i) => { for (const flip of [0, 1]) { cx.save(); cx.beginPath(); cx.rect(flip * 512, i * ph, 128, ph); cx.clip(); cx.translate(flip * 512 + 128, i * ph + flip * ph); cx.rotate(Math.PI / 2); if (flip) cx.scale(-1, 1); const vw = 128 * EI.Ads.BARRIER_ASPECT; cx.scale(ph / vw, 1); paint(cx, vw, 128); cx.restore(); } });
+        band(0, 0.5, 0); band(4, 0.5, 0); }
       // tyre wall: stacks of 4 tyres, 4 stacks per 2.6 m, white / red marker stacks
       { cx.fillStyle = '#151515'; cx.fillRect(128, 0, 128, AH); const cols = ['#202020', '#202020', '#e8e8e8', '#202020', '#c81418', '#202020', '#202020', '#202020'];
         for (let st = 0; st < 4; st++) for (let t = 0; t < 4; t++) { cx.fillStyle = cols[(st * 4 + t) % cols.length]; const y = st * AH / 4; cx.beginPath(); if (cx.roundRect) cx.roundRect(128 + t * 32 + 2, y + 6, 28, AH / 4 - 12, 10); else cx.rect(128 + t * 32 + 2, y + 6, 28, AH / 4 - 12); cx.fill(); cx.fillStyle = 'rgba(0,0,0,0.45)'; cx.fillRect(128 + t * 32 + 14, y + 6, 4, AH / 4 - 12); }
@@ -758,7 +758,7 @@ window.EI = window.EI || {};
         const isTyre = i => inCorner(i) && tyreCorners.indexOf(cornerAt(this.s[i])) >= 0 && (side < 0 ? kk[i] > 0 : kk[i] < 0);
         const isPanel = i => !isTyre(i) && (inCorner(i) || Math.abs(this.s[i] - this.sf) < 500);
         // concrete base + panels
-        const pg = toBand(this.ribbon(i => side * wall[i], i => side * wall[i], { mask: isPanel, ya: () => 0.5, yb: () => 1.2, vScale: 25.6 }), 0);
+        const pg = toBand(this.ribbon(i => side * wall[i], i => side * wall[i], { mask: isPanel, ya: () => 0.5, yb: () => 1.2, vScale: 25.6 }), side < 0 ? 0 : 4);
         g.add(new THREE.Mesh(pg, barMat));
         const cg = toBand(this.ribbon(i => side * wall[i], i => side * wall[i], { mask: isPanel, ya: () => 0, yb: () => 0.5 }), 3);
         const cm = new THREE.Mesh(cg, barMat); cm.castShadow = true; g.add(cm);
@@ -836,7 +836,7 @@ window.EI = window.EI || {};
       this.pitCurve = curve;
     }
 
-    // trackside furniture atlas (2048 x 2048): 16 corner-name boards (1024 x 192), the start gantry banner, the sponsor bridge faces,
+    // trackside furniture atlas (2048 x 2048): 16 corner-name boards (1024 x 176), the start gantry banner, the sponsor bridge faces,
     // DRS / DRS-detection / braking boards and a few solid colour cells for posts, backs, bridge beams and lamp housings
     boardAtlas() {
       const S = 2048; const c = document.createElement('canvas'); c.width = c.height = S; const ctx = c.getContext('2d');
@@ -844,21 +844,24 @@ window.EI = window.EI || {};
       const R = {}; const cell = (key, x, y, w, h, draw) => { ctx.save(); ctx.beginPath(); ctx.rect(x, y, w, h); ctx.clip(); ctx.translate(x, y); draw(ctx, w, h); ctx.restore(); R[key] = { x, y, w, h }; };
       const TURN = { 'Abbey': 1, 'Farm Curve': 2, 'Village': 3, 'The Loop': 4, 'Aintree': 5, 'Brooklands': 6, 'Luffield': 7, 'Woodcote': 8, 'Copse': 9, 'Maggotts': 10, 'Becketts': 11, 'Chapel Curve': 13, 'Stowe': 15, 'Vale': 16, 'Club': 18 };
       const names = []; for (const cn of this.data.corners) if (!/Straight/i.test(cn.name) && names.indexOf(cn.name) < 0) names.push(cn.name);
-      names.slice(0, 16).forEach((name, k) => cell('corner:' + name, (k % 2) * 1024, Math.floor(k / 2) * 192, 1024, 192, (ctx, w, h) => {
+      names.slice(0, 16).forEach((name, k) => cell('corner:' + name, (k % 2) * 1024, Math.floor(k / 2) * 176, 1024, 176, (ctx, w, h) => {
         ctx.fillStyle = '#0d3a2b'; ctx.fillRect(0, 0, w, h); ctx.fillStyle = '#c8102e'; ctx.fillRect(0, h * 0.86, w, h * 0.14); ctx.fillStyle = '#e8e3d0'; ctx.fillRect(0, 0, w, h * 0.04);
         ctx.fillStyle = '#ffffff'; ctx.beginPath(); ctx.arc(h * 0.48, h * 0.46, h * 0.3, 0, 6.283); ctx.fill();
         ctx.fillStyle = '#0d3a2b'; ctx.font = '900 ' + Math.round(h * 0.34) + 'px Arial Black, Arial'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(String(TURN[name] || ''), h * 0.48, h * 0.48);
         ctx.fillStyle = '#ffffff'; ctx.font = 'italic 900 ' + Math.round(h * 0.46) + 'px Arial Black, Arial'; ctx.textAlign = 'left'; ctx.fillText(name.toUpperCase(), h * 0.95, h * 0.47, w - h * 1.1);
       }));
       const text = (txt, bg, size) => (ctx, w, h) => { ctx.fillStyle = bg; ctx.fillRect(0, 0, w, h); ctx.fillStyle = '#fff'; ctx.font = 'italic 900 ' + size + 'px Arial Black, Arial'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(txt, w / 2, h / 2, w - 16); };
-      cell('banner', 0, 1536, 2048, 96, text('EQUATION I   ·   SILVERSTONE GRAND PRIX', '#e10600', 60));
-      cell('bridge:EQUATION I', 0, 1632, 1024, 128, text('EQUATION I', '#e10600', 80));
-      cell('bridge:EI  ·  SILVERSTONE', 1024, 1632, 1024, 128, text('EI  ·  SILVERSTONE', '#5b2a86', 80));
-      cell('bridge:DRS ZONE', 0, 1760, 1024, 128, text('DRS ZONE', '#1a73e8', 80));
+      // the start gantry banner and the sponsor bridges carry the race partners' ads (EI.Ads)
+      cell('banner', 0, 1536, 2048, 96, (ctx, w, h) => EI.Ads.paintBanner(ctx, w, h));
+      cell('bridge:lumi', 0, 1632, 1024, 128, (ctx, w, h) => EI.Ads.paintBridge(ctx, 'lumi', w, h));
+      cell('bridge:intake', 1024, 1632, 1024, 128, (ctx, w, h) => EI.Ads.paintBridge(ctx, 'intake', w, h));
+      cell('bridge:lumi2', 0, 1760, 1024, 128, (ctx, w, h) => EI.Ads.paintBridge(ctx, 'lumi2', w, h));
+      cell('bridge:intake2', 0, 1408, 1024, 128, (ctx, w, h) => EI.Ads.paintBridge(ctx, 'intake2', w, h));
+      cell('bridge:DRS ZONE', 1024, 1408, 1024, 128, text('DRS ZONE', '#1a73e8', 80));
       cell('drsDetect', 1024, 1760, 512, 128, (ctx, w, h) => { ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, w, h); ctx.fillStyle = '#1a73e8'; ctx.fillRect(0, 0, w, h * 0.14); ctx.fillRect(0, h * 0.86, w, h * 0.14); ctx.fillStyle = '#111'; ctx.font = 'italic 900 62px Arial Black, Arial'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('DRS DETECTION', w / 2, h / 2 + 3, w - 30); });
       [150, 100, 50].forEach((d, k) => cell('brake:' + d, k * 160, 1888, 160, 160, (ctx, w, h) => { ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, w, h); ctx.strokeStyle = '#0d3a2b'; ctx.lineWidth = 9; ctx.strokeRect(4.5, 4.5, w - 9, h - 9); ctx.fillStyle = '#111'; ctx.font = '900 ' + (d > 99 ? 65 : 81) + 'px Arial Black, Arial'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(String(d), w / 2, h / 2 + 4); }));
       cell('drs', 480, 1888, 320, 160, (ctx, w, h) => { ctx.fillStyle = '#1a73e8'; ctx.fillRect(0, 0, w, h); ctx.fillStyle = '#fff'; ctx.font = 'italic 900 94px Arial Black, Arial'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('DRS', w / 2, h / 2 + 4); });
-      [['post', '#2b2f36'], ['black', '#0f1012'], ['hood', '#1a1a1c'], ['white', '#e8e8e8'], ['red', '#e10600'], ['purple', '#5b2a86'], ['blue', '#1a73e8']].forEach(([k, col], j) => cell(k, 1536 + (j % 4) * 128, 1760 + Math.floor(j / 4) * 128, 128, 128, (ctx, w, h) => { ctx.fillStyle = col; ctx.fillRect(0, 0, w, h); }));
+      [['post', '#2b2f36'], ['black', '#0f1012'], ['hood', '#1a1a1c'], ['white', '#e8e8e8'], ['plum', '#5e3a5f'], ['brown', '#2b211c'], ['blue', '#1a73e8']].forEach(([k, col], j) => cell(k, 1536 + (j % 4) * 128, 1760 + Math.floor(j / 4) * 128, 128, 128, (ctx, w, h) => { ctx.fillStyle = col; ctx.fillRect(0, 0, w, h); }));
       const tex = U.srgb(canvasTex(c)); tex.wrapS = tex.wrapT = THREE.ClampToEdgeWrapping;
       const rect = (key) => { const r = R[key]; return atlasRect(S, S, r.x, r.y, r.w, r.h); };
       return { tex, rect };
@@ -915,7 +918,7 @@ window.EI = window.EI || {};
         for (const dir of [-1, 1]) { const f = new THREE.Mesh(uvFace(new THREE.PlaneGeometry(hw * 2 + 6.8, 2.1), 'bridge:' + text), mat); f.position.set(dir * 0.62, 8.5, 0); f.rotation.y = dir * Math.PI / 2; grp.add(f); }
         grp.position.set(this.x[i], this.y[i], this.z[i]); grp.rotation.y = -this.heading[i]; g.add(grp);
       };
-      bridge(this.sf + 140, 'EQUATION I', 'red'); bridge(4650, 'EI  ·  SILVERSTONE', 'purple'); bridge(2850, 'EQUATION I', 'red'); bridge(1600, 'DRS ZONE', 'blue');
+      bridge(this.sf + 140, 'lumi', 'plum'); bridge(4650, 'intake', 'brown'); bridge(2850, 'lumi2', 'plum'); bridge(4850, 'intake2', 'blue'); bridge(1600, 'DRS ZONE', 'blue');
       // marshal posts are built by EI.Infra (booths, flag marshals, number boards)
       // flood lights / camera towers along the straights for skyline interest (decorative)
       for (const s of [500, 1500, 2600, 3300, 4500, 5400]) { const p = placeAt(s, 1, this.wallR[this.idxAtS(s)] + 4); const t = solid(new THREE.CylinderGeometry(0.25, 0.4, 18, 6), 'post', true); t.position.set(p.x, p.y + 9, p.z); g.add(t); const head = solid(new THREE.BoxGeometry(2.5, 0.8, 1.2), 'white', true); head.position.set(p.x, p.y + 18.2, p.z); head.rotation.y = -p.heading; g.add(head); }
