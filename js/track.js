@@ -200,7 +200,7 @@ window.EI = window.EI || {};
         for (const geo of [g1, g2]) { const m = new THREE.Mesh(geo, kerbMat); m.receiveShadow = true; m.castShadow = true; g.add(m); }
       }
       // green painted asphalt strip beyond the kerbs (Silverstone style), then tarmac run-off / gravel
-      const greenMat = new THREE.MeshStandardMaterial({ color: 0x2d8a38, roughness: 0.85, polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 2 });
+      const greenMat = new THREE.MeshStandardMaterial({ color: 0x1fa03a, roughness: 0.85, polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 2 });
       const runoffTex = U.grainTexture(256, 0x77777b, 0.07, 1, 12, 0.01);
       const runoffMat = new THREE.MeshStandardMaterial({ map: runoffTex, normalMap: asphaltN, normalScale: new THREE.Vector2(0.4, 0.4), roughness: 0.95, polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 2 });
       const gravelTex = U.grainTexture(256, 0xc9b58c, 0.12, 1, 5, 0.03);
@@ -216,7 +216,7 @@ window.EI = window.EI || {};
       }
       // grass verge ribbon so the join to the terrain is clean
       const verge = this.ribbon(i => -(this.wallL[i] + 40), i => (this.wallR[i] + 40), { y: -0.03, color: 0x4f8a3a });
-      g.add(new THREE.Mesh(verge, new THREE.MeshStandardMaterial({ map: U.grainTexture(256, 0x3b7024, 0.07, 1, 3), roughness: 1.0, polygonOffset: true, polygonOffsetFactor: 3, polygonOffsetUnits: 6 })));
+      g.add(new THREE.Mesh(verge, new THREE.MeshStandardMaterial({ map: U.grainTexture(256, 0x3f7f22, 0.07, 1, 3), roughness: 1.0, polygonOffset: true, polygonOffsetFactor: 3, polygonOffsetUnits: 6 })));
       // start / finish line and grid boxes
       const sfTex = (function () { const c = document.createElement('canvas'); c.width = 128; c.height = 32; const ctx = c.getContext('2d'); for (let i = 0; i < 16; i++) for (let j = 0; j < 4; j++) { ctx.fillStyle = (i + j) % 2 ? '#fff' : '#111'; ctx.fillRect(i * 8, j * 8, 8, 8); } return new THREE.CanvasTexture(c); })();
       const i0 = this.idxAtS(this.sf);

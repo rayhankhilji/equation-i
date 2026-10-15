@@ -135,7 +135,7 @@ window.EI = window.EI || {};
     }
 
     buildModel() {
-      const m = EI.CarModel.build(this);
+      const m = (EI.CarGLB && EI.CarGLB.ready) ? EI.CarGLB.build(this, this.isPlayer ? 'hi' : 'lo') : EI.CarModel.build(this);
       this.group = m.group; this.body = m.body; this.wheels = m.wheels; this.frontPivots = m.frontPivots; this.flap = m.flap; this.helmet = m.helmet; this.bodyMat = m.bodyMat;
       this.group.name = 'car-' + this.id; this.wheelSpin = 0;
       this._fwd = new THREE.Vector3(); this._up = new THREE.Vector3(); this._right = new THREE.Vector3(); this._m = new THREE.Matrix4();

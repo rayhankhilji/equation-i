@@ -2,7 +2,20 @@
 window.EI = window.EI || {};
 (function () {
   const U = EI.U;
-  const DIFF = { rookie: { speed: 0.84, brakeMargin: 1.12, aggression: 0.35, noise: 0.08 }, pro: { speed: 0.92, brakeMargin: 1.05, aggression: 0.6, noise: 0.04 }, legend: { speed: 0.975, brakeMargin: 1.0, aggression: 0.85, noise: 0.015 } };
+  // seven bot levels. speed = fraction of the physical limit the bot targets; brakeMargin > 1 brakes earlier;
+  // noise = random steering error; lookahead scales how far ahead the bot plans its line; ultra drives at the limit.
+  const DIFF = {
+    veryeasy: { speed: 0.72, brakeMargin: 1.2, aggression: 0.15, noise: 0.12, reaction: [0.5, 1.2] },
+    easy:     { speed: 0.80, brakeMargin: 1.14, aggression: 0.3, noise: 0.08, reaction: [0.35, 0.9] },
+    average:  { speed: 0.88, brakeMargin: 1.08, aggression: 0.5, noise: 0.05, reaction: [0.25, 0.6] },
+    above:    { speed: 0.93, brakeMargin: 1.04, aggression: 0.65, noise: 0.03, reaction: [0.2, 0.45] },
+    hard:     { speed: 0.965, brakeMargin: 1.015, aggression: 0.8, noise: 0.015, reaction: [0.15, 0.35] },
+    veryhard: { speed: 0.985, brakeMargin: 1.0, aggression: 0.9, noise: 0.006, reaction: [0.12, 0.25] },
+    ultra:    { speed: 1.0, brakeMargin: 0.99, aggression: 1.0, noise: 0.0, reaction: [0.1, 0.18], frontier: true },
+    // legacy names
+    rookie: null, pro: null, legend: null,
+  };
+  DIFF.rookie = DIFF.easy; DIFF.pro = DIFF.average; DIFF.legend = DIFF.veryhard;
 
   // maximum speed profile along the racing line for the car model (shared by all bots)
   function buildSpeedProfile(track) {
@@ -38,10 +51,10 @@ window.EI = window.EI || {};
     constructor(car, track, difficulty, rng) {
       this.car = car; this.track = track; this.d = DIFF[difficulty] || DIFF.pro;
       if (!track.aiSpeed) track.aiSpeed = buildSpeedProfile(track);
-      const teamBias = (car.team.skill - 0.95) * 0.6;
-      this.speedFactor = U.clamp(this.d.speed + teamBias + (rng() - 0.5) * 0.02, 0.78, 0.99);
+      const teamBias = (car.team.skill - 0.95) * (this.d.frontier ? 0.15 : 0.6);
+      this.speedFactor = U.clamp(this.d.speed + teamBias + (rng() - 0.5) * (this.d.frontier ? 0.004 : 0.02), 0.65, 1.0);
       this.aggression = U.clamp(this.d.aggression + (rng() - 0.5) * 0.3, 0.1, 1);
-      this.reaction = 0.15 + rng() * 0.45 + (1 - this.d.speed) * 1.5;
+      const rr = this.d.reaction || [0.15, 0.6]; this.reaction = rr[0] + rng() * (rr[1] - rr[0]);
       this.offset = 0; this.offsetTarget = 0; this.noiseT = 0; this.noise = 0; this.rng = rng;
       this.launched = false; this.stuckT = 0; this.reverseT = 0;
     }
@@ -67,6 +80,7 @@ window.EI = window.EI || {};
       for (let j = 0; j <= look; j += 2) target = Math.min(target, t.aiSpeed[(i + j) % n]);
       target *= this.speedFactor / this.d.brakeMargin * (1 - Math.abs(this.offset) / t.halfWidth * 0.18);
       if (car.tyre.grip < 1) target *= car.tyre.grip; if (car.wear > 0) target *= (1 - 0.2 * Math.min(1, car.wear));
+      if (this.d.frontier) target *= 1.0 + 0.012 * Math.min(1, car.ers); // frontier bots exploit every bit of grip
       // --- traffic: find car directly ahead and cars alongside
       let ahead = null, aheadGap = 1e9, alongside = 0, behindClose = false;
       for (const o of cars) {

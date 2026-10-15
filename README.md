@@ -61,8 +61,14 @@ In single player either key set drives the car.
 - **Bots that race.** Each bot follows a computed racing line with a braking/acceleration profile derived
   from the car physics (an ideal lap is about 1:26, like a real pole lap). They overtake, defend the inside,
   avoid side-by-side contact, use DRS and ERS, make small mistakes, and recover when they spin. Three skill
-  levels; team strength and tyre choice vary the pack.
-- **Cars.** Detailed procedural single-seaters to 2022 proportions (`js/carmodel.js`): lofted chassis, nose
+  levels from Very easy to Ultra; team strength and tyre choice vary the pack. Ultra bots drive at the
+  physical limit of the car (about 1:29 at Silverstone against a 1:26 theoretical ideal) and react in a
+  tenth of a second, Very easy bots run at 72 % of the limit with slow reactions and visible mistakes.
+- **Cars.** The in-game car is a game-ready derivative of Peter Kiss's "F1 2022 Monopost" model (see
+  CREDITS.md: CC BY-NC-SA, private non-commercial use), decimated to 212k triangles for the player car and
+  44k for bots, with a per-team livery composed at runtime from the model's material-ID and baked
+  ambient-occlusion atlases (numbers, driver codes and sponsor text included). If the model files are missing
+  the game falls back to the procedural car in `js/carmodel.js`: lofted chassis, nose
   and sidepods with inlets, airbox and shark fin, four-element front wing with curved tips and endplates,
   rear wing with painted endplates, beam wing, swan-neck mounts and a working DRS flap, floor with edge wings
   and diffuser strakes, full wishbone / pushrod suspension with uprights and brake-duct winglets, halo,
@@ -99,7 +105,9 @@ js/util.js          helpers, procedural textures
 js/teams.js         teams, drivers, livery painter
 js/track.js         resampling, elevation, lookups, racing line, track surface and furniture
 js/scenery.js       terrain, grandstands + crowd, buildings, trees, sky
-js/carmodel.js      detailed procedural car model
+js/carglb.js        loads the GLB car and composes per-team liveries
+js/carmodel.js      procedural fallback car model
+js/infra.js         hoardings, fences, tyre stacks, screens, flags, paddock
 js/car.js           vehicle physics
 js/ai.js            bot drivers and speed profile
 js/race.js          race director: grid, lights, laps, DRS detection, collisions, classification
@@ -110,6 +118,11 @@ js/main.js          renderer, cameras, loop, menu
 vendor/three.min.js three.js r128 (MIT) plus its EffectComposer, bloom, FXAA and Sky modules
 js/particles.js     dust, gravel spray and tyre smoke
 ```
+
+## Deploying
+
+The game is static files with `index.html` at the repository root, so it deploys unchanged on Vercel,
+Netlify or GitHub Pages. Serve it over HTTP; the car model is loaded with fetch.
 
 ## Credits
 

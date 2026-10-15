@@ -35,132 +35,161 @@
 
   <!-- Main menu -->
   <div id="menu" class="overlay">
-    <div class="menu-card">
-      <div class="title-row">
-        <div class="logo">EI</div>
-        <div>
-          <h1>EQUATION&nbsp;I</h1>
-          <div class="subtitle">Grand Prix racing &middot; Equation I World Championship</div>
+    <div class="menu-shell">
+      <header class="menu-top">
+        <div class="wordmark">
+          <div class="wm-mark"></div>
+          <div class="wm-text">
+            <h1>EQUATION&nbsp;<em>I</em></h1>
+            <div class="subtitle">Grand Prix racing &middot; World Championship</div>
+          </div>
         </div>
-      </div>
+        <div class="meta"><b>Round 1</b> &middot; British Grand Prix<br>Silverstone Circuit &middot; Race day</div>
+      </header>
 
       <div class="menu-grid">
         <section>
           <h2>Circuit</h2>
-          <div class="track-card">
-            <canvas id="track-preview" width="260" height="260"></canvas>
+          <div class="track-card panel">
+            <div class="track-map"><canvas id="track-preview" width="392" height="392"></canvas></div>
             <div class="track-info">
+              <div class="track-kicker">United Kingdom</div>
               <div class="track-name">Silverstone</div>
-              <div class="track-meta">Northamptonshire, United Kingdom</div>
-              <div class="track-meta">5.881 km &middot; 18 turns &middot; 2 DRS zones &middot; clockwise</div>
-              <div class="track-meta">Pole lap around 1:26 &middot; 3 sectors</div>
-              <div class="track-meta small">Geometry traced from real survey data. More circuits coming.</div>
+              <div class="track-meta">Northamptonshire &middot; clockwise &middot; 3 sectors</div>
+              <div class="track-stats">
+                <div><b>5.881</b><span>km</span></div>
+                <div><b>18</b><span>turns</span></div>
+                <div><b>2</b><span>DRS zones</span></div>
+              </div>
+              <div class="track-legend"><span><i style="background:#ff3b2d"></i>S1</span><span><i style="background:#3d8dff"></i>S2</span><span><i style="background:#ffd23f"></i>S3</span><span><i style="background:#f4f6f9"></i>DRS</span></div>
             </div>
           </div>
-          <h2>Race</h2>
-          <label>Laps <input type="range" id="opt-laps" min="1" max="15" value="3"><output id="out-laps">3</output></label>
-          <label>Bots <input type="range" id="opt-bots" min="0" max="19" value="9"><output id="out-bots">9</output></label>
-          <label>Bot skill
-            <select id="opt-diff">
-              <option value="rookie">Rookie</option>
-              <option value="pro" selected>Pro</option>
-              <option value="legend">Legend</option>
-            </select>
-          </label>
-          <label>Grid
-            <select id="opt-grid">
-              <option value="quali" selected>Qualifying order (by skill)</option>
-              <option value="front">Players at the front</option>
-              <option value="back">Players at the back</option>
-              <option value="random">Random</option>
-            </select>
-          </label>
-          <label>Graphics
-            <select id="opt-quality">
-              <option value="low">Low (fastest)</option>
-              <option value="medium" selected>Medium</option>
-              <option value="high">High (bloom + FXAA)</option>
-            </select>
-          </label>
-          <label>Assists
-            <select id="opt-assist">
-              <option value="full" selected>Full (steer help + ABS + TC)</option>
-              <option value="medium">Medium (ABS + TC)</option>
-              <option value="none">None</option>
-            </select>
-          </label>
+          <h2>Race settings</h2>
+          <div class="settings">
+            <label class="field wide"><span class="fl">Laps</span><input type="range" id="opt-laps" min="1" max="15" value="3"><output id="out-laps">3</output></label>
+            <label class="field wide"><span class="fl">Bots</span><input type="range" id="opt-bots" min="0" max="19" value="9"><output id="out-bots">9</output></label>
+            <label class="field"><span class="fl">Bot skill</span>
+              <select id="opt-diff">
+                <option value="veryeasy">Very easy</option>
+                <option value="easy">Easy</option>
+                <option value="average" selected>Average</option>
+                <option value="above">Above average</option>
+                <option value="hard">Hard</option>
+                <option value="veryhard">Very hard</option>
+                <option value="ultra">Ultra (frontier)</option>
+              </select>
+            </label>
+            <label class="field"><span class="fl">Grid</span>
+              <select id="opt-grid">
+                <option value="quali" selected>Qualifying order</option>
+                <option value="front">Players at the front</option>
+                <option value="back">Players at the back</option>
+                <option value="random">Random</option>
+              </select>
+            </label>
+            <label class="field"><span class="fl">Assists</span>
+              <select id="opt-assist">
+                <option value="full" selected>Full (steer + ABS + TC)</option>
+                <option value="medium">Medium (ABS + TC)</option>
+                <option value="none">None</option>
+              </select>
+            </label>
+            <label class="field"><span class="fl">Graphics</span>
+              <select id="opt-quality">
+                <option value="low">Low (fastest)</option>
+                <option value="medium" selected>Medium</option>
+                <option value="high">High (bloom + FXAA)</option>
+              </select>
+            </label>
+          </div>
         </section>
 
         <section>
           <h2>Drivers</h2>
-          <label>Players
+          <label class="field"><span class="fl">Players</span>
             <select id="opt-players">
               <option value="1" selected>1 player</option>
               <option value="2">2 players (split screen)</option>
             </select>
           </label>
-          <div class="player-setup" id="p1-setup">
-            <div class="ps-head">Player 1 <span class="keys">W A S D &middot; Shift = DRS &middot; Ctrl = ERS &middot; C = camera</span></div>
-            <input type="text" id="p1-name" maxlength="14" value="YOU" placeholder="Name">
-            <select id="p1-team"></select>
-            <select id="p1-tyre">
-              <option value="soft">Soft tyres (grip, wears)</option>
-              <option value="medium" selected>Medium tyres</option>
-              <option value="hard">Hard tyres (durable)</option>
-            </select>
-            <canvas class="livery-preview" id="p1-preview" width="220" height="110"></canvas>
+          <div class="player-setup panel" id="p1-setup">
+            <div class="ps-head"><div class="ps-title">Player 1</div><div class="keys"><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> &middot; <kbd>Shift</kbd>DRS &middot; <kbd>Ctrl</kbd>ERS &middot; <kbd>C</kbd>camera</div></div>
+            <label class="field name"><span class="fl">Name</span><input type="text" id="p1-name" maxlength="14" value="YOU" placeholder="Name"></label>
+            <label class="field"><span class="fl">Team</span><select id="p1-team"></select></label>
+            <label class="field"><span class="fl">Tyre</span>
+              <select id="p1-tyre">
+                <option value="soft">Soft (grip, wears)</option>
+                <option value="medium" selected>Medium</option>
+                <option value="hard">Hard (durable)</option>
+              </select>
+            </label>
+            <div class="livery-wrap"><canvas class="livery-preview" id="p1-preview" width="440" height="150"></canvas></div>
           </div>
-          <div class="player-setup hidden" id="p2-setup">
-            <div class="ps-head">Player 2 <span class="keys">Arrows &middot; R.Shift = DRS &middot; Enter = ERS &middot; / = camera</span></div>
-            <input type="text" id="p2-name" maxlength="14" value="RIVAL" placeholder="Name">
-            <select id="p2-team"></select>
-            <select id="p2-tyre">
-              <option value="soft">Soft tyres (grip, wears)</option>
-              <option value="medium" selected>Medium tyres</option>
-              <option value="hard">Hard tyres (durable)</option>
-            </select>
-            <canvas class="livery-preview" id="p2-preview" width="220" height="110"></canvas>
+          <div class="player-setup panel hidden" id="p2-setup">
+            <div class="ps-head"><div class="ps-title">Player 2</div><div class="keys"><kbd>&#8593;</kbd><kbd>&#8592;</kbd><kbd>&#8595;</kbd><kbd>&#8594;</kbd> &middot; <kbd>R.Shift</kbd>DRS &middot; <kbd>Enter</kbd>ERS &middot; <kbd>/</kbd>camera</div></div>
+            <label class="field name"><span class="fl">Name</span><input type="text" id="p2-name" maxlength="14" value="RIVAL" placeholder="Name"></label>
+            <label class="field"><span class="fl">Team</span><select id="p2-team"></select></label>
+            <label class="field"><span class="fl">Tyre</span>
+              <select id="p2-tyre">
+                <option value="soft">Soft (grip, wears)</option>
+                <option value="medium" selected>Medium</option>
+                <option value="hard">Hard (durable)</option>
+              </select>
+            </label>
+            <div class="livery-wrap"><canvas class="livery-preview" id="p2-preview" width="440" height="150"></canvas></div>
           </div>
           <div class="hint">
-            <b>How to race:</b> accelerate, brake before the corner, turn in smoothly. Stay inside the white lines. DRS only opens in the two DRS zones when you are within 1&nbsp;s of the car ahead at the detection line (from lap 2). ERS gives a short power boost and recharges under braking. Hold back until the five red lights go out &mdash; a jump start costs 5 seconds.
+            <b>How to race</b><br>Accelerate, brake before the corner, turn in smoothly and stay inside the white lines. DRS opens in the two DRS zones when you are within 1&nbsp;s of the car ahead at the detection line (from lap 2). ERS gives a short power boost and recharges under braking. Hold until the five red lights go out &mdash; a jump start costs 5 seconds.
           </div>
         </section>
       </div>
 
-      <div class="menu-actions">
+      <footer class="menu-actions">
         <button id="btn-start" class="primary">START RACE</button>
-        <span class="small">Esc pauses &middot; M mutes &middot; R restarts &middot; C / &#47; switch camera (chase, cockpit, TV)</span>
-      </div>
+        <div class="keys-hint">
+          <span><kbd>Esc</kbd>pause</span><span><kbd>M</kbd>mute</span><span><kbd>R</kbd>restart</span><span><kbd>C</kbd><kbd>/</kbd>camera: chase, cockpit, TV</span>
+        </div>
+      </footer>
     </div>
   </div>
 
   <!-- Pause -->
   <div id="pause" class="overlay hidden">
     <div class="menu-card small-card">
-      <h1>PAUSED</h1>
-      <button id="btn-resume" class="primary">RESUME</button>
-      <button id="btn-restart">RESTART RACE</button>
-      <button id="btn-quit">BACK TO MENU</button>
+      <h1>Paused</h1>
+      <div class="subtitle">Race suspended</div>
+      <button id="btn-resume" class="primary">Resume</button>
+      <button id="btn-restart">Restart race</button>
+      <button id="btn-quit">Back to menu</button>
+      <div class="keys-hint"><span><kbd>Esc</kbd>resume</span><span><kbd>M</kbd>mute</span><span><kbd>R</kbd>restart</span></div>
     </div>
   </div>
 
   <!-- Results -->
   <div id="results" class="overlay hidden">
     <div class="menu-card results-card">
-      <h1>RACE RESULT</h1>
-      <div class="subtitle" id="results-sub"></div>
-      <table id="results-table"></table>
-      <div class="menu-actions">
-        <button id="btn-again" class="primary">RACE AGAIN</button>
-        <button id="btn-menu">MENU</button>
+      <div class="results-head">
+        <div>
+          <h1>Race result</h1>
+          <div class="subtitle" id="results-sub"></div>
+        </div>
+        <div class="flag"></div>
+      </div>
+      <div class="results-body">
+        <div class="results-scroll"><table id="results-table"></table></div>
+        <div class="menu-actions">
+          <button id="btn-again" class="primary">Race again</button>
+          <button id="btn-menu">Menu</button>
+        </div>
       </div>
     </div>
   </div>
 
-  <div id="loading" class="overlay"><div class="loader">Building Silverstone&hellip;</div></div>
+  <div id="loading" class="overlay"><div class="loader"><div class="wordmark"><div class="wm-mark"></div><div class="wm-text"><h1>EQUATION&nbsp;<em>I</em></h1></div></div><div class="loader-bar"><i></i></div><div class="loader-text">Building Silverstone</div></div></div>
 </div>
 
 <script src="vendor/three.min.js"></script>
+<script src="vendor/GLTFLoader.js"></script>
 <script src="vendor/EffectComposer.js"></script>
 <script src="vendor/RenderPass.js"></script>
 <script src="vendor/ShaderPass.js"></script>
@@ -174,8 +203,10 @@
 <script src="js/teams.js"></script>
 <script src="js/track.js"></script>
 <script src="js/scenery.js"></script>
+<script src="js/infra.js"></script>
 <script src="js/particles.js"></script>
 <script src="js/carmodel.js"></script>
+<script src="js/carglb.js"></script>
 <script src="js/car.js"></script>
 <script src="js/ai.js"></script>
 <script src="js/audio.js"></script>

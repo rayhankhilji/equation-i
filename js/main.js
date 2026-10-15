@@ -14,24 +14,28 @@ window.EI = window.EI || {};
     renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
     renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5)); renderer.setSize(window.innerWidth, window.innerHeight);
     renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-    renderer.outputEncoding = THREE.sRGBEncoding; renderer.toneMapping = THREE.ReinhardToneMapping; renderer.toneMappingExposure = 1.35;
+    renderer.outputEncoding = THREE.sRGBEncoding; renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.05;
+    // colour grade baked into every shader: vivid saturation, a little contrast and a warm lift
+    THREE.ShaderChunk.tonemapping_fragment = '#if defined( TONE_MAPPING )\n gl_FragColor.rgb = toneMapping( gl_FragColor.rgb );\n#endif\n' +
+      '{ vec3 c = gl_FragColor.rgb; float l = dot(c, vec3(0.2126, 0.7152, 0.0722)); c = mix(vec3(l), c, 1.45); c = (c - 0.5) * 1.08 + 0.5; c *= vec3(1.03, 1.0, 0.97); gl_FragColor.rgb = clamp(c, 0.0, 1.0); }\n';
     scene = new THREE.Scene();
     // physically based sky, with the sun light aligned to it and a PMREM environment for reflections / ambient
     const sunDir = new THREE.Vector3(); const elev = 42, azim = 205; const phi = THREE.MathUtils.degToRad(90 - elev), theta = THREE.MathUtils.degToRad(azim); sunDir.setFromSphericalCoords(1, phi, theta);
-    skyMesh = new THREE.Sky(); skyMesh.scale.setScalar(5500); const su = skyMesh.material.uniforms; su.turbidity.value = 2.2; su.rayleigh.value = 1.5; su.mieCoefficient.value = 0.004; su.mieDirectionalG.value = 0.85; su.sunPosition.value.copy(sunDir); scene.add(skyMesh);
-    const pm = new THREE.PMREMGenerator(renderer); pm.compileEquirectangularShader();
-    const skyScene = new THREE.Scene(); const sky2 = new THREE.Sky(); sky2.scale.setScalar(5500); sky2.material.uniforms.turbidity.value = 2.2; sky2.material.uniforms.rayleigh.value = 1.5; sky2.material.uniforms.sunPosition.value.copy(sunDir); skyScene.add(sky2);
-    scene.environment = pm.fromScene(skyScene, 0.02).texture; pm.dispose();
-    const horizon = 0xb5c8de; scene.fog = new THREE.Fog(horizon, 1100, 5600);
-    hemi = new THREE.HemisphereLight(0xb9cfe8, 0x3f4a2e, 0.3); scene.add(hemi);
-    sun = new THREE.DirectionalLight(0xfff0dd, 1.9); sun.castShadow = true; this_sunDir = sunDir;
+    skyMesh = new THREE.Sky(); skyMesh.scale.setScalar(5500); const su = skyMesh.material.uniforms; su.turbidity.value = 2.5; su.rayleigh.value = 2.0; su.mieCoefficient.value = 0.004; su.mieDirectionalG.value = 0.85; su.sunPosition.value.copy(sunDir); scene.add(skyMesh);
+    const t0 = performance.now(); const pm = new THREE.PMREMGenerator(renderer); pm.compileEquirectangularShader();
+    const skyScene = new THREE.Scene(); const sky2 = new THREE.Sky(); sky2.scale.setScalar(5500); sky2.material.uniforms.turbidity.value = 2.5; sky2.material.uniforms.rayleigh.value = 2.0; sky2.material.uniforms.sunPosition.value.copy(sunDir); skyScene.add(sky2);
+    scene.environment = pm.fromScene(skyScene, 0.02).texture; pm.dispose(); const tPmrem = Math.round(performance.now() - t0);
+    const horizon = 0xa9c4e4; scene.fog = new THREE.Fog(horizon, 1300, 6000);
+    hemi = new THREE.HemisphereLight(0x9fc4ee, 0x3f5a2e, 0.35); scene.add(hemi);
+    sun = new THREE.DirectionalLight(0xfff1dd, 2.4); sun.castShadow = true; this_sunDir = sunDir;
     sun.shadow.mapSize.set(2048, 2048); sun.shadow.camera.near = 10; sun.shadow.camera.far = 600;
     sun.shadow.camera.left = -70; sun.shadow.camera.right = 70; sun.shadow.camera.top = 70; sun.shadow.camera.bottom = -70; sun.shadow.bias = -0.0004; sun.shadow.normalBias = 0.04; sun.shadow.radius = 2;
     scene.add(sun); scene.add(sun.target);
     envMap = scene.environment;
-    track = new EI.Track(EI.TRACKS.silverstone);
-    scenery = new EI.Scenery(track); scene.add(scenery.build());
-    scene.add(track.build(scenery));
+    const timings = {}; let tm = performance.now(); const lap = (k) => { timings[k] = Math.round(performance.now() - tm); tm = performance.now(); };
+    track = new EI.Track(EI.TRACKS.silverstone); lap('track-math');
+    scenery = new EI.Scenery(track); scene.add(scenery.build()); lap('scenery');
+    scene.add(track.build(scenery)); lap('track-mesh'); timings.pmrem = tPmrem; EI.debug.timings = timings;
     scene.traverse(o => { if (o.material && o.material.isMeshStandardMaterial && o.material.envMapIntensity === 1) o.material.envMapIntensity = 0.3; });
     particles = new EI.Particles(scene);
     // post-processing (single viewport): bloom + FXAA
@@ -40,7 +44,10 @@ window.EI = window.EI || {};
     bloomPass = new THREE.UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 0.28, 0.55, 0.88); composer.addPass(bloomPass);
     fxaaPass = new THREE.ShaderPass(THREE.FXAAShader); composer.addPass(fxaaPass);
     EI.HUD.drawTrackPreview(track, $('track-preview'));
-    setupMenu(); $('loading').classList.add('hidden');
+    setupMenu();
+    // the GLB car is optional: hide the loading overlay once it is in (or has failed and we fall back to the procedural car)
+    const hideLoading = () => $('loading').classList.add('hidden');
+    const tp = performance.now(); if (EI.CarGLB) EI.CarGLB.preload().then(() => { timings.preload = Math.round(performance.now() - tp); hideLoading(); }, hideLoading); else hideLoading();
     window.addEventListener('resize', onResize);
     if (U.isTouch()) EI.Input.initTouch($('touch'));
     cameras = [new THREE.PerspectiveCamera(60, 1, 0.3, 6000)]; onResize(); requestAnimationFrame(loop);
@@ -130,10 +137,11 @@ window.EI = window.EI || {};
     if (mode === 'cockpit') {
       // driver's eye: behind the halo, looking down the nose
       const g = car.gradeNow || 0; const bob = Math.sin(performance.now() * 0.03) * v * 0.0006;
-      tmp.set(car.x + fx * 0.45, car.y + 0.9 + bob, car.z + fz * 0.45); cam.position.copy(tmp);
-      tmp2.set(car.x + fx * 30, car.y + 0.8 + g * 30 + bob, car.z + fz * 30);
+      const eyeX = (EI.CarGLB && EI.CarGLB.ready) ? 0.18 : 0.45, eyeY = (EI.CarGLB && EI.CarGLB.ready) ? 0.93 : 0.9;
+      tmp.set(car.x + fx * eyeX, car.y + eyeY + bob, car.z + fz * eyeX); cam.position.copy(tmp);
+      tmp2.set(car.x + fx * 30, car.y + eyeY - 0.08 + g * 30 + bob, car.z + fz * 30);
       if (shake > 0) { tmp2.x += (Math.random() - 0.5) * shake * 0.6; tmp2.y += (Math.random() - 0.5) * shake * 0.3; }
-      cam.lookAt(tmp2); cam.fov = 68 + v * 0.05; cam.updateProjectionMatrix(); return;
+      cam.lookAt(tmp2); cam.fov = 62 + v * 0.05; cam.updateProjectionMatrix(); return;
     }
     if (mode === 'tv') {
       // trackside: a fixed pod ahead of the car that pans with it, re-anchored every ~120 m
@@ -181,7 +189,7 @@ window.EI = window.EI || {};
     race.players.forEach((c, k) => { const pads = navigator.getGamepads ? navigator.getGamepads() : []; const gp = pads && pads[k]; if (gp && gp.buttons[3] && gp.buttons[3].pressed && !c._camBtn) cycleCam(k); c._camBtn = !!(gp && gp.buttons[3] && gp.buttons[3].pressed); });
     acc += dt; let steps = 0; while (acc >= DT && steps < 6) { race.update(DT, inputs); acc -= DT; steps++; } if (steps === 6) acc = 0;
     handleEvents(); for (const c of race.cars) { c.updateVisual(dt); if (dt > 0) particles.fromCar(c, dt); } particles.update(dt); shake = Math.max(0, shake - dt * 3); hudT += dt;
-    race.players.forEach((car, k) => { if (k === 0 && EI.debug.freeCam) { const f = EI.debug.freeCam; cameras[0].position.set(f.pos[0], f.pos[1], f.pos[2]); cameras[0].lookAt(f.look[0], f.look[1], f.look[2]); cameras[0].fov = f.fov || 50; cameras[0].updateProjectionMatrix(); } else placeCamera(cameras[k], car, k, false, dt); if (hudT > 0.05) { viewports[k].update(race, 0.05); updateTags(k, cameras[k], viewports[k]); } if (engines[k]) EI.Audio.setEngine(engines[k], car.rpm, car.throttle, paused ? 0 : (CAM_MODES[camModes[k]] === 'cockpit' ? 1.3 : 1)); });
+    race.players.forEach((car, k) => { if (k === 0 && EI.debug.freeCam) { const f = EI.debug.freeCam; cameras[0].position.set(f.pos[0], f.pos[1], f.pos[2]); cameras[0].lookAt(f.look[0], f.look[1], f.look[2]); cameras[0].fov = f.fov || 50; cameras[0].updateProjectionMatrix(); } else placeCamera(cameras[k], car, k, false, dt); if (hudT > 0.05) { viewports[k].update(race, 0.05); updateTags(k, cameras[k], viewports[k]); } if (engines[k]) EI.Audio.setEngine(engines[k], car.rpm, car.throttle, paused ? 0 : (CAM_MODES[camModes[k]] === 'cockpit' ? 1.3 : 1), car.gear); });
     if (hudT > 0.05) hudT = 0;
     if (race.over && !resultsShown && race.classified) { resultsShown = true; EI.HUD.showResults(race); }
     scenery.update(dt, race.players[0].x, race.players[0].z);
@@ -215,6 +223,6 @@ window.EI = window.EI || {};
     }
     for (const car of race.players) if (car.wallHit > 0.5 && shake < 0.2) { shake = car.wallHit * 0.5; EI.Audio.thud(car.wallHit); car.wallHit = 0.3; }
   }
-  EI.debug = { setQuality, snapCameras: () => race && race.players.forEach((car, k) => placeCamera(cameras[k], car, k, true, 0)), setCam: (k, m) => { camModes[k] = m; }, get race() { return race; }, get track() { return track; }, get scenery() { return scenery; }, get scene() { return scene; }, get cameras() { return cameras; }, renderer: () => renderer, startRace, endRace };
+  EI.debug = { get viewports() { return viewports; }, setQuality, snapCameras: () => race && race.players.forEach((car, k) => placeCamera(cameras[k], car, k, true, 0)), setCam: (k, m) => { camModes[k] = m; }, get race() { return race; }, get track() { return track; }, get scenery() { return scenery; }, get scene() { return scene; }, get cameras() { return cameras; }, renderer: () => renderer, startRace, endRace };
   window.addEventListener('DOMContentLoaded', () => { setTimeout(init, 30); });
 })();

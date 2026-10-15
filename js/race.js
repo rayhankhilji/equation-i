@@ -49,7 +49,7 @@ window.EI = window.EI || {};
       else if (cfg.grid === 'random') { order = this.cars.slice(); for (let i = order.length - 1; i > 0; i--) { const j = Math.floor(rng() * (i + 1)); [order[i], order[j]] = [order[j], order[i]]; } }
       else { // qualifying: players slot in at a position matching the bot difficulty (mid-grid)
         order = botsByPace.slice();
-        const slot = Math.round(order.length * (cfg.difficulty === 'legend' ? 0.7 : cfg.difficulty === 'pro' ? 0.45 : 0.2));
+        const dl = { veryeasy: 0.05, easy: 0.15, rookie: 0.15, average: 0.4, pro: 0.4, above: 0.55, hard: 0.7, veryhard: 0.85, legend: 0.85, ultra: 1.0 }; const slot = Math.round(order.length * (dl[cfg.difficulty] != null ? dl[cfg.difficulty] : 0.4));
         players.forEach((p, k) => order.splice(Math.min(order.length, slot + k), 0, p));
       }
       order.forEach((car, pos) => {
