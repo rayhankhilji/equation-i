@@ -18,7 +18,7 @@ window.EI = window.EI || {};
       '<div class="tm-sectors"><span>S1</span><span>S2</span><span>S3</span></div>' +
       '<div class="tm-foot"><span class="tm-last">LAST<b>--:--.---</b></span><span class="tm-best">BEST<b>--:--.---</b></span><span class="delta"></span></div></div>' +
       '<div class="msg"><span></span></div>' +
-      '<div class="mapwrap"><canvas class="minimap" width="200" height="300"></canvas></div>' +
+      '<div class="mapwrap"><canvas class="minimap" width="360" height="360"></canvas><i class="map-n"></i></div>' +
       '<div class="dash panel"><div class="leds"></div><div class="dash-main">' +
       '<div class="ers"><div class="ers-top"><i class="batt"><b></b></i><span class="ers-pct">100%</span></div><div class="ers-bar"><i></i></div><div class="ers-label">ERS</div></div>' +
       '<div class="centre"><div class="gear-wrap"><div class="gear">N</div><div class="rpm"></div></div>' +
@@ -42,12 +42,14 @@ window.EI = window.EI || {};
     q('.pname').innerHTML = '<i style="background:' + car.team.primary + '"></i><span>' + car.name + '</span><span class="team">' + car.team.short + '</span>' + (car.isPlayer ? '<span class="cam">' + (k === 0 ? 'C' : '/') + ' · CAMERA</span>' : '');
     r.setRect = (x, y, w, h) => {
       el.style.left = x + 'px'; el.style.top = y + 'px'; el.style.width = w + 'px'; el.style.height = h + 'px'; r.w = w; r.h = h;
-      const s = U.clamp(Math.min(w / 1280, h / 720), 0.64, 1.3); r.s = s; el.style.setProperty('--s', s.toFixed(3));
-      el.classList.toggle('narrow', w < (520 + 2 * 200) * s + 2 * 18 * s);
+      const s = U.clamp(Math.min(w / 1280, h / 720), 0.7, 1.3); r.s = s; el.style.setProperty('--s', s.toFixed(3));
+      const side = (w - 520 * s) / 2; el.classList.toggle('narrow', side < 200 * s); el.classList.toggle('tight', side < 120 * s);   // room left beside the centre dash
     };
     r.showMsg = (text, cls, dur) => { r.msgText.textContent = text; r.msg.className = 'msg ' + (cls || ''); void r.msg.offsetWidth; r.msg.classList.add('show'); r.msgT = dur || 2.5; };
     r.update = (race, dt) => {
       const c = car, t = race.track;
+      // cockpit view: the wheel display carries gear / speed / ERS / DRS, so the centre dash steps aside
+      const ck = !!(c._cockpitT && performance.now() - c._cockpitT < 400); if (ck !== r.ck) { r.ck = ck; el.classList.toggle('cockpit', ck); }
       // ---- dash
       setText(r.speed, String(Math.round(c.speedKmh))); setText(r.gear, c.gear === 0 ? 'N' : c.v < -0.5 ? 'R' : String(c.gear));
       const lit = Math.round(c.rpm * 15); for (let i = 0; i < 15; i++) r.leds[i].classList.toggle('on', i < lit);
@@ -88,38 +90,53 @@ window.EI = window.EI || {};
       drawLocalMap(r, race);
     };
     r.updateTags = (list) => {
-      while (r.tagEls.length < list.length) { const d = document.createElement('div'); d.className = 'tag'; d.innerHTML = '<span class="tp"></span><span class="tb"></span><span class="tn"></span>'; r.tags.appendChild(d); r.tagEls.push(d); }
+      while (r.tagEls.length < list.length) { const d = document.createElement('div'); d.className = 'tag'; d.innerHTML = '<span class="tp"></span><span class="tb"></span><span class="tn"></span><i class="tpt"></i>'; r.tags.appendChild(d); r.tagEls.push(d); }
+      // declutter: nearest cars keep their spot, farther tags that would overlap are stacked upwards
+      const order = list.map((tg, i) => i).sort((i, j) => list[j].alpha - list[i].alpha); const placed = []; const s = r.s || 1;
+      const ys = [];
+      for (const i of order) {
+        const tg = list[i]; const sc = s * (0.7 + 0.3 * Math.min(1, tg.alpha)); const w = (42 + String(tg.text).length * 8.7) * sc, h = 22 * sc; let y = tg.y;
+        for (let tries = 0; tries < 4; tries++) { const hit = placed.find(p => Math.abs(p.x - tg.x) < (p.w + w) / 2 && Math.abs(p.y - y) < (p.h + h) / 2); if (!hit) break; y = hit.y - (hit.h + h) / 2 - 2; }
+        placed.push({ x: tg.x, y, w, h }); ys[i] = y;
+      }
       r.tagEls.forEach((d, i) => {
-        const tg = list[i]; if (!tg) { d.style.display = 'none'; return; }
-        d.style.display = 'flex'; d.style.left = tg.x + 'px'; d.style.top = tg.y + 'px'; d.style.opacity = tg.alpha; d.style.setProperty('--d', (0.7 + 0.3 * Math.min(1, tg.alpha)).toFixed(2));
+        const tg = list[i]; if (!tg) { if (d.style.display !== 'none') d.style.display = 'none'; return; }
+        d.style.display = 'flex'; d.style.left = tg.x.toFixed(1) + 'px'; d.style.top = ys[i].toFixed(1) + 'px'; d.style.opacity = tg.alpha; d.style.setProperty('--d', (0.7 + 0.3 * Math.min(1, tg.alpha)).toFixed(2));
+        d.classList.toggle('stacked', ys[i] < tg.y - 1);
         setText(d.children[0], String(tg.pos)); d.children[1].style.background = tg.color; setText(d.children[2], tg.text);
       });
     };
     return r;
   }
 
+  // rotating local map: heading up, ~ +/-450 m around the car, whole circuit outline, DRS zones, sector ticks, cars
   function drawLocalMap(r, race) {
-    const ctx = r.map, W = 200, H = 300, c = r.car, t = race.track; ctx.clearRect(0, 0, W, H);
-    const scale = 0.55; // px per metre
-    // soft backing so the map reads on bright scenery (the CSS mask feathers the edge)
-    const bg = ctx.createRadialGradient(W / 2, H * 0.62, 10, W / 2, H * 0.62, 150); bg.addColorStop(0, 'rgba(6,8,12,0.55)'); bg.addColorStop(1, 'rgba(6,8,12,0.35)');
-    ctx.fillStyle = bg; ctx.fillRect(0, 0, W, H);
-    // rotate so the car's heading points up: world forward (cos h, sin h) -> screen (0,-1)
-    ctx.save(); ctx.translate(W / 2, H * 0.62); const ang = -(c.heading) - Math.PI / 2; ctx.rotate(ang);
-    const n = t.n, i0 = c.trk.i, span = Math.round(260 / t.ds);
-    const path = (from, to, step) => { ctx.beginPath(); let first = true; for (let j = from; j <= to; j += step) { const i = (i0 + j + n * 4) % n; const px = (t.x[i] - c.x) * scale, pz = (t.z[i] - c.z) * scale; if (first) { ctx.moveTo(px, pz); first = false; } else ctx.lineTo(px, pz); } };
+    const ctx = r.map, S = 360, c = r.car, t = race.track; const k = S / 180; ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.clearRect(0, 0, S, S);
+    const scale = 0.19 * k; const cx = S / 2, cy = S * 0.56;
+    ctx.save(); ctx.translate(cx, cy); ctx.rotate(-(c.heading) - Math.PI / 2);
+    const n = t.n, step = Math.max(1, Math.round(6 / (t.ds || 1)));
+    const P = (i) => [(t.x[i] - c.x) * scale, (t.z[i] - c.z) * scale];
     ctx.lineCap = 'round'; ctx.lineJoin = 'round';
-    path(-span, span, 4); ctx.lineWidth = 15; ctx.strokeStyle = 'rgba(0,0,0,0.6)'; ctx.stroke();
-    path(-span, span, 4); ctx.lineWidth = 10; ctx.strokeStyle = '#ececec'; ctx.stroke();
+    ctx.beginPath(); for (let i = 0; i <= n; i += step) { const p = P(i % n); i === 0 ? ctx.moveTo(p[0], p[1]) : ctx.lineTo(p[0], p[1]); } ctx.closePath();
+    ctx.lineWidth = 11 * k / 2; ctx.strokeStyle = 'rgba(0,0,0,0.55)'; ctx.stroke();
+    ctx.lineWidth = 6 * k / 2; ctx.strokeStyle = '#e4e8ee'; ctx.stroke();
     // DRS zones
-    for (const z of t.drs) { ctx.beginPath(); let first = true; for (let s = z.start; s <= z.end; s += 8) { const i = t.idxAtS(s); let d = i - i0; if (d > n / 2) d -= n; if (d < -n / 2) d += n; if (Math.abs(d) > span) continue; const px = (t.x[i] - c.x) * scale, pz = (t.z[i] - c.z) * scale; if (first) { ctx.moveTo(px, pz); first = false; } else ctx.lineTo(px, pz); } ctx.lineWidth = 10; ctx.strokeStyle = '#3d8dff'; ctx.stroke(); }
-    // start line
-    { const i = t.idxAtS(t.sf); let d = i - i0; if (d > n / 2) d -= n; if (d < -n / 2) d += n; if (Math.abs(d) < span) { ctx.save(); ctx.translate((t.x[i] - c.x) * scale, (t.z[i] - c.z) * scale); ctx.rotate(Math.atan2(t.tz ? t.tz[i] : 0, t.tx ? t.tx[i] : 1)); ctx.fillStyle = '#fff'; ctx.fillRect(-2, -6, 4, 12); ctx.fillStyle = '#111'; ctx.fillRect(-2, -6, 2, 3); ctx.fillRect(0, -3, 2, 3); ctx.fillRect(-2, 0, 2, 3); ctx.fillRect(0, 3, 2, 3); ctx.restore(); } }
-    // cars
-    for (const o of race.cars) { if (o === c) continue; const px = (o.x - c.x) * scale, pz = (o.z - c.z) * scale; if (px * px + pz * pz > 150 * 150) continue; ctx.fillStyle = o.team.primary; ctx.strokeStyle = 'rgba(255,255,255,0.85)'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(px, pz, 5, 0, 6.283); ctx.fill(); ctx.stroke(); }
+    ctx.strokeStyle = '#2fe36d'; ctx.lineWidth = 6 * k / 2;
+    for (const z of t.drs) { ctx.beginPath(); for (let s = z.start; s <= z.end; s += 10) { const p = P(t.idxAtS(s)); s === z.start ? ctx.moveTo(p[0], p[1]) : ctx.lineTo(p[0], p[1]); } ctx.stroke(); }
+    // sector boundaries + start line
+    const tick = (s, col, len) => { const i = t.idxAtS(s); const p = P(i); const nx = t.nx[i], nz = t.nz[i]; ctx.beginPath(); ctx.moveTo(p[0] - nx * len, p[1] - nz * len); ctx.lineTo(p[0] + nx * len, p[1] + nz * len); ctx.strokeStyle = col; ctx.lineWidth = 2.5 * k / 2; ctx.stroke(); };
+    if (t.sectors) for (const s of t.sectors) tick(s, '#ffd23f', 6 * k / 2);
+    tick(t.sf, '#ffffff', 8 * k / 2);
+    // cars (team colour, white ring); the car directly ahead / behind gets a slightly larger dot
+    const ahead = race.order[c.pos - 2], behind = race.order[c.pos];
+    for (const o of race.cars) {
+      if (o === c) continue; const px = (o.x - c.x) * scale, pz = (o.z - c.z) * scale; if (px * px + pz * pz > (S * 0.62) * (S * 0.62)) continue;
+      const big = o === ahead || o === behind; ctx.beginPath(); ctx.arc(px, pz, (big ? 5.5 : 4.2) * k / 2 * 1.2, 0, 6.283); ctx.fillStyle = o.team.primary; ctx.fill(); ctx.lineWidth = 1.6 * k / 2; ctx.strokeStyle = big ? '#ffffff' : 'rgba(255,255,255,0.75)'; ctx.stroke();
+    }
     ctx.restore();
     // player arrow
-    ctx.save(); ctx.translate(W / 2, H * 0.62); ctx.shadowColor = 'rgba(0,0,0,0.7)'; ctx.shadowBlur = 4; ctx.fillStyle = '#39ff7a'; ctx.strokeStyle = '#0a3d1e'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(0, -10); ctx.lineTo(7.5, 8); ctx.lineTo(0, 4); ctx.lineTo(-7.5, 8); ctx.closePath(); ctx.fill(); ctx.stroke(); ctx.restore();
+    ctx.save(); ctx.translate(cx, cy); ctx.scale(k / 2 * 1.25, k / 2 * 1.25); ctx.shadowColor = 'rgba(0,0,0,0.7)'; ctx.shadowBlur = 4; ctx.fillStyle = '#ffffff'; ctx.strokeStyle = c.team.primary; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(0, -10); ctx.lineTo(7.5, 8); ctx.lineTo(0, 4); ctx.lineTo(-7.5, 8); ctx.closePath(); ctx.fill(); ctx.shadowBlur = 0; ctx.stroke(); ctx.restore();
   }
 
   function setLights(n) { const cols = $('lights').querySelectorAll('.light-col'); cols.forEach((c, i) => c.classList.toggle('on', i < n)); }

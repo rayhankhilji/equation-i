@@ -16,6 +16,21 @@ window.EI = window.EI || {};
     { id: 'kinetik', name: 'Kinetik Sauber',     short: 'KIN', primary: '#0e0e0e', secondary: '#00e701', accent: '#ffffff', numberColor: '#00e701', skill: 0.91, drivers: [{ name: 'N. Hulk', num: 27 }, { name: 'G. Bortoleto', num: 5 }] },
     { id: 'vector',  name: 'Vector RB',          short: 'VRB', primary: '#f5f5f7', secondary: '#1434cb', accent: '#c8102e', numberColor: '#1434cb', skill: 0.93, drivers: [{ name: 'I. Hadjar', num: 6 }, { name: 'L. Lawson', num: 30 }] },
   ];
+  // fictional sponsor sets: title sponsor first (engine cover, rear wing), then sidepod / nose / chassis partners.
+  // n = name, fg/bg = text / optional box colour, it = italic, w = font weight, ls = letter spacing (em)
+  const SPONSORS = {
+    rossa:   [{ n: 'VELTRA', fg: '#ffffff', it: 1 }, { n: 'MARENA', fg: '#d8141a', bg: '#ffd200' }, { n: 'KORE', fg: '#ffffff', ls: 0.1 }, { n: 'SANTEX', fg: '#ffffff' }],
+    argent:  [{ n: 'PETRAX', fg: '#00d2be', ls: 0.06 }, { n: 'NEONIS', fg: '#0f0f12', bg: '#c6c9cf' }, { n: 'HALVER', fg: '#ffffff' }, { n: 'CROWNLINE', fg: '#ffffff', w: 700 }],
+    taurus:  [{ n: 'ORAXIS', fg: '#ffffff', ls: 0.08 }, { n: 'BYTEX', fg: '#1e2a6b', bg: '#ffc906', it: 1 }, { n: 'MOBYLA', fg: '#ffffff', bg: '#c8102e' }, { n: 'TAGORA', fg: '#ffffff' }],
+    papaya:  [{ n: 'MERIDIAN', fg: '#101010', it: 1 }, { n: 'GOLYX', fg: '#ffffff', bg: '#101010' }, { n: 'OKTA', fg: '#101010', ls: 0.12 }, { n: 'DELTRON', fg: '#101010' }],
+    verdant: [{ n: 'ARAMIS', fg: '#ffffff', ls: 0.06 }, { n: 'COGNIS', fg: '#00594f', bg: '#cedc00' }, { n: 'VALEX', fg: '#ffffff' }, { n: 'BORNE', fg: '#cedc00', ls: 0.1 }],
+    alpenne: [{ n: 'BWX', fg: '#ffffff', bg: '#ff4fa3', it: 1 }, { n: 'RENOX', fg: '#ffffff', ls: 0.08 }, { n: 'CASTERO', fg: '#ffffff' }, { n: 'BINARIA', fg: '#f3ba2f' }],
+    wilhelm: [{ n: 'ATLASIA', fg: '#ffffff', ls: 0.04 }, { n: 'KOMATO', fg: '#0c2b63', bg: '#37bedd' }, { n: 'DURACORE', fg: '#ffffff' }, { n: 'GULFRAY', fg: '#ffffff', bg: '#f47b20' }],
+    hayes:   [{ n: 'MONEYGO', fg: '#101010', it: 1 }, { n: 'TOKAI', fg: '#ffffff', bg: '#b6002a' }, { n: 'CHIPPA', fg: '#b6002a' }, { n: 'PIRANO', fg: '#101010', ls: 0.06 }],
+    kinetik: [{ n: 'STAKO', fg: '#00e701', it: 1 }, { n: 'KIKK', fg: '#0e0e0e', bg: '#00e701' }, { n: 'AUREX', fg: '#ffffff', ls: 0.1 }, { n: 'ALLIA', fg: '#ffffff' }],
+    vector:  [{ n: 'VYSA', fg: '#1434cb', it: 1 }, { n: 'CASHLY', fg: '#ffffff', bg: '#00b84f' }, { n: 'HONDEX', fg: '#c8102e', ls: 0.06 }, { n: 'HUBO', fg: '#101010' }],
+  };
+  TEAMS.forEach((t) => { t.sponsors = SPONSORS[t.id] || [{ n: 'EQUATION', fg: '#ffffff' }]; });
   TEAMS.forEach((t, i) => { t.index = i; });
 
   // ---- livery painter -----------------------------------------------------------------------------
@@ -47,13 +62,7 @@ window.EI = window.EI || {};
       ctx.textAlign = align || 'center'; ctx.textBaseline = 'middle'; ctx.fillText(txt, 0, 0); ctx.restore();
     }
     // sponsor-like blocks: lightweight text decals in team style
-    const sponsors = {
-      rossa:   ['HP', 'SHELL', 'RAY-BAN', 'SANTANDER'], argent: ['PETRONAS', 'INEOS', 'TOMMY', 'CROWDSTRIKE'],
-      taurus:  ['ORACLE', 'BYBIT', 'MOBIL 1', 'TAG HEUER'], papaya: ['MASTERCARD', 'GOOGLE', 'OKX', 'DELL'],
-      verdant: ['ARAMCO', 'COGNIZANT', 'VALVOLINE', 'BOSS'], alpenne: ['BWT', 'RENAULT', 'CASTROL', 'BINANCE'],
-      wilhelm: ['ATLASSIAN', 'KOMATSU', 'DURACELL', 'GULF'], hayes: ['MONEYGRAM', 'TOYOTA', 'CHIPOTLE', 'PIRELLI'],
-      kinetik: ['STAKE', 'KICK', 'AUDI', 'ALLIANZ'], vector: ['VISA', 'CASH APP', 'HONDA', 'HUGO'],
-    }[team.id] || ['EI', 'EI', 'EI', 'EI'];
+    const sponsors = (team.sponsors || []).map(sp => sp.n).concat(['EI', 'EI', 'EI', 'EI']).slice(0, 4);
 
     // ---- team-specific pattern on the top view ----
     switch (team.id) {

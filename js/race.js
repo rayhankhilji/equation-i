@@ -12,6 +12,7 @@ window.EI = window.EI || {};
       this.rng = U.rng(cfg.seed || (Date.now() & 0xffff));
       this.drsEnabled = false; this.bestSectors = [-1, -1, -1];
       this.buildGrid();
+      if (EI.Pit) EI.Pit.init(this);
     }
 
     buildGrid() {
@@ -144,6 +145,7 @@ window.EI = window.EI || {};
         if (!this.over) { this.over = true; this.overT = 0; this.emit('over'); }
       }
       if (this.over) { this.overT += dt; if (!this.classified && (this.cars.every(c => c.finished) || this.overT > 20)) { this.classified = true; this.emit('classified'); } }
+      if (EI.Pit) EI.Pit.update(this, dt);
     }
 
     onSector(car, si, sNow, ss) {

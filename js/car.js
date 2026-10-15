@@ -151,8 +151,8 @@ window.EI = window.EI || {};
       if (absLat <= hw) this.surface = 'asphalt';
       else if (absLat <= hw + kw) { this.surface = 'kerb'; surfGrip = 0.93; }
       else if (absLat <= hw + kw + 2) { this.surface = 'asphalt'; surfGrip = 0.97; }
-      else if ((lat > 0 ? track.runoffL[i] : track.runoffR[i]) && absLat <= hw + kw + ((lat > 0 ? track.gravelL[i] : track.gravelR[i]) ? 7 : 14)) { this.surface = 'runoff'; surfGrip = 0.9; surfRoll = 1.2; }
-      else { const grav = lat > 0 ? track.gravelL[i] : track.gravelR[i]; if (grav) { this.surface = 'gravel'; surfGrip = 0.35; surfDrag = 14 + 0.25 * Math.abs(this.v); surfRoll = 3; } else { this.surface = 'grass'; surfGrip = 0.45; surfDrag = 5 + 0.08 * Math.abs(this.v); surfRoll = 2; } }
+      else if ((lat < 0 ? track.runoffL[i] : track.runoffR[i]) && absLat <= hw + kw + ((lat < 0 ? track.gravelL[i] : track.gravelR[i]) ? 7 : 14)) { this.surface = 'runoff'; surfGrip = 0.9; surfRoll = 1.2; }
+      else { const grav = lat < 0 ? track.gravelL[i] : track.gravelR[i]; if (grav) { this.surface = 'gravel'; surfGrip = 0.35; surfDrag = 14 + 0.25 * Math.abs(this.v); surfRoll = 3; } else { this.surface = 'grass'; surfGrip = 0.45; surfDrag = 5 + 0.08 * Math.abs(this.v); surfRoll = 2; } }
       this.offTrack = this.surface === 'grass' || this.surface === 'gravel' ? this.offTrack + dt : 0;
       const mu = this.tyre.grip * surfGrip * (1 - 0.3 * Math.min(1, this.wear));
       const v = this.v, av = Math.abs(v);
@@ -202,7 +202,7 @@ window.EI = window.EI || {};
       this.heading = U.wrapAngle(this.heading - this.yaw * dt); this.vLat *= Math.exp(-dt * (surfGrip < 0.6 ? 2.5 : 7));
       const fx = Math.cos(this.heading), fz = Math.sin(this.heading); const lx = fz, lz = -fx;
       this.x += (fx * this.v + lx * this.vLat) * dt; this.z += (fz * this.v + lz * this.vLat) * dt;
-      const p2 = track.project(this.x, this.z, this.trk.i, this.trk); const wl = track.wallL[p2.i] - 1.0, wr = track.wallR[p2.i] - 1.0;
+      const p2 = track.project(this.x, this.z, this.trk.i, this.trk); const wl = track.wallR[p2.i] - 1.0, wr = track.wallL[p2.i] - 1.0; // L arrays are the lat<0 side (drawing convention)
       this.wallHit = Math.max(0, this.wallHit - dt);
       if (p2.lat > wl || p2.lat < -wr) {
         const side = p2.lat > wl ? 1 : -1; const target = side > 0 ? wl : -wr;

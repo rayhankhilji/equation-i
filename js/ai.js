@@ -72,6 +72,7 @@ window.EI = window.EI || {};
     update(dt, race, cars) {
       const car = this.car, t = this.track, inp = car.input;
       if (!race.started) { inp.throttle = 0; inp.brake = 1; inp.steer = 0; return; }
+      if (EI.Pit && EI.Pit.driveBot(this, dt, race, cars)) return;
       if (car.finished) { inp.throttle = 0.35; inp.brake = 0; inp.drs = false; inp.ers = false; this.steerToLine(10); return; }
       if (race.time < this.reaction) { inp.throttle = 0; inp.brake = 1; return; }
       // --- recovery when stuck against a wall or spun

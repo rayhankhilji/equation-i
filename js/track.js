@@ -7,6 +7,221 @@ window.EI = window.EI || {};
   // elevation profile keyed by distance along the lap (metres). Silverstone sits on a gently rolling plateau.
   const ELEV = [[0, 0], [300, 0.8], [440, 1.5], [660, 4], [940, 5.5], [1010, 5.5], [1255, 4.5], [1350, 3.2], [1700, 1], [1973, -1.5], [2168, -2], [2500, -0.5], [2735, 0], [3085, 1], [3630, 3.5], [3875, 5], [4033, 4], [4300, 2.5], [4650, 1], [5028, 2.5], [5240, -2.5], [5570, -3], [5640, -1.5], [5878, 0]];
 
+  // ---------------------------------------------------------------- surface shaders (MeshStandardMaterial + per-pixel track-space detail)
+  const SH_COMMON = [
+    'uniform sampler2D eiAux; uniform vec4 eiSP; uniform float eiHW; uniform float eiKW;',
+    'float eiHash(vec2 p) { p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }',
+    'float eiBox(float x, float a, float b, float w) { return smoothstep(a - w, a + w, x) * (1.0 - smoothstep(b - w, b + w, x)); }',
+  ].join('\n');
+  const VARY4 = {
+    v: 'attribute vec4 trk; attribute vec4 trk2; varying vec4 vTrk; varying vec4 vTrk2;',
+    vm: 'vTrk = trk; vTrk2 = trk2;',
+    f: 'varying vec4 vTrk; varying vec4 vTrk2;',
+  };
+  const VARY_RUN = {
+    v: 'attribute vec4 trk; attribute vec4 trk2; attribute vec3 colA; attribute vec3 colB; varying vec4 vTrk; varying vec4 vTrk2; varying vec3 vColA; varying vec3 vColB;',
+    vm: 'vTrk = trk; vTrk2 = trk2; vColA = colA; vColB = colB;',
+    f: 'varying vec4 vTrk; varying vec4 vTrk2; varying vec3 vColA; varying vec3 vColB;',
+  };
+  const VARY_VERGE = {
+    v: 'attribute vec4 trk; attribute vec3 farL; attribute vec3 farR; varying vec4 vTrk; varying vec3 vFarL; varying vec3 vFarR;',
+    vm: 'vTrk = trk; vFarL = farL; vFarR = farR;',
+    f: 'varying vec4 vTrk; varying vec3 vFarL; varying vec3 vFarR;',
+  };
+  // asphalt: macro tone, paving lanes, repaired strips, sealed cracks, rubbered line with tyre streaks (heavier under braking),
+  // marbles off line on the outside of corners, dusty edges, crisp worn white edge lines
+  const ASPHALT_FRAG = `
+    float eLat = vTrk.x, eS = vTrk.y, eD = eLat - vTrk.z, eBrk = vTrk.w;
+    float eK = vTrk2.x, eCorner = abs(eK), eExit = vTrk2.y, eDirt = vTrk2.z;
+    float eAl = abs(eLat); float eAA = max(fwidth(eLat), 0.002); float eAS = max(fwidth(eS), 0.002);
+    vec3 eCol = diffuseColor.rgb;
+    vec4 eM1 = texture2D(eiAux, vec2(eLat * 0.021 + 0.13, eS * eiSP.x));
+    vec4 eM2 = texture2D(eiAux, vec2(eLat * 0.071 + 0.61, eS * eiSP.y));
+    eCol *= 0.86 + 0.28 * eM1.r;
+    eCol *= mix(vec3(1.0), vec3(1.05, 1.02, 0.95), smoothstep(0.35, 0.75, eM2.r));
+    float eLane = floor((eLat + eiHW) / (2.0 * eiHW / 3.0));
+    eCol *= 0.965 + 0.07 * eiHash(vec2(eLane, 7.0));
+    float eSeg = floor(eS / 34.0); float eh = eiHash(vec2(eSeg, 3.1)); float ePatch = 0.0, eSeam = 0.0;
+    if (eh > 0.62) {
+      float pc = (eiHash(vec2(eSeg, 9.7)) - 0.5) * eiHW * 1.3; float pw = 0.9 + eiHash(vec2(eSeg, 1.3)) * 2.8;
+      float ps0 = eSeg * 34.0 + eiHash(vec2(eSeg, 5.5)) * 10.0; float ps1 = ps0 + 5.0 + eiHash(vec2(eSeg, 2.2)) * 18.0;
+      ePatch = eiBox(eLat, pc - pw * 0.5, pc + pw * 0.5, eAA) * eiBox(eS, ps0, ps1, eAS);
+      eSeam = eiBox(eLat, pc - pw * 0.5 - 0.06, pc + pw * 0.5 + 0.06, eAA) * eiBox(eS, ps0 - 0.06, ps1 + 0.06, eAS) - ePatch;
+    }
+    eCol = mix(eCol, mix(eCol, vec3(dot(eCol, vec3(0.33))), 0.6) * vec3(0.84, 0.84, 0.86) * (0.95 + 0.1 * eM2.r), ePatch);
+    eCol *= 1.0 - 0.5 * eSeam;
+    float eCr = texture2D(eiAux, vec2(eLat * 0.09 + 0.4, eS * eiSP.z * 2.0)).a * smoothstep(0.45, 0.7, eM1.g);
+    eCol *= 1.0 - 0.28 * eCr * (1.0 - ePatch);
+    float eRw = 1.2 + 0.6 * eCorner + 0.4 * eBrk;
+    float eRub = exp(-eD * eD / (2.0 * eRw * eRw));
+    float eTT = exp(-pow(abs(eD) - 0.8, 2.0) / (2.0 * 0.3 * 0.3));
+    float eSt = texture2D(eiAux, vec2(eD * 0.21 + 0.5, eS * eiSP.w)).g;
+    float eSt2 = texture2D(eiAux, vec2(eD * 0.47 + 0.2, eS * eiSP.w * 1.7)).g;
+    float eRubber = eRub * (0.36 + 0.3 * eSt) + eTT * 0.3 * eSt2;
+    float eLock = smoothstep(0.6, 0.75, eSt2) * exp(-eD * eD / 5.0);
+    eRubber += eBrk * (0.35 * eRub + 0.6 * eLock);
+    eRubber += eExit * eTT * 0.4 * smoothstep(0.45, 0.7, eSt);
+    eRubber = clamp(eRubber * (1.0 - smoothstep(eiHW - 0.5, eiHW, eAl)), 0.0, 0.9);
+    eCol = mix(eCol, eCol * vec3(0.34, 0.34, 0.36), eRubber);
+    float eOut = -eD * sign(eK);
+    float eMz = eCorner * smoothstep(1.8, 3.6, eOut) * (1.0 - smoothstep(eiHW - 0.4, eiHW - 0.1, eAl));
+    vec4 eSp = texture2D(eiAux, vec2(eLat * 0.37 + 0.71, eS * eiSP.y * 4.0));
+    float eDark = smoothstep(0.85, 0.95, eSp.b), eLite = smoothstep(0.35, 0.42, eSp.b) * (1.0 - eDark);
+    eCol = mix(eCol, eCol * 1.12 + vec3(0.014, 0.012, 0.009), eMz * 0.5);
+    eCol = mix(eCol, vec3(0.42, 0.40, 0.36), eMz * eLite * 0.85);
+    eCol = mix(eCol, vec3(0.02), eMz * eDark * 0.8);
+    float eEd = smoothstep(eiHW - 2.4, eiHW - 0.1, eAl);
+    float eDs = texture2D(eiAux, vec2(eLat * 0.6, eS * eiSP.w * 0.6)).g;
+    float eDirtA = clamp(eEd * (0.25 + 0.75 * eDirt) * (0.45 + 0.9 * eDs) * (1.0 - eRubber), 0.0, 1.0);
+    eCol = mix(eCol, vec3(0.25, 0.21, 0.155), eDirtA * 0.55);
+    float ePaint = smoothstep(eiHW - 0.2 - eAA, eiHW - 0.2 + eAA, eAl);
+    float eWear = smoothstep(0.55, 0.85, eM2.g) * 0.45 + eCr * 0.6 + eLite * eMz * 0.4;
+    vec3 eWhite = vec3(0.74, 0.74, 0.72) * (0.92 + 0.1 * eM1.r);
+    eWhite = mix(eWhite, vec3(0.42, 0.39, 0.34), eDirtA * 0.45);
+    ePaint *= 1.0 - clamp(eWear, 0.0, 0.7);
+    eCol = mix(eCol, eWhite, ePaint);
+    diffuseColor.rgb = eCol;
+  `;
+  const ASPHALT_ROUGH = `
+    roughnessFactor = clamp(roughnessFactor * (1.0 - 0.38 * eRubber) + eDirtA * 0.2, 0.3, 1.0);
+    roughnessFactor = mix(roughnessFactor, 0.55, ePaint);
+    float eiFlat = clamp(ePaint * 0.85 + eRubber * 0.55 + ePatch * 0.35, 0.0, 1.0);
+  `;
+  const FLATTEN = 'normal = normalize(mix(normal, eiGeoN, eiFlat));';
+  // run-off: shoulder asphalt, green strip behind kerbs, colour-blocked paint with white borders and weathering, gravel spill
+  const RUNOFF_FRAG = `
+    float rLat = vTrk.x, rS = vTrk.y, rAl = abs(rLat); float rAA = max(fwidth(rAl), 0.002);
+    float aw0 = vTrk2.z, rOuter = vTrk2.w, rGS = vTrk2.y;
+    vec3 rCol = diffuseColor.rgb;
+    vec4 rM1 = texture2D(eiAux, vec2(rLat * 0.031 + 0.3, rS * eiSP.x));
+    vec4 rM2 = texture2D(eiAux, vec2(rLat * 0.093, rS * eiSP.y));
+    rCol *= 0.86 + 0.26 * rM1.r;
+    float rCr = texture2D(eiAux, vec2(rLat * 0.05 + 0.1, rS * eiSP.z)).a;
+    rCol *= 1.0 - 0.45 * rCr;
+    vec3 rBase = rCol;
+    float rGw = fwidth(vTrk2.x); float rGon = smoothstep(0.5 - rGw, 0.5 + rGw, vTrk2.x);
+    float rPw = fwidth(vTrk.z); float rPon = smoothstep(0.44 - rPw, 0.44 + rPw, vTrk.z);
+    float rGreen = rGon * eiBox(rAl, eiHW + eiKW - 0.05, aw0, rAA);
+    vec3 rGreenC = vec3(0.045, 0.2, 0.06) * (0.85 + 0.3 * rM2.r);
+    float rWear = smoothstep(0.5, 0.85, rM2.r) * 0.55 + rCr * 0.5;
+    vec4 rTy = texture2D(eiAux, vec2((rAl * 0.9 - rS * 0.22) * 0.09, rS * eiSP.w * 0.5));
+    float rTyre = smoothstep(0.62, 0.8, rTy.g) * (1.0 - smoothstep(aw0, aw0 + 9.0, rAl));
+    rCol = mix(rCol, rGreenC * (1.0 - 0.25 * rWear), rGreen);
+    float pat = vTrk.w; float useB = 0.0; float wl = 0.0; float P = 5.0; float q = 0.0;
+    if (pat < 0.5) { useB = smoothstep(aw0 + 3.2 - rAA, aw0 + 3.2 + rAA, rAl); wl = 1.0 - smoothstep(0.09, 0.09 + rAA, abs(rAl - aw0 - 3.2)); }
+    else { if (pat < 1.5) { P = 6.0; q = (rS * 0.7071 + rAl * 0.7071) / P; } else { P = 12.0; q = rS / P; }
+      float qa = max(fwidth(q) * P, 0.002); float qf = fract(q * 2.0); float bd = min(qf, 1.0 - qf) * P * 0.5;
+      useB = step(0.5, fract(q)); wl = 1.0 - smoothstep(0.08, 0.08 + qa, bd); }
+    float rIn = smoothstep(aw0 - rAA, aw0 + rAA, rAl) * (1.0 - smoothstep(rOuter - 0.35 - rAA, rOuter - 0.35 + rAA, rAl));
+    float rMask = rPon * rIn;
+    float rEdgeW = (1.0 - smoothstep(0.08, 0.08 + rAA, abs(rAl - aw0 - 0.1))) + (1.0 - smoothstep(0.1, 0.1 + rAA, abs(rAl - rOuter + 0.5)));
+    float rEnd = 1.0 - smoothstep(0.06, 0.12, abs(vTrk.z - 0.5) * 2.0);
+    wl = clamp(wl + rEdgeW + rEnd * step(aw0, rAl), 0.0, 1.0);
+    vec3 rPaint = mix(vColA, vColB, useB) * (0.88 + 0.22 * rM1.g);
+    rPaint = mix(rPaint, vec3(0.72, 0.72, 0.7), wl);
+    rPaint = mix(rPaint, rBase * 1.05, clamp(rWear * 0.75, 0.0, 0.8));
+    rCol = mix(rCol, rPaint, rMask * (rPon > 0.0 ? 1.0 : 0.0));
+    rCol = mix(rCol, rCol * 0.45, rTyre * 0.55 * rPon);
+    vec4 rSp = texture2D(eiAux, vec2(rLat * 0.55, rS * eiSP.y * 6.0));
+    float rSpill = (1.0 - smoothstep(0.0, 1.6, rGS - rAl)) * step(rAl, rGS + 0.2) * step(0.3, rSp.b);
+    rCol = mix(rCol, vec3(0.36, 0.31, 0.22), rSpill * 0.85);
+    float rDust = smoothstep(rOuter - 1.6, rOuter, rAl) * (1.0 - rMask) * 0.35;
+    rCol = mix(rCol, vec3(0.25, 0.21, 0.15), rDust);
+    diffuseColor.rgb = rCol;
+  `;
+  const RUNOFF_ROUGH = `
+    roughnessFactor = mix(roughnessFactor, 0.62, max(rMask, rGreen) * (1.0 - rWear * 0.5));
+    float eiFlat = clamp(max(rMask, rGreen) * 0.6, 0.0, 1.0);
+  `;
+  const GRAVEL_FRAG = `
+    float vAl = abs(vTrk.x); float gd0 = vAl - vTrk.z, gd1 = vTrk.w - vAl;
+    vec3 gCol = diffuseColor.rgb;
+    vec4 gm = texture2D(eiAux, vec2(vTrk.x * 0.05, vTrk.y * eiSP.y));
+    gCol *= 0.86 + 0.26 * gm.r;
+    float gRing = 1.0 - smoothstep(0.0, 1.1, gd0); float gRing2 = 1.0 - smoothstep(0.0, 0.7, gd1);
+    gCol *= 1.0 - 0.42 * gRing * (0.8 + 0.4 * gm.g) - 0.25 * gRing2;
+    vec4 gt = texture2D(eiAux, vec2((vAl * 0.8 + vTrk.y * 0.3) * 0.07, vTrk.y * eiSP.w));
+    gCol *= 1.0 - 0.25 * smoothstep(0.7, 0.85, gt.g) * (1.0 - smoothstep(0.0, 5.0, gd0));
+    diffuseColor.rgb = gCol;
+    float eiFlat = 0.0;
+  `;
+  const VERGE_FRAG = `
+    float vLat = vTrk.x, vS = vTrk.y, vAl = abs(vLat);
+    vec3 vCol = diffuseColor.rgb;
+    vec4 vM = texture2D(eiAux, vec2(vLat * 0.013 + 0.2, vS * eiSP.x * 0.5));
+    vec4 vM2 = texture2D(eiAux, vec2(vLat * 0.05 + 0.6, vS * eiSP.y));
+    vCol *= mix(vec3(0.9, 1.0, 0.92), vec3(1.12, 1.03, 0.82), smoothstep(0.35, 0.8, vM.r));
+    float vq = (vAl - eiHW - 1.0) / 4.5;
+    float vStripe = smoothstep(-0.2, 0.2, sin(3.14159 * vq)) * step(eiHW + 2.5, vAl);
+    vCol *= 0.92 + 0.15 * vStripe;
+    float vWorn = (1.0 - smoothstep(eiHW + 0.4, eiHW + 2.2, vAl)) * (0.55 + 0.6 * vM2.g);
+    vCol = mix(vCol, vCol * vec3(0.78, 0.68, 0.5) + vec3(0.03, 0.02, 0.005), clamp(vWorn, 0.0, 1.0) * 0.8);
+    float vFs = vLat < 0.0 ? vTrk.z : vTrk.w;
+    float vT = smoothstep(vFs, vFs + 26.0, vAl);
+    vec3 vFar = (vLat < 0.0 ? vFarL : vFarR) * (0.93 + 0.12 * vM2.r);
+    vCol = mix(vCol, vFar, vT);
+    diffuseColor.rgb = vCol;
+    float eiFlat = vT * 0.6;
+  `;
+  function shaderMat(params, key, uniforms, vary, fColor, fRough, fNormal) {
+    const m = new THREE.MeshStandardMaterial(params);
+    m.onBeforeCompile = (sh) => {
+      Object.assign(sh.uniforms, uniforms);
+      sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\n' + vary.v).replace('#include <begin_vertex>', '#include <begin_vertex>\n' + vary.vm);
+      sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\n' + SH_COMMON + '\n' + vary.f)
+        .replace('#include <color_fragment>', '#include <color_fragment>\n' + fColor)
+        .replace('#include <roughnessmap_fragment>', '#include <roughnessmap_fragment>\n' + (fRough || ''))
+        .replace('#include <normal_fragment_begin>', '#include <normal_fragment_begin>\nvec3 eiGeoN = normal;')
+        .replace('#include <normal_fragment_maps>', '#include <normal_fragment_maps>\n' + (fNormal || FLATTEN));
+    };
+    m.customProgramCacheKey = () => 'ei-track-' + key;
+    return m;
+  }
+
+  // ---------------------------------------------------------------- canvas textures for kerbs and paint
+  function canvasTex(c, wrap) { const t = new THREE.CanvasTexture(c); if (wrap) t.wrapS = t.wrapT = THREE.RepeatWrapping; t.anisotropy = 8; return t; }
+  // kerb: x = across (0 at the track edge), y = along; one tile = one red + one white block with slanted (sawtooth) joints
+  function kerbTexture() {
+    const W = 256, H = 512; const c = document.createElement('canvas'); c.width = W; c.height = H; const ctx = c.getContext('2d');
+    ctx.fillStyle = '#ece9e1'; ctx.fillRect(0, 0, W, H);
+    const slant = H * 0.07; const joint = (y0) => [[0, y0 - slant], [W, y0 + slant]];
+    ctx.fillStyle = '#c8141e';
+    for (const off of [-H, 0, H]) { const a = joint(off), b = joint(off + H / 2); ctx.beginPath(); ctx.moveTo(a[0][0], a[0][1]); ctx.lineTo(a[1][0], a[1][1]); ctx.lineTo(b[1][0], b[1][1]); ctx.lineTo(b[0][0], b[0][1]); ctx.closePath(); ctx.fill(); }
+    ctx.strokeStyle = 'rgba(25,10,10,0.55)'; ctx.lineWidth = 3;
+    for (const off of [-H, -H / 2, 0, H / 2, H]) { const a = joint(off); ctx.beginPath(); ctx.moveTo(a[0][0], a[0][1]); ctx.lineTo(a[1][0], a[1][1]); ctx.stroke(); }
+    const r = U.rng(8);
+    // rubber smudges where tyres ride the kerb (inner half), grit and paint chips
+    for (let i = 0; i < 260; i++) { const x = Math.pow(r(), 1.8) * W * 0.75, y = r() * H; ctx.fillStyle = 'rgba(20,20,22,' + (0.03 + r() * 0.08).toFixed(3) + ')'; ctx.beginPath(); ctx.ellipse(x, y, 3 + r() * 10, 8 + r() * 30, 0, 0, 6.283); ctx.fill(); }
+    for (let i = 0; i < 1600; i++) { ctx.fillStyle = r() < 0.5 ? 'rgba(0,0,0,' + (0.05 + r() * 0.15).toFixed(3) + ')' : 'rgba(255,255,255,' + (0.04 + r() * 0.1).toFixed(3) + ')'; ctx.fillRect(r() * W, r() * H, 1 + r() * 2, 1 + r() * 2); }
+    const g = ctx.createLinearGradient(0, 0, W, 0); g.addColorStop(0, 'rgba(10,10,10,0.38)'); g.addColorStop(0.08, 'rgba(10,10,10,0.08)'); g.addColorStop(0.9, 'rgba(0,0,0,0)'); g.addColorStop(1, 'rgba(60,50,30,0.35)'); ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+    return U.srgb(canvasTex(c, true));
+  }
+  function pitTextTexture() { const c = document.createElement('canvas'); c.width = 256; c.height = 256; const ctx = c.getContext('2d'); ctx.clearRect(0, 0, 256, 256); ctx.fillStyle = '#efeee9'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.font = '900 96px Arial Black, Arial'; ctx.fillText('PIT', 128, 66, 240); ctx.fillText('80', 128, 194, 200); weather(ctx, 256, 256, 13, 2500); return canvasTex(c); }
+  function chequerTexture() { const c = document.createElement('canvas'); c.width = 32; c.height = 64; const ctx = c.getContext('2d'); for (let i = 0; i < 2; i++) for (let j = 0; j < 4; j++) { ctx.fillStyle = (i + j) % 2 ? '#e9e8e3' : '#151517'; ctx.fillRect(i * 16, j * 16, 16, 16); } const t = canvasTex(c, true); t.magFilter = THREE.NearestFilter; return t; }
+  function solidTexture(col) { const c = document.createElement('canvas'); c.width = c.height = 4; const ctx = c.getContext('2d'); ctx.fillStyle = col; ctx.fillRect(0, 0, 4, 4); return canvasTex(c); }
+  function weather(ctx, w, h, seed, n) { const r = U.rng(seed); ctx.globalCompositeOperation = 'destination-out'; for (let i = 0; i < n; i++) { ctx.fillStyle = 'rgba(0,0,0,' + (0.15 + r() * 0.55).toFixed(2) + ')'; ctx.fillRect(r() * w, r() * h, 1 + r() * 3, 1 + r() * 3); } ctx.globalCompositeOperation = 'source-over'; }
+  // 5 x 4 cells, one per grid slot: number ahead of the front line, bracket going back
+  function gridAtlas() {
+    const c = document.createElement('canvas'); c.width = 1024; c.height = 1024; const ctx = c.getContext('2d'); ctx.clearRect(0, 0, 1024, 1024);
+    const cw = 204.8, ch = 256;
+    for (let p = 0; p < 20; p++) {
+      const x0 = (p % 5) * cw, y0 = Math.floor(p / 5) * ch; ctx.fillStyle = '#efeeea';
+      const fy = y0 + ch * 0.306; ctx.fillRect(x0 + cw * 0.06, fy, cw * 0.88, 7); ctx.fillRect(x0 + cw * 0.06, fy, 6, 80); ctx.fillRect(x0 + cw * 0.94 - 6, fy, 6, 80);
+      ctx.font = 'italic 900 64px Arial Black, Arial'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(String(p + 1), x0 + cw / 2, y0 + ch * 0.16);
+    }
+    weather(ctx, 1024, 1024, 77, 9000);
+    return canvasTex(c);
+  }
+  // 4 rows of fictional run-off paint logos (white with weathering on a transparent ground)
+  function logoAtlas() {
+    const c = document.createElement('canvas'); c.width = 1024; c.height = 512; const ctx = c.getContext('2d'); ctx.clearRect(0, 0, 1024, 512);
+    const rows = ['EQUATION I', 'APEX FUELS', 'EI RACING', 'KINETIK'];
+    rows.forEach((t, k) => { ctx.fillStyle = '#f2f1ec'; ctx.font = 'italic 900 104px Arial Black, Arial'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(t, 512, k * 128 + 68, 980); });
+    weather(ctx, 1024, 512, 91, 26000);
+    return canvasTex(c);
+  }
+
   class Track {
     constructor(data) {
       this.data = data; this.name = data.name;
@@ -102,18 +317,21 @@ window.EI = window.EI || {};
       return { x: this.x[i] + this.nx[i] * side, z: this.z[i] + this.nz[i] * side, y: this.y[i], heading: this.heading[i], i };
     }
 
+    // side arrays (wallL/R, runoffL/R, gravelL/R) follow the drawing convention used by every ribbon: "L" = side -1 = negative lateral
+    // offset (project().lat < 0), "R" = side +1. k > 0 bends towards +lat, so the run-off / far barrier of such a corner is on L.
     computeWalls() {
       const n = this.n, hw = this.halfWidth; const kw = this.smooth(this.k, 25);
       this.wallL = new Float32Array(n); this.wallR = new Float32Array(n); this.gravelL = new Uint8Array(n); this.gravelR = new Uint8Array(n); this.runoffL = new Uint8Array(n); this.runoffR = new Uint8Array(n);
       for (let i = 0; i < n; i++) {
         const c = kw[i]; const outside = Math.min(1, Math.abs(c) * 110); let l = hw + 12, r = hw + 12;
-        if (c > 0) { r += 40 * outside; l -= 5 * outside; } else { l += 40 * outside; r -= 5 * outside; }
+        // k > 0 turns towards +lateral (the inside is +lat): the outside, drawn at negative offsets, is "L"
+        if (c > 0) { l += 40 * outside; r -= 5 * outside; } else { r += 40 * outside; l -= 5 * outside; }
         this.wallL[i] = l; this.wallR[i] = r;
       }
       this.wallL = this.smooth(this.wallL, 30); this.wallR = this.smooth(this.wallR, 30);
       // inside of a corner: offsets beyond the local radius would fold the normals over each other
       this.kFold = this.smooth(this.k, 4);
-      for (let i = 0; i < n; i++) { const R = 1 / (Math.abs(this.kFold[i]) + 1e-6); const cap = Math.max(hw + 3, R * 0.85); if (this.kFold[i] > 0) this.wallL[i] = Math.min(this.wallL[i], cap); else this.wallR[i] = Math.min(this.wallR[i], cap); }
+      for (let i = 0; i < n; i++) { const R = 1 / (Math.abs(this.kFold[i]) + 1e-6); const cap = Math.max(hw + 3, R * 0.85); if (this.kFold[i] > 0) this.wallR[i] = Math.min(this.wallR[i], cap); else this.wallL[i] = Math.min(this.wallL[i], cap); }
       this.wallL = this.smooth(this.wallL, 6); this.wallR = this.smooth(this.wallR, 6);
       const kk = this.smooth(this.k, 8);
       const gravelCorners = ['Copse', 'Becketts', 'Stowe', 'Club', 'Luffield', 'Abbey', 'Brooklands', 'Vale', 'Village', 'Maggotts'];
@@ -121,7 +339,7 @@ window.EI = window.EI || {};
       for (let i = 0; i < n; i++) {
         const c = kk[i]; if (Math.abs(c) < 1 / 500) continue; const name = cornerAt(this.s[i]);
         const gravel = gravelCorners.indexOf(name) >= 0 && Math.abs(c) > 1 / 220;
-        if (c > 0) { this.runoffR[i] = 1; if (gravel) this.gravelR[i] = 1; } else { this.runoffL[i] = 1; if (gravel) this.gravelL[i] = 1; }
+        if (c > 0) { this.runoffL[i] = 1; if (gravel) this.gravelL[i] = 1; } else { this.runoffR[i] = 1; if (gravel) this.gravelR[i] = 1; }
       }
     }
     computeRacingLine() {
@@ -143,24 +361,77 @@ window.EI = window.EI || {};
       const n = this.n, pos = [], uv = [], col = [], idx = []; const color = new THREE.Color(opts.color || 0xffffff);
       let vi = 0; const map = new Int32Array(n + 1); const y = opts.y || 0;
       const inMask = (ii) => !opts.mask || opts.mask(ii) || opts.mask((ii + n - 1) % n);
+      let flip = null;
       for (let i = 0; i <= n; i++) {
         const ii = i % n;
         if (!inMask(ii)) { map[i] = -1; continue; }
         let a = offsetA(ii), b = offsetB(ii);
         if (this.kFold) { const kf = this.kFold[ii]; const cap = Math.max(2, 0.9 / (Math.abs(kf) + 1e-6)); if (kf > 0) { a = Math.min(a, cap); b = Math.min(b, cap); } else { a = Math.max(a, -cap); b = Math.max(b, -cap); } }
+        // ground ribbons built from the outside in (negative side) would face down and be culled: keep them facing up
+        if (flip === null && Math.abs(b - a) > 1e-4) flip = b < a;
         const ya = this.y[ii] + (opts.ya ? opts.ya(ii) : y), yb = this.y[ii] + (opts.yb ? opts.yb(ii) : y);
         pos.push(this.x[ii] + this.nx[ii] * a, ya, this.z[ii] + this.nz[ii] * a, this.x[ii] + this.nx[ii] * b, yb, this.z[ii] + this.nz[ii] * b);
         const v = (i * this.ds) / (opts.vScale || 8); uv.push(0, v, 1, v);
         const ca = opts.colorFn ? opts.colorFn(ii, 0) : color, cb = opts.colorFn ? opts.colorFn(ii, 1) : color; col.push(ca.r, ca.g, ca.b, cb.r, cb.g, cb.b);
         map[i] = vi; vi += 2;
       }
-      for (let i = 0; i < n; i++) { const a = map[i], b = map[i + 1]; if (a < 0 || b < 0 || (opts.mask && !opts.mask(i))) continue; idx.push(a, b, a + 1, a + 1, b, b + 1); }
+      for (let i = 0; i < n; i++) { const a = map[i], b = map[i + 1]; if (a < 0 || b < 0 || (opts.mask && !opts.mask(i))) continue; if (flip) idx.push(a, a + 1, b, a + 1, b + 1, b); else idx.push(a, b, a + 1, a + 1, b, b + 1); }
       const geo = new THREE.BufferGeometry();
       geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); geo.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2)); geo.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
       geo.setIndex(idx); geo.computeVertexNormals();
       // ground ribbons (no vertical profile) get a plain up normal: sliver triangles where the inside edge converges would otherwise shade dark
       if (!opts.ya && !opts.yb) { const nr = geo.attributes.normal; for (let i = 0; i < nr.count; i++) nr.setXYZ(i, 0, 1, 0); }
       return geo;
+    }
+    // multi-column strip along the lap with per-vertex attributes.
+    // o.lat(ii, c) lateral offset of column c; o.y(ii, c) height above the track; o.uv(ii, c, lat, i) -> [u, v]; o.attrs { name: [size, fn(ii, c, lat, i)] }
+    // o.mask(ii) draws the quad ii -> ii+1; o.normals: 'up' (default) or 'compute'
+    strip(K, o) {
+      const n = this.n, pos = [], uv = [], idx = [], at = {}; const attrs = o.attrs || {}; const lats = new Float32Array(K);
+      for (const k in attrs) at[k] = [];
+      const inMask = (ii) => !o.mask || o.mask(ii) || o.mask((ii + n - 1) % n);
+      let prev = -1, vi = 0, flip = null;
+      for (let i = 0; i <= n; i++) {
+        const ii = i % n;
+        if (!inMask(ii)) { prev = -1; continue; }
+        const kf = this.kFold[ii], cap = Math.max(2, 0.9 / (Math.abs(kf) + 1e-6));
+        for (let c = 0; c < K; c++) { let l = o.lat(ii, c, i); if (kf > 0) l = Math.min(l, cap); else l = Math.max(l, -cap); lats[c] = l; }
+        if (flip === null && Math.abs(lats[K - 1] - lats[0]) > 1e-4) flip = lats[K - 1] < lats[0];
+        for (let c = 0; c < K; c++) {
+          const l = lats[c]; pos.push(this.x[ii] + this.nx[ii] * l, this.y[ii] + (o.y ? o.y(ii, c, l) : 0), this.z[ii] + this.nz[ii] * l);
+          const t = o.uv ? o.uv(ii, c, l, i) : [c / (K - 1), i * this.ds / 8]; uv.push(t[0], t[1]);
+          for (const k in attrs) { const v = attrs[k][1](ii, c, l, i); if (attrs[k][0] === 1) at[k].push(v); else for (let q = 0; q < attrs[k][0]; q++) at[k].push(v[q]); }
+        }
+        if (prev >= 0 && (!o.mask || o.mask((ii + n - 1) % n))) for (let c = 0; c < K - 1; c++) { const a = prev + c, b = vi + c; if (flip) idx.push(a, a + 1, b, a + 1, b + 1, b); else idx.push(a, b, a + 1, a + 1, b, b + 1); }
+        prev = vi; vi += K;
+      }
+      const geo = new THREE.BufferGeometry();
+      geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); geo.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+      for (const k in attrs) geo.setAttribute(k, new THREE.Float32BufferAttribute(at[k], attrs[k][0]));
+      geo.setIndex(idx);
+      if (o.normals === 'compute') geo.computeVertexNormals(); else { const nr = new Float32Array(pos.length); for (let i = 1; i < nr.length; i += 3) nr[i] = 1; geo.setAttribute('normal', new THREE.BufferAttribute(nr, 3)); }
+      return geo;
+    }
+    // interpolated frame at arc length s
+    frameAt(s) {
+      const f = U.mod(s / this.ds, this.n); const i = Math.floor(f), j = (i + 1) % this.n, u = f - i;
+      const nx = U.lerp(this.nx[i], this.nx[j], u), nz = U.lerp(this.nz[i], this.nz[j], u), l = Math.hypot(nx, nz) || 1;
+      return { x: U.lerp(this.x[i], this.x[j], u), y: U.lerp(this.y[i], this.y[j], u), z: U.lerp(this.z[i], this.z[j], u), nx: nx / l, nz: nz / l, tx: -nz / l, tz: nx / l, i };
+    }
+    // flat painted decal following the track between s0..s1 and lateral latA..latB; uvFn(fs, fl) -> [u, v] with fs/fl in 0..1 along / across
+    addDecal(b, s0, s1, latA, latB, uvFn, segs, yOff) {
+      if (latB < latA) { const t = latA; latA = latB; latB = t; const f = uvFn; uvFn = (fs, fl) => f(fs, 1 - fl); }
+      segs = segs || Math.max(1, Math.ceil((s1 - s0) / 1.5)); const base = b.pos.length / 3;
+      for (let r = 0; r <= segs; r++) {
+        const fs = r / segs, f = this.frameAt(s0 + (s1 - s0) * fs);
+        for (let c = 0; c < 2; c++) { const l = c ? latB : latA; b.pos.push(f.x + f.nx * l, f.y + (yOff || 0.012), f.z + f.nz * l); const t = uvFn(fs, c); b.uv.push(t[0], t[1]); }
+        if (r > 0) { const a = base + (r - 1) * 2, q = base + r * 2; b.idx.push(a, q, a + 1, a + 1, q, q + 1); }
+      }
+    }
+    static batchMesh(b, mat) {
+      const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.Float32BufferAttribute(b.pos, 3)); geo.setAttribute('uv', new THREE.Float32BufferAttribute(b.uv, 2));
+      const nr = new Float32Array(b.pos.length); for (let i = 1; i < nr.length; i += 3) nr[i] = 1; geo.setAttribute('normal', new THREE.BufferAttribute(nr, 3)); geo.setIndex(b.idx);
+      const m = new THREE.Mesh(geo, mat); m.receiveShadow = true; return m;
     }
 
     // ---------------------------------------------------------------- build
@@ -170,84 +441,226 @@ window.EI = window.EI || {};
       return g;
     }
 
+    // where the rubber goes down: braking zones (speed profile when available), traction zones and signed cornering along the lap
+    computeWear() {
+      const n = this.n, ds = this.ds; const brake = new Float32Array(n), exit = new Float32Array(n); let v = null;
+      try { if (EI.buildSpeedProfile && EI.CAR) v = EI.buildSpeedProfile(this); } catch (e) { v = null; }
+      if (v) {
+        for (let i = 0; i < n; i++) { const j = (i + 3) % n; const a = (v[i] * v[i] - v[j] * v[j]) / (2 * 3 * ds); brake[i] = U.smoothstep(5, 28, a); exit[i] = U.smoothstep(2.5, 9, -a) * (1 - U.smoothstep(45, 65, v[i])); }
+      } else {
+        const ak = this.k.map(Math.abs);
+        for (let i = 0; i < n; i++) { let ahead = 0; for (let j = 4; j < 60; j += 2) ahead = Math.max(ahead, ak[(i + j) % n]); let behind = 0; for (let j = 2; j < 30; j += 2) behind = Math.max(behind, ak[(i - j + n) % n]);
+          brake[i] = U.clamp((ahead - ak[i]) * 90, 0, 1) * (ak[i] < 0.006 ? 1 : 0.3); exit[i] = U.clamp((behind - ak[i]) * 70, 0, 1); }
+      }
+      this.wearBrake = this.smooth(brake, 6); this.wearExit = this.smooth(exit, 8);
+      const lk = this.smooth(this.lineK, 8); this.wearCorner = new Float32Array(n);
+      for (let i = 0; i < n; i++) this.wearCorner[i] = U.clamp(lk[i] * 55, -1, 1);
+    }
+    // one shared set of procedural textures for every track surface
+    surfaceTextures() {
+      if (Track._tex) return Track._tex;
+      const T = {};
+      T.asphalt = U.asphaltMaps(1024, { seed: 17, base: [74, 73, 70], density: 0.08, bump: 1.7, contrast: 0.6 });
+      T.runoff = U.asphaltMaps(512, { seed: 29, base: [84, 84, 81], density: 0.06, bump: 1.6, cracks: 3, contrast: 0.6 });
+      T.aux = U.trackAuxTexture(1024, 5);
+      T.grass = U.grassMaps(512, { seed: 23, base: [50, 80, 34] });
+      T.gravel = U.gravelMaps(512, { seed: 41, base: [178, 164, 136] });
+      Track._tex = T; return T;
+    }
+
     buildSurfaces(g) {
-      const hw = this.halfWidth, kw = this.kerbWidth, n = this.n, self = this;
-      // asphalt: 6 vertex rows -> white lines, grey body with rubbered racing line
-      const asphaltTex = (function () {
-        const c = document.createElement('canvas'); c.width = c.height = 1024; const ctx = c.getContext('2d');
-        ctx.drawImage(U.grainTexture(512, 0x4b4b4f, 0.1, 1, 11, 0.025).image, 0, 0, 1024, 1024);
-        const r = U.rng(31);
-        // repaired patches and cracks
-        for (let i = 0; i < 14; i++) { ctx.fillStyle = 'rgba(' + (30 + r() * 20) + ',' + (30 + r() * 20) + ',' + (34 + r() * 20) + ',0.35)'; const w = 80 + r() * 300, h = 40 + r() * 120; ctx.fillRect(r() * 1024, r() * 1024, w, h); }
-        ctx.strokeStyle = 'rgba(20,20,22,0.5)'; ctx.lineWidth = 2;
-        for (let i = 0; i < 25; i++) { ctx.beginPath(); let x = r() * 1024, y = r() * 1024; ctx.moveTo(x, y); for (let k = 0; k < 8; k++) { x += (r() - 0.5) * 60; y += (r() - 0.3) * 60; ctx.lineTo(x, y); } ctx.stroke(); }
-        const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.anisotropy = 8; t.repeat.set(1.5, 1); return t;
-      })();
-      const asphaltN = U.normalTexture(512, 9, 2.6, 1, 3); asphaltN.repeat.set(1.5, 1);
-      const mat = new THREE.MeshStandardMaterial({ map: asphaltTex, normalMap: asphaltN, normalScale: new THREE.Vector2(0.6, 0.6), vertexColors: true, metalness: 0.0, roughness: 0.92 });
-      const grey = new THREE.Color(0x6e6e73), rubber = new THREE.Color(0x4a4a4f), white = new THREE.Color(0xf4f4f4);
-      const strips = [[-hw, -hw + 0.25, white], [-hw + 0.25, hw - 0.25, null], [hw - 0.25, hw, white]];
-      for (const st of strips) {
-        const geo = this.ribbon(() => st[0], () => st[1], { vScale: 7, colorFn: (i, side) => { if (st[2]) return st[2]; const lat = side === 0 ? st[0] : st[1]; return Math.abs(lat - self.lineOff[i]) < 3.5 ? rubber : grey; } });
-        const m = new THREE.Mesh(geo, mat); m.receiveShadow = true; g.add(m);
-      }
-      // rubber line with tyre marks texture
-      const marksTex = (function () { const c = document.createElement('canvas'); c.width = 128; c.height = 512; const ctx = c.getContext('2d'); ctx.fillStyle = 'rgba(0,0,0,0)'; ctx.clearRect(0, 0, 128, 512); const r = U.rng(21);
-        for (let i = 0; i < 40; i++) { ctx.strokeStyle = 'rgba(20,20,22,' + (0.15 + r() * 0.35) + ')'; ctx.lineWidth = 2 + r() * 4; ctx.beginPath(); const x = 10 + r() * 108; ctx.moveTo(x, r() * 512); ctx.lineTo(x + (r() - 0.5) * 20, r() * 512); ctx.stroke(); }
-        const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; return t; })();
-      const lineGeo = this.ribbon(i => this.lineOff[i] - 2.4, i => this.lineOff[i] + 2.4, { y: 0.012, vScale: 30 });
-      g.add(new THREE.Mesh(lineGeo, new THREE.MeshStandardMaterial({ map: marksTex, color: 0x303034, transparent: true, opacity: 0.45, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -1, roughness: 0.6 })));
-      // kerbs: red/white sawtooth
-      const kerbTex = (function () { const c = document.createElement('canvas'); c.width = 128; c.height = 256; const ctx = c.getContext('2d'); ctx.fillStyle = '#e4e2dc'; ctx.fillRect(0, 0, 128, 256); ctx.fillStyle = '#c0121c'; ctx.fillRect(0, 0, 128, 128);
-        const g = ctx.createLinearGradient(0, 0, 128, 0); g.addColorStop(0, 'rgba(0,0,0,0.25)'); g.addColorStop(0.35, 'rgba(255,255,255,0.12)'); g.addColorStop(0.7, 'rgba(0,0,0,0)'); g.addColorStop(1, 'rgba(0,0,0,0.35)'); ctx.fillStyle = g; ctx.fillRect(0, 0, 128, 256);
-        ctx.fillStyle = 'rgba(0,0,0,0.25)'; ctx.fillRect(0, 122, 128, 6); ctx.fillRect(0, 250, 128, 6); const r = U.rng(8); for (let i = 0; i < 300; i++) { ctx.fillStyle = 'rgba(0,0,0,' + (0.05 + r() * 0.15) + ')'; ctx.fillRect(r() * 128, r() * 256, 2, 2); }
-        const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.anisotropy = 8; return t; })();
+      const hw = this.halfWidth, kw = this.kerbWidth, n = this.n, L = this.length, ds = this.ds, self = this;
+      this.computeWear();
+      const T = this.surfaceTextures();
+      const per = (p) => L / Math.max(1, Math.round(L / p));                  // tile periods that divide the lap: no seam at s = 0
+      const sp = new THREE.Vector4(1 / per(48), 1 / per(14), 1 / per(26), 1 / per(64));
+      const common = { eiAux: { value: T.aux }, eiSP: { value: sp }, eiHW: { value: hw }, eiKW: { value: kw } };
       const kk = this.smooth(this.k, 6); const kerbMask = i => Math.abs(kk[i]) > 1 / 420;
-      const kerbMat = new THREE.MeshStandardMaterial({ map: U.srgb(kerbTex), roughness: 0.55, metalness: 0.0 });
+      this.kerbMask = kerbMask;
+
+      // ------------------------------------------------ asphalt (single strip; all detail is per-pixel from lateral offset / lap distance)
+      const tA = per(5);
+      const aGeo = this.strip(4, {
+        lat: (ii, c) => -hw + c * (2 * hw / 3), uv: (ii, c, l, i) => [l / 5, i * ds / tA],
+        attrs: {
+          trk: [4, (ii, c, l, i) => [l, i * ds, this.lineOff[ii], this.wearBrake[ii]]],
+          trk2: [4, (ii) => [this.wearCorner[ii], this.wearExit[ii], U.clamp(0.3 + 0.7 * Math.max(this.wearExit[ii], Math.abs(this.wearCorner[ii]) * 0.6), 0, 1), 0]],
+        },
+      });
+      const aMat = shaderMat({ map: T.asphalt.map, normalMap: T.asphalt.normalMap, normalScale: new THREE.Vector2(0.9, 0.9), roughnessMap: T.asphalt.roughnessMap, roughness: 1, metalness: 0 }, 'asphalt', common, VARY4, ASPHALT_FRAG, ASPHALT_ROUGH, FLATTEN);
+      const aMesh = new THREE.Mesh(aGeo, aMat); aMesh.receiveShadow = true; aMesh.name = 'asphalt'; g.add(aMesh);
+
+      // ------------------------------------------------ kerbs: bevelled profile (rise, top, fall), sawtooth red/white tiled by arc length
+      const kerbTex = kerbTexture();
+      const kerbMat = new THREE.MeshStandardMaterial({ map: kerbTex, vertexColors: true, roughness: 0.48, metalness: 0, normalMap: T.runoff.normalMap, normalScale: new THREE.Vector2(0.25, 0.25) });
+      const ramp = new Float32Array(n); { const a = new Float32Array(n), b = new Float32Array(n);
+        for (let k = 0; k < 2 * n; k++) { const i = k % n, p = (i + n - 1) % n; a[i] = kerbMask(p) ? a[p] + 1 : 0; }
+        for (let k = 2 * n; k >= 0; k--) { const i = k % n, q = (i + 1) % n; b[i] = kerbMask(i) ? b[q] + 1 : 0; }
+        for (let i = 0; i < n; i++) ramp[i] = U.clamp(Math.min(a[i], b[i]) * ds / 3.0, 0, 1); }
+      const prof = [[0, 0.004], [0.3, 0.068], [kw - 0.32, 0.074], [kw, 0.0]];
+      const kerbTone = new Float32Array(n); for (let i = 0; i < n; i++) kerbTone[i] = 0.82 + 0.18 * U.noise2(i * 0.11, 4.2);
       for (const side of [-1, 1]) {
-        const g1 = this.ribbon(() => side * hw, () => side * (hw + kw * 0.45), { mask: kerbMask, vScale: 2.2, ya: () => 0.012, yb: () => 0.075 });
-        const g2 = this.ribbon(() => side * (hw + kw * 0.45), () => side * (hw + kw), { mask: kerbMask, vScale: 2.2, ya: () => 0.075, yb: () => 0.02 });
-        for (const geo of [g1, g2]) { const m = new THREE.Mesh(geo, kerbMat); m.receiveShadow = true; m.castShadow = true; g.add(m); }
+        // stripes advance with the arc length at the kerb's middle so they never stretch on the outside of a corner
+        const arc = new Float32Array(n + 1); let acc = 0;
+        for (let i = 1; i <= n; i++) { const a = (i - 1) % n, b = i % n; const m = side * (hw + kw / 2); const d = Math.hypot(this.x[b] + this.nx[b] * m - this.x[a] - this.nx[a] * m, this.z[b] + this.nz[b] * m - this.z[a] - this.nz[a] * m); acc = kerbMask(a) ? acc + d : 0; arc[b] = acc; if (i === n) arc[n] = acc; }
+        for (let pIdx = 0; pIdx < 3; pIdx++) {
+          const p0 = prof[pIdx], p1 = prof[pIdx + 1];
+          const geo = this.strip(2, {
+            mask: kerbMask, normals: 'compute',
+            lat: (ii, c) => side * (hw + (c ? p1[0] : p0[0])),
+            y: (ii, c) => (c ? p1[1] : p0[1]) * (0.15 + 0.85 * ramp[ii]),
+            uv: (ii, c, l, i) => [(c ? p1[0] : p0[0]) / kw, (i === n ? arc[n] : arc[ii]) / 2.4],
+            attrs: { color: [3, (ii, c) => { const t = kerbTone[ii] * (c === 0 && pIdx === 0 ? 0.9 : 1); return [t, t, t]; }] },
+          });
+          const m = new THREE.Mesh(geo, kerbMat); m.receiveShadow = true; m.castShadow = pIdx === 1; m.name = 'kerb'; g.add(m);
+        }
       }
-      // green painted asphalt strip beyond the kerbs (Silverstone style), then tarmac run-off / gravel
-      const greenMat = new THREE.MeshStandardMaterial({ color: 0x1fa03a, roughness: 0.85, polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 2 });
-      const runoffTex = U.grainTexture(256, 0x77777b, 0.07, 1, 12, 0.01);
-      const runoffMat = new THREE.MeshStandardMaterial({ map: runoffTex, normalMap: asphaltN, normalScale: new THREE.Vector2(0.4, 0.4), roughness: 0.95, polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 2 });
-      const gravelTex = U.grainTexture(256, 0xc9b58c, 0.12, 1, 5, 0.03);
-      const gravelMat = new THREE.MeshStandardMaterial({ map: gravelTex, normalMap: U.normalTexture(256, 10, 3.5, 1, 8), roughness: 1.0, polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 2 });
+      this.buildSausages(g);
+
+      // ------------------------------------------------ run-off: shoulder everywhere, green strip behind kerbs, painted asphalt at the big corners, gravel beyond
+      const cornerAt = (s) => { let name = null; for (const c of this.data.corners) if (s >= c.s - 60) name = c.name; return name; };
+      const lin = (hex) => new THREE.Color(hex).convertSRGBToLinear();
+      const BLUE = lin(0x2457a6), RED = lin(0xc4122a), GREEN = lin(0x2f8a3c), DBLUE = lin(0x1b3f86);
+      const SCHEMES = {
+        Copse: [0, RED, BLUE], Luffield: [1, BLUE, RED], Woodcote: [1, BLUE, RED], Stowe: [0, GREEN, BLUE], Vale: [2, RED, BLUE], Club: [2, RED, BLUE],
+        Abbey: [1, GREEN, BLUE], Village: [1, RED, BLUE], 'The Loop': [1, RED, BLUE], Brooklands: [0, GREEN, DBLUE],
+      };
+      const aw0 = hw + kw + 2.0;
       for (const side of [-1, 1]) {
         const run = side < 0 ? this.runoffL : this.runoffR, grav = side < 0 ? this.gravelL : this.gravelR, wall = side < 0 ? this.wallL : this.wallR;
-        const gr = this.ribbon(() => side * (hw + kw - 0.05), () => side * (hw + kw + 2.0), { mask: i => kerbMask(i) || run[i], y: -0.005 });
-        g.add(new THREE.Mesh(gr, greenMat));
-        const r = this.ribbon(() => side * (hw + kw + 1.9), i => side * Math.min(hw + kw + (grav[i] ? 7 : 14), wall[i] - 0.4), { mask: i => run[i], y: -0.01, vScale: 12 });
-        const rm = new THREE.Mesh(r, runoffMat); rm.receiveShadow = true; g.add(rm);
-        const gg = this.ribbon(i => side * Math.min(hw + kw + 6.9, wall[i] - 0.5), i => side * (wall[i] - 0.3), { mask: i => grav[i], y: -0.012, vScale: 12 });
-        const gm = new THREE.Mesh(gg, gravelMat); gm.receiveShadow = true; g.add(gm);
+        // outer edge: dilate then smooth so the run-off tapers in and out and never leaves a gap to the gravel
+        const raw = new Float32Array(n); for (let i = 0; i < n; i++) raw[i] = run[i] ? hw + kw + (grav[i] ? 7.05 : 14) : kerbMask(i) ? aw0 + 0.05 : hw + 1.0;
+        const dil = new Float32Array(n); for (let i = 0; i < n; i++) { let m = 0; for (let j = -4; j <= 4; j++) m = Math.max(m, raw[(i + j + n) % n]); dil[i] = m; }
+        const outer = this.smooth(dil, 4); for (let i = 0; i < n; i++) outer[i] = Math.max(hw + 0.6, Math.min(outer[i], wall[i] - 0.4));
+        // paint scheme per row (corner name), spread one row so the colour attribute is constant across each paint boundary quad
+        const sch = new Int8Array(n).fill(-1); const names = Object.keys(SCHEMES);
+        for (let i = 0; i < n; i++) if (run[i]) { const nm = cornerAt(this.s[i]); const k = names.indexOf(nm); if (k >= 0) sch[i] = k; }
+        const schC = Int8Array.from(sch); for (let i = 0; i < n; i++) if (sch[i] < 0) { for (const j of [1, -1, 2, -2]) { const q = sch[(i + j + n) % n]; if (q >= 0) { schC[i] = q; break; } } }
+        const green = new Uint8Array(n); for (let i = 0; i < n; i++) green[i] = kerbMask(i) || run[i] ? 1 : 0;
+        const geo = this.strip(2, {
+          lat: (ii, c) => side * (c ? outer[ii] : hw - 0.05), uv: (ii, c, l, i) => [l / 4, i * ds / per(4)],
+          attrs: {
+            trk: [4, (ii, c, l, i) => [l, i * ds, sch[ii] >= 0 ? 1 : 0, schC[ii] >= 0 ? SCHEMES[names[schC[ii]]][0] : 0]],
+            trk2: [4, (ii) => [green[ii], grav[ii] ? hw + kw + 6.9 : 99, aw0, outer[ii]]],
+            colA: [3, (ii) => { const c = schC[ii] >= 0 ? SCHEMES[names[schC[ii]]][1] : BLUE; return [c.r, c.g, c.b]; }],
+            colB: [3, (ii) => { const c = schC[ii] >= 0 ? SCHEMES[names[schC[ii]]][2] : BLUE; return [c.r, c.g, c.b]; }],
+          },
+        });
+        const rMat = shaderMat({ map: T.runoff.map, normalMap: T.runoff.normalMap, normalScale: new THREE.Vector2(0.7, 0.7), roughnessMap: T.runoff.roughnessMap, roughness: 1, metalness: 0, polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 2 }, 'runoff', common, VARY_RUN, RUNOFF_FRAG, RUNOFF_ROUGH, FLATTEN);
+        const rm = new THREE.Mesh(geo, rMat); rm.receiveShadow = true; rm.name = 'runoff'; rm.position.y = -0.008; g.add(rm);
+        this['runoffOuter' + (side < 0 ? 'L' : 'R')] = outer;
+        // gravel trap
+        const gGeo = this.strip(2, {
+          mask: i => grav[i], lat: (ii, c) => side * (c ? wall[ii] - 0.3 : Math.min(hw + kw + 6.9, wall[ii] - 0.5)), uv: (ii, c, l, i) => [l / 2.2, i * ds / per(2.2)],
+          attrs: { trk: [4, (ii, c, l, i) => [l, i * ds, Math.min(hw + kw + 6.9, wall[ii] - 0.5), wall[ii] - 0.3]] },
+        });
+        const gMat = shaderMat({ map: T.gravel.map, normalMap: T.gravel.normalMap, normalScale: new THREE.Vector2(1.1, 1.1), roughness: 1, metalness: 0, polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 3 }, 'gravel', common, VARY4, GRAVEL_FRAG, '', '');
+        const gm = new THREE.Mesh(gGeo, gMat); gm.receiveShadow = true; gm.name = 'gravel'; gm.position.y = -0.012; g.add(gm);
       }
-      // grass verge ribbon so the join to the terrain is clean
-      const verge = this.ribbon(i => -(this.wallL[i] + 40), i => (this.wallR[i] + 40), { y: -0.03, color: 0x4f8a3a });
-      g.add(new THREE.Mesh(verge, new THREE.MeshStandardMaterial({ map: U.grainTexture(256, 0x3f7f22, 0.07, 1, 3), roughness: 1.0, polygonOffset: true, polygonOffsetFactor: 3, polygonOffsetUnits: 6 })));
-      // start / finish line and grid boxes
-      const sfTex = (function () { const c = document.createElement('canvas'); c.width = 128; c.height = 32; const ctx = c.getContext('2d'); for (let i = 0; i < 16; i++) for (let j = 0; j < 4; j++) { ctx.fillStyle = (i + j) % 2 ? '#fff' : '#111'; ctx.fillRect(i * 8, j * 8, 8, 8); } return new THREE.CanvasTexture(c); })();
-      const i0 = this.idxAtS(this.sf);
-      const sfMesh = new THREE.Mesh(new THREE.PlaneGeometry(hw * 2, 1.2), new THREE.MeshBasicMaterial({ map: sfTex }));
-      sfMesh.rotation.x = -Math.PI / 2; sfMesh.rotation.z = -this.heading[i0]; sfMesh.position.set(this.x[i0], this.y[i0] + 0.02, this.z[i0]); g.add(sfMesh);
-      const boxMat = new THREE.MeshBasicMaterial({ color: 0xf2c200 });
-      for (let p = 0; p < 20; p++) {
-        const slot = this.gridSlot(p); const box = new THREE.Group();
-        const l1 = new THREE.Mesh(new THREE.PlaneGeometry(0.18, 2.2), boxMat); l1.rotation.x = -Math.PI / 2; l1.position.set(1.8, 0, 1.1);
-        const l2 = l1.clone(); l2.position.set(1.8, 0, -1.1);
-        const l3 = new THREE.Mesh(new THREE.PlaneGeometry(1.2, 0.18), boxMat); l3.rotation.x = -Math.PI / 2; l3.position.set(2.8, 0, 0);
-        box.add(l1, l2, l3); box.position.set(slot.x, slot.y + 0.02, slot.z); box.rotation.y = -slot.heading; g.add(box);
-      }
-      // painted logos on the run-off at the big corners (like the trackside paint at Luffield / Club)
-      const paint = (s, side, text, color, w) => {
-        const i = this.idxAtS(s); const wall = side < 0 ? this.wallL[i] : this.wallR[i]; const d = (hw + kw + 2 + Math.min(wall - 1, hw + kw + 9)) / 2;
-        const tex = U.textTexture(text, { w: 1024, h: 256, bg: color, color: '#ffffff', size: 150 });
-        const m = new THREE.Mesh(new THREE.PlaneGeometry(w, w * 0.25), new THREE.MeshStandardMaterial({ map: U.srgb(tex), roughness: 0.8, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -4 }));
-        m.rotation.x = -Math.PI / 2; m.rotation.z = -this.heading[i] + (side < 0 ? Math.PI : 0); m.position.set(this.x[i] + this.nx[i] * side * d, this.y[i] + 0.02, this.z[i] + this.nz[i] * side * d); g.add(m);
+
+      // ------------------------------------------------ grass verge: detailed grass, worn band at the edge, mown stripes, blends into the terrain colour far out
+      const farCol = this.terrainColourSampler();
+      const vergeOff = (ii, c) => c ? this.wallR[ii] + 40 : -(this.wallL[ii] + 40);
+      const vGeo = this.strip(2, {
+        lat: vergeOff, uv: (ii, c, l, i) => [l / 3, i * ds / per(3)],
+        attrs: {
+          trk: [4, (ii, c, l, i) => [l, i * ds, this.wallL[ii] + 10, this.wallR[ii] + 10]],
+          farL: [3, (ii) => farCol(ii, -1)], farR: [3, (ii) => farCol(ii, 1)],
+        },
+      });
+      const vMat = shaderMat({ map: T.grass.map, normalMap: T.grass.normalMap, normalScale: new THREE.Vector2(0.8, 0.8), roughness: 0.95, metalness: 0, polygonOffset: true, polygonOffsetFactor: 3, polygonOffsetUnits: 6 }, 'verge', common, VARY_VERGE, VERGE_FRAG, '', '');
+      const vm = new THREE.Mesh(vGeo, vMat); vm.receiveShadow = true; vm.name = 'verge'; vm.position.y = -0.03; g.add(vm);
+
+      this.buildMarkings(g);
+    }
+
+    // terrain vertex colour (linear) just beyond the verge, so the verge fades into whatever the terrain shows
+    terrainColourSampler() {
+      const sc = this.scenery; const terr = sc && sc.group && sc.group.getObjectByName ? sc.group.getObjectByName('terrain') : null;
+      const fb = new THREE.Color(0x3f7f22); const fallback = () => [fb.r, fb.g, fb.b];
+      if (!terr || !terr.geometry.attributes.color || !sc.tSize) return fallback;
+      const col = terr.geometry.attributes.color, size = sc.tSize, segs = sc.tSegs, W = segs + 1;
+      return (ii, side) => {
+        const d = (side < 0 ? this.wallL[ii] : this.wallR[ii]) + 40; const x = this.x[ii] + this.nx[ii] * side * d, z = this.z[ii] + this.nz[ii] * side * d;
+        const fx = U.clamp((x + size / 2) / size * segs, 0, segs - 1e-3), fz = U.clamp((z + size / 2) / size * segs, 0, segs - 1e-3); const ix = Math.floor(fx), iz = Math.floor(fz), tx = fx - ix, tz = fz - iz;
+        const out = [0, 0, 0];
+        for (let c = 0; c < 3; c++) { const g = (j) => col.array[j * 3 + c]; const a = g(iz * W + ix), b = g(iz * W + ix + 1), e = g((iz + 1) * W + ix), f = g((iz + 1) * W + ix + 1); out[c] = U.lerp(U.lerp(a, b, tx), U.lerp(e, f, tx), tz); }
+        return out;
       };
-      paint(2250, -1, 'EQUATION I', '#1a73e8', 34); paint(5700, -1, 'EI', '#e10600', 18); paint(3150, -1, 'EQUATION I', '#e10600', 30);
+    }
+
+    // sausage kerbs: raised yellow humps 1.5 m behind the apex kerb on the inside of the slow / medium corners
+    buildSausages(g) {
+      const hw = this.halfWidth, kw = this.kerbWidth, n = this.n; const kk = this.smooth(this.k, 6);
+      const corners = ['Abbey', 'Village', 'The Loop', 'Brooklands', 'Luffield', 'Copse', 'Stowe', 'Vale', 'Club'];
+      const prof = [[-0.3, 0], [-0.26, 0.07], [-0.17, 0.135], [-0.06, 0.16], [0.06, 0.16], [0.17, 0.135], [0.26, 0.07], [0.3, 0]];
+      const pos = [], col = [], idx = []; const yel = new THREE.Color(0xf2b705).convertSRGBToLinear(), dirt = new THREE.Color(0x7a6a3a).convertSRGBToLinear(), blk = new THREE.Color(0x1a1a1a);
+      const seen = {}; this.sausages = [];
+      this.data.corners.forEach((c, ci) => {
+        if (corners.indexOf(c.name) < 0) return;
+        const next = this.data.corners[ci + 1]; const sEnd = next ? Math.min(next.s, c.s + 200) : c.s + 200;
+        let best = -1, bk = 0; for (let s = c.s - 30; s < sEnd; s += this.ds) { const i = this.idxAtS(s); if (Math.abs(kk[i]) > bk) { bk = Math.abs(kk[i]); best = i; } }
+        if (best < 0 || bk < 1 / 260 || seen[best]) return; seen[best] = true;
+        const side = kk[best] > 0 ? 1 : -1;                        // centre of curvature side = inside
+        const wall = side < 0 ? this.wallL[best] : this.wallR[best]; const R = 1 / bk; const lat0 = hw + kw + 1.5 + 0.3;
+        if (lat0 + 0.6 > Math.min(wall - 0.5, 0.85 * R)) return;
+        const sA = this.s[best]; this.sausages.push({ name: c.name, s: sA, side });
+        for (let piece = -1; piece <= 1; piece++) {
+          const s0 = sA + piece * 4.4 - 2.0, s1 = s0 + 4.0; const steps = 8;
+          for (let r = 0; r <= steps; r++) {
+            const fs = r / steps; const f = this.frameAt(s0 + (s1 - s0) * fs); const end = Math.min(1, Math.min(fs, 1 - fs) * 4.5 + 0.12);
+            for (let k = 0; k < prof.length; k++) {
+              const l = side * (lat0 + prof[k][0]); const h = prof[k][1] * end;
+              pos.push(f.x + f.nx * l, f.y + h, f.z + f.nz * l);
+              const cc = (k === 0 || k === prof.length - 1) ? dirt : (r === 0 || r === steps) ? blk : yel; const t = 0.85 + 0.15 * U.noise2(s0 * 3 + r, k); col.push(cc.r * t, cc.g * t, cc.b * t);
+            }
+            if (r > 0) { const base = pos.length / 3 - prof.length * 2; for (let k = 0; k < prof.length - 1; k++) { const a = base + k, b = base + prof.length + k; if (side > 0) idx.push(a, a + 1, b, a + 1, b + 1, b); else idx.push(a, b, a + 1, a + 1, b, b + 1); } }
+          }
+        }
+      });
+      if (!idx.length) return;
+      const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); geo.setAttribute('color', new THREE.Float32BufferAttribute(col, 3)); geo.setIndex(idx); geo.computeVertexNormals();
+      const m = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.55, metalness: 0, side: THREE.DoubleSide })); m.castShadow = true; m.receiveShadow = true; m.name = 'sausageKerbs'; g.add(m);
+    }
+
+    // ------------------------------------------------ painted markings: start/finish, grid boxes, DRS lines, run-off logos
+    buildMarkings(g) {
+      const hw = this.halfWidth, kw = this.kerbWidth; const sf = this.sf;
+      const paintMat = (map, extra) => new THREE.MeshStandardMaterial(Object.assign({ map, transparent: true, depthWrite: false, roughness: 0.62, metalness: 0, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -4 }, extra || {}));
+      // start / finish: chequered band
+      { const b = { pos: [], uv: [], idx: [] }; const tex = U.srgb(chequerTexture()); this.addDecal(b, sf - 0.6, sf + 0.6, -hw + 0.2, hw - 0.2, (fs, fl) => [fl * 24, fs], 2);
+        const m = Track.batchMesh(b, paintMat(tex)); m.name = 'startFinish'; g.add(m); }
+      // grid: F1-style white slot brackets with painted position numbers (atlas, one mesh)
+      { const atlas = U.srgb(gridAtlas()); const b = { pos: [], uv: [], idx: [] };
+        for (let p = 0; p < 20; p++) {
+          const s = sf - 10 - p * 8, side = (p % 2 === 0 ? -1 : 1) * 2.6; const cu = (p % 5) / 5, cv = Math.floor(p / 5) / 4;
+          // cell covers 3.6 m across x 7.2 m along, front of the slot 3.1 m ahead of the car's centre
+          this.addDecal(b, s + 3.1 - 7.2 + 2.2, s + 3.1 + 2.2, side - 1.8, side + 1.8, (fs, fl) => [cu + (1 - fl) * 0.2, 1 - (cv + (1 - fs) * 0.25)], 3);
+        }
+        const m = Track.batchMesh(b, paintMat(atlas, { alphaTest: 0.35, transparent: false, depthWrite: true })); m.name = 'gridBoxes'; g.add(m); }
+      // DRS detection and activation lines across the track
+      { const b = { pos: [], uv: [], idx: [] }; const white = U.srgb(solidTexture('#ecebe6'));
+        for (const z of this.drs) { this.addDecal(b, z.detect - 0.15, z.detect + 0.15, -hw + 0.2, hw - 0.2, () => [0.5, 0.5], 1); this.addDecal(b, z.start - 0.2, z.start + 0.2, -hw + 0.2, hw - 0.2, () => [0.5, 0.5], 1); }
+        g.add(Track.batchMesh(b, paintMat(white))); }
+      // painted sponsor logos on the run-off at the big corners (fictional EI brands)
+      { const atlas = U.srgb(logoAtlas()); const b = { pos: [], uv: [], idx: [] }; const aw0 = hw + kw + 2.0;
+        const place = (s, side, slot, len) => {
+          const outer = side < 0 ? this.runoffOuterL : this.runoffOuterR; const i = this.idxAtS(s); const wdt = outer[i] - aw0 - 1.4; if (wdt < 2.5) return;
+          const hgt = Math.min(wdt, len * 0.2); const mid = (aw0 + outer[i]) / 2; const la = side * (mid - hgt / 2), lb = side * (mid + hgt / 2);
+          // readable from the track looking outwards
+          this.addDecal(b, s - len / 2, s + len / 2, la, lb, (fs, fl) => { const u = side < 0 ? 1 - fs : fs; return [u, 1 - (slot + 1 - fl) / 4]; }, Math.ceil(len / 1.5), 0.015);
+        };
+        const L = this.length; const kk = this.smooth(this.k, 12);
+        const spots = [['Copse', 0, 28], ['Luffield', 1, 24], ['Stowe', 2, 26], ['Club', 3, 22], ['Abbey', 0, 26], ['Village', 2, 22], ['Brooklands', 1, 22], ['Vale', 0, 20], ['Woodcote', 3, 22]];
+        for (const [name, slot, len] of spots) {
+          const c = this.data.corners.find(cc => cc.name === name); if (!c) continue;
+          // the painted run-off is on the outside: find the widest run-off point in the corner
+          let best = -1, bw = 0, bside = 1;
+          for (let s = c.s; s < c.s + 160; s += 4) { const i = this.idxAtS(U.mod(s, L)); for (const side of [-1, 1]) { const run = side < 0 ? this.runoffL : this.runoffR; const outer = side < 0 ? this.runoffOuterL : this.runoffOuterR; if (run[i] && outer[i] > bw) { bw = outer[i]; best = s; bside = side; } } }
+          if (best >= 0) place(best, bside, slot, len);
+        }
+        if (b.idx.length) { const m = Track.batchMesh(b, paintMat(atlas)); m.name = 'runoffLogos'; g.add(m); }
+      }
     }
 
     buildBarriers(g) {
@@ -272,7 +685,7 @@ window.EI = window.EI || {};
       for (const side of [-1, 1]) {
         const wall = side < 0 ? this.wallL : this.wallR;
         const inCorner = i => Math.abs(kk[i]) > 1 / 600;
-        const isTyre = i => inCorner(i) && tyreCorners.indexOf(cornerAt(this.s[i])) >= 0 && (side < 0 ? kk[i] < 0 : kk[i] > 0);
+        const isTyre = i => inCorner(i) && tyreCorners.indexOf(cornerAt(this.s[i])) >= 0 && (side < 0 ? kk[i] > 0 : kk[i] < 0);
         const isPanel = i => !isTyre(i) && (inCorner(i) || Math.abs(this.s[i] - this.sf) < 500);
         // concrete base + panels
         const pg = this.ribbon(i => side * wall[i], i => side * wall[i], { mask: isPanel, ya: () => 0.5, yb: () => 1.2, vScale: 25.6 });
@@ -299,25 +712,57 @@ window.EI = window.EI || {};
     buildPitLane(g) {
       const pts = this.data.pit.map(p => new THREE.Vector3(p[0], 0, p[1])); if (pts.length < 3) return;
       const curve = new THREE.CatmullRomCurve3(pts, false, 'centripetal'); curve.arcLengthDivisions = 4000;
-      const len = curve.getLength(); const n = Math.max(8, Math.round(len / 4)); const sp = curve.getSpacedPoints(n);
-      const pos = [], idx = [], uv = [];
+      const len = curve.getLength(); const n = Math.max(8, Math.round(len / 2)); const sp = curve.getSpacedPoints(n); const seg = len / n;
+      const hw = this.halfWidth, W = 5.5; const T = this.surfaceTextures();
+      // frames along the lane: left normal, ground height, distance of each lane edge from the track centre line
+      const F = []; const pr = {};
       for (let i = 0; i <= n; i++) {
         const a = sp[Math.max(0, i - 1)], b = sp[Math.min(n, i + 1)]; let dx = b.x - a.x, dz = b.z - a.z; const l = Math.hypot(dx, dz) || 1; dx /= l; dz /= l;
-        const nx = dz, nz = -dx, w = 5.5; const pr = this.project(sp[i].x, sp[i].z, null); const y = this.y[pr.i] + 0.005;
-        pos.push(sp[i].x + nx * w, y, sp[i].z + nz * w, sp[i].x - nx * w, y, sp[i].z - nz * w); uv.push(0, i, 1, i);
+        this.project(sp[i].x, sp[i].z, null, pr); const nx = dz, nz = -dx;
+        const edge = (o) => { const q = this.project(sp[i].x + nx * o, sp[i].z + nz * o, pr.i, {}); return q.dist; };
+        F.push({ x: sp[i].x, z: sp[i].z, nx, nz, y: this.y[pr.i], dL: edge(W), dR: edge(-W), dC: pr.dist });
       }
+      const pos = [], idx = [], uv = [];
+      for (let i = 0; i <= n; i++) { const f = F[i]; pos.push(f.x - f.nx * W, f.y + 0.004, f.z - f.nz * W, f.x + f.nx * W, f.y + 0.004, f.z + f.nz * W); uv.push(-W / 5, i * seg / 5, W / 5, i * seg / 5); }
       for (let i = 0; i < n; i++) { const a = i * 2; idx.push(a, a + 2, a + 1, a + 1, a + 2, a + 3); }
-      const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); geo.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2)); geo.setIndex(idx); geo.computeVertexNormals();
-      const m = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ map: U.grainTexture(256, 0x58585c, 0.06, 1, 14), roughness: 0.95, polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 2 })); m.receiveShadow = true; g.add(m);
-      // markings: solid edge lines and a dashed centre line
-      const lineMat = new THREE.MeshBasicMaterial({ color: 0xf2f2f2, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -2 });
-      const dashMat = new THREE.MeshBasicMaterial({ color: 0xf2f2f2, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -2 });
+      const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); geo.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2)); geo.setIndex(idx);
+      const nr = new Float32Array(pos.length); for (let i = 1; i < nr.length; i += 3) nr[i] = 1; geo.setAttribute('normal', new THREE.BufferAttribute(nr, 3));
+      // the lane only shows where it leaves the racing surface (no pit asphalt painted over the track itself)
+      const vis = F.map(f => Math.min(f.dL, f.dR) > hw - 0.3);
+      const idx2 = []; for (let i = 0; i < n; i++) if (vis[i] || vis[i + 1]) { const a = i * 2; idx2.push(a, a + 2, a + 1, a + 1, a + 2, a + 3); } geo.setIndex(idx2);
+      const m = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ map: T.asphalt.map, normalMap: T.asphalt.normalMap, roughnessMap: T.asphalt.roughnessMap, color: 0xdedcd8, roughness: 1, metalness: 0, polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 1 }));
+      m.receiveShadow = true; m.name = 'pitLane'; g.add(m);
+      // markings in one batch: lane edge lines, dashed centre, pit entry / exit lines (thicker, on the track-side edge while the lane runs beside the track),
+      // and the speed-limit lines with painted "PIT" / "80"
+      const b = { pos: [], uv: [], idx: [] }; const tb = { pos: [], uv: [], idx: [] };
+      const band = (B, i0, i1, o0, o1, uvf) => { const base = B.pos.length / 3; for (let i = i0; i <= i1; i++) { const f = F[i]; for (const [c, o] of [[0, o0], [1, o1]]) { B.pos.push(f.x + f.nx * o, f.y + 0.014, f.z + f.nz * o); const t = uvf ? uvf((i - i0) / Math.max(1, i1 - i0), c) : [0.5, 0.5]; B.uv.push(t[0], t[1]); } if (i > i0) { const a = base + (i - 1 - i0) * 2, q = a + 2; B.idx.push(a, q, a + 1, a + 1, q, q + 1); } } };
+      const trackSideLeft = (i) => F[i].dL < F[i].dR;
       for (let i = 0; i < n; i++) {
-        const a = sp[i], b = sp[i + 1]; let dx = b.x - a.x, dz = b.z - a.z; const l = Math.hypot(dx, dz) || 1; dx /= l; dz /= l; const nx = dz, nz = -dx;
-        const pr = this.project(a.x, a.z, null); const y = this.y[pr.i] + 0.012;
-        for (const off of [5.2, -5.2]) { const seg = new THREE.Mesh(new THREE.PlaneGeometry(l, 0.15), lineMat); seg.rotation.x = -Math.PI / 2; seg.rotation.z = -Math.atan2(dz, dx); seg.position.set((a.x + b.x) / 2 + nx * off, y, (a.z + b.z) / 2 + nz * off); g.add(seg); }
-        if (i % 2 === 0) { const d = new THREE.Mesh(new THREE.PlaneGeometry(l * 0.6, 0.12), dashMat); d.rotation.x = -Math.PI / 2; d.rotation.z = -Math.atan2(dz, dx); d.position.set((a.x + b.x) / 2, y, (a.z + b.z) / 2); g.add(d); }
+        if (!vis[i] && !vis[i + 1]) continue;
+        band(b, i, i + 1, W - 0.3, W - 0.15); band(b, i, i + 1, -W + 0.15, -W + 0.3);
+        if (i % 3 === 0) band(b, i, i + 1, -0.07, 0.07);
       }
+      // pit entry / exit line: 0.3 m solid line from the track edge along the lane's track-side edge until the lane is clear of the track
+      for (const [from, dir] of [[0, 1], [n, -1]]) {
+        let i = from; while (i >= 0 && i <= n && Math.min(F[i].dL, F[i].dR) < hw + 0.3) i += dir; const start = i;
+        while (i >= 0 && i <= n && Math.min(F[i].dL, F[i].dR) < hw + 14 && Math.abs(i - start) < 90) i += dir;
+        const a = Math.max(0, Math.min(start, i)), c = Math.min(n, Math.max(start, i)); if (c - a < 2) continue;
+        for (let k = a; k < c; k++) { const o = trackSideLeft(k) ? 1 : -1; band(b, k, k + 1, o > 0 ? W - 0.32 : -W + 0.02, o > 0 ? W - 0.02 : -W + 0.32); }
+        // speed limit line across the lane ~25 m after the lane separates, "PIT" and "80" painted beyond it
+        const lim = U.clamp(i + dir * 12, 2, n - 2); const l0 = Math.min(lim, lim + dir), l1 = Math.max(lim, lim + dir);
+        const f0 = F[l0], f1 = F[l1]; const yy = (f0.y + f1.y) / 2 + 0.014;
+        const mid = (u) => ({ x: U.lerp(f0.x, f1.x, u), z: U.lerp(f0.z, f1.z, u), nx: f0.nx, nz: f0.nz });
+        const quad = (B, u0, u1, o0, o1, uvRect) => { const p0 = mid(u0), p1 = mid(u1); const base = B.pos.length / 3;
+          for (const [p, v] of [[p0, 0], [p1, 1]]) for (const [o, c] of [[o0, 0], [o1, 1]]) { B.pos.push(p.x + p.nx * o, yy, p.z + p.nz * o); const vv = v; B.uv.push(uvRect[0] + (uvRect[2] - uvRect[0]) * (1 - c), uvRect[1] + (uvRect[3] - uvRect[1]) * vv); }
+          B.idx.push(base, base + 2, base + 1, base + 1, base + 2, base + 3); };
+        quad(b, 0.45, 0.55, -W + 0.15, W - 0.15, [0.5, 0.5, 0.5, 0.5]);
+        // text reads for a car travelling in the lane direction (entry: forwards along the curve, exit: same)
+        if (dir > 0) { quad(tb, 0.65, 2.3, -2.6, 2.6, [0, 0.5, 1, 1]); quad(tb, 2.6, 4.0, -2.0, 2.0, [0, 0, 1, 0.5]); }
+        else { quad(tb, -3.8, -2.15, -2.6, 2.6, [0, 0.5, 1, 1]); quad(tb, -1.85, -0.45, -2.0, 2.0, [0, 0, 1, 0.5]); }
+      }
+      const white = U.srgb(solidTexture('#ecebe6'));
+      const mk = Track.batchMesh(b, new THREE.MeshStandardMaterial({ map: white, roughness: 0.6, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -4 })); mk.name = 'pitMarkings'; g.add(mk);
+      if (tb.idx.length) { const tx = U.srgb(pitTextTexture()); const mt = Track.batchMesh(tb, new THREE.MeshStandardMaterial({ map: tx, transparent: true, depthWrite: false, roughness: 0.6, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -4 })); mt.name = 'pitText'; g.add(mt); }
       this.pitCurve = curve;
     }
 
@@ -336,23 +781,40 @@ window.EI = window.EI || {};
       this.startLights = []; const offMat = new THREE.MeshBasicMaterial({ color: 0x2a0b0b });
       for (let c = 0; c < 5; c++) { const col = []; for (let rr = 0; rr < 2; rr++) { const lamp = new THREE.Mesh(new THREE.SphereGeometry(0.28, 10, 8), offMat.clone()); lamp.position.set(-0.25, 6.55 - rr * 0.65, (c - 2) * 1.15); gantry.add(lamp); col.push(lamp); } this.startLights.push(col); }
       gantry.position.set(this.x[i0], this.y[i0], this.z[i0]); gantry.rotation.y = -this.heading[i0]; g.add(gantry);
-      // boards
-      const addBoard = (s, side, text, opts) => {
-        const p = placeAt(s, side, null); const w = opts.w || 6, h = opts.h || 1.4;
-        const tex = U.textTexture(text, { w: 512, h: Math.round(512 * h / w), bg: opts.bg, color: opts.color, size: opts.size || 70, stripe: opts.stripe, font: 'italic 900 Arial Black, Arial' });
-        const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshBasicMaterial({ map: U.srgb(tex), side: THREE.DoubleSide }));
-        m.position.set(p.x, p.y + (opts.y || 2.3), p.z); m.rotation.y = -p.heading + (side < 0 ? 0 : Math.PI); g.add(m);
-        const post = new THREE.Mesh(new THREE.BoxGeometry(0.15, opts.y || 2.3, 0.15), postMat); post.position.set(p.x, p.y + (opts.y || 2.3) / 2, p.z); g.add(post);
+      // boards: Silverstone-style corner names (dark green, white italic caps, turn-number badge), braking boards, DRS boards
+      const boardTex = (draw, w, h) => { const c = document.createElement('canvas'); c.width = w; c.height = h; draw(c.getContext('2d'), w, h); const t = new THREE.CanvasTexture(c); t.anisotropy = 8; return U.srgb(t); };
+      // boards face oncoming cars (toed 15 degrees towards the track); dist = lateral distance of the board centre
+      const addBoard = (s, side, tex, w, h, y, dist) => {
+        const i = this.idxAtS(s); const p = placeAt(s, side, dist); const a = 0.26;
+        const nX = -this.tx[i] * Math.cos(a) - side * this.nx[i] * Math.sin(a), nZ = -this.tz[i] * Math.cos(a) - side * this.nz[i] * Math.sin(a); const th = Math.atan2(nX, nZ);
+        const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshLambertMaterial({ map: tex, side: THREE.DoubleSide, emissive: 0xffffff, emissiveMap: tex, emissiveIntensity: 0.15 }));
+        m.position.set(p.x, p.y + y, p.z); m.rotation.y = th; g.add(m);
+        const back = new THREE.Mesh(new THREE.BoxGeometry(w + 0.08, h + 0.08, 0.06), postMat); back.position.set(p.x - nX * 0.04, p.y + y, p.z - nZ * 0.04); back.rotation.y = th; g.add(back);
+        const ax = Math.cos(th), az = -Math.sin(th); const posts = w > 3 ? [-w * 0.38, w * 0.38] : [0];
+        for (const o of posts) { const post = new THREE.Mesh(new THREE.BoxGeometry(0.12, y - h / 2 + 0.05, 0.12), postMat); post.position.set(p.x + ax * o - nX * 0.1, p.y + (y - h / 2) / 2, p.z + az * o - nZ * 0.1); g.add(post); }
       };
+      const wallAt = (s, side) => { const i = this.idxAtS(s); return side < 0 ? this.wallL[i] : this.wallR[i]; };
       const kk = this.smooth(this.k, 15);
-      for (const c of this.data.corners) { if (/Straight/i.test(c.name)) continue; const i = this.idxAtS(c.s + 50); addBoard(c.s + 50, kk[i] > 0 ? 1 : -1, c.name.toUpperCase(), { bg: '#ffffff', color: '#111', w: 7, h: 1.5, size: 64 }); }
-      const stops = ['Village', 'Brooklands', 'Stowe', 'Vale', 'Club', 'Abbey', 'Copse', 'Luffield'];
-      for (const c of this.data.corners) { if (stops.indexOf(c.name) < 0) continue; const i = this.idxAtS(c.s + 40); const side = kk[i] > 0 ? 1 : -1; for (const d of [150, 100, 50]) addBoard(c.s - d + 20, side, String(d), { bg: '#f2c200', color: '#111', w: 1.6, h: 1.6, size: 180, y: 1.6 }); }
-      for (const z of this.drs) {
-        addBoard(z.detect, -1, 'DRS DETECTION', { bg: '#ffffff', color: '#111', w: 5, h: 1.2, size: 70, stripe: '#1a73e8' });
-        addBoard(z.start, -1, 'DRS', { bg: '#1a73e8', color: '#fff', w: 4, h: 1.6, size: 170 }); addBoard(z.start, 1, 'DRS', { bg: '#1a73e8', color: '#fff', w: 4, h: 1.6, size: 170 });
-        for (const [ss, col, ww] of [[z.start, 0x1a73e8, 0.4], [z.detect, 0xffffff, 0.3]]) { const i = this.idxAtS(ss); const line = new THREE.Mesh(new THREE.PlaneGeometry(hw * 2, ww), new THREE.MeshBasicMaterial({ color: col })); line.rotation.x = -Math.PI / 2; line.rotation.z = -this.heading[i]; line.position.set(this.x[i], this.y[i] + 0.02, this.z[i]); g.add(line); }
+      const TURN = { 'Abbey': 1, 'Farm Curve': 2, 'Village': 3, 'The Loop': 4, 'Aintree': 5, 'Brooklands': 6, 'Luffield': 7, 'Woodcote': 8, 'Copse': 9, 'Maggotts': 10, 'Becketts': 11, 'Chapel Curve': 13, 'Stowe': 15, 'Vale': 16, 'Club': 18 };
+      const outsideAt = (s) => (kk[this.idxAtS(s)] > 0 ? -1 : 1);
+      const named = {};
+      for (const c of this.data.corners) {
+        if (/Straight/i.test(c.name) || named[c.name]) continue; named[c.name] = true;
+        const tex = boardTex((ctx, w, h) => {
+          ctx.fillStyle = '#0d3a2b'; ctx.fillRect(0, 0, w, h); ctx.fillStyle = '#c8102e'; ctx.fillRect(0, h * 0.86, w, h * 0.14); ctx.fillStyle = '#e8e3d0'; ctx.fillRect(0, 0, w, h * 0.04);
+          ctx.fillStyle = '#ffffff'; ctx.beginPath(); ctx.arc(h * 0.48, h * 0.46, h * 0.3, 0, 6.283); ctx.fill();
+          ctx.fillStyle = '#0d3a2b'; ctx.font = '900 ' + Math.round(h * 0.34) + 'px Arial Black, Arial'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(String(TURN[c.name] || ''), h * 0.48, h * 0.48);
+          ctx.fillStyle = '#ffffff'; ctx.font = 'italic 900 ' + Math.round(h * 0.46) + 'px Arial Black, Arial'; ctx.textAlign = 'left'; ctx.fillText(c.name.toUpperCase(), h * 0.95, h * 0.47, w - h * 1.1);
+        }, 1024, 192);
+        { const sd = outsideAt(c.s + 45); addBoard(c.s + 45, sd, tex, 6.4, 1.2, 3.9, wallAt(c.s + 45, sd) + 3.8); }
       }
+      // braking boards: 150 / 100 / 50 m before the turn-in of the heavy stops, on the outside of the approach
+      const distTex = {}; for (const d of [150, 100, 50]) distTex[d] = boardTex((ctx, w, h) => { ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, w, h); ctx.strokeStyle = '#0d3a2b'; ctx.lineWidth = 14; ctx.strokeRect(7, 7, w - 14, h - 14); ctx.fillStyle = '#111'; ctx.font = '900 ' + (d > 99 ? 104 : 130) + 'px Arial Black, Arial'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(String(d), w / 2, h / 2 + 6); }, 256, 256);
+      const stops = ['Village', 'Brooklands', 'Stowe', 'Vale', 'Club', 'Abbey', 'Luffield'];
+      for (const c of this.data.corners) { if (stops.indexOf(c.name) < 0 || named['_d' + c.name]) continue; named['_d' + c.name] = true; const side = outsideAt(c.s + 30); for (const d of [150, 100, 50]) addBoard(c.s - d, side, distTex[d], 1.5, 1.5, 1.45, Math.min(wallAt(c.s - d, side) - 1.4, this.halfWidth + this.kerbWidth + 4)); }
+      const drsTex = boardTex((ctx, w, h) => { ctx.fillStyle = '#1a73e8'; ctx.fillRect(0, 0, w, h); ctx.fillStyle = '#fff'; ctx.font = 'italic 900 150px Arial Black, Arial'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('DRS', w / 2, h / 2 + 6); }, 512, 256);
+      const detTex = boardTex((ctx, w, h) => { ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, w, h); ctx.fillStyle = '#1a73e8'; ctx.fillRect(0, 0, w, h * 0.14); ctx.fillRect(0, h * 0.86, w, h * 0.14); ctx.fillStyle = '#111'; ctx.font = 'italic 900 62px Arial Black, Arial'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('DRS DETECTION', w / 2, h / 2 + 3, w - 30); }, 512, 128);
+      for (const z of this.drs) { const dd = (s, sd, w) => Math.min(wallAt(s, sd) - 0.6 - w / 2, this.halfWidth + 5 + w / 2); addBoard(z.detect, -1, detTex, 4, 1.0, 2.3, dd(z.detect, -1, 4)); addBoard(z.start, -1, drsTex, 2.4, 1.2, 2.2, dd(z.start, -1, 2.4)); addBoard(z.start, 1, drsTex, 2.4, 1.2, 2.2, dd(z.start, 1, 2.4)); }
       // sponsor bridges
       const bridge = (s, text, bg) => {
         const i = this.idxAtS(s); const grp = new THREE.Group();
@@ -363,10 +825,7 @@ window.EI = window.EI || {};
         grp.position.set(this.x[i], this.y[i], this.z[i]); grp.rotation.y = -this.heading[i]; g.add(grp);
       };
       bridge(this.sf + 140, 'EQUATION I', '#e10600'); bridge(4650, 'EI  ·  SILVERSTONE', '#5b2a86'); bridge(2850, 'EQUATION I', '#e10600'); bridge(1600, 'DRS ZONE', '#1a73e8');
-      // marshal posts
-      const hutMat = new THREE.MeshLambertMaterial({ color: 0xff7a00 });
-      for (const c of this.data.corners) { if (/Straight/i.test(c.name)) continue; const i = this.idxAtS(c.s + 20); const side = kk[i] > 0 ? -1 : 1; const p = placeAt(c.s + 20, side, this.wallL[i] + 2.5);
-        const hut = new THREE.Mesh(new THREE.BoxGeometry(1.6, 2.2, 1.6), hutMat); hut.position.set(p.x, p.y + 1.1, p.z); hut.castShadow = true; g.add(hut); }
+      // marshal posts are built by EI.Infra (booths, flag marshals, number boards)
       // flood lights / camera towers along the straights for skyline interest
       for (const s of [500, 1500, 2600, 3300, 4500, 5400]) { const p = placeAt(s, 1, this.wallR[this.idxAtS(s)] + 4); const t = new THREE.Mesh(new THREE.CylinderGeometry(0.25, 0.4, 18, 6), postMat); t.position.set(p.x, p.y + 9, p.z); g.add(t); const head = new THREE.Mesh(new THREE.BoxGeometry(2.5, 0.8, 1.2), new THREE.MeshLambertMaterial({ color: 0xe8e8e8 })); head.position.set(p.x, p.y + 18.2, p.z); head.rotation.y = -p.heading; g.add(head); }
     }

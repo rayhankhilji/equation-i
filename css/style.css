@@ -85,7 +85,8 @@ html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text);
 .vp .delta.neg { color: var(--green); } .vp .delta.pos { color: var(--red-2); }
 
 /* ----- dash (bottom-centre) ----- */
-.vp .dash { left: 50%; bottom: var(--pad); width: 520px; transform-origin: bottom center; transform: translateX(-50%) scale(var(--s)); padding: 0 0 8px; overflow: visible; }
+.vp .dash { left: 50%; bottom: var(--pad); width: 520px; transform-origin: bottom center; transform: translateX(-50%) scale(var(--s)); padding: 0 0 8px; overflow: visible; transition: opacity 0.35s ease, transform 0.35s cubic-bezier(.2,.9,.3,1); }
+.vp.cockpit .dash { opacity: 0; transform: translateX(-50%) translateY(30px) scale(var(--s)); }
 .vp .leds { display: flex; justify-content: center; gap: 8px; height: 26px; align-items: center; border-bottom: 1px solid var(--line-2); background: linear-gradient(180deg, rgba(0,0,0,0.35), rgba(0,0,0,0)); border-radius: var(--radius) var(--radius) 0 0; }
 .vp .leds i { width: 11px; height: 11px; border-radius: 50%; background: #1b1f27; box-shadow: inset 0 1px 2px rgba(0,0,0,0.8); }
 .vp .leds i.g.on { background: #35f07a; box-shadow: 0 0 9px #35f07a, 0 0 2px #fff inset; }
@@ -127,14 +128,23 @@ html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text);
 @keyframes drsPulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(47,227,109,0); } 50% { box-shadow: 0 0 14px 1px rgba(47,227,109,0.65); } }
 .vp .drs.open { background: var(--green); border-color: var(--green); color: #03210d; box-shadow: 0 0 18px rgba(47,227,109,0.7); }
 
-/* ----- minimap (bottom-left) ----- */
-.vp .mapwrap { left: calc(var(--pad) - 10px * var(--s)); bottom: calc(var(--pad) - 16px * var(--s)); width: 200px; height: 300px; transform-origin: bottom left; transform: scale(var(--s)); -webkit-mask-image: radial-gradient(ellipse at 50% 62%, #000 40%, transparent 68%); mask-image: radial-gradient(ellipse at 50% 62%, #000 40%, transparent 68%); }
-.vp .minimap { width: 200px; height: 300px; display: block; }
+/* ----- minimap (bottom-left): rotating, heading-up, in a glass disc ----- */
+.vp .mapwrap { left: var(--pad); bottom: var(--pad); width: 180px; height: 180px; transform-origin: bottom left; transform: scale(var(--s)); border-radius: 50%; background: radial-gradient(circle at 50% 56%, rgba(10,13,19,0.72) 0%, rgba(8,10,15,0.6) 62%, rgba(8,10,15,0.0) 71%); }
+.vp .mapwrap::before { content: ""; position: absolute; inset: 9px; border-radius: 50%; border: 1px solid rgba(255,255,255,0.16); box-shadow: inset 0 0 22px rgba(0,0,0,0.45); pointer-events: none; }
+.vp .minimap { width: 180px; height: 180px; display: block; border-radius: 50%; -webkit-mask-image: radial-gradient(circle at 50% 50%, #000 58%, transparent 70%); mask-image: radial-gradient(circle at 50% 50%, #000 58%, transparent 70%); }
+.vp .map-n { position: absolute; left: 50%; top: 4px; width: 0; height: 0; margin-left: -5px; border-left: 5px solid transparent; border-right: 5px solid transparent; border-top: 7px solid rgba(255,255,255,0.75); }
 
-/* narrow viewports (portrait split, small windows): lift the side widgets above the dash */
-.vp.narrow .mapwrap { bottom: calc(var(--pad) + 96px * var(--s)); }
-.vp.narrow .corner { bottom: calc(var(--pad) + 150px * var(--s)); }
-.vp.narrow .pname { bottom: calc(var(--pad) + 112px * var(--s)); }
+/* narrow viewports (split screen, small windows): shrink the side widgets so they sit beside the dash;
+   tight ones (portrait phones) lift them above it. In cockpit view the dash is hidden, so nothing moves. */
+.vp.narrow .mapwrap { transform: scale(calc(var(--s) * 0.78)); }
+.vp.narrow .pname { transform: scale(calc(var(--s) * 0.85)); }
+.vp.narrow .corner { transform: scale(calc(var(--s) * 0.85)); bottom: calc(var(--pad) + 36px * var(--s)); }
+.vp.tight .mapwrap { bottom: calc(var(--pad) + 112px * var(--s)); }
+.vp.tight .corner { bottom: calc(var(--pad) + 150px * var(--s)); }
+.vp.tight .pname { bottom: calc(var(--pad) + 112px * var(--s)); }
+.vp.cockpit .mapwrap { transform: scale(var(--s)); bottom: var(--pad); }
+.vp.cockpit .pname { transform: scale(var(--s)); bottom: var(--pad); }
+.vp.cockpit .corner { transform: scale(var(--s)); bottom: calc(var(--pad) + 40px * var(--s)); }
 
 /* ----- corner & driver chip (bottom-right) ----- */
 .vp .corner { right: var(--pad); bottom: calc(var(--pad) + 40px * var(--s)); transform-origin: bottom right; transform: scale(var(--s)); font-size: 14px; letter-spacing: 3.5px; color: #fff; font-weight: 700; text-shadow: 0 2px 10px rgba(0,0,0,0.9); white-space: nowrap; }
@@ -153,11 +163,12 @@ html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text);
 
 /* ----- name tags above cars ----- */
 .vp .tags { inset: 0; }
-.vp .tag { position: absolute; transform: translate(-50%, calc(-100% - 10px)) scale(calc(var(--s) * var(--d, 1))); transform-origin: bottom center; display: flex; align-items: stretch; height: 20px; background: rgba(9,11,16,0.86); border: 1px solid rgba(255,255,255,0.18); border-radius: 4px; font-size: 11px; font-weight: 700; letter-spacing: 1px; white-space: nowrap; overflow: hidden; box-shadow: 0 3px 10px rgba(0,0,0,0.5); }
-.vp .tag::after { content: ""; }
-.vp .tag .tp { color: #fff; padding: 0 6px; background: rgba(255,255,255,0.12); font-weight: 900; font-style: italic; display: flex; align-items: center; }
-.vp .tag .tb { width: 4px; display: block; }
-.vp .tag .tn { padding: 0 8px 0 7px; display: flex; align-items: center; color: #eef2f7; }
+.vp .tag { position: absolute; transform: translate(-50%, calc(-100% - 12px)) scale(calc(var(--s) * var(--d, 1))); transform-origin: bottom center; display: flex; align-items: stretch; height: 20px; background: rgba(8,10,14,0.88); border: 1px solid rgba(255,255,255,0.2); border-radius: 3px; font-size: 11.5px; font-weight: 700; letter-spacing: 0.8px; white-space: nowrap; box-shadow: 0 3px 10px rgba(0,0,0,0.45); font-variant-numeric: tabular-nums; }
+.vp .tag .tp { color: #0b0d12; min-width: 20px; justify-content: center; padding: 0 5px; background: #f4f6f9; font-weight: 900; font-style: italic; display: flex; align-items: center; border-radius: 2px 0 0 2px; }
+.vp .tag .tb { width: 3px; display: block; }
+.vp .tag .tn { padding: 0 8px 0 6px; display: flex; align-items: center; color: #eef2f7; }
+.vp .tag .tpt { position: absolute; left: 50%; bottom: -6px; margin-left: -5px; width: 0; height: 0; border-left: 5px solid transparent; border-right: 5px solid transparent; border-top: 5px solid rgba(255,255,255,0.55); }
+.vp .tag.stacked .tpt { display: none; }
 
 /* ==========================================================================
    Shared race overlays: start lights gantry, banner, toasts

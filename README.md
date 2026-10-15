@@ -26,6 +26,8 @@ on-screen buttons for one player.
 | DRS (only in a DRS zone when armed) | Left Shift | Right Shift | A |
 | ERS boost | Left Ctrl or Space | Enter | B / X |
 | Camera (chase / cockpit / TV) | C | / | Y |
+| Request a pit stop | P | Backspace | |
+| Choose tyres for the stop (soft / medium / hard) | 1 / 2 / 3 | 8 / 9 / 0 | |
 | Pause | Esc or P | | |
 | Mute / restart | M / R | | |
 
@@ -80,6 +82,13 @@ In single player either key set drives the car.
   down, barriers scrub speed. Assists: *Full* keeps you at the grip limit so you cannot spin from steering
   alone; *Medium* removes the steering help; *None* adds locked wheels and wheelspin.
 - **Two players** on one keyboard in split screen (side by side on landscape screens, stacked on portrait).
+
+## Pit stops
+
+Press P (Backspace for player 2) to request a stop and 1/2/3 (8/9/0) to choose the compound. Be on the
+pit side of the track at the entry; the lane drives you at the 80 km/h limiter (5 s penalty if you cross the
+limit line too fast). A 15-person crew changes the tyres in about 2.5 s, wear resets, and you rejoin. Bots
+pit on wear or a planned lap. The pit lane has garages, tyre racks, pit-wall engineers and idle crews.
 
 ## Custom liveries
 
