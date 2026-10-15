@@ -51,10 +51,20 @@ window.EI = window.EI || {};
     constructor(car, track, difficulty, rng) {
       this.car = car; this.track = track; this.d = DIFF[difficulty] || DIFF.pro;
       if (!track.aiSpeed) track.aiSpeed = buildSpeedProfile(track);
+      // ---- per-race personality: every bot is drawn fresh each race so the field never feels the same twice
+      const gauss = () => { let u = 0, v = 0; while (u === 0) u = rng(); while (v === 0) v = rng(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v); };
       const teamBias = (car.team.skill - 0.95) * (this.d.frontier ? 0.15 : 0.6);
-      this.speedFactor = U.clamp(this.d.speed + teamBias + (rng() - 0.5) * (this.d.frontier ? 0.004 : 0.02), 0.65, 1.0);
-      this.aggression = U.clamp(this.d.aggression + (rng() - 0.5) * 0.3, 0.1, 1);
+      const formSigma = this.d.frontier ? 0.004 : 0.018;                     // race-to-race form (one standard deviation of pace)
+      this.form = gauss() * formSigma;
+      this.speedFactor = U.clamp(this.d.speed + teamBias + this.form, 0.62, 1.0);
+      this.aggression = U.clamp(this.d.aggression + gauss() * 0.22, 0.05, 1);  // how eagerly they attack and defend
+      this.consistency = U.clamp(0.75 + gauss() * 0.15 + (this.d.speed - 0.85), 0.3, 1); // lap-to-lap scatter and mistake rate
+      this.braker = U.clamp(1 + gauss() * 0.04, 0.9, 1.1);                   // late (<1) vs early (>1) braker
+      this.lineBias = gauss() * 0.6;                                         // prefers running a little inside (-) or outside (+)
+      this.defender = rng() < 0.35 + this.aggression * 0.4;                  // moves to the inside under threat
+      this.ersStyle = rng() < 0.5 ? 'attack' : 'defend';
       const rr = this.d.reaction || [0.15, 0.6]; this.reaction = rr[0] + rng() * (rr[1] - rr[0]);
+      this.lapForm = 0; this.lapFormT = 0;
       this.offset = 0; this.offsetTarget = 0; this.noiseT = 0; this.noise = 0; this.rng = rng;
       this.launched = false; this.stuckT = 0; this.reverseT = 0;
     }
@@ -69,8 +79,9 @@ window.EI = window.EI || {};
       const th = t.heading[car.trk.i];
       const rel = U.wrapAngle(car.heading - th);
       if (av < 2 && race.time > 4) this.stuckT += dt; else this.stuckT = 0;
+      inp.reverse = false;
       if (this.reverseT > 0) {
-        this.reverseT -= dt; inp.throttle = 0; inp.brake = 1; inp.steer = rel > 0 ? -1 : 1; return;
+        this.reverseT -= dt; inp.throttle = 0; inp.brake = 1; inp.reverse = true; inp.steer = rel > 0 ? -1 : 1; return;
       }
       if (this.stuckT > 1.5) { this.reverseT = 1.2; this.stuckT = 0; return; }
       // --- speed target from the profile, looking slightly ahead
@@ -78,7 +89,9 @@ window.EI = window.EI || {};
       const look = Math.round((4 + av * 0.12) / t.ds);
       let target = Infinity;
       for (let j = 0; j <= look; j += 2) target = Math.min(target, t.aiSpeed[(i + j) % n]);
-      target *= this.speedFactor / this.d.brakeMargin * (1 - Math.abs(this.offset) / t.halfWidth * 0.18);
+      // slow drift of pace within a lap (tyre feel, concentration): a random walk bounded by consistency
+      this.lapFormT -= dt; if (this.lapFormT <= 0) { this.lapFormT = 6 + this.rng() * 8; this.lapForm = U.clamp(this.lapForm + (this.rng() - 0.5) * (1 - this.consistency) * 0.03, -0.02, 0.02); }
+      target *= (this.speedFactor + this.lapForm) / (this.d.brakeMargin * this.braker) * (1 - Math.abs(this.offset) / t.halfWidth * 0.18);
       if (car.tyre.grip < 1) target *= car.tyre.grip; if (car.wear > 0) target *= (1 - 0.2 * Math.min(1, car.wear));
       if (this.d.frontier) target *= 1.0 + 0.012 * Math.min(1, car.ers); // frontier bots exploit every bit of grip
       // --- traffic: find car directly ahead and cars alongside
@@ -92,7 +105,7 @@ window.EI = window.EI || {};
         if (dsx < 0 && dsx > -25 && Math.abs(dl) < 4) behindClose = true;
       }
       // --- choose a lateral offset: overtake, avoid, or hold the line
-      let wantOffset = 0;
+      let wantOffset = this.lineBias;
       if (ahead) {
         const closing = car.v - ahead.v;
         const wantPass = (closing > 1.5 || aheadGap < 12) && this.aggression > 0.15 && Math.abs(t.lineK[i]) < 1 / 90;
@@ -117,17 +130,23 @@ window.EI = window.EI || {};
         target = Math.min(target, Math.max(av, 20));
       }
       // defend the inside line when a faster car is close behind on a straight
-      if (!ahead && behindClose && this.aggression > 0.5 && Math.abs(t.lineK[i]) < 1 / 300) {
+      if (!ahead && behindClose && this.defender && Math.abs(t.lineK[i]) < 1 / 300) {
         const kAhead = t.smoothK ? 0 : 0;
         wantOffset = -U.sign(t.lineK[(i + 150) % n] || 1) * 2.5 - t.lineOff[i];
       }
       this.offsetTarget = wantOffset;
       this.offset += U.clamp(this.offsetTarget - this.offset, -3.5 * dt, 3.5 * dt);
       // --- random small errors
-      this.noiseT -= dt; if (this.noiseT <= 0) { this.noiseT = 0.6 + this.rng() * 1.5; this.noise = (this.rng() - 0.5) * 2 * this.d.noise; }
+      this.noiseT -= dt; if (this.noiseT <= 0) { this.noiseT = 0.6 + this.rng() * 1.5; this.noise = (this.rng() - 0.5) * 2 * this.d.noise * (1.6 - this.consistency); if (this.rng() < 0.03 * (1 - this.consistency)) this.noise *= 4; }
       // --- steering: pursue a point on the (offset) racing line
       this.steerToLine(5 + av * 0.32);
       inp.steer = U.clamp(inp.steer + this.noise * 0.5, -1, 1);
+      // --- mistakes: late braking into a heavy stop (runs wide), more likely for weaker, less consistent drivers under pressure
+      this.mistakeT = Math.max(0, (this.mistakeT || 0) - dt);
+      const braking = target < av - 12;
+      if (braking && !this.wasBraking) { const pressure = behindClose ? 1.5 : 1; if (this.rng() < 0.012 * (1.1 - this.d.speed) * 10 * (1.6 - this.consistency) * pressure) this.mistakeT = 1.6 + this.rng(); }
+      this.wasBraking = braking;
+      if (this.mistakeT > 0) target *= 1.06;
       // --- throttle / brake
       const vErr = target - av;
       if (vErr > 0.8) { inp.throttle = U.clamp(vErr / 3, 0.35, 1); inp.brake = 0; }
@@ -140,7 +159,7 @@ window.EI = window.EI || {};
       // --- DRS / ERS
       inp.drs = true;
       const straight = Math.abs(t.lineK[i]) < 1 / 400;
-      inp.ers = straight && car.ers > 0.25 && ((ahead && aheadGap < 35) || behindClose || car.lap === race.laps) && av > 30;
+      inp.ers = straight && car.ers > 0.25 && ((this.ersStyle === 'attack' && ahead && aheadGap < 35) || (this.ersStyle === 'defend' && behindClose) || car.lap === race.laps) && av > 30;
       if (car.ers > 0.95 && straight && av > 40) inp.ers = true;
     }
 

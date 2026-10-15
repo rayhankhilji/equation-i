@@ -136,7 +136,7 @@ window.EI = window.EI || {};
 
     buildModel() {
       const m = (EI.CarGLB && EI.CarGLB.ready) ? EI.CarGLB.build(this, this.isPlayer ? 'hi' : 'lo') : EI.CarModel.build(this);
-      this.group = m.group; this.body = m.body; this.wheels = m.wheels; this.frontPivots = m.frontPivots; this.flap = m.flap; this.helmet = m.helmet; this.bodyMat = m.bodyMat;
+      this.group = m.group; this.body = m.body; this.wheels = m.wheels; this.frontPivots = m.frontPivots; this.flap = m.flap; this.helmet = m.helmet; this.bodyMat = m.bodyMat; this.animateDriver = m.animate || null; this.screen = m.screen || null; this.screenTex = m.screenTex || null; this.flapClosed = m.flapClosed != null ? m.flapClosed : 0.5; this.flapOpen = m.flapOpen != null ? m.flapOpen : -0.15;
       this.group.name = 'car-' + this.id; this.wheelSpin = 0;
       this._fwd = new THREE.Vector3(); this._up = new THREE.Vector3(); this._right = new THREE.Vector3(); this._m = new THREE.Matrix4();
     }
@@ -171,7 +171,9 @@ window.EI = window.EI || {};
       const grade = track.grade[i]; this.gradeNow = grade;
       this.aLong = aEng - aDrag - aBrk - aRoll - 9.81 * grade;
       let nv = v + this.aLong * dt;
-      if (this.brake > 0.5 && av < 0.6 && this.throttle === 0) nv = Math.max(-6, nv - 4 * dt);
+      // reverse: bots only on an explicit request; players after holding the brake for half a second at a standstill once racing
+      if (this.brake > 0.5 && av < 0.6 && this.throttle === 0 && race && race.started) this.brakeHold = (this.brakeHold || 0) + dt; else this.brakeHold = 0;
+      if (inp.reverse || (this.isPlayer && this.brakeHold > 0.5)) nv = Math.max(-6, nv - 4 * dt);
       if (v > 0 && nv < 0 && this.brake > 0) nv = 0;
       this.v = nv;
       const steerTarget = U.clamp(inp.steer, -1, 1); const rate = 7 + av * 0.04;
@@ -214,9 +216,14 @@ window.EI = window.EI || {};
       this._m.makeBasis(this._fwd, this._up, this._right); g.quaternion.setFromRotationMatrix(this._m);
       const roll = U.clamp(-this.aLat * 0.0022, -0.06, 0.06), pitch = U.clamp(-this.aLong * 0.0018, -0.05, 0.05);
       this.body.rotation.x += (roll - this.body.rotation.x) * Math.min(1, dt * 10); this.body.rotation.z += (pitch - this.body.rotation.z) * Math.min(1, dt * 10);
+      // suspension heave: kerb rattle, grass/gravel judder, a little squat under acceleration
+      const av2 = Math.abs(this.v); this._t = (this._t || 0) + dt;
+      const heaveAmp = this.surface === 'kerb' ? 0.012 : (this.surface === 'grass' ? 0.009 : this.surface === 'gravel' ? 0.014 : 0) * Math.min(1, av2 / 20);
+      this.body.position.y = heaveAmp * Math.sin(this._t * (this.surface === 'kerb' ? 75 : 40) + this.id) - this.aLong * 0.0008;
+      if (this.animateDriver) this.animateDriver(this.steer, this.steer * 0.12);
       this.wheelSpin -= (this.v / WHEEL_R) * dt; for (const w of this.wheels) w.rotation.z = this.wheelSpin;
       const sa = this.steer * 0.42 / (1 + Math.abs(this.v) / 18); for (const p of this.frontPivots) p.rotation.y = sa;
-      const ft = this.drsOpen ? -0.15 : 0.5; this.flap.rotation.z += (ft - this.flap.rotation.z) * Math.min(1, dt * 12);
+      const ft = this.drsOpen ? this.flapOpen : this.flapClosed; this.flap.rotation.z += (ft - this.flap.rotation.z) * Math.min(1, dt * 12);
     }
   }
   EI.Car = Car; EI.CAR = { L, W, WB, VMAX, GEARS, GRIP, BRAKE, PM, CD };

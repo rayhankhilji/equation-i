@@ -89,7 +89,7 @@ window.EI = window.EI || {};
           if (!car.isPlayer) { car.input.throttle = 0; car.input.brake = 1; }
           else if (this.phase === 'lights' && this.lightsOn >= 1) {
             const g = track.gridSlot(car.gridPos - 1);
-            if (Math.hypot(car.x - g.x, car.z - g.z) > 1.2 && !car.jumpStart) { car.jumpStart = true; }
+            if ((Math.hypot(car.x - g.x, car.z - g.z) > 0.3 || car.v > 1.4) && !car.jumpStart) { car.jumpStart = true; }
           } else if (this.phase === 'grid') { car.input.throttle = 0; car.input.brake = 1; }
         }
       }
@@ -110,7 +110,7 @@ window.EI = window.EI || {};
       // ---- physics
       const prevS = new Float32Array(this.cars.length);
       this.cars.forEach((c, i) => { prevS[i] = c.trk.s; });
-      for (const car of this.cars) car.update(dt, track, this);
+      for (const car of this.cars) { const wasOpen = car.drsOpen; car.update(dt, track, this); if (car.isPlayer && car.drsOpen !== wasOpen) this.emit('drsFlap', car); }
       this.resolveCollisions(dt);
       // ---- crossings: DRS detection / zone end, lap lines
       this.cars.forEach((car, i) => {

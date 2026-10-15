@@ -8,7 +8,7 @@ window.EI = window.EI || {};
   const tmp = new THREE.Vector3(), tmp2 = new THREE.Vector3(), tmp3 = new THREE.Vector3();
   const CAM_MODES = ['chase', 'cockpit', 'tv'];
 
-  let composer = null, bloomPass = null, fxaaPass = null, particles = null, skyMesh = null;
+  let composer = null, bloomPass = null, fxaaPass = null, speedPass = null, particles = null, skyMesh = null;
   function init() {
     const canvas = $('gl');
     renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
@@ -43,6 +43,12 @@ window.EI = window.EI || {};
     composer.addPass(new THREE.RenderPass(scene, new THREE.PerspectiveCamera()));
     bloomPass = new THREE.UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 0.28, 0.55, 0.88); composer.addPass(bloomPass);
     fxaaPass = new THREE.ShaderPass(THREE.FXAAShader); composer.addPass(fxaaPass);
+    // radial speed blur + vignette (only in the High preset)
+    speedPass = new THREE.ShaderPass({
+      uniforms: { tDiffuse: { value: null }, strength: { value: 0 }, vignette: { value: 0.35 } },
+      vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }',
+      fragmentShader: 'uniform sampler2D tDiffuse; uniform float strength; uniform float vignette; varying vec2 vUv; void main(){ vec2 c = vec2(0.5, 0.42); vec2 d = vUv - c; float r = length(d); vec4 col = vec4(0.0); float s = strength * smoothstep(0.15, 0.7, r); for (int i = 0; i < 8; i++) { float t = 1.0 - s * float(i) * 0.012; col += texture2D(tDiffuse, c + d * t); } col /= 8.0; col.rgb *= 1.0 - vignette * smoothstep(0.45, 0.95, r); gl_FragColor = col; }'
+    }); composer.addPass(speedPass);
     EI.HUD.drawTrackPreview(track, $('track-preview'));
     setupMenu();
     // the GLB car is optional: hide the loading overlay once it is in (or has failed and we fall back to the procedural car)
@@ -55,10 +61,10 @@ window.EI = window.EI || {};
   let this_sunDir = null;
   let quality = 'medium';
   function renderView(cam, usePost) {
-    if (usePost && composer && quality === 'high') { composer.passes[0].camera = cam; composer.render(); } else renderer.render(scene, cam);
+    if (usePost && composer && quality === 'high') { composer.passes[0].camera = cam; if (speedPass && race) { const car = race.players[0]; const v = Math.abs(car.v); speedPass.uniforms.strength.value = U.clamp((v - 35) / 60, 0, 1) * (CAM_MODES[camModes[0]] === 'cockpit' ? 0.5 : 0.9); } composer.render(); } else renderer.render(scene, cam);
   }
   function setQuality(q) {
-    quality = q; const pr = q === 'low' ? 1 : Math.min(window.devicePixelRatio || 1, q === 'high' ? 1.5 : 1.25); renderer.setPixelRatio(pr);
+    quality = q; const pr = q === 'low' ? 1 : Math.min(window.devicePixelRatio || 1, q === 'high' ? 1.5 : 1.25); renderer.setPixelRatio(pr); if (composer) composer.setPixelRatio(pr);
     const sm = q === 'low' ? 1024 : 2048; if (sun.shadow.mapSize.x !== sm) { sun.shadow.mapSize.set(sm, sm); if (sun.shadow.map) { sun.shadow.map.dispose(); sun.shadow.map = null; } }
     renderer.shadowMap.type = q === 'low' ? THREE.PCFShadowMap : THREE.PCFSoftShadowMap;
     if (scenery && scenery.group) scenery.group.traverse(o => { if (o.name === 'trees' || o.name === 'crowd') o.castShadow = q === 'high'; });
@@ -107,10 +113,10 @@ window.EI = window.EI || {};
     engines = race.players.map(() => EI.Audio.createEngine());
     $('menu').classList.add('hidden'); $('results').classList.add('hidden');
     $('touch').classList.toggle('hidden', !(U.isTouch() && race.players.length === 1));
-    resultsShown = false; paused = false; lastT = performance.now(); acc = 0; onResize();
+    resultsShown = false; paused = false; lastT = performance.now(); acc = 0; introT = 0; onResize();
     race.players.forEach((car, k) => placeCamera(cameras[k], car, k, true, 0));
     EI.HUD.banner('EQUATION I · ' + track.name.toUpperCase() + ' GP', 2400);
-    setTimeout(() => { if (race && !race.started && race.phase === 'grid') { race.startLights(); $('lights').classList.remove('hidden'); EI.HUD.setLights(0); } }, 2800);
+    introLen = race.players.length === 1 ? 8.2 : 2.8;
   }
   function endRace() {
     if (race) for (const c of race.cars) scene.remove(c.group);
@@ -132,31 +138,80 @@ window.EI = window.EI || {};
   }
 
   // ------------------------------------------------------------------ cameras
+  // ------------------------------------------------------------------ cameras
+  // chase: spring-damped follow with yaw lag, lateral offset into the corner, roll with lateral g, speed FOV, surface shake
+  // cockpit: head physics (lateral sway, brake dip, rpm vibration, look-to-apex), halo framing
+  const _f = new THREE.Vector3(), _l = new THREE.Vector3(), _tgt = new THREE.Vector3(), _look = new THREE.Vector3(), _q = new THREE.Quaternion();
+  function camState(cam) { const u = cam.userData; if (!u.cs) u.cs = { yaw: null, roll: 0, lat: 0, fov: 60, sway: 0, dip: 0, shake: 0, blend: 0 }; return u.cs; }
+  function surfaceShake(car) { const v = Math.abs(car.v); const base = { asphalt: 0.0012 * v, runoff: 0.002 * v, kerb: 0.035 + 0.001 * v, grass: 0.05 + 0.002 * v, gravel: 0.07 + 0.002 * v }[car.surface] || 0; return base * Math.min(1, v / 8); }
   function placeCamera(cam, car, k, snap, dt) {
-    const mode = CAM_MODES[camModes[k] || 0]; const fx = Math.cos(car.heading), fz = Math.sin(car.heading); const v = Math.abs(car.v); const lx = fz, lz = -fx;
+    const mode = CAM_MODES[camModes[k] || 0]; const cs = camState(cam);
+    const v = Math.abs(car.v); const fx = Math.cos(car.heading), fz = Math.sin(car.heading); const lx = fz, lz = -fx;
+    const introing = race && !race.started && race.phase === 'grid' && race.players.length === 1 && k === 0 && !EI.debug.freeCam && introT < 6.7;
+    if (introing) { introCamera(cam, car); return; }
+    const sh = (shake + surfaceShake(car)) * (mode === 'cockpit' ? 0.6 : 1); const jx = (Math.random() - 0.5) * sh, jy = (Math.random() - 0.5) * sh * 0.6, jz = (Math.random() - 0.5) * sh;
     if (mode === 'cockpit') {
-      // driver's eye: behind the halo, looking down the nose
-      const g = car.gradeNow || 0; const bob = Math.sin(performance.now() * 0.03) * v * 0.0006;
-      const eyeX = (EI.CarGLB && EI.CarGLB.ready) ? 0.18 : 0.45, eyeY = (EI.CarGLB && EI.CarGLB.ready) ? 0.93 : 0.9;
-      tmp.set(car.x + fx * eyeX, car.y + eyeY + bob, car.z + fz * eyeX); cam.position.copy(tmp);
-      tmp2.set(car.x + fx * 30, car.y + eyeY - 0.08 + g * 30 + bob, car.z + fz * 30);
-      if (shake > 0) { tmp2.x += (Math.random() - 0.5) * shake * 0.6; tmp2.y += (Math.random() - 0.5) * shake * 0.3; }
-      cam.lookAt(tmp2); cam.fov = 62 + v * 0.05; cam.updateProjectionMatrix(); return;
+      const glb = EI.CarGLB && EI.CarGLB.ready; const eyeX = EI.debug.eye ? EI.debug.eye.x : (glb ? 0.3 : 0.45), eyeY = EI.debug.eye ? EI.debug.eye.y : (glb ? 0.82 : 0.9);
+      const kSway = 1 - Math.exp(-dt * 9);
+      cs.sway += (U.clamp(car.aLat * 0.0028, -0.06, 0.06) - cs.sway) * kSway;            // head pushed outwards in the corner
+      cs.dip += (U.clamp(-car.aLong * 0.0012, -0.03, 0.045) - cs.dip) * kSway;            // forward under braking, back under power
+      const vib = (0.0015 + car.rpm * 0.003) * (car.throttle > 0.3 ? 1 : 0.5);              // engine vibration
+      const g = car.gradeNow || 0;
+      _tgt.set(car.x + fx * (eyeX + cs.dip) + lx * cs.sway, car.y + eyeY - Math.abs(cs.dip) * 0.3 + (Math.random() - 0.5) * vib, car.z + fz * (eyeX + cs.dip) + lz * cs.sway);
+      cam.position.copy(_tgt);
+      const apex = car.steer * 0.1 + car.yaw * 0.05;                                        // look towards the apex
+      _look.set(car.x + fx * 30 + lx * (apex * 30 + jx * 8), car.y + eyeY - 0.1 + g * 30 + jy * 8, car.z + fz * 30 + lz * (apex * 30 + jz * 8));
+      cam.up.set(0, 1, 0); cam.lookAt(_look);
+      cs.roll += (U.clamp(-car.aLat * 0.0012, -0.03, 0.03) - cs.roll) * kSway; cam.rotateZ(cs.roll);
+      cs.fov += ((64 + v * 0.05 + (car.drsOpen ? 1.5 : 0)) - cs.fov) * Math.min(1, dt * 4); cam.fov = cs.fov; cam.updateProjectionMatrix(); return;
     }
     if (mode === 'tv') {
-      // trackside: a fixed pod ahead of the car that pans with it, re-anchored every ~120 m
       const t = track; const seg = Math.floor(car.trk.s / 120); if (cam.userData.seg !== seg) { cam.userData.seg = seg; const i = t.idxAtS(seg * 120 + 80); const side = t.lineOff[i] > 0 ? -1 : 1; cam.userData.pos = new THREE.Vector3(t.x[i] + t.nx[i] * side * (t.halfWidth + 6), t.y[i] + 5, t.z[i] + t.nz[i] * side * (t.halfWidth + 6)); }
-      cam.position.copy(cam.userData.pos); tmp2.set(car.x, car.y + 0.6, car.z); cam.lookAt(tmp2);
-      const d = cam.position.distanceTo(tmp2); cam.fov = U.clamp(1800 / d, 18, 60); cam.updateProjectionMatrix(); return;
+      cam.position.copy(cam.userData.pos); _look.set(car.x, car.y + 0.6, car.z); cam.up.set(0, 1, 0); cam.lookAt(_look);
+      const d = cam.position.distanceTo(_look); cam.fov = U.clamp(1800 / d, 18, 60); cam.updateProjectionMatrix(); return;
     }
-    const dist = 7.6 + v * 0.04, height = 2.7 + v * 0.011; const lean = car.yaw * 2.2;
-    tmp.set(car.x - fx * dist + lx * lean * 0.5, car.y + height, car.z - fz * dist + lz * lean * 0.5);
-    if (snap) cam.position.copy(tmp); else cam.position.lerp(tmp, 1 - Math.exp(-dt * 6));
-    // keep the camera above the terrain/track
-    const camY = track.y[car.trk.i] + 1.2; if (cam.position.y < camY) cam.position.y = camY;
-    tmp2.set(car.x + fx * 7 + lx * lean, car.y + 0.9, car.z + fz * 7 + lz * lean);
-    if (shake > 0) { tmp2.x += (Math.random() - 0.5) * shake; tmp2.y += (Math.random() - 0.5) * shake * 0.5; }
-    cam.lookAt(tmp2); cam.fov = 60 + v * 0.14; cam.updateProjectionMatrix();
+    // ---- chase
+    if (cs.yaw == null || snap) cs.yaw = car.heading;
+    const kYaw = 1 - Math.exp(-dt * (v > 5 ? 5.5 : 9)); cs.yaw += U.wrapAngle(car.heading - cs.yaw) * kYaw;   // the camera swings round behind the car with a lag
+    const cfx = Math.cos(cs.yaw), cfz = Math.sin(cs.yaw), clx = cfz, clz = -cfx;
+    const dist = 6.9 + v * 0.032, height = 2.25 + v * 0.009;
+    cs.lat += (U.clamp(car.yaw * 1.4, -1.2, 1.2) - cs.lat) * (1 - Math.exp(-dt * 3));                   // drift towards the inside of the turn
+    _tgt.set(car.x - cfx * dist - clx * cs.lat * 0.6, car.y + height, car.z - cfz * dist - clz * cs.lat * 0.6);
+    if (snap) cam.position.copy(_tgt); else cam.position.lerp(_tgt, 1 - Math.exp(-dt * 10));
+    const minY = track.y[car.trk.i] + 1.0; if (cam.position.y < minY) cam.position.y = minY;
+    _look.set(car.x + fx * 6.5 + lx * (cs.lat * 2.2 + jx * 4), car.y + 0.85 + jy * 4, car.z + fz * 6.5 + lz * (cs.lat * 2.2 + jz * 4));
+    cam.up.set(0, 1, 0); cam.lookAt(_look);
+    cs.roll += (U.clamp(-car.aLat * 0.0016, -0.045, 0.045) - cs.roll) * (1 - Math.exp(-dt * 6)); cam.rotateZ(cs.roll);
+    const fovT = 56 + v * 0.17 + (car.ersActive ? 2 : 0) + (car.drsOpen ? 1.5 : 0); cs.fov += (fovT - cs.fov) * Math.min(1, dt * 3); cam.fov = cs.fov; cam.updateProjectionMatrix();
+  }
+  // pre-race cinematic: a slow dolly down the grid, then an orbit around the player's car, then cut to the player camera
+  let introT = 0, introLen = 8.2;
+  function introCamera(cam, car) {
+    const t = track, g0 = t.gridSlot(0); const n = race.cars.length; const gl = t.gridSlot(n - 1);
+    const i0 = g0.i; const fx = t.tx[i0], fz = t.tz[i0], nx = t.nx[i0], nz = t.nz[i0];
+    if (introT < 4.0) {
+      const u = U.smoothstep(0, 4.0, introT);
+      const sx = U.lerp(gl.x, g0.x, u), sz = U.lerp(gl.z, g0.z, u);
+      cam.position.set(sx - fx * 6 + nx * 9, t.y[i0] + 4.5 - u * 1.5, sz - fz * 6 + nz * 9);
+      _look.set(sx + fx * 10, t.y[i0] + 0.8, sz + fz * 10); cam.up.set(0, 1, 0); cam.lookAt(_look); cam.fov = 48; cam.updateProjectionMatrix();
+    } else {
+      const a = (introT - 4.0) * 0.6 + 2.4; const r = 5.2;
+      cam.position.set(car.x + Math.cos(a) * r, car.y + 1.3, car.z + Math.sin(a) * r);
+      _look.set(car.x, car.y + 0.55, car.z); cam.up.set(0, 1, 0); cam.lookAt(_look); cam.fov = 40; cam.updateProjectionMatrix();
+    }
+  }
+  // live steering-wheel display for the player's car
+  function drawWheelScreen(car, delta) {
+    if (!car.screen || !car.screenTex) return; const c = car.screen.userData.canvas, ctx = c.getContext('2d');
+    ctx.fillStyle = '#07080a'; ctx.fillRect(0, 0, 256, 128);
+    const lit = Math.round(car.rpm * 15); for (let i = 0; i < 15; i++) { ctx.fillStyle = i < lit ? (i < 5 ? '#22e26a' : i < 10 ? '#ff2a2a' : '#4aa8ff') : '#1c1f26'; ctx.beginPath(); ctx.arc(18 + i * 15.7, 12, 5, 0, 6.283); ctx.fill(); }
+    ctx.fillStyle = '#ffd200'; ctx.font = '900 56px Arial'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(car.gear === 0 ? 'N' : String(car.gear), 128, 58);
+    ctx.fillStyle = '#e8edf3'; ctx.font = '700 20px Arial'; ctx.textAlign = 'left'; ctx.fillText(Math.round(car.speedKmh) + ' KPH', 14, 50); ctx.fillText('P' + car.pos, 14, 76);
+    ctx.textAlign = 'right'; ctx.fillStyle = delta == null ? '#9aa3b2' : delta < 0 ? '#22e26a' : '#ff5a4a'; ctx.fillText(delta == null ? '--.--' : (delta >= 0 ? '+' : '') + delta.toFixed(2), 242, 50);
+    ctx.fillStyle = car.drsOpen ? '#22e26a' : car.drsEligible ? '#ffd200' : '#4a515c'; ctx.fillText('DRS', 242, 76);
+    ctx.fillStyle = '#263040'; ctx.fillRect(14, 96, 228, 10); ctx.fillStyle = car.ersActive ? '#ff7a00' : '#ffd200'; ctx.fillRect(14, 96, 228 * car.ers, 10);
+    ctx.fillStyle = '#9aa3b2'; ctx.font = '700 12px Arial'; ctx.textAlign = 'left'; ctx.fillText('ERS ' + Math.round(car.ers * 100) + '%', 14, 118); ctx.textAlign = 'right'; ctx.fillText('LAP ' + car.lap, 242, 118);
+    car.screenTex.needsUpdate = true;
   }
   function menuCamera(t) {
     const cam = cameras[0]; const i = track.idxAtS((t * 18) % track.length); const fx = track.tx[i], fz = track.tz[i];
@@ -188,8 +243,10 @@ window.EI = window.EI || {};
     // gamepad camera button
     race.players.forEach((c, k) => { const pads = navigator.getGamepads ? navigator.getGamepads() : []; const gp = pads && pads[k]; if (gp && gp.buttons[3] && gp.buttons[3].pressed && !c._camBtn) cycleCam(k); c._camBtn = !!(gp && gp.buttons[3] && gp.buttons[3].pressed); });
     acc += dt; let steps = 0; while (acc >= DT && steps < 6) { race.update(DT, inputs); acc -= DT; steps++; } if (steps === 6) acc = 0;
+    const wasIntro = introT < 6.7; introT += dt; if (wasIntro && introT >= 6.7 && race.players.length === 1) { placeCamera(cameras[0], race.players[0], 0, true, 0); shake = 0.25; }
+    if (!race.started && race.phase === 'grid' && introT >= introLen) { race.startLights(); $('lights').classList.remove('hidden'); EI.HUD.setLights(0); race.players.forEach((car, k) => placeCamera(cameras[k], car, k, true, 0)); }
     handleEvents(); for (const c of race.cars) { c.updateVisual(dt); if (dt > 0) particles.fromCar(c, dt); } particles.update(dt); shake = Math.max(0, shake - dt * 3); hudT += dt;
-    race.players.forEach((car, k) => { if (k === 0 && EI.debug.freeCam) { const f = EI.debug.freeCam; cameras[0].position.set(f.pos[0], f.pos[1], f.pos[2]); cameras[0].lookAt(f.look[0], f.look[1], f.look[2]); cameras[0].fov = f.fov || 50; cameras[0].updateProjectionMatrix(); } else placeCamera(cameras[k], car, k, false, dt); if (hudT > 0.05) { viewports[k].update(race, 0.05); updateTags(k, cameras[k], viewports[k]); } if (engines[k]) EI.Audio.setEngine(engines[k], car.rpm, car.throttle, paused ? 0 : (CAM_MODES[camModes[k]] === 'cockpit' ? 1.3 : 1), car.gear); });
+    race.players.forEach((car, k) => { if (k === 0 && EI.debug.freeCam) { const f = EI.debug.freeCam; cameras[0].position.set(f.pos[0], f.pos[1], f.pos[2]); cameras[0].lookAt(f.look[0], f.look[1], f.look[2]); cameras[0].fov = f.fov || 50; cameras[0].updateProjectionMatrix(); } else placeCamera(cameras[k], car, k, false, dt); if (hudT > 0.05) { viewports[k].update(race, 0.05); updateTags(k, cameras[k], viewports[k]); drawWheelScreen(car, race.deltaBest(car)); } if (engines[k]) { const idleBlip = !race.started ? (Math.sin(performance.now() * 0.004 + k) > 0.6 ? 0.5 : 0.08) : 0; EI.Audio.setEngine(engines[k], race.started ? car.rpm : 0.15 + idleBlip * 0.8, race.started ? car.throttle : idleBlip, paused ? 0 : (CAM_MODES[camModes[k]] === 'cockpit' ? 1.3 : 1), car.gear); } });
     if (hudT > 0.05) hudT = 0;
     if (race.over && !resultsShown && race.classified) { resultsShown = true; EI.HUD.showResults(race); }
     scenery.update(dt, race.players[0].x, race.players[0].z);
@@ -213,6 +270,7 @@ window.EI = window.EI || {};
         case 'go': $('lights').classList.add('hidden'); EI.HUD.banner('LIGHTS OUT!', 1500, '#37d67a'); EI.Audio.beep(880, 0.6, 0.3); break;
         case 'penalty': viewports[e.data.playerIndex].showMsg('JUMP START  +5s', 'bad', 3); EI.HUD.toast(e.data.name + ': jump start, +5 s penalty'); break;
         case 'drsOn': viewports[e.data.playerIndex].showMsg('DRS ENABLED', 'good', 1.5); break;
+        case 'drsFlap': if (e.data.isPlayer) EI.Audio.clack(); break;
         case 'fastest': EI.HUD.toast('Fastest lap: ' + e.data.name + ' ' + U.fmtTime(race.fastest.time)); if (e.data.isPlayer) viewports[e.data.playerIndex].showMsg('FASTEST LAP ' + U.fmtTime(race.fastest.time), 'good', 2.5); break;
         case 'finalLap': if (e.data.isPlayer) viewports[e.data.playerIndex].showMsg('FINAL LAP', 'warn', 2.5); else if (e.data.pos === 1) EI.HUD.toast('Final lap for the leader ' + e.data.name); break;
         case 'leaderFinished': EI.HUD.toast(e.data.name + ' takes the chequered flag!'); break;
@@ -221,8 +279,9 @@ window.EI = window.EI || {};
         case 'over': EI.HUD.toast('Waiting for the field to finish…'); break;
       }
     }
-    for (const car of race.players) if (car.wallHit > 0.5 && shake < 0.2) { shake = car.wallHit * 0.5; EI.Audio.thud(car.wallHit); car.wallHit = 0.3; }
+    for (const car of race.players) { if (car.wallHit > 0.5 && shake < 0.2) { shake = car.wallHit * 0.5; EI.Audio.thud(car.wallHit); car.wallHit = 0.3; }
+      if (car._lastThr > 0.8 && car.throttle < 0.2 && car.rpm > 0.7 && Math.random() < 0.6) EI.Audio.pop(); car._lastThr = car.throttle; }
   }
-  EI.debug = { get viewports() { return viewports; }, setQuality, snapCameras: () => race && race.players.forEach((car, k) => placeCamera(cameras[k], car, k, true, 0)), setCam: (k, m) => { camModes[k] = m; }, get race() { return race; }, get track() { return track; }, get scenery() { return scenery; }, get scene() { return scene; }, get cameras() { return cameras; }, renderer: () => renderer, startRace, endRace };
+  EI.debug = { get introT() { return introT; }, set introT(v) { introT = v; }, get viewports() { return viewports; }, setQuality, snapCameras: () => race && race.players.forEach((car, k) => placeCamera(cameras[k], car, k, true, 0)), setCam: (k, m) => { camModes[k] = m; }, get race() { return race; }, get track() { return track; }, get scenery() { return scenery; }, get scene() { return scene; }, get cameras() { return cameras; }, renderer: () => renderer, startRace, endRace };
   window.addEventListener('DOMContentLoaded', () => { setTimeout(init, 30); });
 })();

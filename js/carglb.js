@@ -192,10 +192,11 @@ window.EI = window.EI || {};
     }
     clone.updateMatrixWorld(true);
     const meshes = []; clone.traverse((o) => { if (o.isMesh) meshes.push(o); });
-    const bodyList = [], helmetList = [], flapList = [], wheelLists = { fl: [], fr: [], rl: [], rr: [] };
+    const bodyList = [], helmetList = [], flapList = [], steerList = [], wheelLists = { fl: [], fr: [], rl: [], rr: [] };
     for (const o of meshes) {
       const n = o.name || ''; const mname = o.material && o.material.name;
       if (mname === 'paint') o.material = paint; else if (mname === 'helmet') o.material = helmetMats[car.team.id];
+      if (n.startsWith('driver_wheel')) { steerList.push(o); continue; }
       const w = /^wheel_(fl|fr|rl|rr)_/.exec(n);
       if (w) { const c = w[1]; if (/tyre/.test(n) || pivots[c].userData.set !== true) { pivots[c].position.set(o.position.x, o.position.y, o.position.z); pivots[c].userData.set = /tyre/.test(n); } wheelLists[c].push(o); continue; }
       if (n.startsWith('drsflap_')) { flapList.push(o); continue; }
@@ -208,6 +209,34 @@ window.EI = window.EI || {};
     // flap: geometry is local to the hinge node, keep it local
     for (const m of mergeMeshes(flapList, (o) => new THREE.Matrix4())) flapB.add(m);
     for (const c of corners) { const pv = pivots[c].position; const inv = new THREE.Matrix4().makeTranslation(-pv.x, -pv.y, -pv.z); for (const m of mergeMeshes(wheelLists[c], (o) => inv.clone().multiply(o.matrixWorld))) spins[c].add(m); }
+    // ---- steering wheel: pivot at its centre, rotates about the (tilted) column axis; gloved hands ride on the rim
+    const steer = new THREE.Group(); let screen = null, screenTex = null, hands = [], forearms = [];
+    if (steerList.length) {
+      const bb = new THREE.Box3(); for (const o of steerList) bb.expandByObject(o);
+      const ctr = bb.getCenter(new THREE.Vector3()); steer.position.copy(ctr); body.add(steer);
+      const inv = new THREE.Matrix4().makeTranslation(-ctr.x, -ctr.y, -ctr.z);
+      for (const m of mergeMeshes(steerList, (o) => inv.clone().multiply(o.matrixWorld))) { if (m.material.name === 'screen') { const sb = new THREE.Box3().setFromObject(m); m.userData.screenBox = sb; } steer.add(m); }
+      const size = bb.getSize(new THREE.Vector3()); const rimR = Math.max(0.09, size.z * 0.5);
+      // live display plane facing the driver (-x), sized to the screen part if present
+      const sc = document.createElement('canvas'); sc.width = 256; sc.height = 128; screenTex = new THREE.CanvasTexture(sc); screenTex.encoding = THREE.sRGBEncoding;
+      let sw = Math.min(0.2, size.z * 0.55), sh = sw * 0.5, sy = size.y * 0.12, sx = -size.x * 0.5 - 0.004;
+      steer.traverse(o => { if (o.userData && o.userData.screenBox) { const b = o.userData.screenBox; const c = b.getCenter(new THREE.Vector3()); const sz = b.getSize(new THREE.Vector3()); sw = Math.max(0.06, sz.z); sh = Math.max(0.03, sz.y); sy = c.y - ctr.y; sx = b.min.x - ctr.x - 0.003; } });
+      screen = new THREE.Mesh(new THREE.PlaneGeometry(sw, sh), new THREE.MeshBasicMaterial({ map: screenTex })); screen.rotation.y = -Math.PI / 2; screen.position.set(sx, sy, 0); steer.add(screen); screen.userData.canvas = sc;
+      // hands (gloves) at quarter-to-three, forearms from the shoulders
+      const glove = new THREE.MeshStandardMaterial({ color: 0x15161a, roughness: 0.85 }); const suit = new THREE.MeshStandardMaterial({ color: new THREE.Color(car.team.primary), roughness: 0.8 });
+      for (const sgn of [1, -1]) {
+        const h = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.1, 0.055), glove); h.position.set(-0.03, -0.01, sgn * (rimR + 0.01)); h.rotation.x = sgn * 0.3; steer.add(h); hands.push(h);
+        const fa = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.045, 1, 8), suit); fa.visible = true; body.add(fa); forearms.push(fa);
+      }
+    }
+    const steerAxis = new THREE.Vector3(1, 0.42, 0).normalize(); const shoulder = [new THREE.Vector3(0.28, 0.62, 0.2), new THREE.Vector3(0.28, 0.62, -0.2)];
+    const _q = new THREE.Quaternion(), _hp = new THREE.Vector3(), _d = new THREE.Vector3(), _mid = new THREE.Vector3(), _up = new THREE.Vector3(0, 1, 0);
+    const animate = (steerIn, helmetYaw) => {
+      if (!steerList.length) return;
+      _q.setFromAxisAngle(steerAxis, -steerIn * 1.5); steer.quaternion.copy(_q);
+      hands.forEach((h, k) => { h.getWorldPosition(_hp); body.worldToLocal(_hp); const sh = shoulder[k]; _d.subVectors(_hp, sh); const len = _d.length(); const fa = forearms[k]; _mid.addVectors(sh, _hp).multiplyScalar(0.5); fa.position.copy(_mid); fa.scale.set(1, len, 1); fa.quaternion.setFromUnitVectors(_up, _d.normalize()); });
+      if (helmet && helmetYaw != null) helmet.rotation.y = helmetYaw;
+    };
     // tyre compound stripe (soft/medium/hard colour) on both sidewalls
     const ringMat = new THREE.MeshStandardMaterial({ color: new THREE.Color(car.tyre.color), roughness: 0.7, side: THREE.DoubleSide });
     const r1 = new THREE.RingGeometry(0.262, 0.292, 40); r1.translate(0, 0, 0.176); const r2 = new THREE.RingGeometry(0.262, 0.292, 40); r2.translate(0, 0, -0.176);
@@ -217,7 +246,7 @@ window.EI = window.EI || {};
     // contact shadow (same as CarModel)
     const sc = document.createElement('canvas'); sc.width = 128; sc.height = 64; const sctx = sc.getContext('2d'); const grd = sctx.createRadialGradient(64, 32, 4, 64, 32, 60); grd.addColorStop(0, 'rgba(0,0,0,0.6)'); grd.addColorStop(0.6, 'rgba(0,0,0,0.3)'); grd.addColorStop(1, 'rgba(0,0,0,0)'); sctx.fillStyle = grd; sctx.fillRect(0, 0, 128, 64);
     const blob = new THREE.Mesh(new THREE.PlaneGeometry(6.2, 3.0), new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(sc), transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -3 })); blob.rotation.x = -Math.PI / 2; blob.position.set(-0.1, 0.03, 0); g.add(blob);
-    return { group: g, body, wheels, frontPivots, flap, helmet, bodyMat: paint, flapClosed: FLAP_CLOSED, flapOpen: FLAP_OPEN, lod: lod || 'hi' };
+    return { group: g, body, wheels, frontPivots, flap, helmet, bodyMat: paint, flapClosed: FLAP_CLOSED, flapOpen: FLAP_OPEN, lod: lod || 'hi', steer, animate, screen, screenTex };
   }
 
   EI.CarGLB = CarGLB;

@@ -49,7 +49,12 @@ window.EI = window.EI || {};
     const buf = ctx.createBuffer(1, ctx.sampleRate * 0.18, ctx.sampleRate); const d = buf.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / d.length, 2.5);
     const s = ctx.createBufferSource(); s.buffer = buf; const g = ctx.createGain(); g.gain.value = Math.min(0.9, 0.25 + strength * 0.6); const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 350; s.connect(lp); lp.connect(g); g.connect(master); s.start();
   }
+  function pop() {
+    if (!ensure()) return; const buf = ctx.createBuffer(1, ctx.sampleRate * 0.07, ctx.sampleRate); const d = buf.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / d.length, 1.5);
+    const s = ctx.createBufferSource(); s.buffer = buf; const bp = ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 260 + Math.random() * 200; bp.Q.value = 1.2; const g = ctx.createGain(); g.gain.value = 0.35; s.connect(bp); bp.connect(g); g.connect(master); s.start();
+  }
+  function clack() { beep(1800, 0.03, 0.12, 'square'); setTimeout(() => beep(900, 0.04, 0.1, 'square'), 25); }
   function toggleMute() { muted = !muted; if (master) master.gain.value = muted ? 0 : 0.5; return muted; }
   function stopAll() { for (const e of engines) { try { e.parts.forEach(p => p.o.stop()); e.noise.stop(); } catch (err) { } } engines.length = 0; }
-  EI.Audio = { resume, createEngine, setEngine, beep, thud, toggleMute, stopAll, get muted() { return muted; } };
+  EI.Audio = { resume, createEngine, setEngine, beep, thud, pop, clack, toggleMute, stopAll, get muted() { return muted; } };
 })();
