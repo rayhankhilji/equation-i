@@ -235,7 +235,8 @@ window.EI = window.EI || {};
       const fx = Math.cos(this.vh), fz = Math.sin(this.vh); const gr = this.gradeNow || 0;
       this._fwd.set(fx, gr, fz).normalize(); this._up.set(0, 1, 0); this._right.crossVectors(this._fwd, this._up).normalize(); this._up.crossVectors(this._right, this._fwd).normalize();
       this._m.makeBasis(this._fwd, this._up, this._right); g.quaternion.setFromRotationMatrix(this._m);
-      const roll = U.clamp(-this.aLat * 0.0026, -0.07, 0.07), pitch = U.clamp(-this.aLong * 0.0016 - this.brake * 0.012, -0.05, 0.05);
+      // an F1 car is stiff and stuck to the road: a fraction of a degree of roll, a little dive under braking and squat on power
+      const roll = U.clamp(-this.aLat * 0.0004, -0.012, 0.012), pitch = U.clamp(-this.aLong * 0.0008 - this.brake * 0.008, -0.025, 0.02);
       const kB = 1 - Math.exp(-dt / 0.14); this.body.rotation.x += (roll - this.body.rotation.x) * kB; this.body.rotation.z += (pitch - this.body.rotation.z) * kB;
       // suspension heave: kerb rattle, grass/gravel judder, a little squat under acceleration
       const av2 = Math.abs(this.v); this._t = (this._t || 0) + dt;

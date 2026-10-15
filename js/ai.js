@@ -111,6 +111,9 @@ window.EI = window.EI || {};
         if (Math.abs(dsx) < 6.5 && Math.abs(dl) < 3.4) alongside += dl > 0 ? 1 : -1;
         if (dsx < 0 && dsx > -25 && Math.abs(dl) < 4) behindClose = true;
       }
+      // --- contact reaction: a bump makes the bot lift and steer away from the other car for half a second
+      if (car.hit > 0.3 && !this.reactT) { this.reactT = 0.5; let away = 0; for (const o of cars) { if (o === car) continue; const dx = o.x - car.x, dz = o.z - car.z; if (dx * dx + dz * dz < 36) { const dl = o.trk.lat - car.trk.lat; away -= Math.sign(dl || 1) * 1.5; } } this.reactOffset = U.clamp(away, -2, 2); }
+      if (this.reactT) { this.reactT = Math.max(0, this.reactT - dt); if (this.reactT === 0) this.reactT = null; }
       // --- choose a lateral offset: overtake, avoid, or hold the line
       let wantOffset = this.lineBias;
       if (ahead) {
@@ -142,6 +145,9 @@ window.EI = window.EI || {};
       if (!onStraight) this.defendedThisStraight = false;
       if (!ahead && behindClose && this.defender && onStraight && alongside === 0 && !this.defendedThisStraight) { this.defendedThisStraight = true; this.defendOffset = -U.sign(t.lineK[(i + 150) % n] || 1) * 2.2 - t.lineOff[i]; }
       if (this.defendedThisStraight && onStraight && alongside === 0) wantOffset = this.defendOffset;
+      // a car diagonally ahead and close: give it room instead of driving into its rear corner
+      for (const o of cars) { if (o === car) continue; let dsx = o.trk.s - car.trk.s; if (dsx > t.length / 2) dsx -= t.length; if (dsx < -t.length / 2) dsx += t.length; const dl = o.trk.lat - car.trk.lat; if (dsx > 2 && dsx < 9 && Math.abs(dl) > 1.2 && Math.abs(dl) < 3.4) { wantOffset = U.clamp(car.trk.lat - t.lineOff[i] - Math.sign(dl) * 1.2, -t.halfWidth + 1.2 - t.lineOff[i], t.halfWidth - 1.2 - t.lineOff[i]); target = Math.min(target, Math.max(o.v - 0.5, 15)); } }
+      if (this.reactT) { wantOffset = car.trk.lat - t.lineOff[i] + this.reactOffset; target = Math.min(target, Math.max(av * 0.9, 10)); }
       this.offsetTarget = wantOffset;
       this.offset += U.clamp(this.offsetTarget - this.offset, -3.5 * dt, 3.5 * dt);
       // --- random small errors

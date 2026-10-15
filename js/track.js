@@ -111,6 +111,10 @@ window.EI = window.EI || {};
         this.wallL[i] = l; this.wallR[i] = r;
       }
       this.wallL = this.smooth(this.wallL, 30); this.wallR = this.smooth(this.wallR, 30);
+      // inside of a corner: offsets beyond the local radius would fold the normals over each other
+      this.kFold = this.smooth(this.k, 4);
+      for (let i = 0; i < n; i++) { const R = 1 / (Math.abs(this.kFold[i]) + 1e-6); const cap = Math.max(hw + 3, R * 0.85); if (this.kFold[i] > 0) this.wallL[i] = Math.min(this.wallL[i], cap); else this.wallR[i] = Math.min(this.wallR[i], cap); }
+      this.wallL = this.smooth(this.wallL, 6); this.wallR = this.smooth(this.wallR, 6);
       const kk = this.smooth(this.k, 8);
       const gravelCorners = ['Copse', 'Becketts', 'Stowe', 'Club', 'Luffield', 'Abbey', 'Brooklands', 'Vale', 'Village', 'Maggotts'];
       const cornerAt = (s) => { let name = null; for (const c of this.data.corners) if (s >= c.s - 60) name = c.name; return name; };
@@ -138,19 +142,25 @@ window.EI = window.EI || {};
     ribbon(offsetA, offsetB, opts) {
       const n = this.n, pos = [], uv = [], col = [], idx = []; const color = new THREE.Color(opts.color || 0xffffff);
       let vi = 0; const map = new Int32Array(n + 1); const y = opts.y || 0;
+      const inMask = (ii) => !opts.mask || opts.mask(ii) || opts.mask((ii + n - 1) % n);
       for (let i = 0; i <= n; i++) {
         const ii = i % n;
-        if (opts.mask && !opts.mask(ii)) { map[i] = -1; continue; }
-        const a = offsetA(ii), b = offsetB(ii); const ya = this.y[ii] + (opts.ya ? opts.ya(ii) : y), yb = this.y[ii] + (opts.yb ? opts.yb(ii) : y);
+        if (!inMask(ii)) { map[i] = -1; continue; }
+        let a = offsetA(ii), b = offsetB(ii);
+        if (this.kFold) { const kf = this.kFold[ii]; const cap = Math.max(2, 0.9 / (Math.abs(kf) + 1e-6)); if (kf > 0) { a = Math.min(a, cap); b = Math.min(b, cap); } else { a = Math.max(a, -cap); b = Math.max(b, -cap); } }
+        const ya = this.y[ii] + (opts.ya ? opts.ya(ii) : y), yb = this.y[ii] + (opts.yb ? opts.yb(ii) : y);
         pos.push(this.x[ii] + this.nx[ii] * a, ya, this.z[ii] + this.nz[ii] * a, this.x[ii] + this.nx[ii] * b, yb, this.z[ii] + this.nz[ii] * b);
         const v = (i * this.ds) / (opts.vScale || 8); uv.push(0, v, 1, v);
         const ca = opts.colorFn ? opts.colorFn(ii, 0) : color, cb = opts.colorFn ? opts.colorFn(ii, 1) : color; col.push(ca.r, ca.g, ca.b, cb.r, cb.g, cb.b);
         map[i] = vi; vi += 2;
       }
-      for (let i = 0; i < n; i++) { const a = map[i], b = map[i + 1]; if (a < 0 || b < 0) continue; idx.push(a, b, a + 1, a + 1, b, b + 1); }
+      for (let i = 0; i < n; i++) { const a = map[i], b = map[i + 1]; if (a < 0 || b < 0 || (opts.mask && !opts.mask(i))) continue; idx.push(a, b, a + 1, a + 1, b, b + 1); }
       const geo = new THREE.BufferGeometry();
       geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); geo.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2)); geo.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
-      geo.setIndex(idx); geo.computeVertexNormals(); return geo;
+      geo.setIndex(idx); geo.computeVertexNormals();
+      // ground ribbons (no vertical profile) get a plain up normal: sliver triangles where the inside edge converges would otherwise shade dark
+      if (!opts.ya && !opts.yb) { const nr = geo.attributes.normal; for (let i = 0; i < nr.count; i++) nr.setXYZ(i, 0, 1, 0); }
+      return geo;
     }
 
     // ---------------------------------------------------------------- build
@@ -237,7 +247,7 @@ window.EI = window.EI || {};
         const m = new THREE.Mesh(new THREE.PlaneGeometry(w, w * 0.25), new THREE.MeshStandardMaterial({ map: U.srgb(tex), roughness: 0.8, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -4 }));
         m.rotation.x = -Math.PI / 2; m.rotation.z = -this.heading[i] + (side < 0 ? Math.PI : 0); m.position.set(this.x[i] + this.nx[i] * side * d, this.y[i] + 0.02, this.z[i] + this.nz[i] * side * d); g.add(m);
       };
-      paint(2250, -1, 'EQUATION I', '#1a73e8', 34); paint(5700, -1, 'EI', '#e10600', 18); paint(3150, -1, 'EQUATION I', '#e10600', 30); paint(1000, 1, 'EI', '#1a73e8', 14);
+      paint(2250, -1, 'EQUATION I', '#1a73e8', 34); paint(5700, -1, 'EI', '#e10600', 18); paint(3150, -1, 'EQUATION I', '#e10600', 30);
     }
 
     buildBarriers(g) {

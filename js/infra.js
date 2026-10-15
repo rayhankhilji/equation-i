@@ -69,7 +69,9 @@ window.EI = window.EI || {};
     // interpolated point at distance s, lateral wall+off on `side` (y follows the track; the verge ribbon is at track level out to wall+40)
     at(s, side, off) {
       const t = this.t; const f = U.mod(s / t.ds, t.n); const i = Math.floor(f), j = (i + 1) % t.n, u = f - i;
-      const wall = side < 0 ? U.lerp(t.wallL[i], t.wallL[j], u) : U.lerp(t.wallR[i], t.wallR[j], u); const d = wall + off;
+      const wall = side < 0 ? U.lerp(t.wallL[i], t.wallL[j], u) : U.lerp(t.wallR[i], t.wallR[j], u); let d = wall + off;
+      // inside of a corner: never place anything beyond the local radius (the normals cross there)
+      if (t.kFold) { const kf = t.kFold[i]; if ((kf > 0) === (side < 0)) d = Math.min(d, Math.max(2, 0.88 / (Math.abs(kf) + 1e-6))); }
       return { x: U.lerp(t.x[i], t.x[j], u) + t.nx[i] * side * d, y: U.lerp(t.y[i], t.y[j], u) - 0.03, z: U.lerp(t.z[i], t.z[j], u) + t.nz[i] * side * d, tx: t.tx[i], tz: t.tz[i], nx: t.nx[i] * side, nz: t.nz[i] * side, i, wall, d };
     }
     // ground height for anything: verge level near the track, terrain beyond

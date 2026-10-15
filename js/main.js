@@ -154,7 +154,7 @@ window.EI = window.EI || {};
     if (mode === 'cockpit') {
       const glb = EI.CarGLB && EI.CarGLB.ready; const eyeX = EI.debug.eye ? EI.debug.eye.x : (glb ? 0.3 : 0.45), eyeY = EI.debug.eye ? EI.debug.eye.y : (glb ? 0.82 : 0.9);
       const kSway = 1 - Math.exp(-dt * 6);
-      cs.sway += (U.clamp(car.aLat * 0.0022, -0.05, 0.05) - cs.sway) * kSway;            // head pushed outwards in the corner
+      cs.sway += (U.clamp(car.aLat * 0.0016, -0.035, 0.035) - cs.sway) * kSway;            // head pushed outwards in the corner
       cs.dip += (U.clamp(-car.aLong * 0.0012, -0.03, 0.045) - cs.dip) * kSway;            // forward under braking, back under power
       const vibA = (0.0006 + car.rpm * 0.0014) * (car.throttle > 0.3 ? 1 : 0.5); const vib = vibA * Math.sin(tN * 2 * Math.PI * (18 + car.rpm * 9));   // engine vibration, smooth
       const g = car.gradeNow || 0;
@@ -163,7 +163,7 @@ window.EI = window.EI || {};
       const apexT = car.steer * 0.09 + car.yaw * 0.04; cs.apex = (cs.apex || 0) + (apexT - (cs.apex || 0)) * (1 - Math.exp(-dt * 5)); const apex = cs.apex;                                        // look towards the apex
       _look.set(cx + fx * 30 + lx * (apex * 30 + jx * 8), cy + eyeY - 0.1 + g * 30 + jy * 8, cz + fz * 30 + lz * (apex * 30 + jz * 8));
       cam.up.set(0, 1, 0); cam.lookAt(_look);
-      cs.roll += (U.clamp(-car.aLat * 0.0012, -0.03, 0.03) - cs.roll) * kSway; cam.rotateZ(cs.roll);
+      cs.roll += (U.clamp(-car.aLat * 0.0008, -0.02, 0.02) - cs.roll) * kSway; cam.rotateZ(cs.roll);
       cs.fov += ((64 + v * 0.05 + (car.drsOpen ? 1.5 : 0)) - cs.fov) * Math.min(1, dt * 4); cam.fov = cs.fov; cam.updateProjectionMatrix(); return;
     }
     if (mode === 'tv') {
@@ -176,13 +176,13 @@ window.EI = window.EI || {};
     const kYaw = 1 - Math.exp(-dt * (v > 5 ? 5.5 : 9)); cs.yaw += U.wrapAngle(ch - cs.yaw) * kYaw;   // the camera swings round behind the car with a lag
     const cfx = Math.cos(cs.yaw), cfz = Math.sin(cs.yaw), clx = cfz, clz = -cfx;
     const dist = 6.9 + v * 0.032, height = 2.25 + v * 0.009;
-    cs.lat += (U.clamp(car.yaw * 1.4, -1.2, 1.2) - cs.lat) * (1 - Math.exp(-dt * 3));                   // drift towards the inside of the turn
+    cs.lat += (U.clamp(car.yaw * 0.6, -0.4, 0.4) - cs.lat) * (1 - Math.exp(-dt * 2.5));                   // drift towards the inside of the turn
     _tgt.set(cx - cfx * dist - clx * cs.lat * 0.6, cy + height, cz - cfz * dist - clz * cs.lat * 0.6);
     if (snap) cam.position.copy(_tgt); else cam.position.lerp(_tgt, 1 - Math.exp(-dt * 10));
     const minY = track.y[car.trk.i] + 1.0; if (cam.position.y < minY) cam.position.y = minY;
-    _look.set(cx + fx * 6.5 + lx * (cs.lat * 2.2 + jx * 4), cy + 0.85 + jy * 4, cz + fz * 6.5 + lz * (cs.lat * 2.2 + jz * 4));
+    _look.set(cx + fx * 6.5 + lx * (cs.lat * 1.3 + jx * 4), cy + 0.85 + jy * 4, cz + fz * 6.5 + lz * (cs.lat * 1.3 + jz * 4));
     cam.up.set(0, 1, 0); cam.lookAt(_look);
-    cs.roll += (U.clamp(-car.aLat * 0.0016, -0.045, 0.045) - cs.roll) * (1 - Math.exp(-dt * 6)); cam.rotateZ(cs.roll);
+    cs.roll += (U.clamp(-car.aLat * 0.0009, -0.025, 0.025) - cs.roll) * (1 - Math.exp(-dt * 6)); cam.rotateZ(cs.roll);
     const fovT = 56 + v * 0.17 + (car.ersActive ? 2 : 0) + (car.drsOpen ? 1.5 : 0); cs.fov += (fovT - cs.fov) * Math.min(1, dt * 3); cam.fov = cs.fov; cam.updateProjectionMatrix();
   }
   // pre-race cinematic: a slow dolly down the grid, then an orbit around the player's car, then cut to the player camera
@@ -268,7 +268,7 @@ window.EI = window.EI || {};
   function handleEvents() {
     for (const e of race.pollEvents()) {
       switch (e.type) {
-        case 'light': EI.HUD.setLights(e.data); EI.Audio.beep(440, 0.25, 0.25); break;
+        case 'light': EI.HUD.setLights(e.data); EI.Audio.beep(440, 0.25, 0.25); if (e.data === 1) { EI.HUD.toast('P1: W A S D · Shift = DRS · Ctrl/Space = ERS boost · C = camera'); if (race.players.length > 1) EI.HUD.toast('P2: Arrows · Right Shift = DRS · Enter = ERS boost · / = camera'); } break;
         case 'go': $('lights').classList.add('hidden'); EI.HUD.banner('LIGHTS OUT!', 1500, '#37d67a'); EI.Audio.beep(880, 0.6, 0.3); break;
         case 'penalty': viewports[e.data.playerIndex].showMsg('JUMP START  +5s', 'bad', 3); EI.HUD.toast(e.data.name + ': jump start, +5 s penalty'); break;
         case 'drsOn': viewports[e.data.playerIndex].showMsg('DRS ENABLED', 'good', 1.5); break;
