@@ -193,7 +193,7 @@ window.EI = window.EI || {};
     const dist = 5.7 + v * 0.011, height = 2.05 + v * 0.004;
     cs.lat += (U.clamp(car.yaw * 0.6, -0.4, 0.4) - cs.lat) * (1 - Math.exp(-dt * 2.5));                   // drift towards the inside of the turn
     _tgt.set(cx - cfx * dist - clx * cs.lat * 0.6, cy + height, cz - cfz * dist - clz * cs.lat * 0.6);
-    if (snap) cam.position.copy(_tgt); else cam.position.lerp(_tgt, 1 - Math.exp(-dt * 14));
+    if (snap) cam.position.copy(_tgt); else { cam.position.lerp(_tgt, 1 - Math.exp(-dt * 14)); if (cam.position.distanceTo(_tgt) > 2.5) cam.position.lerp(_tgt, 0.85); }   // never trail the car after a dropped frame
     const minY = track.y[car.trk.i] + 1.0; if (cam.position.y < minY) cam.position.y = minY;
     _look.set(cx + fx * 5.5 + lx * (cs.lat * 1.3 + jx * 4), cy + 0.6 + jy * 4, cz + fz * 5.5 + lz * (cs.lat * 1.3 + jz * 4));
     cam.up.set(0, 1, 0); cam.lookAt(_look);
