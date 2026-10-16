@@ -4,13 +4,13 @@ window.EI = window.EI || {};
 (function () {
   const U = EI.U, Env = EI.Env;
   const Veg = {};
-  const SP = { OAK: 0, POPLAR: 1, PINE: 2, SHRUB: 3 };
+  const SP = { OAK: 0, POPLAR: 1, PINE: 2, SHRUB: 3, UMBRELLA: 4, PALM: 5, CYPRESS: 6, OLEANDER: 7 };
   Veg.SP = SP;
 
   // ---------------------------------------------------------------- tree atlas: 4 species x (2 side views + 1 top view), 512 px cells
   // canvas rows (top to bottom): top views, side B, side A  -> uv rows 2, 1, 0 (flipY)
-  function paintAtlas() {
-    const CW = 512; const [c, ctx] = Env.canvas(CW * 4, CW * 3); ctx.clearRect(0, 0, c.width, c.height);
+  function paintAtlas(med) {
+    const CW = 512; const [c, ctx] = Env.canvas(CW * (med ? 8 : 4), CW * 3); ctx.clearRect(0, 0, c.width, c.height);
     const rgb = (a, k, al) => 'rgba(' + (U.clamp(a[0] * k, 0, 255) | 0) + ',' + (U.clamp(a[1] * k, 0, 255) | 0) + ',' + (U.clamp(a[2] * k, 0, 255) | 0) + ',' + (al == null ? 1 : al) + ')';
     const mixc = (a, b, t) => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
     // one leaf mass: many small leaf dabs inside an ellipse, lit from above, darker below and inside, sunlit translucent tips on top
@@ -93,7 +93,70 @@ window.EI = window.EI || {};
     cell(CW, rowA, () => poplarSide(CW, rowA, 31, PAL.poplar)); cell(CW, rowB, () => poplarSide(CW, rowB, 37, PAL.poplar)); cell(CW, rowT, () => top(CW, rowT, 7, PAL.poplar, 150, 8));
     cell(CW * 2, rowA, () => pineSide(CW * 2, rowA, 41, PAL.pine)); cell(CW * 2, rowB, () => pineSide(CW * 2, rowB, 47, PAL.pine)); cell(CW * 2, rowT, () => top(CW * 2, rowT, 9, PAL.pine, 180, 9, true));
     cell(CW * 3, rowA, () => shrubSide(CW * 3, rowA, 53, PAL.shrub)); cell(CW * 3, rowB, () => shrubSide(CW * 3, rowB, 59, PAL.shrub2)); cell(CW * 3, rowT, () => top(CW * 3, rowT, 13, PAL.shrub, 200, 12));
+    if (med) paintMediterranean(ctx, CW, rowA, rowB, rowT, cell, lobe, trunk, branch, rgb);
     return Env.cutout(c, { aniso: 4 });
+  }
+
+  // ---------------------------------------------------------------- Mediterranean species (street circuits): umbrella pine, palm, italian cypress,
+  // flowering oleander. Columns 4-7 of the wide atlas, same row layout (side A, side B, top view)
+  function paintMediterranean(ctx, CW, rowA, rowB, rowT, cell, lobe, trunk, branch, rgb) {
+    const P = {
+      stone: { dark: [22, 32, 18], mid: [48, 66, 34], light: [92, 112, 58], glow: [140, 156, 92], leaf: 5.2, density: 0.085, holes: 6 },
+      palm: { dark: [30, 44, 22], mid: [70, 92, 44], light: [124, 142, 74], glow: [170, 178, 110] },
+      cypress: { dark: [14, 24, 14], mid: [30, 46, 26], light: [58, 76, 42], glow: [90, 108, 62], leaf: 4.2, density: 0.11 },
+      oleander: { dark: [24, 40, 20], mid: [52, 76, 38], light: [96, 122, 64], glow: [140, 160, 96], leaf: 4.6, density: 0.08, holes: 3 },
+    };
+    // umbrella (stone) pine: a tall bare trunk that forks into a few limbs under a broad, flat-topped canopy
+    const umbrella = (ox, oy, seed, lean) => {
+      const r = U.rng(seed); const tx = 256 + lean * 30;
+      ctx.fillStyle = '#5b4030'; ctx.beginPath(); ctx.moveTo(ox + 248, oy + 512); ctx.lineTo(ox + tx - 6, oy + 205); ctx.lineTo(ox + tx + 6, oy + 205); ctx.lineTo(ox + 266, oy + 512); ctx.closePath(); ctx.fill();
+      ctx.fillStyle = 'rgba(150,110,80,0.5)'; ctx.fillRect(ox + 252, oy + 260, 4, 250);
+      for (let b = 0; b < 6; b++) { const dir = b % 2 ? 1 : -1; branch(ox, oy, tx, 230 - b * 6, tx + dir * (60 + r() * 150), 150 - r() * 30, 9 - b, '#5b4030'); }
+      const lobes = []; for (let i = 0; i < 26; i++) { const a = r() * 6.283, d = Math.sqrt(r()); lobes.push({ x: 256 + Math.cos(a) * d * 205, y: 118 + Math.sin(a) * d * 52 - Math.abs(Math.cos(a)) * 10, rx: 52 + r() * 40, ry: 26 + r() * 16 }); }
+      lobes.sort((a, b) => a.y - b.y); const global = (y) => 1.12 - U.clamp((y - 70) / 120, 0, 1) * 0.55;
+      for (const L of lobes) lobe(r, ox, oy, L, P.stone, global);
+    };
+    // palm: ringed trunk (slightly swollen top on the date palm), crown of arching pinnate fronds and a few dead hanging ones
+    const palm = (ox, oy, seed, date) => {
+      const r = U.rng(seed); const top = date ? 150 : 110; const bend = (r() - 0.5) * 30;
+      for (let y = 512; y > top; y -= 3) { const u = (512 - y) / (512 - top); const x = 256 + bend * u * u; const w = date ? 22 + 10 * Math.pow(u, 4) : 15 - 3 * u; const v = 96 + ((y / 3) % 3 === 0 ? -22 : 0) + r() * 10; ctx.fillStyle = 'rgb(' + (v + 20 | 0) + ',' + (v + 6 | 0) + ',' + (v - 14 | 0) + ')'; ctx.fillRect(ox + x - w / 2, oy + y - 3, w, 3.4); }
+      const cx = 256 + bend, cy = top;
+      // dead fronds (skirt), then live fronds back to front
+      for (let k = 0; k < 7; k++) { const a = Math.PI * (0.25 + 0.5 * r()); ctx.strokeStyle = 'rgb(122,98,62)'; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(ox + cx, oy + cy + 8); ctx.quadraticCurveTo(ox + cx + Math.cos(a) * 60, oy + cy + 30, ox + cx + Math.cos(a) * 80, oy + cy + 90 + r() * 40); ctx.stroke(); }
+      const fronds = []; for (let k = 0; k < 22; k++) fronds.push({ a: -Math.PI + (k / 21) * Math.PI * 2 + (r() - 0.5) * 0.25, len: 150 + r() * 70, droop: 0.35 + r() * 0.5, z: r() });
+      fronds.sort((p, q) => p.z - q.z);
+      for (const f of fronds) {
+        const dx = Math.cos(f.a), up = Math.sin(f.a) < 0 ? -Math.sin(f.a) : -Math.sin(f.a) * 0.5;
+        const pts = []; for (let s = 0; s <= 12; s++) { const u = s / 12; pts.push([cx + dx * f.len * u, cy - up * f.len * u * (1 - u) * 1.1 + f.droop * f.len * u * u * 0.9]); }
+        const lit = 0.55 + f.z * 0.45 - Math.max(0, Math.sin(f.a)) * 0.2;
+        ctx.strokeStyle = rgb(P.palm.mid, lit * 0.8); ctx.lineWidth = 3; ctx.beginPath(); pts.forEach((p, i) => i ? ctx.lineTo(ox + p[0], oy + p[1]) : ctx.moveTo(ox + p[0], oy + p[1])); ctx.stroke();
+        for (let s = 1; s < 12; s++) { const p = pts[s], q = pts[s + 1]; const tx = q[0] - p[0], ty = q[1] - p[1]; const l = Math.hypot(tx, ty) || 1; const nx = -ty / l, ny = tx / l; const ll = 26 * Math.sin(Math.PI * s / 12) + 6;
+          for (const sd of [-1, 1]) { const col = r() < 0.5 ? P.palm.light : P.palm.mid; ctx.strokeStyle = rgb(col, lit * (0.8 + r() * 0.4)); ctx.lineWidth = 2.2; ctx.beginPath(); ctx.moveTo(ox + p[0], oy + p[1]); ctx.lineTo(ox + p[0] + nx * sd * ll * 0.7 + tx / l * ll * 0.5, oy + p[1] + ny * sd * ll * 0.7 + ty / l * ll * 0.5 + ll * 0.35); ctx.stroke(); } }
+      }
+      ctx.fillStyle = 'rgb(84,70,44)'; ctx.beginPath(); ctx.ellipse(ox + cx, oy + cy + 6, 16, 12, 0, 0, 6.283); ctx.fill();
+    };
+    // italian cypress: a narrow dark flame from the ground to a point
+    const cypress = (ox, oy, seed) => {
+      const r = U.rng(seed); const global = (y) => 1.1 - U.clamp((y - 20) / 480, 0, 1) * 0.5;
+      for (let i = 0; i < 26; i++) { const y = 18 + i * 19 + r() * 6; const u = (y - 10) / 490; const w = 18 + 52 * Math.pow(Math.sin(Math.PI * Math.min(1, u * 0.8 + 0.05)), 0.7) * (u < 0.15 ? u / 0.15 : 1); lobe(r, ox, oy, { x: 256 + (r() - 0.5) * 10, y, rx: w * (0.8 + r() * 0.3), ry: 22 + r() * 8 }, P.cypress, global); }
+      trunk(ox, oy, 256, 512, 486, 14, 12, '#3a2c1e');
+    };
+    // oleander: dense rounded shrub peppered with pink, red and white flower clusters
+    const oleander = (ox, oy, seed, pal) => {
+      const r = U.rng(seed); const global = (y) => 1.05 - U.clamp((y - 150) / 360, 0, 1) * 0.55;
+      const lobes = []; for (let i = 0; i < 18; i++) { const a = Math.PI + r() * Math.PI, d = Math.sqrt(r()) * 0.85; lobes.push({ x: 256 + Math.cos(a) * d * 200, y: 400 + Math.sin(a) * d * 230, rx: 56 + r() * 40, ry: 48 + r() * 30 }); }
+      lobes.push({ x: 256, y: 440, rx: 220, ry: 70 }); lobes.sort((a, b) => a.y - b.y);
+      for (const L of lobes) { L.y = Math.min(L.y, 512 - L.ry * 0.6); lobe(r, ox, oy, L, P.oleander, global); }
+      for (let i = 0; i < 160; i++) { const a = Math.PI + r() * Math.PI, d = Math.sqrt(r()) * 0.9; const x = 256 + Math.cos(a) * d * 210, y = 420 + Math.sin(a) * d * 240; if (y > 470) continue; const c = pal[Math.floor(r() * pal.length)]; ctx.fillStyle = rgb(c, 0.85 + r() * 0.25); ctx.beginPath(); ctx.arc(ox + x, oy + y, 3.5 + r() * 4, 0, 6.283); ctx.fill(); }
+    };
+    const topRound = (ox, oy, seed, pal, R, n) => { const r = U.rng(seed); for (let i = 0; i < n; i++) { const a = r() * 6.283, d = Math.sqrt(r()) * 0.7 * R; const rr = 60 + r() * 40; lobe(r, ox, oy, { x: 256 + Math.cos(a) * d, y: 256 + Math.sin(a) * d, rx: rr, ry: rr }, pal, () => 1); } };
+    const topPalm = (ox, oy, seed) => { const r = U.rng(seed); for (let k = 0; k < 18; k++) { const a = k / 18 * 6.283 + r() * 0.2; const L = 170 + r() * 60; for (let s = 1; s < 14; s++) { const u = s / 14; const x = 256 + Math.cos(a) * L * u, y = 256 + Math.sin(a) * L * u; const ll = 24 * Math.sin(Math.PI * u) + 4; ctx.strokeStyle = rgb(r() < 0.5 ? P.palm.light : P.palm.mid, 0.9 + r() * 0.3); ctx.lineWidth = 2.4; for (const sd of [-1, 1]) { ctx.beginPath(); ctx.moveTo(ox + x, oy + y); ctx.lineTo(ox + x - Math.sin(a) * sd * ll + Math.cos(a) * ll * 0.5, oy + y + Math.cos(a) * sd * ll + Math.sin(a) * ll * 0.5); ctx.stroke(); } } ctx.strokeStyle = rgb(P.palm.mid, 0.7); ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(ox + 256, oy + 256); ctx.lineTo(ox + 256 + Math.cos(a) * L, oy + 256 + Math.sin(a) * L); ctx.stroke(); } };
+    const flowers = [[232, 96, 150], [214, 52, 96], [248, 236, 236], [236, 130, 170]];
+    const X4 = CW * 4, X5 = CW * 5, X6 = CW * 6, X7 = CW * 7;
+    cell(X4, rowA, () => umbrella(X4, rowA, 71, 0.3)); cell(X4, rowB, () => umbrella(X4, rowB, 73, -0.5)); cell(X4, rowT, () => topRound(X4, rowT, 75, P.stone, 210, 16));
+    cell(X5, rowA, () => palm(X5, rowA, 81, true)); cell(X5, rowB, () => palm(X5, rowB, 83, false)); cell(X5, rowT, () => topPalm(X5, rowT, 85));
+    cell(X6, rowA, () => cypress(X6, rowA, 91)); cell(X6, rowB, () => cypress(X6, rowB, 93)); cell(X6, rowT, () => topRound(X6, rowT, 95, P.cypress, 70, 5));
+    cell(X7, rowA, () => oleander(X7, rowA, 101, flowers)); cell(X7, rowB, () => oleander(X7, rowB, 103, [[246, 240, 236], [232, 96, 150]])); cell(X7, rowT, () => topRound(X7, rowT, 105, P.oleander, 200, 12));
   }
 
   // ---------------------------------------------------------------- tree geometry
@@ -121,28 +184,29 @@ window.EI = window.EI || {};
   // the LOD window uLod = (inner, outer) metres from the eye is applied per tree in the vertex shader (collapsed outside), so the
   // near and far sets never overlap even between two CPU regathers
   const TREE_HEAD = '#include <common>\nattribute vec4 iA;\nattribute vec4 iB;\nattribute vec4 iC;\nuniform vec3 uEye;\nuniform vec2 uLod;\nvarying vec3 vTint;\n';
-  function nearPatch(sh, uni, depth) {
+  function nearPatch(sh, uni, depth, med) {
     Object.assign(sh.uniforms, uni);
     sh.vertexShader = sh.vertexShader.replace('#include <common>', TREE_HEAD + 'attribute float isTop;\nattribute vec3 ctint;\nattribute float cvar;')
       .replace('#include <beginnormal_vertex>', 'float nY = iA.w; vec3 objectNormal = vec3(cos(nY) * normal.x + sin(nY) * normal.z, normal.y, -sin(nY) * normal.x + cos(nY) * normal.z);')
       .replace('#include <begin_vertex>', [
         'vec3 transformed = vec3(position); float sp = iB.z;',
         'if (isTop > 0.5) { transformed.xz *= sp < 0.5 ? 1.0 : sp < 1.5 ? 0.4 : sp < 2.5 ? 0.8 : 1.05; transformed.y = sp < 0.5 ? 0.6 : sp < 1.5 ? 0.55 : sp < 2.5 ? 0.74 : 0.52; }',
+        med ? 'if (isTop > 0.5 && sp > 3.5) { transformed.xz = position.xz * (sp < 4.5 ? 1.0 : sp < 5.5 ? 0.85 : sp < 6.5 ? 0.3 : 1.0); transformed.y = sp < 4.5 ? 0.8 : sp < 5.5 ? 0.83 : sp < 6.5 ? 0.6 : 0.5; }' : '',
         'transformed.xz *= iB.x; transformed.y *= iB.y; float tc = cos(iA.w), ts = sin(iA.w);',
         'transformed = vec3(tc * transformed.x + ts * transformed.z, transformed.y, -ts * transformed.x + tc * transformed.z) + iA.xyz;',
         'float dE = distance(iA.xz, uEye.xz); if (dE < uLod.x || dE >= uLod.y) transformed = iA.xyz;',
         'vTint = iC.rgb * ctint;'].join('\n'))
-      .replace('#include <uv_vertex>', '#include <uv_vertex>\n#ifdef USE_UV\nvUv = (uv * vec2(0.98, 0.985) + vec2(0.01, 0.004) + vec2(iB.z, isTop > 0.5 ? 2.0 : mod(iB.w + cvar, 2.0))) * vec2(0.25, 1.0 / 3.0);\n#endif');
+      .replace('#include <uv_vertex>', '#include <uv_vertex>\n#ifdef USE_UV\nvUv = (uv * vec2(0.98, 0.985) + vec2(0.01, 0.004) + vec2(iB.z, isTop > 0.5 ? 2.0 : mod(iB.w + cvar, 2.0))) * vec2(' + (med ? '0.125' : '0.25') + ', 1.0 / 3.0);\n#endif');
     if (depth) sh.vertexShader = sh.vertexShader.replace('vTint = iC.rgb * ctint;', 'vTint = iC.rgb * ctint; if (dE > 200.0) transformed = iA.xyz;');
     if (!depth) { sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nvarying vec3 vTint;').replace('#include <map_fragment>', '#include <map_fragment>\ndiffuseColor.rgb *= vTint;'); Env.noFlip(sh); }
   }
   // far LOD: one card turned to the camera about the vertical axis (side view A of the species)
-  function farPatch(sh, uni) {
+  function farPatch(sh, uni, med) {
     Object.assign(sh.uniforms, uni);
     sh.vertexShader = sh.vertexShader.replace('#include <common>', TREE_HEAD)
       .replace('#include <beginnormal_vertex>', 'vec2 bdv = cameraPosition.xz - iA.xz; vec2 bdd = length(bdv) > 0.01 ? normalize(bdv) : vec2(0.0, 1.0); vec3 brt = vec3(bdd.y, 0.0, -bdd.x);\nvec3 objectNormal = normalize(brt * position.x * 1.1 + vec3(0.0, 0.45 + position.y * 0.7, 0.0) + vec3(bdd.x, 0.0, bdd.y) * 0.35);')
       .replace('#include <begin_vertex>', 'vec3 transformed = iA.xyz + brt * position.x * iB.x * 0.95 + vec3(0.0, position.y * iB.y, 0.0);\nfloat dE = distance(iA.xz, uEye.xz); if (dE < uLod.x || dE >= uLod.y) transformed = iA.xyz;\nvTint = iC.rgb;')
-      .replace('#include <uv_vertex>', '#include <uv_vertex>\n#ifdef USE_UV\nvUv = (uv * vec2(0.98, 0.985) + vec2(0.01, 0.004) + vec2(iB.z, iB.w)) * vec2(0.25, 1.0 / 3.0);\n#endif');
+      .replace('#include <uv_vertex>', '#include <uv_vertex>\n#ifdef USE_UV\nvUv = (uv * vec2(0.98, 0.985) + vec2(0.01, 0.004) + vec2(iB.z, iB.w)) * vec2(' + (med ? '0.125' : '0.25') + ', 1.0 / 3.0);\n#endif');
     sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nvarying vec3 vTint;').replace('#include <map_fragment>', '#include <map_fragment>\ndiffuseColor.rgb *= vTint;');
     Env.noFlip(sh);
   }
@@ -180,7 +244,11 @@ window.EI = window.EI || {};
     }
     const street = E.data.kind === 'street';
     // ---- street trees from the map (boulevard planes / palms stand in as round-crowned trees)
-    if (street) for (const [x, z] of t.data.scenery.trees || []) { if (!ok(x, z, 2.5)) continue; add(x, z, SP.OAK, 6 + rng() * 3, 8 + rng() * 4); }
+    const SK = street && t.data.street && EI.StreetKit;
+    const MED = { pine: SP.UMBRELLA, palm: SP.PALM, cypress: SP.CYPRESS, oleander: SP.OLEANDER, cactus: SP.CYPRESS, shrub: SP.SHRUB, oak: SP.OAK };
+    const medSize = (sp) => sp === SP.UMBRELLA ? [11 + rng() * 6, 12 + rng() * 5] : sp === SP.PALM ? [6 + rng() * 2.5, 10 + rng() * 6] : sp === SP.CYPRESS ? [2.6 + rng() * 1, 10 + rng() * 5] : [6 + rng() * 3, 8 + rng() * 4];
+    if (street) for (const [x, z] of t.data.scenery.trees || []) { if (!ok(x, z, 2.5)) continue; const nm = SK ? EI.StreetKit.treeSpecies(E, x, z) : null; const sp = nm ? MED[nm] : SP.OAK; if (sp === SP.OAK) add(x, z, SP.OAK, 6 + rng() * 3, 8 + rng() * 4); else { const [w, h] = medSize(sp); add(x, z, sp, w, h); } }
+    if (SK) for (const [x, z, nm, w, h] of EI.StreetKit.trees(E)) { const sp = MED[nm]; if (sp == null) continue; add(x, z, sp, nm === 'cactus' ? 1.8 : w, nm === 'cactus' ? 3 : h, null, nm === 'cactus' ? 1.25 : null); }
     // ---- copses in a few far fields
     let nCopse = 0;
     for (const [k, poly] of street ? [] : (E.fieldPolys || [])) {
@@ -259,7 +327,7 @@ window.EI = window.EI || {};
   // ---------------------------------------------------------------- instancing: one cell-sorted record set feeding the near (3-card) LOD,
   // the soft contact shadows under near trees and the far (1-card billboard) LOD; both regathered around the eye
   Veg.instance = function (E, trees) {
-    const sc = E.sc; const atlas = paintAtlas(); const rng = U.rng(99);
+    const sc = E.sc; const med = E.data.kind === 'street'; const atlas = paintAtlas(med); const rng = U.rng(99); const mk = med ? '-med' : '';
     const set = new Env.CellSet([4, 4, 4], 60);
     for (const tr of trees) {
       const [x, z, sp, w, h, v, tint, interior] = tr; const y = sc.height(x, z) - 0.15;
@@ -271,9 +339,9 @@ window.EI = window.EI || {};
     // near
     const [ng, nattr] = Env.instGeo(treeGeometry(), ['iA', 'iB', 'iC'], N);
     const nmat = new THREE.MeshStandardMaterial({ map: atlas, alphaTest: 0.42, side: THREE.DoubleSide, roughness: 0.92, metalness: 0 });
-    nmat.onBeforeCompile = (sh) => nearPatch(sh, { uEye: uni.uEye, uLod: uni.uLodN }); nmat.customProgramCacheKey = () => 'tree-near';
+    nmat.onBeforeCompile = (sh) => nearPatch(sh, { uEye: uni.uEye, uLod: uni.uLodN }, false, med); nmat.customProgramCacheKey = () => 'tree-near' + mk;
     const depth = new THREE.MeshDepthMaterial({ depthPacking: THREE.RGBADepthPacking, map: atlas, alphaTest: 0.42 });
-    depth.onBeforeCompile = (sh) => nearPatch(sh, { uEye: uni.uEye, uLod: uni.uLodN }, true); depth.customProgramCacheKey = () => 'tree-near-depth';
+    depth.onBeforeCompile = (sh) => nearPatch(sh, { uEye: uni.uEye, uLod: uni.uLodN }, true, med); depth.customProgramCacheKey = () => 'tree-near-depth' + mk;
     const near = new THREE.Mesh(ng, nmat); near.frustumCulled = false; near.customDepthMaterial = depth; near.name = 'trees'; sc.group.add(near);
     // contact shadows share the near records: a flat quad pushed away from the sun (azimuth 205, elevation 42); shrubs and wood interiors have none
     const [bc, bctx] = Env.canvas(128, 128); const gr = bctx.createRadialGradient(64, 64, 4, 64, 64, 62); gr.addColorStop(0, 'rgba(0,0,0,0.6)'); gr.addColorStop(0.5, 'rgba(0,0,0,0.3)'); gr.addColorStop(1, 'rgba(0,0,0,0)'); bctx.fillStyle = gr; bctx.fillRect(0, 0, 128, 128);
@@ -294,7 +362,7 @@ window.EI = window.EI || {};
     const fbase = new THREE.PlaneGeometry(1, 1); fbase.translate(0, 0.5, 0);
     const [fg, fattr] = Env.instGeo(fbase, ['iA', 'iB', 'iC'], N);
     const fmat = new THREE.MeshStandardMaterial({ map: atlas, alphaTest: 0.45, side: THREE.DoubleSide, roughness: 0.95, metalness: 0 });
-    fmat.onBeforeCompile = (sh) => farPatch(sh, { uEye: uni.uEye, uLod: uni.uLodF }); fmat.customProgramCacheKey = () => 'tree-far';
+    fmat.onBeforeCompile = (sh) => farPatch(sh, { uEye: uni.uEye, uLod: uni.uLodF }, med); fmat.customProgramCacheKey = () => 'tree-far' + mk;
     const far = new THREE.Mesh(fg, fmat); far.frustumCulled = false; far.name = 'treesFar'; sc.group.add(far);
     const dn = new Env.DynSet(set, nattr, (n) => { ng.instanceCount = n; bg.instanceCount = n; near.visible = n > 0; blobs.visible = n > 0 && sc.treeBlobs !== false; }, 25);
     const df = new Env.DynSet(set, fattr, (n) => { fg.instanceCount = n; far.visible = n > 0; }, 90);
@@ -391,7 +459,7 @@ window.EI = window.EI || {};
     return Env.cutout(c, { aniso: 4 });
   }
   Veg.buildGrass = function (E) {
-    const sc = E.sc, t = E.t, rng = U.rng(4040), hw = t.halfWidth, kw = t.kerbWidth; const OCC = Env.OCC;
+    const sc = E.sc, t = E.t, rng = U.rng(4040), hw = t.halfWidth, kw = t.kerbWidth; const OCC = Env.OCC; const street = E.data.kind === 'street';
     // candidate tufts, cell-sorted: a ready instance matrix + colour each (the regather around the eye is then a few block copies)
     const set = new Env.CellSet([16, 3], 32); let total = 0; const col = new THREE.Color();
     const m = new THREE.Matrix4(), q = new THREE.Quaternion(), sv = new THREE.Vector3(), p = new THREE.Vector3(), up = new THREE.Vector3(0, 1, 0);
@@ -407,6 +475,7 @@ window.EI = window.EI || {};
           for (let k = 0; k < n; k++) {
             const d = a + Math.pow(rng(), 1.4) * (b - a); const along = (rng() - 0.5) * t.ds; const x = t.x[i] + t.nx[i] * side * d + t.tx[i] * along, z = t.z[i] + t.nz[i] * side * d + t.tz[i] * along;
             if (d > wall && (E.occAt(x, z) & (OCC.ROAD | OCC.BUILT | OCC.WATER | OCC.PARK))) continue;
+            if (street && !(E.occAt(x, z) & OCC.WOOD)) continue;
             if (d > wall && E.fsAt(x, z) < 2.0) continue; // another part of the track
             push(x, t.y[i] - 0.03, z, 0.6 + rng() * 0.7);
           }

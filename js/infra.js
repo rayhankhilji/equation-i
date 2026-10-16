@@ -584,15 +584,17 @@ window.EI = window.EI || {};
   Infra.SPOTS = [[3040, 0, 18], [4990, 0, 18], [2190, 0, 18], [350, 0, 18], [3160, 0, 8], [3900, 0, 8], [5075, 0, 8], [5705, 0, 8], [2010, 0, 8], [965, 0, 8], [460, 0, 8]];
   Infra.build = function (track, scenery) {
     const cx = new Ctx(track, scenery);
-    buildTyreStacks(cx);
+    // street circuits draw their own rails, block barriers, tyre walls and catch-fence posts (track.js) and have no grass to wear
+    const street = !!track.data.street;
+    if (!street) buildTyreStacks(cx);
     buildScreens(cx);
     buildBillboards(cx);
     buildCameraTowers(cx);
     buildMarshalPosts(cx);
     buildBroadcast(cx);
-    buildHoardings(cx);
-    buildFencePosts(cx);
-    buildDirtBands(cx);
+    if (!street) buildHoardings(cx);
+    if (!street) buildFencePosts(cx);
+    if (!street) buildDirtBands(cx);
     buildPaddock(cx);
     // the lap-long instanced families are cut into ~600 m tiles with fitted bounds, so the camera and (above all) the shadow
     // camera only draw the tiles they can see instead of every board / post / tyre of the lap

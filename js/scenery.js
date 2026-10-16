@@ -27,7 +27,8 @@ window.EI = window.EI || {};
       this.cellOf = (x, z) => E.cellAt(x, z).k;
       this.statics = new Env.Statics();
       Venue.layout(E); E.allWoods = this.track.data.scenery.woods.concat(E.data.woods || []); lap('layout');
-      E.paintFieldMap([Venue.paint(E)]); lap('fieldMap');
+      const City = E.data.kind === 'street' && E.dem ? EI.EnvCity : null;
+      E.paintFieldMap(City ? [City.paintBase(E), Venue.paint(E), City.paint(E)] : [Venue.paint(E)]); lap('fieldMap');
       E.buildTerrain(); E.buildVerge(); lap('terrain');
       this.buildSky(); lap('sky');
       this.buildBuildings(); lap('buildings');
@@ -35,6 +36,8 @@ window.EI = window.EI || {};
       Venue.build(E); lap('venue');
       if (EI.EnvStreet && E.data.kind === 'street') { EI.EnvStreet.build(E); lap('street'); }
       Veg.build(E); lap('trees');
+      // street circuits: the farmland hedgerow strips beyond the field map have no place on mountains and sea
+      if (E.dem) { const ts = this.group.getObjectByName('treeStrips'); if (ts) ts.visible = false; }
       Veg.buildGrass(E); lap('grass');
       if (EI.Infra) this.group.add(EI.Infra.build(this.track, this)); lap('infra');
       this.statics.build(this.group); E.stats.staticChunks = this.statics.chunks.length; E.stats.staticTris = this.statics.tris; lap('statics');
@@ -64,6 +67,7 @@ window.EI = window.EI || {};
       this.treeBlobs = T.blobs;
       if (this.treeLod) { this.treeLod.near.castShadow = T.shadows; this.treeLod.blobs.visible = T.blobs && this.treeLod.near.visible; }
       if (this.crowdLod) this.crowdLod.inst.castShadow = T.shadows;
+      for (const m of this.cityTrees || []) m.visible = q !== 'low';      // hillside pines / cypresses: medium and high only
       this._forceLod = true;
     }
     // per-frame LOD bookkeeping (cheap: a few distance tests, buffer regathers only after the eye has moved tens of metres)
@@ -79,13 +83,25 @@ window.EI = window.EI || {};
       // shadow casters: the sun shadow covers ~70 m round a point just ahead of the camera and the sun is 42 degrees up, so
       // static tiles further than ~170 m away cannot reach it - they skip the shadow pass (the bulk of its cost)
       for (const c of this.shadowTiles || []) c.castShadow = EI.Env.boxDist(c.userData.box, x, z) < 170;
+      // the city (street circuits): chunks cast shadows near the eye only; the outer hillside chunks drop out on the low tier
+      for (const c of this.cityChunks || []) { const d = EI.Env.boxDist(c.userData.box, x, z); c.castShadow = d < 170; c.visible = !c.userData.far || d < T.cityFar; }
     }
 
     // visible ground height: the verge ribbons (track level) near the circuit, the terrain mesh beyond
     height(x, z) {
       const E = this.env, t = this.track;
-      if (E && E.fsAt(x, z) < 41) return (E.dC2 ? E.tyAt(x, z) : t.y[E.idxAt(x, z)]) - 0.03;
-      const H = this.hHalf;
+      const fs = E ? E.fsAt(x, z) : 1e4;
+      if (fs < 41) {
+        let v = (E.dC2 ? E.tyAt(x, z) : t.y[E.idxAt(x, z)]) - 0.03; if (!E.dem) return v;
+        // street circuits: on and right next to the road the surface is the road's own (the blended level belongs to the verges)
+        const p = t.project(x, z, null, this._hp || (this._hp = {})); if (p.dist < Math.max(t.wallL[p.i], t.wallR[p.i]) + 1.5) v = t.y[p.i] - 0.03;
+        return Math.max(v, this.gridHeight(x, z));
+      }
+      return this.gridHeight(x, z);
+    }
+    // the terrain mesh surface (same triangulation), analytic beyond its fine grid
+    gridHeight(x, z) {
+      const E = this.env; const H = this.hHalf;
       if (!this.heights || Math.abs(x) >= H || Math.abs(z) >= H) return E ? E.terrainHeight(x, z) : 0;
       const N = this.hN, G = this.hCell; const fx = (x + H) / G, fz = (z + H) / G; const ix = U.clamp(Math.floor(fx), 0, N - 2), iz = U.clamp(Math.floor(fz), 0, N - 2); const tx = fx - ix, tz = fz - iz;
       const h = this.heights; const h00 = h[iz * N + ix], h10 = h[iz * N + ix + 1], h01 = h[(iz + 1) * N + ix], h11 = h[(iz + 1) * N + ix + 1];
@@ -140,6 +156,8 @@ window.EI = window.EI || {};
     buildBuildings() {
       const t = this.track, sc = t.data.scenery; const pr = {}; const Env = EI.Env;
       const street = (EI.ENVDATA && EI.ENVDATA[t.data.id] || {}).kind === 'street';
+      // street circuits with a city model: every footprint becomes a designed building (js/env_city.js)
+      if (street && EI.EnvCity && this.env && this.env.dem) { EI.EnvCity.build(this.env); return; }
       const pitGroup = street ? null : this.buildPitComplex(); if (pitGroup) this.group.add(pitGroup);
       // near-neutral facade textures (tinted per building by vertex colour); the top-left corner is a plain patch used by the roofs
       const mkTex = (draw) => { const [c, ctx] = Env.canvas(256, 128); draw(ctx); ctx.fillStyle = '#e6e6e6'; ctx.fillRect(0, 0, 12, 12); return Env.tex(c, true, 8); };
@@ -184,9 +202,9 @@ window.EI = window.EI || {};
     }
   }
   Scenery.TIERS = {
-    low: { treeNear: 300, treeFar: 900, grass: [0, 0], crowd: 250, crowdFar: 600, cars: 400, tents: 400, clutter: 450, blobs: true, shadows: false },
-    medium: { treeNear: 500, treeFar: 1500, grass: [38, 60], crowd: 400, crowdFar: 1e5, cars: 800, tents: 1e5, clutter: 900, blobs: true, shadows: false },
-    high: { treeNear: 500, treeFar: 1e5, grass: [55, 85], crowd: 650, crowdFar: 1e5, cars: 1e5, tents: 1e5, clutter: 1e5, blobs: true, shadows: true },
+    low: { treeNear: 300, treeFar: 900, grass: [0, 0], crowd: 250, crowdFar: 600, cars: 400, tents: 400, clutter: 450, blobs: true, shadows: false, cityFar: 1500 },
+    medium: { treeNear: 500, treeFar: 1500, grass: [38, 60], crowd: 400, crowdFar: 1e5, cars: 800, tents: 1e5, clutter: 900, blobs: true, shadows: false, cityFar: 1e5 },
+    high: { treeNear: 500, treeFar: 1e5, grass: [55, 85], crowd: 650, crowdFar: 1e5, cars: 1e5, tents: 1e5, clutter: 1e5, blobs: true, shadows: true, cityFar: 1e5 },
   };
   EI.Scenery = Scenery;
 })();

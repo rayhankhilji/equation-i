@@ -337,7 +337,8 @@ window.EI = window.EI || {};
     // ---- grandstand blocks (added runs + the OSM stands)
     const blocks = E.blocks.slice();
     const pr = {};
-    for (const st of t.data.scenery.grandstands) {
+    const street = !!t.data.street;
+    for (const st of street ? [] : t.data.scenery.grandstands) {
       const poly = st.p; if (poly.length < 3) continue; let cx = 0, cz = 0; for (const q of poly) { cx += q[0]; cz += q[1]; } cx /= poly.length; cz /= poly.length;
       t.project(cx, cz, null, pr); if (pr.dist < t.halfWidth + 8) continue; const i = pr.i, side = pr.lat > 0 ? 1 : -1; const tx = t.tx[i], tz = t.tz[i], nx = t.nx[i] * side, nz = t.nz[i] * side;
       let a0 = Infinity, a1 = -Infinity, b0 = Infinity, b1 = -Infinity; for (const q of poly) { const dx = q[0] - cx, dz = q[1] - cz; const a = dx * tx + dz * tz, b = dx * nx + dz * nz; a0 = Math.min(a0, a); a1 = Math.max(a1, a); b0 = Math.min(b0, b); b1 = Math.max(b1, b); }
@@ -442,6 +443,109 @@ window.EI = window.EI || {};
       }
       // flag poles behind roofed stands
       if (b.roof && !b.osm) for (let a = -hl + 4; a < hl - 2; a += 12) { D.box(m, 0.12, 9.5, 0.12, a, 0, zBack + 2.4, steel); flags.push([P(a, 8.0, zBack + 2.4), Math.atan2(b.nx, b.nz)]); }
+    }
+    // ---- street circuit (Monaco): temporary scaffold stands from the data (open, the covered Tribune K, and the pool stands built out
+    // over the harbour): a white clad base, aluminium decks with rows of blue plastic seats, tube-and-clamp scaffolding under and
+    // behind, mesh rails at the back, stair towers at the ends
+    const SS = { p: [], uv: [], n: [], idx: [] };   // seat backs and pans (textured, alpha cut)
+    if (street) {
+      const seaY = E.seaY != null ? E.seaY : -3.6; const kk = t.smooth(t.k, 10);
+      const deck = C(0xb9bec4), riser = C(0x5b6168), base = C(0xf1f2f0), baseD = C(0xd9dbd9), tube = C(0x9ea5ac), tubeD = C(0x737a82), rail = C(0xc2c8cd), roofW = C(0xf4f5f5), orange = C(0xe2771e);
+      const seatQuad = (a, b, c, d, u0, u1, v0, v1, nrm) => { const k = SS.p.length / 3; for (const q of [a, b, c, d]) SS.p.push(q[0], q[1], q[2]); SS.uv.push(u0, v0, u1, v0, u1, v1, u0, v1); for (let j = 0; j < 4; j++) SS.n.push(nrm[0], nrm[1], nrm[2]); SS.idx.push(k, k + 1, k + 2, k, k + 2, k + 3); };
+      for (const st of t.data.scenery.grandstands) {
+        if (st.s0 == null) continue; const side = st.side, style = st.style; const span = U.mod(st.s1 - st.s0, t.length);
+        const rows = U.clamp(Math.floor((st.depth - 1.6) / 0.85), 6, 26); const rise = 0.46, tread = 0.85; const y0 = style === 'water' ? 1.9 : 2.5, z0 = 0.5;
+        const seatHex = st.n === 'T1' ? 0xb3262e : st.n === 'Casino' ? 0x1f3f8f : 0x1d5bb5; const seatC = C(seatHex), seatD = C(seatHex).multiplyScalar(0.6);
+        let s = st.s0, first = true; const segs = [];
+        while (s < st.s0 + span - 4) {
+          const i0 = t.idxAtS(s); const R = 1 / (Math.abs(kk[i0]) + 1e-5); const step = U.clamp(R * 0.28, 9, 22); const sb = Math.min(st.s0 + span, s + step);
+          const ia = t.idxAtS(s), ib = t.idxAtS(sb); let wmax = 0; for (let q = s; q <= sb; q += 2) wmax = Math.max(wmax, E.wallCap(t.idxAtS(q), side));
+          const d = wmax + st.gap; const inner = (kk[i0] > 0) === (side > 0); if (inner && d > R * 0.8) { s = sb; continue; }
+          const A = [t.x[ia] + t.nx[ia] * side * d, t.z[ia] + t.nz[ia] * side * d], Bp = [t.x[ib] + t.nx[ib] * side * d, t.z[ib] + t.nz[ib] * side * d];
+          let ax = Bp[0] - A[0], az = Bp[1] - A[1]; const L = Math.hypot(ax, az); if (L < 4) { s = sb; continue; } ax /= L; az /= L; let nx = -az, nz = ax; const im = t.idxAtS((s + sb) / 2);
+          if (nx * t.nx[im] * side + nz * t.nz[im] * side < 0) { nx = -nx; nz = -nz; }
+          segs.push({ cx: (A[0] + Bp[0]) / 2, cz: (A[1] + Bp[1]) / 2, ax, az, nx, nz, len: L + 0.3, y: t.y[im] - 0.03, first }); first = false; s = sb;
+        }
+        if (segs.length) segs[segs.length - 1].last = true;
+        for (const b of segs) {
+          bi++; const m = Env.frame(b.cx, b.y, b.cz, b.ax, b.az, b.nx, b.nz); const L = b.len, hl = L / 2; const P = (x, y, z) => Env.xf(m, x, y, z);
+          const fwd = (() => { const o = P(0, 0, 0), f = P(0, 0, -1); return [f[0] - o[0], f[2] - o[2]]; })(); const yaw = Math.atan2(fwd[0], fwd[1]);
+          const nrmW = (() => { const o = P(0, 0, 0), q = P(0, 0.55, -0.83); return [q[0] - o[0], q[1] - o[1], q[2] - o[2]]; })();
+          const nBack = (() => { const o = P(0, 0, 0), q = P(0, 0.2, -1); const l = Math.hypot(q[0] - o[0], q[1] - o[1], q[2] - o[2]); return [(q[0] - o[0]) / l, (q[1] - o[1]) / l, (q[2] - o[2]) / l]; })();
+          const yTop = y0 + rows * rise, zBack = z0 + rows * tread; const yFoot = style === 'water' ? seaY - b.y - 0.5 : 0;
+          // base: white clad front wall below the first row (with a sponsor strip), grey underside of the decks
+          B.box(m, L, y0, 0.25, 0, 0, 0.12, base); B.quad(P(-hl, y0 - 0.02, 0.26), P(hl, y0 - 0.02, 0.26), P(hl, 0.4, 0.26), P(-hl, 0.4, 0.26), baseD);
+          if (style === 'water') for (let a = -hl + 1; a <= hl - 0.5; a += 3) M.box(m, 0.35, -yFoot + 0.4, 0.35, a, yFoot, 0.12, C(0xcfd2d4));
+          const strip = (yb, h, zz) => { const g = new THREE.PlaneGeometry(L, h); g.rotateY(Math.PI); const suv = g.attributes.uv; const u0 = rng() * 8; for (let v = 0; v < suv.count; v++) suv.setXY(v, u0 + suv.getX(v) * L / (5 * h), 0.52 + suv.getY(v) * 0.46); g.translate(0, yb + h / 2, zz); g.applyMatrix4(m); fronts.push(g); };
+          strip(y0 - 1.2, 0.9, -0.01);
+          // front rail (glass-less tube rail) on the first deck
+          MD.beam(m, [-hl, y0 + 1.05, z0 - 0.2], [hl, y0 + 1.05, z0 - 0.2], 0.05, rail); MD.beam(m, [-hl, y0 + 0.55, z0 - 0.2], [hl, y0 + 0.55, z0 - 0.2], 0.035, rail);
+          for (let a = -hl + 0.2; a <= hl; a += 1.8) MD.beam(m, [a, y0, z0 - 0.2], [a, y0 + 1.05, z0 - 0.2], 0.04, rail);
+          const aisles = []; for (let a = -hl + 6; a < hl - 3; a += 12) aisles.push(a);
+          const fill = 0.56 + rng() * 0.24; const team = rng() < 0.4 ? teams[Math.floor(rng() * teams.length)] : null; const tsA = -hl + rng() * L * 0.7, tsL = 5 + rng() * 10, tsR = Math.floor(rng() * rows * 0.5);
+          for (let r = 0; r < rows; r++) {
+            const y = y0 + r * rise, za = z0 + r * tread, zb = za + tread;
+            B.quad(P(-hl, y + rise, za), P(hl, y + rise, za), P(hl, y, za), P(-hl, y, za), riser);
+            B.quad(P(-hl, y + rise, za), P(-hl, y + rise, zb), P(hl, y + rise, zb), P(hl, y + rise, za), deck);
+            // seats: a pan and a moulded back every 0.5 m (texture), aisles left clear
+            let segA = -hl + 0.1; const segs2 = []; for (const a of aisles) { segs2.push([segA, a - 0.6]); segA = a + 0.6; } segs2.push([segA, hl - 0.1]);
+            for (const [a0, a1] of segs2) { if (a1 - a0 < 0.6) continue; const u1 = (a1 - a0) / 0.5;
+              seatQuad(P(a0, y + rise + 0.03, za + 0.62), P(a1, y + rise + 0.03, za + 0.62), P(a1, y + rise + 0.46, za + 0.72), P(a0, y + rise + 0.46, za + 0.72), 0, u1, 0.5, 1.0, nBack);
+              seatQuad(P(a0, y + rise + 0.4, za + 0.3), P(a1, y + rise + 0.4, za + 0.3), P(a1, y + rise + 0.42, za + 0.66), P(a0, y + rise + 0.42, za + 0.66), 0, u1, 0.0, 0.5, [nBack[0] * 0.2, 0.98, nBack[2] * 0.2]); }
+            for (const a of aisles) MD.quad(P(a - 0.6, y + rise + 0.012, za), P(a - 0.6, y + rise + 0.012, za + 0.06), P(a + 0.6, y + rise + 0.012, za + 0.06), P(a + 0.6, y + rise + 0.012, za), orange);
+            // crowd strips beyond the sprite radius
+            let sA = -hl + 0.15; const flushSeg = (a1) => { if (a1 - sA > 1.2) { const A0 = P(sA, y + rise, za + 0.5), A1 = P(a1, y + rise, za + 0.5); const sh = 0.95 * (0.9 + rng() * 0.18); const u0 = rng() * 64, u1 = u0 + (a1 - sA) / 35.2; const q = [[A0[0], A0[1], A0[2], u0, 0], [A1[0], A1[1], A1[2], u1, 0], [A1[0], A1[1] + 2.2, A1[2], u1, 1], [A0[0], A0[1] + 2.2, A0[2], u0, 1]]; for (const k of [0, 1, 2, 0, 2, 3]) { carpet.p.push(q[k][0], q[k][1], q[k][2]); carpet.uv.push(q[k][3], q[k][4]); carpet.n.push(nrmW[0], nrmW[1], nrmW[2]); carpet.c.push(sh, sh, sh); } } };
+            for (const a of aisles) { flushSeg(a - 0.75); sA = a + 0.75; } flushSeg(hl - 0.15);
+            for (let a = -hl + 0.35; a < hl - 0.3; a += 0.5) {
+              let inAisle = false; for (const q of aisles) if (Math.abs(a - q) < 0.8) inAisle = true; if (inAisle) continue; seats++;
+              const w = P(a, y + rise, za + 0.5); const occ = fill * (0.62 + 0.75 * U.noise2(w[0] / 6 + bi * 3.1, w[2] / 6 + r * 0.41)); if (rng() > occ) continue;
+              const inTeam = team && a > tsA && a < tsA + tsL && r >= tsR; const standZone = U.noise2(w[0] / 14 + 40, w[2] / 14 + 7) > 0.72;
+              const standing = standZone ? rng() < 0.85 : rng() < 0.035; const pose = standing ? wpick(rng, STANDING) : wpick(rng, SEATED);
+              const tr = rng(); const shirt = inTeam ? (tr < 0.72 ? team.primary : tr < 0.88 ? (team.secondary || team.primary) : pick(rng, everyday)) : (tr < 0.2 ? pick(rng, merch) : pick(rng, everyday));
+              const acc = pose === 14 || pose === 6 ? (inTeam ? team.primary : pick(rng, flagCols)) : pose === 15 ? (inTeam ? team.primary : pick(rng, merch)) : (inTeam && rng() < 0.6 ? team.primary : pick(rng, rng() < 0.5 ? merch : everyday));
+              const mo = (pose === 11 || pose === 12 || pose === 14 || pose === 15) ? (rng() < 0.55 ? 2 : 1) : pose === 6 ? 1 : rng() < 0.02 ? 1 : 0;
+              const sv = lin(shirt), av = lin(acc); const shade = (style === 'covered' ? 0.78 : 0.97) * (0.84 + rng() * 0.22);
+              const jx = (rng() - 0.5) * 0.1, jz = (rng() - 0.5) * 0.08; const pw = P(a + jx, y + rise, za + 0.5 + jz);
+              crowd.push(pw[0], pw[2], [[pw[0], pw[1], pw[2], yaw + (rng() - 0.5) * 0.25], [pose, 0.93 + rng() * 0.13, rng(), mo], [sv[0], sv[1], sv[2], shade], [av[0], av[1], av[2], 0]]); people++;
+            }
+          }
+          // aisle handrails, the tall mesh rail along the back, side rails
+          for (const a of aisles) MD.beam(m, [a, y0 + rise + 0.95, z0 + 0.3], [a, yTop + 0.95, zBack - 0.3], 0.045, rail);
+          for (const hh of [1.1, 0.55]) MD.beam(m, [-hl, yTop + hh, zBack - 0.05], [hl, yTop + hh, zBack - 0.05], 0.045, rail);
+          for (let a = -hl; a <= hl + 0.01; a += 2.0) MD.beam(m, [a, yTop, zBack - 0.05], [a, yTop + 1.15, zBack - 0.05], 0.04, rail);
+          for (const sx of [-hl, hl]) MD.beam(m, [sx, y0 + 1.0, z0], [sx, yTop + 1.0, zBack], 0.045, rail);
+          // scaffolding: standards every 2.5 m along and every second row in depth, ledgers at each 2 m lift, braces on the back and the ends
+          const nA = Math.max(2, Math.round(L / 2.5)); const xs = []; for (let k = 0; k <= nA; k++) xs.push(-hl + k * L / nA);
+          for (let r = 0; r <= rows; r += 2) { const z = z0 + r * tread - 0.1; const yTopR = y0 + r * rise; for (const x of xs) M.beam(m, [x, yFoot, z], [x, yTopR, z], 0.06, tube); for (let lv = 2; lv < yTopR - 0.3; lv += 2) M.beam(m, [-hl, lv, z], [hl, lv, z], 0.045, tubeD); }
+          for (const x of xs) for (let lv = 2; lv < yTop - 0.5; lv += 2) MD.beam(m, [x, lv, z0], [x, lv, zBack - 0.1], 0.04, tubeD);
+          for (let k = 0; k < nA; k++) { const xa = xs[k], xb = xs[k + 1]; for (let lv = Math.max(0, yFoot); lv < yTop - 1.5; lv += 2) MD.beam(m, [xa, lv, zBack - 0.1], [xb, Math.min(lv + 2, yTop), zBack - 0.1], 0.04, tubeD); }
+          M.beam(m, [-hl, yTop, zBack - 0.1], [hl, yTop, zBack - 0.1], 0.07, tube);
+          for (const sx of [-hl, hl]) for (let r = 0; r < rows - 1; r += 2) MD.beam(m, [sx, Math.max(yFoot, 0), z0 + r * tread], [sx, y0 + (r + 2) * rise, z0 + (r + 2) * tread], 0.04, tubeD);
+          // stair towers at the ends of the run
+          for (const [flag, sx] of [[b.first, -hl - 1.6], [b.last, hl + 1.6]]) {
+            if (!flag) continue; for (const [px, pz] of [[sx - 1.3, zBack - 3], [sx + 1.3, zBack - 3], [sx - 1.3, zBack], [sx + 1.3, zBack]]) M.beam(m, [px, yFoot, pz], [px, yTop + 1.1, pz], 0.07, tube);
+            let dir = 1; for (let yy = 0; yy < yTop - 0.3; yy += 2.3) { const y2 = Math.min(yTop, yy + 2.3); MD.beam(m, [sx - dir * 1.0, yy, zBack - 1.5], [sx + dir * 1.0, y2, zBack - 1.5], 0.55, C(0x8e9196)); B.box(m, 2.7, 0.1, 3.0, sx, y2, zBack - 1.5, deck); dir = -dir; }
+          }
+          // the covered Tribune K: a light steel roof on tall rear masts with forward ties
+          if (style === 'covered') {
+            const ry = yTop + 4.2, front = z0 + 1.2; B.box(m, L + 0.2, 0.22, zBack - front + 1.4, 0, ry, (front + zBack + 1.4) / 2, roofW, { top: roofW, bottom: true });
+            B.box(m, L + 0.22, 0.5, 0.12, 0, ry - 0.3, front - 0.02, C(0x1d5bb5));
+            for (let a = -hl + 1; a <= hl - 0.9; a += Math.max(6, L / Math.max(1, Math.round(L / 8)))) { M.beam(m, [a, yFoot, zBack + 0.6], [a, ry + 2.4, zBack + 0.6], 0.3, tube); M.beam(m, [a, ry + 2.4, zBack + 0.6], [a, ry + 0.1, front + 0.5], 0.06, tubeD); M.beam(m, [a, ry + 2.4, zBack + 0.6], [a, ry + 0.1, (front + zBack) / 2], 0.06, tubeD); }
+            if (L > 12) strip(ry - 0.6, 0.6, front - 0.1);
+          }
+        }
+      }
+      if (SS.p.length) {
+        // seat texture: v 0.5..1 moulded backs (rounded, lighter rim), v 0..0.5 the pans; one seat per 0.5 m along u
+        const [c2, x2] = Env.canvas(64, 128); x2.clearRect(0, 0, 64, 128);
+        const grad = x2.createLinearGradient(0, 0, 0, 64); grad.addColorStop(0, '#5f8ee0'); grad.addColorStop(0.5, '#2f66c4'); grad.addColorStop(1, '#1d4a99');
+        x2.fillStyle = grad; x2.beginPath(); if (x2.roundRect) x2.roundRect(6, 4, 52, 58, 12); else x2.rect(6, 4, 52, 58); x2.fill(); x2.fillStyle = 'rgba(255,255,255,0.18)'; x2.fillRect(10, 8, 44, 5);
+        x2.fillStyle = '#2a5cb4'; x2.beginPath(); if (x2.roundRect) x2.roundRect(6, 66, 52, 56, 10); else x2.rect(6, 66, 52, 56); x2.fill(); x2.fillStyle = 'rgba(0,0,0,0.25)'; x2.fillRect(6, 112, 52, 8);
+        const stex = Env.cutout(c2, { repeat: true });
+        const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(SS.p, 3)); g.setAttribute('normal', new THREE.Float32BufferAttribute(SS.n, 3)); g.setAttribute('uv', new THREE.Float32BufferAttribute(SS.uv, 2)); g.setIndex(SS.idx); g.computeBoundingSphere();
+        const sm = new THREE.Mesh(g, new THREE.MeshStandardMaterial({ map: stex, alphaTest: 0.5, roughness: 0.5, metalness: 0, side: THREE.DoubleSide })); sm.name = 'standSeats'; sm.castShadow = true; sm.receiveShadow = true; sc.group.add(sm);
+        stats.seatQuads = SS.idx.length / 6;
+      }
     }
     stats.standTris = (B.count + M.count) / 3; stats.standDetailTris = MD.count / 3; stats.crowdPeople = people; stats.seats = seats; sc.crowdCount = people;
     // ---- hospitality marquees (white tent roofs) and decks

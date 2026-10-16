@@ -25,6 +25,21 @@ window.EI = window.EI || {};
     out.computeBoundingSphere();
     return out;
   };
+  // binary data blocks (base64, little-endian): int16 decimetres -> metres; the city's packed building footprints
+  Env.b64bytes = function (s) { const bin = atob(s); const out = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i); return out; };
+  Env.decodeI16 = function (s) { const b = Env.b64bytes(s); const dv = new DataView(b.buffer); const n = b.length >> 1; const out = new Float32Array(n); for (let i = 0; i < n; i++) out[i] = dv.getInt16(i * 2, true) / 10; return out; };
+  // per building: u16 vertex count, u16 height (dm, 0 = unknown), u8 kind, u8 roof shape, then (i16 x, i16 z) in half metres
+  Env.decodeCity = function (blk) {
+    if (!blk || !blk.d) return []; const b = Env.b64bytes(blk.d); const dv = new DataView(b.buffer); const out = []; let o = 0;
+    while (o + 6 <= b.length) { const n = dv.getUint16(o, true), h = dv.getUint16(o + 2, true) / 10, k = b[o + 4], r = b[o + 5]; o += 6; const p = []; for (let i = 0; i < n; i++) { p.push([dv.getInt16(o, true) / 2, dv.getInt16(o + 2, true) / 2]); o += 4; } out.push({ p, h, kc: k, roof: r }); }
+    return out;
+  };
+  // street polylines: u16 point count, u8 width (half metres), u8 bridge flag, then (i16 x, i16 z) in metres
+  Env.decodeStreets = function (blk) {
+    if (!blk || !blk.d) return []; const b = Env.b64bytes(blk.d); const dv = new DataView(b.buffer); const out = []; let o = 0;
+    while (o + 4 <= b.length) { const n = dv.getUint16(o, true), w = b[o + 2] / 2, br = b[o + 3]; o += 4; const p = []; for (let i = 0; i < n; i++) { p.push([dv.getInt16(o, true), dv.getInt16(o + 2, true)]); o += 4; } out.push({ pts: p, w, bridge: !!br }); }
+    return out;
+  };
   // fast builder for big merged meshes: raw arrays of triangles with per-vertex colour
   class Builder {
     constructor() { this.p = []; this.n = []; this.c = []; this.uv = []; }
@@ -235,8 +250,92 @@ window.EI = window.EI || {};
         if (coast && coast.length > 10) { const a = coast[0], b = coast[coast.length - 1]; const far = 4000; this.seaPoly = coast.concat([[b[0] + far, b[1]], [b[0] + far, a[1] + far], [a[0], a[1] + far]]); }
         this.seaY = this.t.data.seaLevel != null ? this.t.data.seaLevel : -3.6;
         this.lowland = this.data.lowland || [];
+        if (this.data.dem) this.initStreetGround();
       }
     }
+    // ------------------------------------------------ street circuit ground: real terrain heights, a raster sea mask, the built-up cover
+    initStreetGround() {
+      const D = this.data.dem;
+      this.demZ0 = this.data.demZ0 != null ? this.data.demZ0 : 3.6;     // game y = metres above the sea - demZ0
+      this.plateaus = this.data.plateaus || [];
+      // sea mask: the coastline polygon rasterised once (6.8 m / px over +-7 km) instead of a point-in-polygon test per sample
+      const SH = 7000, SP = 2048; const [c, ctx] = Env.canvas(SP, SP); ctx.fillStyle = '#000'; ctx.fillRect(0, 0, SP, SP);
+      ctx.setTransform(SP / (2 * SH), 0, 0, SP / (2 * SH), SP / 2, SP / 2); ctx.fillStyle = '#fff';
+      const fillP = (poly) => { ctx.beginPath(); poly.forEach((p, i) => i ? ctx.lineTo(p[0], p[1]) : ctx.moveTo(p[0], p[1])); ctx.closePath(); ctx.fill(); };
+      if (this.seaPoly) fillP(this.seaPoly);
+      // the harbour basins drawn at sea level (the street water's polygons) count as sea too, so the ground sits below them;
+      // ponds and fountains up in the town are left alone
+      const decD = (g) => ({ h: g.h, step: g.step, n: g.n, a: Env.decodeI16(g.d) }); this.dem = { near: decD(D.near), far: decD(D.far) };
+      for (const w of this.t.data.scenery.water || []) { if (w.length < 3 || Math.abs(U.polyArea(w)) <= 200) continue; let cx = 0, cz = 0; for (const q of w) { cx += q[0]; cz += q[1]; } cx /= w.length; cz /= w.length; if (this.demAt(cx, cz) < 15) fillP(w); }
+      const sd = ctx.getImageData(0, 0, SP, SP).data; this.seaMask = new Uint8Array(SP * SP); for (let i = 0; i < SP * SP; i++) this.seaMask[i] = sd[i * 4] > 127 ? 1 : 0;
+      this.seaMaskH = SH; this.seaMaskN = SP;
+      // a fine copy over the harbour and the circuit (1.2 m / px) so the quays meet the water where the water is drawn
+      const FH = 1250; ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.fillStyle = '#000'; ctx.fillRect(0, 0, SP, SP); ctx.setTransform(SP / (2 * FH), 0, 0, SP / (2 * FH), SP / 2, SP / 2); ctx.fillStyle = '#fff';
+      if (this.seaPoly) fillP(this.seaPoly); for (const w of this.t.data.scenery.water || []) { if (w.length < 3 || Math.abs(U.polyArea(w)) <= 200) continue; let cx = 0, cz = 0; for (const q of w) { cx += q[0]; cz += q[1]; } cx /= w.length; cz /= w.length; if (this.demAt(cx, cz) < 15) fillP(w); }
+      const fd = ctx.getImageData(0, 0, SP, SP).data; this.seaFine = new Uint8Array(SP * SP); for (let i = 0; i < SP * SP; i++) this.seaFine[i] = fd[i * 4] > 127 ? 1 : 0; this.seaFineH = FH;
+      // every footprint (near set + the far city) and the built-up cover (fraction of ground under roofs, ~40 m blur)
+      this.cityFar = Env.decodeCity(this.data.city);
+      const CH = 2800, CN = 700; const [cc, cctx] = Env.canvas(CN, CN); cctx.fillStyle = '#000'; cctx.fillRect(0, 0, CN, CN); cctx.setTransform(CN / (2 * CH), 0, 0, CN / (2 * CH), CN / 2, CN / 2); cctx.fillStyle = '#fff';
+      const fill = (p) => { cctx.beginPath(); p.forEach((q, i) => i ? cctx.lineTo(q[0], q[1]) : cctx.moveTo(q[0], q[1])); cctx.closePath(); cctx.fill(); };
+      for (const b of this.t.data.scenery.buildings) fill(b.p); for (const b of this.cityFar) fill(b.p);
+      const [bc, bctx] = Env.canvas(CN / 10, CN / 10); bctx.imageSmoothingEnabled = true; bctx.filter = 'blur(1px)'; bctx.drawImage(cc, 0, 0, CN / 10, CN / 10);
+      const bd = bctx.getImageData(0, 0, CN / 10, CN / 10).data; this.cover = new Float32Array((CN / 10) * (CN / 10)); for (let i = 0; i < this.cover.length; i++) this.cover[i] = bd[i * 4] / 255;
+      this.coverH = CH; this.coverN = CN / 10;
+      // per distance-field cell: the nearest stretch's level and, for the second stretch, its level and distance beyond its barrier;
+      // the ground near the circuit is capped against both so the coarse terrain triangles never reach above a road surface
+      const t = this.t, n = this.dC.length; this.dY1 = new Float32Array(n); this.dY2 = new Float32Array(n); this.dF2 = new Float32Array(n);
+      for (let k = 0; k < n; k++) { this.dY1[k] = t.y[this.dIdx[k]]; const i2 = this.dIdx2[k]; this.dY2[k] = t.y[i2]; this.dF2[k] = this.dC2[k] >= 1e4 ? 1e4 : this.dC2[k] - Math.max(t.wallL[i2], t.wallR[i2]); }
+    }
+    // highest the ground may stand at (x, z): a terrain triangle that covers a road point has its corners within one cell diagonal
+    // (17 m on the 12 m grid), so every vertex that close to a stretch's barrier stays under that stretch's road surface
+    groundCap(x, z) {
+      // conservative: the lowest road level among the four distance-field cells round the point (no blending between stretches)
+      let cap = Infinity; const R = 18; const fx = (x + DHALF) / DG, fz = (z + DHALF) / DG; if (fx < 0 || fz < 0 || fx >= DN - 1 || fz >= DN - 1) return cap;
+      const k0 = (fz | 0) * DN + (fx | 0);
+      for (const k of [k0, k0 + 1, k0 + DN, k0 + DN + 1]) { if (this.dF[k] < R + 8) cap = Math.min(cap, this.dY1[k]); if (this.dF2[k] < R + 8) cap = Math.min(cap, this.dY2[k]); }
+      return cap - 0.35;
+    }
+    isSea(x, z) {
+      if (!this.seaMask) return !!(this.seaPoly && U.pointInPoly(x, z, this.seaPoly));
+      const N = this.seaMaskN;
+      if (this.seaFine && Math.abs(x) < this.seaFineH && Math.abs(z) < this.seaFineH) { const F = this.seaFineH; return this.seaFine[Math.floor((z + F) / (2 * F) * N) * N + Math.floor((x + F) / (2 * F) * N)] === 1; }
+      const H = this.seaMaskH; const i = Math.floor((x + H) / (2 * H) * N), j = Math.floor((z + H) / (2 * H) * N);
+      if (i < 0 || j < 0 || i >= N || j >= N) return !!(this.seaPoly && U.pointInPoly(x, z, this.seaPoly));
+      return this.seaMask[j * N + i] === 1;
+    }
+    // built-up fraction 0..1 (bilinear on the 80 m cover grid)
+    coverAt(x, z) {
+      if (!this.cover) return 0; const H = this.coverH, N = this.coverN; const fx = (x + H) / (2 * H) * N - 0.5, fz = (z + H) / (2 * H) * N - 0.5;
+      if (fx < 0 || fz < 0 || fx >= N - 1 || fz >= N - 1) return 0; const ix = fx | 0, iz = fz | 0, u = fx - ix, v = fz - iz, a = this.cover;
+      return (a[iz * N + ix] * (1 - u) + a[iz * N + ix + 1] * u) * (1 - v) + (a[(iz + 1) * N + ix] * (1 - u) + a[(iz + 1) * N + ix + 1] * u) * v;
+    }
+    // terrain elevation in metres above the sea (bilinear: the 24 m grid near, the 96 m grid out to ~9.6 km)
+    demAt(x, z) {
+      for (const g of [this.dem.near, this.dem.far]) {
+        const fx = (x + g.h) / g.step, fz = (z + g.h) / g.step; if (fx < 0 || fz < 0 || fx >= g.n - 1 || fz >= g.n - 1) continue;
+        const ix = fx | 0, iz = fz | 0, u = fx - ix, v = fz - iz, a = g.a, n = g.n; const k = iz * n + ix;
+        const e = (a[k] * (1 - u) + a[k + 1] * u) * (1 - v) + (a[k + n] * (1 - u) + a[k + n + 1] * u) * v;
+        if (g === this.dem.far || fx > 2 && fz > 2 && fx < g.n - 3 && fz < g.n - 3) return e;
+        // blend into the far grid over the last cells of the near one
+        const gf = this.dem.far; const b = Math.min(fx, fz, g.n - 1 - fx, g.n - 1 - fz) / 3; const ff = (x + gf.h) / gf.step, fg = (z + gf.h) / gf.step; const jx = ff | 0, jz = fg | 0, uu = ff - jx, vv = fg - jz, af = gf.a, nf = gf.n, kf = jz * nf + jx;
+        const e2 = (af[kf] * (1 - uu) + af[kf + 1] * uu) * (1 - vv) + (af[kf + nf] * (1 - uu) + af[kf + nf + 1] * uu) * vv; return e2 + (e - e2) * b;
+      }
+      return 0;
+    }
+    // natural ground (game frame, no circuit influence): the terrain model, the Rocher's plateau, a little rocky relief on the mountains
+    groundAbs(x, z) {
+      let g = this.demAt(x, z) - this.demZ0;
+      for (const p of this.plateaus) {
+        const b = p.bb || (p.bb = U.polyBounds(p.p)); const e = p.edge || 30; if (x < b.x0 - e || x > b.x1 + e || z < b.z0 - e || z > b.z1 + e) continue;
+        const ins = U.pointInPoly(x, z, p.p); const d = this.distToPoly(x, z, p.p) * (ins ? 1 : -1);
+        const k = U.smoothstep(-e, e * 0.35, d); if (k > 0) g = Math.max(g, g + (p.h + (U.noise2(x / 70, z / 70) - 0.5) * 3 - g) * k);
+      }
+      const m = U.smoothstep(120, 420, g); if (m > 0) g += (U.fbm(x / 110 + 3.1, z / 110 + 8.7, 3) - 0.5) * 22 * m;
+      return g;
+    }
+    // ground slope (rise per metre) of the natural ground
+    slopeAt(x, z) { const e = 12; return Math.hypot(this.groundAbs(x + e, z) - this.groundAbs(x - e, z), this.groundAbs(x, z + e) - this.groundAbs(x, z - e)) / (2 * e); }
+    inLowland(x, z) { for (const p of this.lowland) if (U.pointInPoly(x, z, p)) return true; return false; }
     // rendered barrier distance on a side (the track ribbon clamps offsets on the inside of tight corners)
     wallCap(i, side, off) {
       const t = this.t; let d = (side < 0 ? t.wallL[i] : t.wallR[i]) + (off || 0);
@@ -408,8 +507,8 @@ window.EI = window.EI || {};
 
   // ---------------------------------------------------------------- terrain: non-uniform grid out to the horizon, field-map + detail shading
   // grid coordinate for index k (|k| <= K): 20 m cells inside +-1800, then geometrically growing cells out to ~6.6 km
-  const KIN = 75, KTOT = 102, GS = 24;
-  function gridPos(k) { const a = Math.abs(k); if (a <= KIN) return k * GS; let p = KIN * GS, st = GS; for (let j = KIN; j < a; j++) { st *= 1.125; p += st; } return Math.sign(k) * p; }
+  const KIN0 = 75, KTOT0 = 102, GS0 = 24;
+  function gridPos(k, kin, gs) { kin = kin || KIN0; gs = gs || GS0; const a = Math.abs(k); if (a <= kin) return k * gs; let p = kin * gs, st = gs; for (let j = kin; j < a; j++) { st *= 1.125; p += st; } return Math.sign(k) * p; }
   Env.gridPos = gridPos;
   Ctx.prototype.heightRaw = function (x, z) {
     if (this.data.kind === 'street') return this.hillRaw(x, z);
@@ -430,21 +529,44 @@ window.EI = window.EI || {};
   };
   // terrain height: flat at track level near the circuit (and a touch below the verge ribbons), rolling countryside beyond
   Ctx.prototype.terrainHeight = function (x, z) {
+    if (this.dem) return this.streetHeight(x, z);
     const t = this.t; const f = this.fAt(x, z), fs = this.fsAt(x, z); const ty = this.tyAt(x, z);
     const w = this.data.kind === 'street' ? U.smoothstep(55, 330, f) : U.smoothstep(25, 220, f);
     return ty + this.heightRaw(x, z) * w - 0.14 * (1 - U.smoothstep(36, 52, fs));
   };
 
+  // street circuit with a terrain model: the harbour and the quays inside the lap (and the listed low ground) stay at circuit level;
+  // outside it the ground blends from the pavement (circuit level) into the real slopes over the first ~75 m; the sea sits below
+  // the coast. Near the track the ground never drops below the verge bands (it falls away beyond them at most 1:1).
+  Ctx.prototype.streetHeight = function (x, z) {
+    if (this.isSea(x, z)) return this.seaY - 40;
+    const f = this.fAt(x, z), fs = this.fsAt(x, z); const ty = this.tyAt(x, z); let h;
+    if (this.inside(x, z) || this.inLowland(x, z)) h = ty;
+    else { const G = Math.max(this.groundAbs(x, z), this.seaY + 0.7); h = ty + (G - ty) * U.smoothstep(6, 75, f); }
+    h = Math.max(h, ty - 0.12 - Math.max(0, f - 42));
+    h -= 0.14 * (1 - U.smoothstep(36, 52, fs));
+    return Math.min(h, this.groundCap(x, z));
+  };
   Ctx.prototype.buildTerrain = function () {
+    // street circuits with a terrain model use a 12 m grid inside +-1.8 km (roads, quays and slopes meet more tightly), 24 m otherwise
+    const fine = !!this.dem; const KIN = fine ? 150 : KIN0, GS = fine ? 12 : GS0, KTOT = fine ? 183 : KTOT0;
     const sc = this.sc; const K = KTOT, W = K * 2 + 1;
     const pos = new Float32Array(W * W * 3), col = new Float32Array(W * W * 3), uv = new Float32Array(W * W * 2);
     const heights = new Float32Array((KIN * 2 + 1) * (KIN * 2 + 1)); const HW = KIN * 2 + 1;
-    const tmp = new THREE.Color(), cell = {};
+    const tmp = new THREE.Color(), cell = {}; const inner = [Env.SPAL.city[0], Env.SPAL.city[1], Env.SPAL.city[2]];
+    // exact road cap for the vertices near the circuit: under every road sample within its barrier + one cell diagonal
+    let roadCap = null;
+    if (fine) {
+      const t = this.t, HC = 32, hashT = new Map(); for (let j = 0; j < t.n; j++) { const key = Math.floor(t.x[j] / HC) + ',' + Math.floor(t.z[j] / HC); let l = hashT.get(key); if (!l) hashT.set(key, l = []); l.push(j); }
+      roadCap = (x, z) => { let cap = Infinity; const gx = Math.floor(x / HC), gz = Math.floor(z / HC); for (let a = -1; a <= 1; a++) for (let b = -1; b <= 1; b++) { const l = hashT.get((gx + a) + ',' + (gz + b)); if (!l) continue; for (const j of l) { const r = Math.max(t.wallL[j], t.wallR[j]) + GS * 1.5; const dx = x - t.x[j], dz = z - t.z[j]; if (dx * dx + dz * dz < r * r && t.y[j] < cap) cap = t.y[j]; } } return cap - 0.35; };
+    }
     for (let j = 0; j < W; j++) for (let i = 0; i < W; i++) {
-      const x = gridPos(i - K), z = gridPos(j - K); const k = j * W + i;
-      const h = this.terrainHeight(x, z); pos[k * 3] = x; pos[k * 3 + 1] = h; pos[k * 3 + 2] = z;
+      const x = gridPos(i - K, KIN, GS), z = gridPos(j - K, KIN, GS); const k = j * W + i;
+      let h = this.terrainHeight(x, z); if (roadCap && Math.abs(x) < 2400 && Math.abs(z) < 2400 && this.fAt(x, z) < 40) h = Math.min(h, roadCap(x, z));
+      pos[k * 3] = x; pos[k * 3 + 1] = h; pos[k * 3 + 2] = z;
       if (Math.abs(i - K) <= KIN && Math.abs(j - K) <= KIN) heights[(j - K + KIN) * HW + (i - K + KIN)] = h;
-      const c = this.fieldRGB(x, z, cell); tmp.setRGB(c[0] / 255, c[1] / 255, c[2] / 255).convertSRGBToLinear();
+      // (well inside the field map the vertex colour is never seen: skip the street colour model there)
+      const c = fine && Math.max(Math.abs(x), Math.abs(z)) < 2040 ? inner : this.fieldRGB(x, z, cell); tmp.setRGB(c[0] / 255, c[1] / 255, c[2] / 255).convertSRGBToLinear();
       col[k * 3] = tmp.r; col[k * 3 + 1] = tmp.g; col[k * 3 + 2] = tmp.b;
       uv[k * 2] = (x + MAP_HALF) / (MAP_HALF * 2); uv[k * 2 + 1] = 1 - (z + MAP_HALF) / (MAP_HALF * 2);
     }
@@ -495,9 +617,34 @@ window.EI = window.EI || {};
     return t; // linear data (a multiplier), not sRGB
   };
 
+  // city / hillside ground detail (same contract as the grass one: tileable, 0.5 mean per channel, alpha = macro mottling):
+  // stone grain, worn stains, joints and small dark flecks, no blades
+  Env.groundDetail = function () {
+    const S = 512; const [c, ctx] = Env.canvas(S, S); const r = U.rng(9137);
+    ctx.fillStyle = 'rgb(128,128,128)'; ctx.fillRect(0, 0, S, S);
+    const wrap = (fn) => { for (const ox of [-S, 0, S]) for (const oy of [-S, 0, S]) fn(ox, oy); };
+    for (let i = 0; i < 220; i++) { const x = r() * S, y = r() * S, rad = 8 + r() * 40, l = r() < 0.5 ? 'rgba(100,98,94,' : 'rgba(160,158,150,'; ctx.fillStyle = l + (0.08 + r() * 0.12).toFixed(2) + ')'; wrap((ox, oy) => { ctx.beginPath(); ctx.ellipse(x + ox, y + oy, rad, rad * (0.5 + r() * 0.5), r() * 3, 0, 6.283); ctx.fill(); }); }
+    for (let i = 0; i < 40000; i++) { const v = 70 + r() * 120; ctx.fillStyle = 'rgba(' + v + ',' + (v - 2) + ',' + (v - 5) + ',0.6)'; ctx.fillRect(r() * S, r() * S, 1 + r() * 2, 1 + r() * 2); }
+    for (let i = 0; i < 90; i++) { const x = r() * S, y = r() * S; ctx.fillStyle = 'rgba(60,58,54,' + (0.08 + r() * 0.12).toFixed(2) + ')'; wrap((ox, oy) => { ctx.beginPath(); ctx.ellipse(x + ox, y + oy, 3 + r() * 12, 2 + r() * 8, r() * 3, 0, 6.283); ctx.fill(); }); }
+    ctx.strokeStyle = 'rgba(70,68,64,0.35)'; ctx.lineWidth = 1; ctx.beginPath();
+    for (let i = 0; i < 60; i++) { let x = r() * S, y = r() * S; ctx.moveTo(x, y); for (let k = 0; k < 6; k++) { x += (r() - 0.5) * 30; y += (r() - 0.5) * 30; ctx.lineTo(x, y); } }
+    ctx.stroke();
+    const img = ctx.getImageData(0, 0, S, S); const d = img.data; const sum = [0, 0, 0];
+    for (let i = 0; i < d.length; i += 4) { sum[0] += d[i]; sum[1] += d[i + 1]; sum[2] += d[i + 2]; }
+    const n = d.length / 4; const k = sum.map(sv => 128 / (sv / n));
+    const P = 8, hsh = (x, y, o) => Env.hash2(((x % P) + P) % P, ((y % P) + P) % P, o);
+    const vn = (x, y, o) => { const xi = Math.floor(x), yi = Math.floor(y), xf = x - xi, yf = y - yi, u = xf * xf * (3 - 2 * xf), v = yf * yf * (3 - 2 * yf); return U.lerp(U.lerp(hsh(xi, yi, o), hsh(xi + 1, yi, o), u), U.lerp(hsh(xi, yi + 1, o), hsh(xi + 1, yi + 1, o), u), v); };
+    const out = new Uint8Array(S * S * 4);
+    for (let y = 0; y < S; y++) for (let x = 0; x < S; x++) {
+      const i = (y * S + x) * 4; const fx = x / S * P, fy = y / S * P; const m = vn(fx, fy, 1) * 0.6 + vn(fx * 2, fy * 2, 2) * 0.3 + vn(fx * 4, fy * 4, 3) * 0.1;
+      out[i] = U.clamp(d[i] * k[0], 0, 255); out[i + 1] = U.clamp(d[i + 1] * k[1], 0, 255); out[i + 2] = U.clamp(d[i + 2] * k[2], 0, 255); out[i + 3] = U.clamp(m * 255, 0, 255);
+    }
+    const t = new THREE.DataTexture(out, S, S, THREE.RGBAFormat); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.magFilter = THREE.LinearFilter; t.minFilter = THREE.LinearMipmapLinearFilter; t.generateMipmaps = true; t.anisotropy = 8; t.needsUpdate = true;
+    return t;
+  };
   Ctx.prototype.groundMaterial = function (tinted) {
-    if (!this._detail) this._detail = Env.grassDetail();
-    const det = this._detail;
+    if (!this._detail) this._detail = this.dem ? Env.groundDetail() : Env.grassDetail();
+    const det = this._detail; const rocky = !!this.dem && !tinted;
     const mat = new THREE.MeshStandardMaterial({ map: this.fieldTex, vertexColors: true, roughness: 0.96, metalness: 0.0 });
     mat.onBeforeCompile = (sh) => {
       sh.uniforms.detailMap = { value: det };
@@ -512,10 +659,16 @@ window.EI = window.EI || {};
           'vec3 d2 = texture2D(detailMap, vec2(wq.x * 0.6 - wq.y * 0.8, wq.x * 0.8 + wq.y * 0.6) * 0.15).rgb;',
           'vec3 d3 = texture2D(detailMap, wq * 0.031 + 0.37).rgb;',
           'float mac = texture2D(detailMap, wq * 0.0071).a * 0.65 + texture2D(detailMap, vec2(-wq.y, wq.x) * 0.0023 + 0.5).a * 0.35;',
-          'diffuseColor.rgb *= (d1 * 0.5 + d2 * 0.3 + d3 * 0.2) * 2.0 * (0.78 + 0.44 * mac);'].join('\n'))
+          'diffuseColor.rgb *= (d1 * 0.5 + d2 * 0.3 + d3 * 0.2) * 2.0 * (0.78 + 0.44 * mac);'].concat(rocky ? [
+          // mountains: steep faces turn to bedded limestone (strata along the height, broken by the detail noise), gullies darker
+          'float rkSteep = smoothstep(0.42, 0.8, 1.0 - vWN.y) * smoothstep(40.0, 160.0, vWPos.y);',
+          'float rkStrata = texture2D(detailMap, vec2(wq.x * 0.004 + wq.y * 0.003, vWPos.y * 0.09)).r * 0.6 + texture2D(detailMap, vec2(vWPos.y * 0.21, wq.x * 0.011 - wq.y * 0.008)).g * 0.4;',
+          'vec3 rkCol = vec3(0.30, 0.285, 0.26) * (0.55 + 0.9 * rkStrata) * (0.75 + 0.5 * mac);',
+          'diffuseColor.rgb = mix(diffuseColor.rgb, rkCol, rkSteep * 0.85);'] : []).join('\n'))
         .replace('#include <color_fragment>', '');
+      if (rocky) { sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nvarying vec3 vWN;').replace('#include <project_vertex>', '#include <project_vertex>\nvWN = normalize(mat3(modelMatrix) * objectNormal);'); sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nvarying vec3 vWN;'); }
     };
-    mat.customProgramCacheKey = () => tinted ? 'ground-tint' : 'ground';
+    mat.customProgramCacheKey = () => (tinted ? 'ground-tint' : 'ground') + (rocky ? '-rock' : '');
     return mat;
   };
 
@@ -536,6 +689,7 @@ window.EI = window.EI || {};
   };
   Ctx.prototype.fieldRGB = function (x, z, cell, out, fpre) {
     out = out || [0, 0, 0];
+    if (this.dem) return this.streetRGB(x, z, out);
     if (this.data.kind === 'street') { const n0 = U.noise2(x / 23 + 1.7, z / 23 + 4.2); const g = 118 + n0 * 22; const h = this.hillRaw(x, z); const k = U.smoothstep(14, 60, h); out[0] = (g + 6) * (1 - k) + 92 * k; out[1] = (g + 3) * (1 - k) + 104 * k; out[2] = (g - 4) * (1 - k) + 66 * k; return out; }
     const f = fpre != null ? fpre : this.fAt(x, z); const n1 = U.noise2(x / 61 + 3.3, z / 61 + 7.1);
     let c, k;
@@ -559,6 +713,27 @@ window.EI = window.EI || {};
       else { const a = this.fAng[cell.k]; const u = x * Math.cos(a) + z * Math.sin(a); const m = ((u % 24) + 24) % 24; if (Math.abs(m - 11) < 0.9 || Math.abs(m - 13) < 0.9) k *= 0.8; }
     }
     out[0] = c[0] * k; out[1] = c[1] * k; out[2] = c[2] * k; return out;
+  };
+  // street circuit ground colour (sRGB): built-up city, Mediterranean scrub (garrigue), umbrella-pine woods and the grey limestone
+  // of the steep faces and the high ground; the harbour floor under the water
+  const SPAL = { city: [112, 108, 102], cityDark: [90, 88, 84], scrub: [72, 74, 56], scrubDark: [50, 55, 40], pine: [38, 45, 31], rock: [140, 136, 128], rockDark: [104, 100, 93], high: [100, 96, 80], sea: [70, 78, 76] };
+  Env.SPAL = SPAL;
+  Ctx.prototype.streetRGB = function (x, z, out) {
+    out = out || [0, 0, 0];
+    if (this.isSea(x, z)) { out[0] = SPAL.sea[0]; out[1] = SPAL.sea[1]; out[2] = SPAL.sea[2]; return out; }
+    const g = this.groundAbs(x, z); const e = 14; const sl = Math.hypot(this.demAt(x + e, z) - this.demAt(x - e, z), this.demAt(x, z + e) - this.demAt(x, z - e)) / (2 * e);
+    const n1 = U.noise2(x / 37 + 2.3, z / 37 + 7.7), n2 = U.fbm(x / 160 + 5.1, z / 160 + 1.3, 3), n3 = U.noise2(x / 9 + 1.1, z / 9 + 3.9);
+    let r = SPAL.scrub[0] + (SPAL.scrubDark[0] - SPAL.scrub[0]) * n1, gg = SPAL.scrub[1] + (SPAL.scrubDark[1] - SPAL.scrub[1]) * n1, b = SPAL.scrub[2] + (SPAL.scrubDark[2] - SPAL.scrub[2]) * n1;
+    const mixc = (c, k) => { r += (c[0] - r) * k; gg += (c[1] - gg) * k; b += (c[2] - b) * k; };
+    mixc(SPAL.high, U.smoothstep(450, 800, g) * 0.7);
+    mixc(SPAL.pine, U.smoothstep(0.5, 0.64, n2) * U.smoothstep(15, 70, g) * (1 - U.smoothstep(520, 760, g)) * 0.9);
+    const rock = Math.min(1, U.smoothstep(0.34, 0.75, sl) * U.smoothstep(60, 220, g) + U.smoothstep(0.55, 0.75, n2 + sl * 0.35) * U.smoothstep(200, 520, g) * 0.7);
+    const rk = U.smoothstep(0.25, 0.75, n3); mixc([SPAL.rockDark[0] + (SPAL.rock[0] - SPAL.rockDark[0]) * rk, SPAL.rockDark[1] + (SPAL.rock[1] - SPAL.rockDark[1]) * rk, SPAL.rockDark[2] + (SPAL.rock[2] - SPAL.rockDark[2]) * rk], rock * (0.7 + 0.3 * n1));
+    const city = U.smoothstep(0.02, 0.16, this.coverAt(x, z)); const f = this.fAt(x, z); let near = 1 - U.smoothstep(40, 140, f); const ck = U.smoothstep(0.2, 0.8, n3);
+    // next to the circuit: steep unbuilt banks are terraced gardens (dark greens), not paving
+    if (near > 0 && f > 8) { const d = 6; const hs = Math.hypot(this.streetHeight(x + d, z) - this.streetHeight(x - d, z), this.streetHeight(x, z + d) - this.streetHeight(x, z - d)) / (2 * d); const gk = U.smoothstep(0.18, 0.4, hs) * (1 - U.smoothstep(0.1, 0.3, this.coverAt(x, z))); if (gk > 0) { mixc(n2 > 0.5 ? [52, 66, 36] : [70, 80, 46], gk); near *= 1 - gk; } }
+    mixc([SPAL.cityDark[0] + (SPAL.city[0] - SPAL.cityDark[0]) * ck, SPAL.cityDark[1] + (SPAL.city[1] - SPAL.cityDark[1]) * ck, SPAL.cityDark[2] + (SPAL.city[2] - SPAL.cityDark[2]) * ck], Math.max(city * 0.85, near));
+    const k = 0.93 + n3 * 0.12; out[0] = r * k; out[1] = gg * k; out[2] = b * k; return out;
   };
   function mix3(a, b, t) { return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t]; }
 
@@ -585,6 +760,12 @@ window.EI = window.EI || {};
     const rgb = (a, k) => 'rgb(' + (U.clamp(a[0] * k, 0, 255) | 0) + ',' + (U.clamp(a[1] * k, 0, 255) | 0) + ',' + (U.clamp(a[2] * k, 0, 255) | 0) + ')';
     const street = this.data.kind === 'street';
     this._mt = performance.now(); ctx.fillStyle = street ? 'rgb(128,125,116)' : rgb(PAL.fields[0], 1); ctx.fillRect(0, 0, S, S);
+    if (street && this.dem) {
+      // natural / built-up ground per 9 m pixel, smoothed up to the full map (the overlays add the streets, paving, parks...)
+      const BN = 512; const [bc, bctx] = Env.canvas(BN, BN); const bi = bctx.createImageData(BN, BN); const col = [0, 0, 0];
+      for (let j = 0; j < BN; j++) for (let i = 0; i < BN; i++) { const x = -H + (i + 0.5) * 2 * H / BN, z = -H + (j + 0.5) * 2 * H / BN; this.streetRGB(x, z, col); const o = (j * BN + i) * 4; bi.data[o] = col[0]; bi.data[o + 1] = col[1]; bi.data[o + 2] = col[2]; bi.data[o + 3] = 255; }
+      bctx.putImageData(bi, 0, 0); ctx.imageSmoothingEnabled = true; ctx.drawImage(bc, 0, 0, S, S);
+    }
     ctx.setTransform(ppm, 0, 0, ppm, S / 2, S / 2);
     const path = (poly) => { ctx.beginPath(); ctx.moveTo(poly[0][0], poly[0][1]); for (let i = 1; i < poly.length; i++) ctx.lineTo(poly[i][0], poly[i][1]); ctx.closePath(); };
     const R = this.FR, W = this.FW; const polys = []; this.fieldPolys = polys;
@@ -621,7 +802,7 @@ window.EI = window.EI || {};
     for (let i = 0; i < t.n; i++) { x0 = Math.min(x0, t.x[i]); x1 = Math.max(x1, t.x[i]); z0 = Math.min(z0, t.z[i]); z1 = Math.max(z1, t.z[i]); }
     const pad = this.VENUE_F + 80; const i0 = U.clamp(Math.floor((x0 - pad + H) * ppm), 0, S - 1), i1 = U.clamp(Math.ceil((x1 + pad + H) * ppm), 0, S - 1), j0 = U.clamp(Math.floor((z0 - pad + H) * ppm), 0, S - 1), j1 = U.clamp(Math.ceil((z1 + pad + H) * ppm), 0, S - 1);
     const img = ctx.getImageData(i0, j0, i1 - i0 + 1, j1 - j0 + 1); const d = img.data; const col = [0, 0, 0]; const iw = i1 - i0 + 1;
-    for (let j = j0; j <= j1; j++) { const z = -H + (j + 0.5) / ppm; for (let i = i0; i <= i1; i++) { const x = -H + (i + 0.5) / ppm; if (!this.venueRGB(x, z, col)) continue; const o = ((j - j0) * iw + (i - i0)) * 4; d[o] = col[0]; d[o + 1] = col[1]; d[o + 2] = col[2]; } }
+    if (!(street && this.dem)) for (let j = j0; j <= j1; j++) { const z = -H + (j + 0.5) / ppm; for (let i = i0; i <= i1; i++) { const x = -H + (i + 0.5) / ppm; if (!this.venueRGB(x, z, col)) continue; const o = ((j - j0) * iw + (i - i0)) * 4; d[o] = col[0]; d[o + 1] = col[1]; d[o + 2] = col[2]; } }
     ctx.putImageData(img, i0, j0);
     T();
     // world -> canvas transform for vector overlays

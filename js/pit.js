@@ -193,7 +193,7 @@ window.EI = window.EI || {};
 
   // ================================================================ static visuals
   function buildVisuals(track, scene) {
-    const grp = new THREE.Group(); grp.name = 'pitlane';
+    const grp = new THREE.Group(); grp.name = 'pitlane'; const street = !!track.data.street;
     const teams = EI.TEAMS; const GZ = L.gsign;
     // ---- lane surface (entry road, pit lane, exit road)
     {
@@ -220,8 +220,9 @@ window.EI = window.EI || {};
       const line = (d0, d1, o, w, c, dash) => { for (let d = d0; d < d1; d += dash ? dash * 2 : 2) { const l = Math.min(dash || 2, d1 - d); const f = frameAt(d + l / 2, o, 0.045); gb.add('box', lm(f, 0, 0, 0, l + 0.02, 0.01, w), c); } };
       const ext = V.laneExt;
       for (let d = L.dRoad0; d < L.dRoad1; d += 2) { const [a, b] = ext(d + 1); gb.add('box', lm(frameAt(d + 1, a + 0.12, 0.045), 0, 0, 0, 2.02, 0.01, 0.15), white); gb.add('box', lm(frameAt(d + 1, b - 0.12, 0.045), 0, 0, 0, 2.02, 0.01, 0.15), white); }
-      // fast lane / working lane divider
-      line(L.dLimIn, L.dLimOut, (FAST + BOXO) / 2 + 0.2, 0.14, white, 3);
+      // fast lane / working lane divider (yellow dashes on the street circuit, with a second row along the fast lane)
+      if (street) { line(L.dLimIn, L.dLimOut, (FAST + BOXO) / 2 + 0.2, 0.16, yellow, 1.2); line(L.dLimIn, L.dLimOut, FAST - 2.2, 0.16, yellow, 1.2); }
+      else line(L.dLimIn, L.dLimOut, (FAST + BOXO) / 2 + 0.2, 0.14, white, 3);
       // lane edges of the working lane in front of the garages
       line(L.garD0, L.garD1, LANE_HW - 0.1, 0.25, yellow);
       // pit entry line, speed limit lines (with the limit painted) and the exit line
@@ -231,10 +232,16 @@ window.EI = window.EI || {};
       L.boxD.forEach((d, k) => {
         const t = teams[k % teams.length]; const tc = col(t.primary); const f = frameAt(d, BOXO, 0.047);
         const bl = 7.4, bw = 3.5;
+        if (street) {
+          // the yellow T: a centre line along the box, the stop bar across its front, short ticks for the front wheels
+          gb.add('box', lm(f, -0.4, 0, 0, bl - 0.8, 0.01, 0.2), yellow); gb.add('box', lm(f, bl / 2 - 0.4, 0, 0, 0.2, 0.012, 2.2), yellow);
+          for (const sg of [-1, 1]) gb.add('box', lm(f, WX[0], 0.001, sg * 1.25, 0.9, 0.01, 0.16), yellow);
+        } else {
         gb.add('box', lm(f, 0, 0, -bw / 2 * GZ, bl, 0.01, 0.22), tc); gb.add('box', lm(f, 0, 0, bw / 2 * GZ, bl, 0.01, 0.22), tc);
         gb.add('box', lm(f, -bl / 2, 0, 0, 0.22, 0.01, bw), tc); gb.add('box', lm(f, bl / 2, 0, 0, 0.3, 0.012, bw), white);
         for (let w = 0; w < 4; w++) gb.add('box', lm(f, WX[w], 0.001, WZ[w] * 1.0, 0.75, 0.01, 0.1), white);
         gb.add('box', lm(f, 0, -0.001, 0, bl - 0.2, 0.008, bw - 0.2), col(t.primary, 0.35).lerp(col(0x55565b), 0.6));
+        }
       });
       const m = gb.mesh(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.7, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -8 })); m.receiveShadow = true; grp.add(m);
     }
@@ -257,6 +264,16 @@ window.EI = window.EI || {};
     const concrete = col(0xd4d4d0), white = col(0xeceef1), dark = col(0x23262c), steel = col(0x9aa0a8), floorC = col(0xc9ccd2), glass = col(0x3e5a78), rubber = col(0x141416), black = col(0x0c0d10);
     // pit wall along the lane, from the limit line to past the exit line
     for (let d = L.dA - 20; d < L.dB + 20; d += 4) { gb4(shell, frameAt(d + 2, STAND_O, 0), 4.02, 1.05, 0.35, concrete, 0.525); }
+    // street circuit: the entry and exit roads are walled off from the circuit along their track-side edge (concrete wall, white
+    // and red chevron board where each road splits from the track)
+    if (street) {
+      const ext = V.laneExt; const pp = {}, pr = {}; let walls = 0;
+      for (const [d0, d1, nose] of [[L.dRoad0 + 4, L.dA - 20, L.dRoad0 + 4], [L.dB + 20, L.dRoad1 - 4, L.dRoad1 - 4]]) {
+        for (let d = d0; d < d1; d += 3) { const o = ext(d + 1.5)[0] - 0.35; pathAt(d + 1.5, pp); track.project(pp.x + pp.gx * o, pp.z + pp.gz * o, null, pr); if (pr.dist < track.halfWidth + 1.4) continue; gb4(shell, frameAt(d + 1.5, o, 0), 3.02, 0.95, 0.4, concrete, 0.475); walls++; }
+        const o = ext(nose)[0] - 0.4; const f = frameAt(nose, o, 0); for (let k = 0; k < 4; k++) shell.add('box', lm(f, 0, 0.35 + k * 0.32, 0, 0.3, 0.3, 0.9), k & 1 ? col(0xf2f2f2) : col(0xc8102e));
+      }
+      L.entryWalls = walls;
+    }
     function gb4(gb, f, lx, ly, lz, c, yc) { gb.add('box', lm(f, 0, yc, 0, lx, ly, lz), c); }
     const sZ = (o) => o * GZ; // local z for an offset towards the garages
     L.boxD.forEach((d, k) => {
@@ -311,12 +328,33 @@ window.EI = window.EI || {};
       inner.add('box', lm(gf, 2.2, 0.55, sZ(4.2), 0.18, 1.1, 0.18), steel); inner.add('box', lm(gf, 2.2, 1.12, sZ(4.2), 0.6, 0.06, 2.0), tc); inner.add('box', lm(gf, 2.2, 1.0, sZ(4.2), 0.6, 0.25, 0.05), sc2);
       inner.add('box', lm(gf, -0.8, 1.0, sZ(GAR_D - 0.25), 3.0, 0.08, 0.2), steel);
       for (let j = 0; j < 4; j++) inner.add('box', lm(gf, -2.0 + j * 0.8, 0.86, sZ(GAR_D - 0.3), 0.14, 0.2, 0.36), col(0x2c2f35));
+      if (street) {
+        // temporary garages (street circuit): ribbed grey panels between the bays, the shutter rolled up under a white steel header
+        // with the team band and sign, a glazed hospitality box above leaning out over the lane, a curved white canopy with a red edge
+        const panel = col(0xaab0b6), hdr = col(0xf1f2f3), trussC = col(0xcfd3d7), gl = col(0x2d465e), redE = col(0xc8102e), chq = col(0x16171a);
+        for (const sg of [-1, 1]) { shell.add('box', lm(gf, sg * (BOX_SP / 2 - 0.3), H / 2, sZ(0.05), 0.6, H, 0.4), panel); for (let y = 0.3; y < H; y += 0.3) shell.add('box', lm(gf, sg * (BOX_SP / 2 - 0.3), y, sZ(-0.17), 0.62, 0.04, 0.03), col(0x8c9298)); }
+        shell.add('box', lm(gf, 0, H - 0.3, sZ(0.3), W - 1.0, 0.6, 0.55), panel);
+        shell.add('box', lm(gf, 0, H + 0.7, sZ(GAR_D / 2), BOX_SP, 1.4, GAR_D + 0.3), hdr);
+        shell.add('box', lm(gf, 0, H + 0.12, sZ(-0.2), BOX_SP, 0.22, 0.08), tc);
+        for (let x = -BOX_SP / 2 + 0.5; x < BOX_SP / 2; x += 1.2) shell.add('box', lm(gf, x, H + 1.15, sZ(-0.2), 0.05, 0.5, 0.05), trussC);
+        signs.quad(...quadV(gf, -W / 2 + 1.5, H + 0.28, sZ(-0.22), W - 3, 0.85, GZ), 0xffffff, [0, 1 - (k + 1) / 10, 1, 1 - k / 10]);
+        const V3 = (x, y, z) => new THREE.Vector3(x, y, sZ(z)).applyMatrix4(gf); const yb = H + 1.4, yt = H + 5.2, zb = 0.1, zt = -1.5, xa = -W / 2 + 0.6, xb = W / 2 - 0.6;
+        const both = (a, b, c, d, cc) => { shell.quad(a, b, c, d, cc); shell.quad(b, a, d, c, cc); };
+        both(V3(xa, yb, zb), V3(xb, yb, zb), V3(xb, yt, zt), V3(xa, yt, zt), gl);
+        for (const x of [xa, xb]) { both(V3(x, yb, zb), V3(x, yb, GAR_D * 0.6), V3(x, yt, GAR_D * 0.6), V3(x, yt, zt), gl); for (let f = 0.25; f < 1; f += 0.25) shell.add('box', lm(gf, xa + (xb - xa) * f, (yb + yt) / 2, sZ((zb + zt) / 2 - 0.02), 0.07, yt - yb + 0.1, 0.07, 0, -GZ * Math.atan2(zb - zt, yt - yb)), hdr); }
+        shell.add('box', lm(gf, 0, yb + 0.05, sZ(GAR_D * 0.3), W - 0.8, 0.12, GAR_D * 0.6 + 0.3), hdr);
+        // canopy: three slabs stepping down towards the back, a red trim on the leading edge, a chequered band below it
+        for (const [z0, z1, y0] of [[-2.4, 0.4, yt + 0.55], [0.4, 3.4, yt + 0.85], [3.4, GAR_D * 0.75, yt + 0.95]]) shell.add('box', lm(gf, 0, y0, sZ((z0 + z1) / 2), BOX_SP - 0.2, 0.2, z1 - z0), hdr);
+        shell.add('box', lm(gf, 0, yt + 0.48, sZ(-2.45), BOX_SP - 0.2, 0.32, 0.12), redE); shell.add('box', lm(gf, 0, yt + 0.22, sZ(-1.6), BOX_SP - 0.4, 0.14, 0.05), chq);
+        shell.add('box', lm(gf, 0, yt + 0.25, sZ(GAR_D * 0.6), BOX_SP - 0.2, 0.6, 0.15), hdr);
+      } else {
       // facade: header with the team sign, upper floor glass band, roof slab over the walkway
       shell.add('box', lm(gf, 0, H + 0.9, sZ(GAR_D / 2), BOX_SP, 1.8, GAR_D + 0.3), white);
       signs.quad(...quadV(gf, -W / 2 + 1.5, H + 0.35, sZ(-0.17), W - 3, 1.15, GZ), 0xffffff, [0, 1 - (k + 1) / 10, 1, 1 - k / 10]);
       shell.add('box', lm(gf, 0, H + 3.4, sZ(GAR_D / 2 + 0.6), BOX_SP, 3.2, GAR_D - 1.0), glass);
       shell.add('box', lm(gf, 0, H + 5.15, sZ(GAR_D / 2 - 1.2), BOX_SP, 0.35, GAR_D + 3.6), white);
       shell.add('box', lm(gf, 0, H + 5.2, sZ(-2.9), BOX_SP, 0.5, 0.2), col(0xc8102e));
+      }
     });
     // end walls of the garage block
     for (const [dd, sgn] of [[L.garD0, -1], [L.garD1, 1]]) { const gf = frameAt(dd, GAR_FRONT, 0); shell.add('box', lm(gf, sgn * 0.2, 5.0, sZ(GAR_D / 2), 0.4, 10, GAR_D + 0.3), white); }
@@ -505,8 +543,10 @@ window.EI = window.EI || {};
     if (sc && sc.group) sc.group.traverse((o) => { if (o.isMesh && /^pit(Building|Signs)$/.test(o.name || '')) { o.visible = false; replaced++; } });
     L.replaced = replaced;
     if (sc && sc.group) {
-      const samp = []; for (let d = L.dRoad0; d <= L.dRoad1; d += 3) { const p = pathAt(d); const inGar = d >= L.garD0 - 6 && d <= L.garD1 + 6; const inLane = d >= L.dA - 20 && d <= L.dB + 20; samp.push([p.x, p.z, p.gx, p.gz, inLane ? -11 : -7, inGar ? GAR_FRONT + GAR_D + 5 : inLane ? 9 : 7]); }
-      const inside = (x, z) => { for (const q of samp) { const dx = x - q[0], dz = z - q[1]; if (dx * dx + dz * dz > 400) continue; const o = dx * q[2] + dz * q[3]; if (o > q[4] && o < q[5]) return true; } return false; };
+      const street = !!track.data.street;
+      const samp = []; for (let d = L.dRoad0; d <= L.dRoad1; d += 3) { const p = pathAt(d); const inGar = d >= L.garD0 - 6 && d <= L.garD1 + 6; const inLane = d >= L.dA - 20 && d <= L.dB + 20; samp.push([p.x, p.z, p.gx, p.gz, inLane ? (street ? -6.4 : -11) : (street ? -6.4 : -7), inGar ? GAR_FRONT + GAR_D + 5 : inLane ? 9 : 7, d]); }
+      const inStand = (x, z) => { for (const d of L.boxD) { const p = pathAt(d); const dx = x - p.x, dz = z - p.z; const al = dx * p.tx + dz * p.tz, o = dx * p.gx + dz * p.gz; if (Math.abs(al) < 5.4 && o < STAND_O + 0.6 && o > STAND_O - 3.2) return true; } return false; };
+      const inside = (x, z) => { if (street && inStand(x, z)) return true; for (const q of samp) { const dx = x - q[0], dz = z - q[1]; if (dx * dx + dz * dz > 400) continue; const o = dx * q[2] + dz * q[3]; if (o > q[4] && o < q[5]) return true; } return false; };
       sc.group.traverse((o) => {
         if (!o.isInstancedMesh || !/tree/i.test(o.name || '')) return; let any = false;
         for (let i = 0; i < o.count; i++) { o.getMatrixAt(i, _m); _v.setFromMatrixPosition(_m); if (inside(_v.x, _v.z)) { o.setMatrixAt(i, ZERO); any = true; cleared++; } }
