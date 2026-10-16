@@ -38,14 +38,18 @@ window.EI = window.EI || {};
       '{ vec3 c = gl_FragColor.rgb; float l = dot(c, vec3(0.2126, 0.7152, 0.0722)); c = mix(vec3(l), c, 1.45); c = (c - 0.5) * 1.08 + 0.5; c *= vec3(1.03, 1.0, 0.97); gl_FragColor.rgb = clamp(c, 0.0, 1.0); }\n';
     scene = new THREE.Scene();
     // physically based sky, with the sun light aligned to it and a PMREM environment for reflections / ambient
-    const sunDir = new THREE.Vector3(); const elev = 42, azim = 205; const phi = THREE.MathUtils.degToRad(90 - elev), theta = THREE.MathUtils.degToRad(azim); sunDir.setFromSphericalCoords(1, phi, theta);
-    skyMesh = new THREE.Sky(); skyMesh.scale.setScalar(5500); const su = skyMesh.material.uniforms; su.turbidity.value = 2.5; su.rayleigh.value = 2.0; su.mieCoefficient.value = 0.004; su.mieDirectionalG.value = 0.85; su.sunPosition.value.copy(sunDir); scene.add(skyMesh);
+    // per-circuit light: Silverstone keeps its English afternoon; Monaco gets a high late-May sun from over the sea (so the
+    // city facades facing the harbour are lit), a clearer sky, sea haze on the horizon and warm stone bounce light
+    const LOOKS = { monaco: { elev: 52, azim: 338, turb: 1.9, ray: 1.5, mie: 0.003, horizon: 0xbcd3ea, fog: [1500, 7500], fogLow: [800, 3800], hemi: [0xa8cdf2, 0x8a7a66, 0.42], sun: [0xfff3e0, 2.65] } };
+    const LK = Object.assign({ elev: 42, azim: 205, turb: 2.5, ray: 2.0, mie: 0.004, horizon: 0xa9c4e4, fog: [1300, 6000], fogLow: [700, 3200], hemi: [0x9fc4ee, 0x3f5a2e, 0.35], sun: [0xfff1dd, 2.4] }, LOOKS[trackId] || {}); EI.look = LK;
+    const sunDir = new THREE.Vector3(); const elev = LK.elev, azim = LK.azim; const phi = THREE.MathUtils.degToRad(90 - elev), theta = THREE.MathUtils.degToRad(azim); sunDir.setFromSphericalCoords(1, phi, theta);
+    skyMesh = new THREE.Sky(); skyMesh.scale.setScalar(5500); const su = skyMesh.material.uniforms; su.turbidity.value = LK.turb; su.rayleigh.value = LK.ray; su.mieCoefficient.value = LK.mie; su.mieDirectionalG.value = 0.85; su.sunPosition.value.copy(sunDir); scene.add(skyMesh);
     const t0 = performance.now(); const pm = new THREE.PMREMGenerator(renderer); pm.compileEquirectangularShader();
-    const skyScene = new THREE.Scene(); const sky2 = new THREE.Sky(); sky2.scale.setScalar(5500); sky2.material.uniforms.turbidity.value = 2.5; sky2.material.uniforms.rayleigh.value = 2.0; sky2.material.uniforms.sunPosition.value.copy(sunDir); skyScene.add(sky2);
+    const skyScene = new THREE.Scene(); const sky2 = new THREE.Sky(); sky2.scale.setScalar(5500); sky2.material.uniforms.turbidity.value = LK.turb; sky2.material.uniforms.rayleigh.value = LK.ray; sky2.material.uniforms.sunPosition.value.copy(sunDir); skyScene.add(sky2);
     scene.environment = pm.fromScene(skyScene, 0.02).texture; pm.dispose(); const tPmrem = Math.round(performance.now() - t0);
-    const horizon = 0xa9c4e4; scene.fog = new THREE.Fog(horizon, 1300, 6000);
-    hemi = new THREE.HemisphereLight(0x9fc4ee, 0x3f5a2e, 0.35); scene.add(hemi);
-    sun = new THREE.DirectionalLight(0xfff1dd, 2.4); sun.castShadow = true; this_sunDir = sunDir;
+    const horizon = LK.horizon; scene.fog = new THREE.Fog(horizon, LK.fog[0], LK.fog[1]);
+    hemi = new THREE.HemisphereLight(LK.hemi[0], LK.hemi[1], LK.hemi[2]); scene.add(hemi);
+    sun = new THREE.DirectionalLight(LK.sun[0], LK.sun[1]); sun.castShadow = true; this_sunDir = sunDir;
     sun.shadow.mapSize.set(2048, 2048); sun.shadow.camera.near = 10; sun.shadow.camera.far = 600;
     sun.shadow.camera.left = -70; sun.shadow.camera.right = 70; sun.shadow.camera.top = 70; sun.shadow.camera.bottom = -70; sun.shadow.bias = -0.0004; sun.shadow.normalBias = 0.04; sun.shadow.radius = 2;
     scene.add(sun); scene.add(sun.target);
@@ -90,7 +94,7 @@ window.EI = window.EI || {};
     EI.quality = q; if (scenery && scenery.setQuality) scenery.setQuality(q); if (EI.Pit && EI.Pit.setQuality) EI.Pit.setQuality(q); if (track && track.setQuality) track.setQuality(q);
     // low: no live mirrors, no grass tufts / decorative instancing named 'detail', fog closer
     scene.traverse(o => { if (/tuft|detail/i.test(o.name || '')) o.visible = q !== 'low'; });
-    if (scene.fog) { scene.fog.near = q === 'low' ? 700 : 1300; scene.fog.far = q === 'low' ? 3200 : 6000; }
+    if (scene.fog) { const L = EI.look || { fog: [1300, 6000], fogLow: [700, 3200] }; const f = q === 'low' ? L.fogLow : L.fog; scene.fog.near = f[0]; scene.fog.far = f[1]; }
     onResize();
   }
 
