@@ -4,6 +4,7 @@ window.EI = window.EI || {};
 (function () {
   const U = EI.U;
   const WHEEL_R = 0.36, FRONT_AXLE = 1.75, REAR_AXLE = -1.85;
+  const FLAP_CLOSED = -0.63, FLAP_OPEN = FLAP_CLOSED + 55 * Math.PI / 180;   // DRS flap rotation.z about its trailing-edge pivot (positive lifts the leading edge)
 
   // ---------------------------------------------------------------- geometry helpers
   function merge(geos) {
@@ -161,9 +162,10 @@ window.EI = window.EI || {};
     for (const s of [1, -1]) wings.push(strut([-1.75, 0.55, s * 0.08], [-2.35, 0.8, s * 0.08], 0.05, 0.03)); // swan necks
     for (const s of [1, -1]) wings.push(plate([[-2.92, 0.5], [-2.3, 0.5], [-2.22, 0.78], [-2.35, 1.0], [-2.92, 1.02], [-2.98, 0.75]], 0.018, s * 0.51, true));
     const wingMesh = new THREE.Mesh(boxProjectUV(merge(wings)), paint); wingMesh.castShadow = true; body.add(wingMesh);
-    // DRS flap (hinge near trailing edge so the leading edge lifts)
-    const flapGeo = wing(-0.49, 0.49, (z) => ({ x: 0.26, y: 0.0, chord: 0.26, aoa: 0.0, t: 0.028 }), 12); boxProjectUV(flapGeo);
-    const flap = new THREE.Mesh(flapGeo, paint); flap.position.set(-2.72, 0.9, 0); flap.rotation.z = 0.5; body.add(flap);
+    // DRS flap: pivot at the trailing edge, up between the endplate tops; closed it sits steep above the main plane's trailing edge,
+    // open the leading edge lifts ~55 degrees so a slot of daylight shows between the two elements (FLAP_CLOSED / FLAP_OPEN)
+    const flapGeo = wing(-0.49, 0.49, (z) => ({ x: 0.26, y: 0.0, chord: 0.26, aoa: 0.0, t: 0.028 }), 12); flapGeo.translate(-2.87, 0.99, 0); boxProjectUV(flapGeo); flapGeo.translate(2.87, -0.99, 0);   // livery mapped where the flap sits, like the main plane
+    const flap = new THREE.Mesh(flapGeo, paint); flap.position.set(-2.87, 0.99, 0); flap.rotation.z = FLAP_CLOSED; flap.castShadow = true; body.add(flap);
 
     // ---- halo
     const haloGeo = new THREE.TorusGeometry(0.46, 0.036, 10, 32, Math.PI); haloGeo.rotateZ(-Math.PI / 2); haloGeo.rotateX(Math.PI / 2);
@@ -211,7 +213,7 @@ window.EI = window.EI || {};
     // contact shadow
     const sc = document.createElement('canvas'); sc.width = 128; sc.height = 64; const sctx = sc.getContext('2d'); const grd = sctx.createRadialGradient(64, 32, 4, 64, 32, 60); grd.addColorStop(0, 'rgba(0,0,0,0.6)'); grd.addColorStop(0.6, 'rgba(0,0,0,0.3)'); grd.addColorStop(1, 'rgba(0,0,0,0)'); sctx.fillStyle = grd; sctx.fillRect(0, 0, 128, 64);
     const blob = new THREE.Mesh(new THREE.PlaneGeometry(6.2, 3.0), new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(sc), transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -3 })); blob.rotation.x = -Math.PI / 2; blob.position.set(-0.1, 0.03, 0); g.add(blob);
-    return { group: g, body, wheels, frontPivots, flap, helmet, bodyMat: paint };
+    return { group: g, body, wheels, frontPivots, flap, helmet, bodyMat: paint, flapClosed: FLAP_CLOSED, flapOpen: FLAP_OPEN };
   }
 
   function sidewallTexture(color) {

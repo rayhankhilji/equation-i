@@ -3,8 +3,9 @@
 // x = +1.75 / -1.85) plus the material-ID / AO atlases, and composes a per-team livery texture at runtime.
 // build(car, lod) returns the same object shape as EI.CarModel.build(car):
 //   { group, body, wheels[FL,FR,RL,RR], frontPivots[FL,FR], flap, helmet, bodyMat }
-// The flap keeps CarModel's angle convention (rotation.z = 0.5 closed, -0.15 open); flapClosed / flapOpen are
-// also exposed on the returned object.
+// The flap pivots about its trailing edge (meta.hinge, where the endplate tips meet it) and the leading edge lifts on open:
+// rotation.z = 0.5 closed, -0.46 open, i.e. about 55 degrees of travel, so a clear slot of daylight opens between the main
+// plane and the flap from the chase camera; flapClosed / flapOpen are exposed on the returned object.
 // Materials: triplanar carbon weave under clear coat (dark satin inside the cockpit opening), clear-coated metallic paint
 // with procedural flake, darker floor carbon, iridium visor, branded tyre walls, brake-disc glow (car.brake) and a rain
 // light that flashes while ERS deploys. Wheels are seated on the road (tyre bottom at y = 0) and a soft contact shadow
@@ -16,7 +17,7 @@
 window.EI = window.EI || {};
 (function () {
   const BASE = 'assets/models/';
-  const FLAP_CLOSED = 0.5, FLAP_OPEN = -0.15;
+  const FLAP_CLOSED = 0.5, FLAP_OPEN = FLAP_CLOSED - 55 * Math.PI / 180;   // ~55 degrees of DRS travel
   const cache = { hi: null, lo: null, meta: null, idImg: null, aoImg: null };
   const texCache = {}, helmetMats = {}, shared = {}, roleMaps = {};
   let loading = null;
@@ -188,10 +189,322 @@ window.EI = window.EI || {};
     if (b > 150) return 'blue'; if (g > 150 && r < 80) return 'green'; if (r > 150 && g > 150) return 'yellow';
     if (r > 150 && g > 40 && g < 140) return 'orange'; if (r > 150) return 'red'; return 'none';
   }
+  // ---------------------------------------------------------------- projected decals
+  // The bodywork unwrap is uneven (the side islands are squashed 2.4x vertically, sheared, and fold over the sidepod and
+  // engine-cover tops), so drawing straight into UV space distorts lettering. Instead the decals are designed in orthographic
+  // car views (side / top, in metres) and projected: a texel -> body-space position map is rasterised once per resolution from
+  // the 'paint' meshes, and every painted texel samples the view canvas that faces it (with a mip chain, so the squashed side
+  // islands do not alias). Car frame: x forward (front axle +1.75, rear -1.85), y up, z right.
+  // posMap: pos = Int16 x,y,z in units of 1/8000 m, cls = 1 left-facing, 2 right-facing, 3 up-facing, 4 other.
+  const posMaps = {};
+  const PQ = 8000;
+  function posMap(M) {
+    if (posMaps[M] !== undefined) return posMaps[M];
+    const meshes = []; if (!cache.hi) return null;
+    cache.hi.updateMatrixWorld(true);
+    cache.hi.traverse((o) => { if (o.isMesh && o.material && o.material.name === 'paint' && o.geometry && o.geometry.attributes.uv) meshes.push(o); });
+    if (!meshes.length) return (posMaps[M] = null);
+    const pos = new Int16Array(M * M * 3), cls = new Uint8Array(M * M);
+    const v = new THREE.Vector3(), nm = new THREE.Matrix3();
+    for (const o of meshes) {
+      const g = o.geometry, pa = g.attributes.position, na = g.attributes.normal, ua = g.attributes.uv, ix = g.index; const n = pa.count;
+      nm.getNormalMatrix(o.matrixWorld); const P = new Float32Array(n * 3), N = new Float32Array(n * 3), U = new Float32Array(n * 2);
+      for (let i = 0; i < n; i++) {
+        v.fromBufferAttribute(pa, i).applyMatrix4(o.matrixWorld); P[i * 3] = v.x; P[i * 3 + 1] = v.y; P[i * 3 + 2] = v.z;
+        if (na) { v.fromBufferAttribute(na, i).applyMatrix3(nm).normalize(); N[i * 3] = v.x; N[i * 3 + 1] = v.y; N[i * 3 + 2] = v.z; }
+        U[i * 2] = ua.getX(i) * M; U[i * 2 + 1] = ua.getY(i) * M;
+      }
+      const tris = ix ? ix.count / 3 : n / 3;
+      for (let t = 0; t < tris; t++) {
+        const a = ix ? ix.getX(t * 3) : t * 3, b = ix ? ix.getX(t * 3 + 1) : t * 3 + 1, c = ix ? ix.getX(t * 3 + 2) : t * 3 + 2;
+        const ax = U[a * 2], ay = U[a * 2 + 1], bx = U[b * 2], by = U[b * 2 + 1], cx = U[c * 2], cy = U[c * 2 + 1];
+        const area = (bx - ax) * (cy - ay) - (by - ay) * (cx - ax); if (Math.abs(area) < 1e-9) continue;
+        let fnx = 0, fny = 0, fnz = 0;
+        if (!na) { const ux = P[b * 3] - P[a * 3], uy = P[b * 3 + 1] - P[a * 3 + 1], uz = P[b * 3 + 2] - P[a * 3 + 2], wx = P[c * 3] - P[a * 3], wy = P[c * 3 + 1] - P[a * 3 + 1], wz = P[c * 3 + 2] - P[a * 3 + 2]; fnx = uy * wz - uz * wy; fny = uz * wx - ux * wz; fnz = ux * wy - uy * wx; }
+        const x0 = Math.max(0, Math.floor(Math.min(ax, bx, cx))), x1 = Math.min(M - 1, Math.ceil(Math.max(ax, bx, cx))), y0 = Math.max(0, Math.floor(Math.min(ay, by, cy))), y1 = Math.min(M - 1, Math.ceil(Math.max(ay, by, cy)));
+        for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) {
+          const px = x + 0.5, py = y + 0.5;
+          const w0 = ((bx - px) * (cy - py) - (by - py) * (cx - px)) / area, w1 = ((cx - px) * (ay - py) - (cy - py) * (ax - px)) / area, w2 = 1 - w0 - w1;
+          if (w0 < -1e-4 || w1 < -1e-4 || w2 < -1e-4) continue;
+          const k = y * M + x, k3 = k * 3;
+          for (let q = 0; q < 3; q++) pos[k3 + q] = Math.round((P[a * 3 + q] * w0 + P[b * 3 + q] * w1 + P[c * 3 + q] * w2) * PQ);
+          let nx = fnx, ny = fny, nz = fnz; if (na) { nx = N[a * 3] * w0 + N[b * 3] * w1 + N[c * 3] * w2; ny = N[a * 3 + 1] * w0 + N[b * 3 + 1] * w1 + N[c * 3 + 1] * w2; nz = N[a * 3 + 2] * w0 + N[b * 3 + 2] * w1 + N[c * 3 + 2] * w2; }
+          const az = Math.abs(nz), ay2 = Math.abs(ny), ax2 = Math.abs(nx);
+          cls[k] = (az >= ay2 * 0.9 && az >= ax2) ? (nz < 0 ? 1 : 2) : (ny > 0 && ay2 >= ax2) ? 3 : 4;
+        }
+      }
+    }
+    // dilate the map by two texels so island edges (where bilinear texture filtering reaches) carry positions too
+    for (let it = 0; it < 2; it++) {
+      const src = cls.slice();
+      for (let y = 1; y < M - 1; y++) for (let x = 1; x < M - 1; x++) {
+        const k = y * M + x; if (src[k]) continue;
+        const nb = src[k - 1] ? k - 1 : src[k + 1] ? k + 1 : src[k - M] ? k - M : src[k + M] ? k + M : -1; if (nb < 0) continue;
+        cls[k] = src[nb]; pos[k * 3] = pos[nb * 3]; pos[k * 3 + 1] = pos[nb * 3 + 1]; pos[k * 3 + 2] = pos[nb * 3 + 2];
+      }
+    }
+    let n = 0; for (let k = 0; k < M * M; k++) if (cls[k]) n++;
+    const idx = new Int32Array(n); n = 0; for (let k = 0; k < M * M; k++) if (cls[k]) idx[n++] = k;
+    return (posMaps[M] = { M, pos, cls, idx });
+  }
+  // views: [{ cls, map: (x, y, z) => [X, Y] (metres, canvas axes: Y down), x0, y0, x1, y1 (canvas rect in metres), draw(g) }]
+  // draw() paints in metres (the transform is set up). Decals land only on paint texels (roles primary / secondary / accent).
+  function projectDecals(ctx, S, views, roleMap) {
+    const M = Math.min(S, 2048); const pm = posMap(M); if (!pm) return false;
+    const { pos, cls } = pm; const sc = M / S; const inv = 1 / PQ;
+    for (const vw of views) {
+      const ppm = vw.ppm || M * 0.22; const W = Math.ceil((vw.x1 - vw.x0) * ppm), H = Math.ceil((vw.y1 - vw.y0) * ppm);
+      const cv = document.createElement('canvas'); cv.width = W; cv.height = H; const g = cv.getContext('2d');
+      g.setTransform(ppm, 0, 0, ppm, -vw.x0 * ppm, -vw.y0 * ppm); vw.draw(g, ppm); g.setTransform(1, 0, 0, 1, 0, 0);
+      vw.lv = [{ w: W, h: H, d: g.getImageData(0, 0, W, H).data }]; let cur = cv;
+      while (cur.width > 64 && cur.height > 16 && vw.lv.length < 6) { const n = document.createElement('canvas'); n.width = Math.max(1, cur.width >> 1); n.height = Math.max(1, cur.height >> 1); const nx = n.getContext('2d'); nx.imageSmoothingEnabled = true; nx.imageSmoothingQuality = 'high'; nx.drawImage(cur, 0, 0, n.width, n.height); vw.lv.push({ w: n.width, h: n.height, d: nx.getImageData(0, 0, n.width, n.height).data }); cur = n; }
+      vw.ppm0 = ppm;
+    }
+    const byCls = [[], [], [], [], []]; for (const vw of views) byCls[vw.cls].push(vw);
+    // content bounds of each view (metres), so texels that cannot receive anything are rejected early
+    for (const vw of views) {
+      const l0 = vw.lv[0]; let bx0 = l0.w, by0 = l0.h, bx1 = -1, by1 = -1;
+      for (let y = 0; y < l0.h; y++) for (let x = 0; x < l0.w; x++) if (l0.d[(y * l0.w + x) * 4 + 3]) { if (x < bx0) bx0 = x; if (x > bx1) bx1 = x; if (y < by0) by0 = y; if (y > by1) by1 = y; }
+      vw.bb = bx1 < 0 ? null : [bx0 - 3, by0 - 3, bx1 + 3, by1 + 3];
+    }
+    const H2 = S >> 1; const out = [0, 0, 0, 0];
+    const sample = (lv, X, Y) => {   // premultiplied bilinear sample into out
+      const fx = X - 0.5, fy = Y - 0.5; const ix = Math.floor(fx), iy = Math.floor(fy); const tx = fx - ix, ty = fy - iy; out[0] = out[1] = out[2] = out[3] = 0;
+      for (let q = 0; q < 4; q++) { const xx = ix + (q & 1), yy = iy + (q >> 1); if (xx < 0 || yy < 0 || xx >= lv.w || yy >= lv.h) continue; const w = ((q & 1) ? tx : 1 - tx) * ((q >> 1) ? ty : 1 - ty); const o = (yy * lv.w + xx) * 4; const a = lv.d[o + 3] * w; if (!a) continue; out[0] += lv.d[o] * a; out[1] += lv.d[o + 1] * a; out[2] += lv.d[o + 2] * a; out[3] += a; }
+    };
+    const quads = [[0, 0], [H2, 0], [0, H2]]; const imgs = [null, null, null], dirty = [false, false, false];
+    const getQ = (q) => imgs[q] || (imgs[q] = ctx.getImageData(quads[q][0], quads[q][1], H2, H2));
+    const R = Math.round(1 / sc);   // output texels per map texel (1, or 2 when composing 4096 from the 2048 map)
+    const P3 = [0, 0, 0];
+    const posAt = (mx, my, c, k) => {   // body position at fractional map coords (bilinear inside one class)
+      if (R > 1) { const i0 = Math.floor(mx), j0 = Math.floor(my), tx = mx - i0, ty = my - j0; const k0 = j0 * M + i0;
+        if (i0 >= 0 && j0 >= 0 && i0 < M - 1 && j0 < M - 1 && cls[k0] === c && cls[k0 + 1] === c && cls[k0 + M] === c && cls[k0 + M + 1] === c) {
+          const w00 = (1 - tx) * (1 - ty), w10 = tx * (1 - ty), w01 = (1 - tx) * ty, w11 = tx * ty;
+          for (let q = 0; q < 3; q++) P3[q] = (pos[k0 * 3 + q] * w00 + pos[(k0 + 1) * 3 + q] * w10 + pos[(k0 + M) * 3 + q] * w01 + pos[(k0 + M + 1) * 3 + q] * w11) * inv;
+          return; } }
+      P3[0] = pos[k * 3] * inv; P3[1] = pos[k * 3 + 1] * inv; P3[2] = pos[k * 3 + 2] * inv;
+    };
+    const idx = pm.idx;
+    for (let n = 0; n < idx.length; n++) {
+      const k = idx[n]; const c = cls[k]; const vws = byCls[c]; if (!vws.length) continue;
+      if (roleMap) { const r = roleMap[k]; if (r < 1 || r > 3) continue; }
+      const mi = k % M, mj = (k - mi) / M; if (mi < 1 || mj < 1 || mi >= M - 1 || mj >= M - 1) continue;
+      // early reject against every view's content box using the texel centre
+      const xc = pos[k * 3] * inv, yc = pos[k * 3 + 1] * inv, zc = pos[k * 3 + 2] * inv; let any = false;
+      for (const vw of vws) { if (!vw.bb) continue; const XY = vw.map(xc, yc, zc); const X = (XY[0] - vw.x0) * vw.ppm0, Y = (XY[1] - vw.y0) * vw.ppm0; const m = 0.05 * vw.ppm0; if (X >= vw.bb[0] - m && X <= vw.bb[2] + m && Y >= vw.bb[1] - m && Y <= vw.bb[3] + m) { any = true; break; } }
+      if (!any) continue;
+      const kx = cls[k + 1] === c ? k + 1 : cls[k - 1] === c ? k - 1 : k, ky = cls[k + M] === c ? k + M : cls[k - M] === c ? k - M : k;
+      for (let sy = 0; sy < R; sy++) for (let sx = 0; sx < R; sx++) {
+        const ox = mi * R + sx, oy = mj * R + sy; const q = oy < H2 ? (ox < H2 ? 0 : 1) : (ox < H2 ? 2 : -1); if (q < 0) continue;
+        posAt((ox + 0.5) * sc - 0.5, (oy + 0.5) * sc - 0.5, c, k); const x = P3[0], y = P3[1], z = P3[2];
+        for (const vw of vws) {
+          if (!vw.bb) continue;
+          const XY = vw.map(x, y, z); const X = (XY[0] - vw.x0) * vw.ppm0, Y = (XY[1] - vw.y0) * vw.ppm0; if (X < vw.bb[0] || Y < vw.bb[1] || X > vw.bb[2] || Y > vw.bb[3]) continue;
+          const A = vw.map(pos[kx * 3] * inv, pos[kx * 3 + 1] * inv, pos[kx * 3 + 2] * inv), B = vw.map(pos[ky * 3] * inv, pos[ky * 3 + 1] * inv, pos[ky * 3 + 2] * inv);
+          const fp = Math.max(Math.abs(A[0] - XY[0]), Math.abs(A[1] - XY[1]), Math.abs(B[0] - XY[0]), Math.abs(B[1] - XY[1])) * vw.ppm0 * sc;
+          const L = fp > 1 ? Math.min(vw.lv.length - 1, Math.floor(Math.log2(fp) + 0.3)) : 0; const lv = vw.lv[L];
+          sample(lv, X * lv.w / vw.lv[0].w, Y * lv.h / vw.lv[0].h); const a = out[3] / 255; if (a <= 0.002) continue;
+          const img = getQ(q); const d = img.data; const o = ((oy - quads[q][1]) * H2 + (ox - quads[q][0])) * 4; const ia = 1 - Math.min(1, a);
+          d[o] = out[0] / 255 + d[o] * ia; d[o + 1] = out[1] / 255 + d[o + 1] * ia; d[o + 2] = out[2] / 255 + d[o + 2] * ia; dirty[q] = true;
+        }
+      }
+    }
+    for (let q = 0; q < 3; q++) if (dirty[q]) ctx.putImageData(imgs[q], quads[q][0], quads[q][1]);
+    for (const vw of views) vw.lv = null;
+    return true;
+  }
+  CarGLB.projectDecals = projectDecals; CarGLB.posMap = posMap;
+  // ---------------------------------------------------------------- livery designs (side and top views, see projectDecals)
+  // Landmarks (metres; x forward, y up): nose tip x 3.0; front-wing endplates x 2.45..2.9, y 0.05..0.3; cockpit x 0.3..1.0;
+  // sidepod flank x 1.0..-1.3, y 0.12..0.62; engine-cover upper band x 0.1..-1.3, y 0.78..1.0 (airbox x 0..-0.35);
+  // engine-cover rear x -1.2..-1.8, y 0.2..0.7; rear-wing endplates x -1.9..-2.35, y 0.45..1.0; rear-wing top x -1.92..-2.28,
+  // z +-0.55; front-wing outer flaps x 2.45..2.8, z +-0.55..1.0; nose top half-width 0.08 at x 2.4, 0.15 at x 1.6.
+  const MM = 1000;
+  function sideKit(g, s) {   // drawing helpers for one side (s = -1 left side: tail to the right; +1 right side)
+    const X = (x) => s * x * MM, Y = (y) => -y * MM;
+    const path = (pts) => { g.beginPath(); pts.forEach(([x, y], i) => (i ? g.lineTo(X(x), Y(y)) : g.moveTo(X(x), Y(y)))); g.closePath(); };
+    // a smooth open curve through points (Catmull-Rom), as a stroke or as the top edge of a filled region down/up to yEdge
+    const curve = (pts, close) => {
+      g.beginPath(); g.moveTo(X(pts[0][0]), Y(pts[0][1]));
+      for (let i = 0; i < pts.length - 1; i++) { const p0 = pts[Math.max(0, i - 1)], p1 = pts[i], p2 = pts[i + 1], p3 = pts[Math.min(pts.length - 1, i + 2)];
+        g.bezierCurveTo(X(p1[0] + (p2[0] - p0[0]) / 6), Y(p1[1] + (p2[1] - p0[1]) / 6), X(p2[0] - (p3[0] - p1[0]) / 6), Y(p2[1] - (p3[1] - p1[1]) / 6), X(p2[0]), Y(p2[1])); }
+      if (close) for (const q of close) g.lineTo(X(q[0]), Y(q[1]));
+    };
+    return {
+      s, X, Y, path, curve,
+      poly(pts, col) { path(pts); g.fillStyle = col; g.fill(); },
+      // fill the region bounded by a curve and closing points (e.g. up to the top of the view)
+      region(pts, close, col) { curve(pts, close); g.closePath(); g.fillStyle = col; g.fill(); },
+      stroke(pts, w, col) { curve(pts); g.strokeStyle = col; g.lineWidth = w * MM; g.lineCap = 'round'; g.stroke(); },
+      at(x, y, fn) { g.save(); g.translate(X(x), Y(y)); fn(); g.restore(); },
+      // a decal (EI.Ads.drawDecal spec) centred at (x, y); cap = cap height (m), maxW (m)
+      decal(spec, x, y, cap, maxW) { g.save(); g.translate(X(x), Y(y)); Ads().drawDecal(g, spec, 0, 0, cap * MM, maxW * MM); g.restore(); },
+      text(str, x, y, cap, col, font, o) { o = o || {}; g.save(); g.translate(X(x), Y(y)); if (o.skew) g.transform(1, 0, -o.skew, 1, 0, 0); g.font = font.replace('%', (cap * MM).toFixed(1) + 'px'); if (Ads()) Ads().setLS(g, (o.ls || 0) * cap * MM); g.textAlign = o.align || 'center'; g.textBaseline = 'middle'; if (o.outline) { g.lineWidth = o.outline[0] * MM; g.strokeStyle = o.outline[1]; g.lineJoin = 'round'; g.strokeText(str, 0, 0); } g.fillStyle = col; g.fillText(str, 0, cap * MM * 0.04); if (Ads()) Ads().setLS(g, 0); g.restore(); },
+    };
+  }
+  const Ads = () => EI.Ads;
+  const lum = (h) => { const cc = new THREE.Color(h); return 0.2126 * cc.r + 0.7152 * cc.g + 0.0722 * cc.b; };
+  const NUM_FONT = 'italic 900 % "Titillium Web", "Arial Black", Arial, sans-serif';
+  const LUMI_NUM = '800 % "Plus Jakarta Sans", "Titillium Web", Arial, sans-serif';
+  const INTAKE_NUM = '800 % "Unbounded", "Titillium Web", Arial, sans-serif';
+  // the team graphics on the side (painted under the decals): curves through the landmarks above
+  const UPPER_LINE = [[3.1, 0.3], [2.2, 0.47], [1.3, 0.6], [0.4, 0.7], [-0.5, 0.72], [-1.3, 0.66], [-2.0, 0.55]];
+  const SWEEP = [[3.0, 0.24], [2.1, 0.33], [1.2, 0.36], [0.3, 0.33], [-0.6, 0.42], [-1.3, 0.6], [-2.0, 0.78]];
+  const TOP_V = 1.4, LOW_V = -0.1;
+  function teamSide(k, team, o) {
+    const { P, S, A } = o;
+    const below = (line, col, dy) => k.region(line.map(([x, y]) => [x, y + (dy || 0)]), [[-2.4, LOW_V], [3.2, LOW_V]], col);
+    const above = (line, col, dy) => k.region(line.map(([x, y]) => [x, y + (dy || 0)]), [[-2.4, TOP_V], [3.2, TOP_V]], col);
+    const rearOf = (x0, x1, col) => k.poly([[x0, TOP_V], [x1, LOW_V], [-2.5, LOW_V], [-2.5, TOP_V]], col);
+    switch (team.id) {
+      case 'rossa': above(UPPER_LINE, S, 0.02); k.stroke(UPPER_LINE.map(([x, y]) => [x, y + 0.005]), 0.022, A); below([[3.1, 0.14], [0, 0.17], [-2, 0.2]], S); break;
+      case 'argent': below(SWEEP, S); k.stroke(SWEEP.map(([x, y]) => [x, y + 0.03]), 0.03, A); above(UPPER_LINE, '#1a1b20', 0.05); break;
+      case 'taurus': below(SWEEP.map(([x, y]) => [x, y - 0.04]), S); k.stroke(SWEEP.map(([x, y]) => [x, y - 0.015]), 0.025, A); k.poly([[3.1, 0.18], [2.4, 0.42], [2.25, 0.42], [2.9, 0.14]], A); break;
+      case 'papaya': below([[3.1, 0.2], [1.2, 0.27], [0, 0.3], [-1.0, 0.42], [-2.0, 0.6]], S); k.stroke([[3.1, 0.22], [1.2, 0.29], [0, 0.32], [-1.0, 0.44], [-2.0, 0.62]], 0.02, A); rearOf(-1.35, -1.0, S); break;
+      case 'verdant': k.stroke(SWEEP.map(([x, y]) => [x, y + 0.06]), 0.035, S); below([[3.1, 0.13], [0, 0.16], [-2, 0.19]], '#0b2f2a'); break;
+      case 'alpenne': rearOf(-0.55, -0.2, S); k.poly([[-0.2, TOP_V], [0.15, LOW_V], [0.05, LOW_V], [-0.3, TOP_V]], A); break;
+      case 'kinetik': k.region([[3.1, 0.3], [2.0, 0.46], [1.1, 0.5]], [[0.7, LOW_V], [3.2, LOW_V]], S); k.stroke(SWEEP.map(([x, y]) => [x, y + 0.02]), 0.02, S); break;
+      case 'vector': below([[3.1, 0.18], [1.2, 0.24], [0, 0.3], [-1.2, 0.36], [-2.0, 0.5]], S); k.stroke([[3.1, 0.21], [1.2, 0.27], [0, 0.33], [-1.2, 0.39], [-2.0, 0.53]], 0.022, A); above(UPPER_LINE, S, 0.08); break;
+      default: above(UPPER_LINE, S, 0.04);
+    }
+  }
+  function liveryViews(team, num, code, o) {
+    const { P, S, A, NC, SC, sp, works } = o; const id = team.id;
+    const tname = (team.name.length > 13 ? team.short : team.name).toUpperCase();
+    const views = [];
+    const side = (s) => (g) => {
+      g.scale(1 / MM, 1 / MM); const k = sideKit(g, s);
+      if (id === 'lumi') lumiSide(g, k, team, num, code, o);
+      else if (id === 'intake') intakeSide(g, k, team, num, code, o);
+      else {
+        teamSide(k, team, o);
+        // partner decals: one consistent layout for every customer team
+        k.decal(sp(0), -0.62, 0.885, 0.07, 0.95);                       // title partner, engine-cover upper band
+        k.decal(sp(1), -0.18, 0.44, 0.07, 0.78);                        // sidepod partner
+        k.decal(sp(3), -0.18, 0.27, 0.05, 0.6);                         // sidepod lower
+        // race number on a plate (engine-cover rear), so it reads on any paint scheme
+        const dark = lum(o.NC) < 0.5; k.at(-1.5, 0.53, () => { g.fillStyle = dark ? '#f4f4f2' : '#15171c'; Ads().rr(g, -125, -82, 250, 164, 22); g.fill(); g.fillStyle = o.NC; g.font = NUM_FONT.replace('%', '130px'); g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(String(num), 0, 6); });
+        if (code) k.text(code, 1.45, 0.55, 0.07, o.NC, NUM_FONT);       // driver code by the cockpit
+        k.text(String(num), 1.45, 0.44, 0.06, o.NC, NUM_FONT);
+        // rear-wing endplates (secondary colour)
+        k.decal(sp(0, { bg: null, fg: SC }), -2.13, 0.87, 0.05, 0.36);
+        k.text(String(num), -2.13, 0.68, 0.12, SC, NUM_FONT);
+        k.text(tname, -2.13, 0.53, 0.028, SC, '700 % "Titillium Web", Arial, sans-serif', { ls: 0.12 });
+        // front-wing endplates
+        k.decal(sp(2, { bg: null, fg: SC }), 2.68, 0.18, 0.035, 0.34);
+      }
+    };
+    views.push({ cls: 1, map: (x, y) => [-x, -y], x0: -3.2, x1: 3.2, y0: -1.25, y1: 0.05, draw: side(-1) });
+    views.push({ cls: 2, map: (x, y) => [x, -y], x0: -3.2, x1: 3.2, y0: -1.25, y1: 0.05, draw: side(1) });
+    // top view: X = z (right), Y = -x (nose up), text upright reads from behind
+    views.push({ cls: 3, map: (x, y, z) => [z, -x], x0: -1.1, x1: 1.1, y0: -3.2, y1: 3.2, draw: (g) => {
+      g.scale(1 / MM, 1 / MM);
+      const at = (x, z, fn, rot) => { g.save(); g.translate(z * MM, -x * MM); if (rot) g.rotate(rot); fn(); g.restore(); };
+      const txt = (str, x, z, cap, col, font, rot, ls) => at(x, z, () => { g.font = font.replace('%', (cap * MM).toFixed(1) + 'px'); Ads().setLS(g, (ls || 0) * cap * MM); g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillStyle = col; g.fillText(str, 0, cap * MM * 0.04); Ads().setLS(g, 0); }, rot);
+      const dec = (spec, x, z, cap, maxW, rot) => at(x, z, () => Ads().drawDecal(g, spec, 0, 0, cap * MM, maxW * MM), rot);
+      const rect = (x0, x1, z0, z1, col) => { g.fillStyle = col; g.fillRect(z0 * MM, -x1 * MM, (z1 - z0) * MM, (x1 - x0) * MM); };
+      if (id === 'lumi') return lumiTop(g, { at, txt, dec, rect }, team, num, o);
+      if (id === 'intake') return intakeTop(g, { at, txt, dec, rect }, team, num, o);
+      // customer teams: nose tip and centre stripe, number on the nose (reads from the front), partner on the rear wing
+      switch (id) {
+        case 'rossa': rect(-3, 0.25, -0.03, 0.03, A); rect(2.6, 3.2, -1, 1, S); break;
+        case 'argent': rect(-3, 3.2, -0.05, 0.05, S); rect(-3, 3.2, -0.012, 0.012, A); break;
+        case 'taurus': rect(2.55, 3.2, -1, 1, A); rect(-3, 0.25, -0.04, 0.04, S); break;
+        case 'papaya': rect(2.6, 3.2, -1, 1, S); rect(-3, -0.9, -1, 1, S); break;
+        case 'verdant': rect(-3, 3.2, -0.02, 0.02, S); break;
+        case 'alpenne': rect(-3, -0.3, -1, 1, S); rect(-0.3, -0.2, -1, 1, A); break;
+        case 'kinetik': rect(1.7, 3.2, -1, 1, S); break;
+        case 'vector': rect(2.6, 3.2, -1, 1, S); rect(-3, 0.25, -0.035, 0.035, A); break;
+        default: rect(2.6, 3.2, -1, 1, S);
+      }
+      txt(String(num), 2.2, 0, 0.13, NC, NUM_FONT, Math.PI);
+      dec(sp(2, { bg: null, fg: NC }), 1.62, 0, 0.045, 0.22);
+      dec(sp(0, { bg: sp(0).bg || null, fg: sp(0).bg ? sp(0).fg : SC }), -2.1, 0, 0.09, 0.85);       // rear-wing top: title partner
+      txt('EQUATION I', 0.62, 0, 0.032, NC, '700 % "Titillium Web", Arial, sans-serif', 0, 0.2);   // ahead of the cockpit, under the halo
+    } });
+    return views;
+  }
+  // ---- Lumi Racing: cream car, plum sweep over the engine cover and rear, the mark's green and lilac quarter discs blown up on
+  //      the sidepods, the lock-up big on the engine cover, the mark on the airbox and nose, trylumi.co on the wings
+  const LUMI_SWEEP = [[2.3, 0.62], [1.4, 0.68], [0.55, 0.7], [-0.05, 0.6], [-0.55, 0.36], [-1.1, 0.16], [-1.6, 0.06]];
+  function quarter(g, cx, cy, r, col) { g.fillStyle = col; g.beginPath(); g.moveTo(cx, cy); g.lineTo(cx - r, cy); g.arc(cx, cy, r, Math.PI, Math.PI * 1.5); g.closePath(); g.fill(); }
+  function lumiSide(g, k, team, num, code, o) {
+    const L = Ads().LUMI; const plum = L.plum;
+    // plum sweep: everything above / behind the curve
+    k.region(LUMI_SWEEP, [[-2.6, -0.1], [-2.6, TOP_V], [2.3, TOP_V]], plum);
+    k.stroke(LUMI_SWEEP.map(([x, y]) => [x - 0.035, y - 0.035]), 0.022, L.lilac);
+    k.stroke(LUMI_SWEEP.map(([x, y]) => [x - 0.075, y - 0.075]), 0.012, L.markGreen);
+    // quarter discs from the mark, blown up on the cream sidepod (unmirrored, right angles bottom-right like the logo)
+    // (the mark's own geometry at 0.34 m: lilac corner at the origin, green above it, the plum dot to the right)
+    k.at(0.06, 0.16, () => { g.scale(0.78, 0.78); g.translate(60, 0); quarter(g, 0, 0, 177, L.markLilac); quarter(g, -7, -170, 170, L.markGreen); g.fillStyle = L.markPlum; g.beginPath(); g.arc(53, -143, 52, 0, Math.PI * 2); g.fill(); });
+    // title: the lock-up, big on the plum engine cover / sidepod rear (reversed: cream wordmark, cream dot)
+    k.at(-0.92, 0.5, () => Ads().lockupCentered(g, 'lumi', 0, 0, 175, 780, L.bg, true));
+    // the mark on the airbox flank
+    k.text('trylumi.co', -0.78, 0.885, 0.06, L.bg, '700 % "Plus Jakarta Sans", Arial, sans-serif', { ls: -0.02 });
+    // URL + strapline on the cream sidepod front
+    k.text('trylumi.co', 1.42, 0.43, 0.05, plum, '700 % "Plus Jakarta Sans", Arial, sans-serif', { ls: -0.02 });
+    // number plate: cream disc-cornered plate with the number in the brand face
+    k.at(-1.62, 0.56, () => { g.fillStyle = L.bg; Ads().rr(g, -120, -85, 240, 170, 46); g.fill(); g.font = '800 140px "Plus Jakarta Sans", Arial, sans-serif'; Ads().setLS(g, -6); g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillStyle = plum; g.fillText(String(num), 0, 8); Ads().setLS(g, 0); quarter(g, 120, -85, 34, L.markGreen); });
+    if (code) k.text(code, 1.42, 0.56, 0.08, plum, LUMI_NUM, { ls: -0.02 });
+    // rear-wing endplates (plum) and front-wing endplates
+    k.at(-2.13, 0.86, () => Ads().lumiMark(g, -60, -60, 120, null, true));
+    k.text('trylumi.co', -2.13, 0.68, 0.05, L.bg, '700 % "Plus Jakarta Sans", Arial, sans-serif', { ls: -0.02 });
+    k.text(String(num), -2.13, 0.54, 0.08, L.lilac, LUMI_NUM);
+    k.text('trylumi.co', 2.68, 0.18, 0.035, plum, '700 % "Plus Jakarta Sans", Arial, sans-serif');
+  }
+  function lumiTop(g, t, team, num, o) {
+    const L = Ads().LUMI;
+    t.rect(-3, -0.05, -1.1, 1.1, L.plum);                                          // plum engine cover and rear
+    t.rect(-0.05, 0.0, -1.1, 1.1, L.lilac); t.rect(0.0, 0.025, -1.1, 1.1, L.markGreen);
+    t.at(1.38, 0, () => Ads().lumiMark(g, -100, -100, 200));                          // the mark big on the nose
+    t.txt(String(num), 2.22, 0, 0.12, L.plum, LUMI_NUM, Math.PI);
+    t.at(-2.1, 0, () => Ads().lockupCentered(g, 'lumi', 0, 0, 175, 860, L.bg, true)); // rear-wing top
+  }
+  // ---- Intake Racing: sky-blue car with a cocoa "notebook cover" engine cover on dotted paper, the blue "i" big on it, the
+  //      lock-up on the sidepods, and the employers whose programmes are open as partner patches
+  const INTAKE_EDGE = [[0.25, TOP_V], [0.1, 0.95], [-0.15, 0.7], [-0.5, 0.36], [-0.7, 0.1], [-0.75, LOW_V]];
+  function intakeSide(g, k, team, num, code, o) {
+    const I = Ads().INTAKE;
+    k.path(INTAKE_EDGE.concat([[-2.6, LOW_V], [-2.6, TOP_V]])); g.fillStyle = I.ink; g.fill();
+    g.save(); k.path(INTAKE_EDGE.concat([[-2.6, LOW_V], [-2.6, TOP_V]])); g.clip(); g.fillStyle = 'rgba(255,248,236,0.16)';
+    for (let x = -2600; x <= 400; x += 34) for (let y = -1400; y <= 100; y += 34) { g.beginPath(); g.arc(x, y, 4.2, 0, Math.PI * 2); g.fill(); }
+    g.restore();
+    k.stroke(INTAKE_EDGE.slice(1, 5).map(([x, y]) => [x + 0.04, y]), 0.02, I.bg);
+    // the blue "i" big on the cover, the lock-up on the sidepod
+    k.at(-1.12, 0.47, () => Ads().intakeMark(g, -170, -170, 340));
+    k.at(0.0, 0.4, () => Ads().lockupCentered(g, 'intake', 0, 0, 125, 600, I.ink));
+    k.text('Win your degree apprenticeship.', 0.0, 0.295, 0.032, I.ink, '600 % "Instrument Sans", Arial, sans-serif');
+    k.text('intake.ink', -0.62, 0.885, 0.06, I.bg, '600 % "Instrument Sans", Arial, sans-serif');
+    // employer partner patches (cream plates): sidepod lower row, chassis, engine-cover rear
+    const pat = (id, x, y, cap, maxW) => k.decal({ emp: id, bg: I.bg }, x, y, cap, maxW);
+    pat('goldman-sachs', 0.3, 0.205, 0.042, 0.25); pat('kpmg', 0.02, 0.205, 0.042, 0.25); pat('rolls-royce', -0.24, 0.205, 0.042, 0.2);
+    pat('bank-of-england', 1.74, 0.47, 0.04, 0.16); pat('jp-morgan', 1.4, 0.43, 0.034, 0.28);
+    pat('bae-systems', -1.12, 0.22, 0.028, 0.32);
+    // number plate: cream plate, cocoa number in the brand face
+    k.at(-1.62, 0.6, () => { g.fillStyle = I.bg; Ads().rr(g, -125, -80, 250, 160, 40); g.fill(); g.font = '800 118px "Unbounded", Arial, sans-serif'; Ads().setLS(g, -5); g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillStyle = I.ink; g.fillText(String(num), 0, 8); Ads().setLS(g, 0); });
+    if (code) k.text(code, 1.42, 0.56, 0.065, I.ink, INTAKE_NUM, { ls: -0.03 });
+    // rear-wing endplates (cocoa) and front-wing endplates
+    k.at(-2.13, 0.86, () => Ads().intakeMark(g, -60, -60, 120));
+    k.text('intake.ink', -2.13, 0.68, 0.05, I.bg, '600 % "Instrument Sans", Arial, sans-serif');
+    k.text(String(num), -2.13, 0.54, 0.075, I.blue, INTAKE_NUM);
+    k.text('intake.ink', 2.68, 0.18, 0.035, I.ink, '600 % "Instrument Sans", Arial, sans-serif');
+  }
+  function intakeTop(g, t, team, num, o) {
+    const I = Ads().INTAKE;
+    t.rect(-3, -0.2, -1.1, 1.1, I.ink);
+    g.save(); g.beginPath(); g.rect(-1100, 200, 2200, 3000); g.clip(); g.fillStyle = 'rgba(255,248,236,0.16)';
+    for (let z = -1100; z <= 1100; z += 34) for (let x = 200; x <= 3200; x += 34) { g.beginPath(); g.arc(z, x, 4.2, 0, Math.PI * 2); g.fill(); }
+    g.restore();
+    t.rect(-0.2, -0.17, -1.1, 1.1, I.bg);
+    t.at(1.38, 0, () => Ads().intakeMark(g, -100, -100, 200, null, true));           // reversed icon big on the blue nose
+    t.txt(String(num), 2.22, 0, 0.11, I.ink, INTAKE_NUM, Math.PI);
+    t.at(-2.1, 0, () => Ads().lockupCentered(g, 'intake', 0, 0, 150, 860, I.bg));     // rear-wing top (cocoa)
+  }
   function composeLivery(team, num, code, size) {
-    size = size || 2048; const key = team.id + ':' + num + ':' + (code || '') + ':' + size;
+    size = size || 2048; if ((team.id === 'lumi' || team.id === 'intake') && size < 2048) size = 2048;   // the works liveries always get crisp lettering
+    const key = team.id + ':' + num + ':' + (code || '') + ':' + size;
     if (texCache[key]) return texCache[key];
-    const meta = cache.meta || {}; const atlas = meta.atlas || {}; const anchors = meta.anchors || {};
+    const meta = cache.meta || {}; const atlas = meta.atlas || {};
     // 1) colour fill from the material-ID atlas, at <= 2048 (per-pixel JS), then upscaled with smoothing so region edges stay soft
     const base = Math.min(size, 2048);
     const c0 = document.createElement('canvas'); c0.width = base; c0.height = base; const ctx0 = c0.getContext('2d');
@@ -212,78 +525,17 @@ window.EI = window.EI || {};
     let c = c0, ctx = ctx0;
     if (size > base) { c = document.createElement('canvas'); c.width = c.height = size; ctx = c.getContext('2d'); ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high'; ctx.drawImage(c0, 0, 0, size, size); }
     ctx.imageSmoothingEnabled = true;
-    // 2) team pattern bands + decals, drawn in the local frames of the UV anchors. Drawing units are metres * ppm on both axes
-    //    (the frame transform carries the anisotropic UV stretch, so glyphs are rasterised directly at their final texel size).
-    const frame = (name) => {
-      const a = anchors[name]; if (!a) return null;
-      const px = a.u * size, py = (1 - a.v) * size; const f = [a.fwd[0] * size, -a.fwd[1] * size], u = [a.up[0] * size, -a.up[1] * size];
-      const lf = Math.hypot(f[0], f[1]), lu = Math.hypot(u[0], u[1]); if (lf < 1e-6 || lu < 1e-6) return null;
-      return { px, py, f, u, lf, lu };
-    };
-    const withFrame = (name, fn) => { const fr = frame(name); if (!fr) return; ctx.save(); ctx.setTransform(fr.f[0] / fr.lu, fr.f[1] / fr.lu, -fr.u[0] / fr.lu, -fr.u[1] / fr.lu, fr.px, fr.py); fn(fr.lu); ctx.restore(); };
-    const isR = (name) => /R$/.test(name);
-    const band = (name, x0, x1, y0, y1, color) => withFrame(name, (ppm) => { ctx.fillStyle = color; ctx.fillRect(x0 * ppm, -y1 * ppm, (x1 - x0) * ppm, (y1 - y0) * ppm); });
-    const FONT = '"Titillium Web", "Arial Black", Arial, sans-serif';
-    const fontReady = !document.fonts || document.fonts.check('900 20px "Titillium Web"');
-    const fontOf = (sp, px) => (sp.it ? 'italic ' : '') + (sp.w || 900) + ' ' + px.toFixed(1) + 'px ' + (sp.ff || (fontReady ? FONT : '"Arial Black", Arial, sans-serif'));
-    // sponsor decal: optional rounded box behind fitted text. dr = metres towards the tail (mirrored per side), dy = metres up
-    const logo = (name, sp, dr, dy, hM, maxW) => withFrame(name, (ppm) => {
-      let x = (isR(name) ? -dr : dr) * ppm; const y = -dy * ppm; let fs = hM * ppm;
-      ctx.font = fontOf(sp, fs); ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      const ls = sp.ls || 0; const tw = (t) => ctx.measureText(t).width + ls * fs * (t.length - 1);
-      // sp.mk: the brand mark (EI.Ads) drawn ahead of the text as a lock-up; mark height = 1.15 x the cap height
-      const mkW = (f) => (sp.mk ? f * 1.15 * 1.12 : 0);
-      let w = tw(sp.n); const mw = maxW * ppm; if (w + mkW(fs) > mw) { fs *= mw / (w + mkW(fs)); ctx.font = fontOf(sp, fs); w = tw(sp.n); }
-      if (sp.bg) { const pw = w + mkW(fs) + fs * 0.7, ph = fs * 1.18; ctx.fillStyle = sp.bg; roundRect(ctx, x - pw / 2, y - ph / 2, pw, ph, fs * 0.16); ctx.fill(); }
-      if (sp.mk && EI.Ads) { const ms = fs * 1.15; const mx = x - (w + mkW(fs)) / 2; if (sp.mk === 'lumi') EI.Ads.lumiMark(ctx, mx, y - ms / 2, ms); else EI.Ads.intakeMark(ctx, mx, y - ms / 2, ms); x += mkW(fs) / 2; }
-      ctx.fillStyle = sp.fg || '#fff';
-      if (sp.ul) ctx.fillRect(x - w / 2, y + fs * 0.42, w, fs * 0.09);
-      if (!ls) ctx.fillText(sp.n, x, y + fs * 0.04); else { let cx = x - w / 2; ctx.textAlign = 'left'; for (const ch of sp.n) { ctx.fillText(ch, cx, y + fs * 0.04); cx += ctx.measureText(ch).width + ls * fs; } }
-    });
-    const text = (name, str, hM, color, dr, dy, opts) => logo(name, Object.assign({ n: str, fg: color }, opts || {}), dr || 0, dy || 0, hM, 9);
-    const P = team.primary, S = team.secondary, A = team.accent;
-    const lum = (h) => { const cc = new THREE.Color(h); return 0.2126 * cc.r + 0.7152 * cc.g + 0.0722 * cc.b; };
+    // 2) team graphics + decals, designed in orthographic side and top views of the car (metres; see projectDecals) and drawn in
+    //    millimetres so the brand painters keep their precision. Side views: x = metres forward, y = metres up, mirrored per
+    //    side so lettering always reads left to right. Top view: text reads from behind the car (the chase camera).
+    const Ads = EI.Ads; const P = team.primary, S = team.secondary, A = team.accent;
     const NC = team.numberColor || (lum(P) > 0.4 ? '#101010' : '#ffffff');
     const SC = lum(S) > 0.4 ? '#101010' : '#ffffff';
-    const sides = [['engineL', 'podL', 'chassisL'], ['engineR', 'podR', 'chassisR']];
-    for (const [eng, pod, cha] of sides) {
-      switch (team.id) {
-        case 'rossa': band(eng, -1.7, 1.6, 0.12, 0.34, S); band(eng, -1.7, 1.6, 0.09, 0.12, A); band(pod, -0.9, 0.9, -0.12, -0.06, A); break;
-        case 'argent': band(eng, -1.7, 1.6, 0.0, 0.2, S); band(eng, -1.7, 1.6, 0.2, 0.26, A); band(pod, -0.9, 0.9, -0.14, 0.02, S); band(cha, -0.4, 0.6, -0.16, 0.06, A); break;
-        case 'taurus': band(eng, -1.7, 0.3, 0.08, 0.34, S); band(eng, 0.3, 1.6, 0.08, 0.34, A); band(pod, -0.9, 0.9, -0.16, -0.02, A); band(cha, -0.4, 0.6, -0.16, 0.08, S); break;
-        case 'papaya': band(eng, -1.7, -0.6, -0.3, 0.34, S); band(eng, -0.6, 1.6, 0.2, 0.34, A); band(pod, -0.9, 0.9, -0.02, 0.06, A); break;
-        case 'verdant': band(eng, -1.7, 1.6, 0.16, 0.26, S); band(pod, -0.9, 0.9, -0.16, -0.04, S); band(cha, -0.4, 0.6, -0.16, -0.02, S); break;
-        case 'alpenne': band(eng, -1.7, 1.6, -0.3, -0.06, S); band(eng, -1.7, 1.6, 0.16, 0.3, A); band(pod, -0.9, 0.9, -0.16, 0.0, S); break;
-        case 'intake': band(eng, -1.7, 1.6, 0.14, 0.34, S); band(eng, -1.7, 1.6, 0.1, 0.14, A); band(pod, -0.9, 0.9, -0.2, -0.08, S); band(pod, -0.9, 0.9, -0.08, -0.06, A); band(cha, -0.4, 0.6, -0.16, 0.0, S); break;
-        case 'lumi': band(eng, -1.7, 1.6, 0.14, 0.34, S); band(eng, -1.7, 1.6, 0.1, 0.14, '#e6c8ff'); band(pod, -0.9, 0.9, -0.2, -0.1, S); band(pod, -0.9, 0.9, -0.1, -0.08, A); band(cha, -0.4, 0.6, -0.16, 0.0, S); break;
-        case 'kinetik': band(eng, -1.7, 1.6, 0.06, 0.14, S); band(pod, -0.9, 0.9, -0.14, -0.04, S); band(cha, -0.4, 0.6, -0.16, 0.06, S); break;
-        case 'vector': band(eng, -1.7, 1.6, -0.3, 0.0, S); band(pod, -0.9, 0.9, -0.2, -0.04, S); band(cha, -0.4, 0.6, -0.14, 0.1, A); break;
-        default: band(eng, -1.7, 1.6, 0.1, 0.3, S);
-      }
-    }
-    band('nose', -0.4, 0.4, 0.45, 0.62, S); band('nose', -0.4, 0.4, 0.63, 0.68, A);
-    // ---- sponsor layout (title sponsor on the engine cover + rear wing, partners on sidepods, nose, endplates, chassis)
     const sps = team.sponsors && team.sponsors.length ? team.sponsors : [{ n: 'EQUATION', fg: NC }, { n: 'EI', fg: NC }, { n: 'EI', fg: NC }, { n: 'EI', fg: NC }];
-    const sp = (i) => sps[i % sps.length];
-    for (const [eng, pod, cha] of sides) {
-      logo(eng, sp(0), 0.05, 0.02, 0.15, 0.95);                                   // title sponsor, engine cover
-      text(eng, String(num), 0.2, NC, 0.95, 0.06, { it: 1 });                      // race number towards the fin
-      logo(pod, sp(1), 0.0, 0.08, 0.085, 0.62);                                   // sidepod partner
-      logo(pod, sp(3), 0.0, -0.08, 0.05, 0.42);
-      if (code) text(cha, code, 0.075, NC, 0.08, 0.02, { it: 1 });                // driver code + number by the cockpit
-      text(cha, String(num), 0.05, NC, -0.22, 0.02, { it: 1 });
-    }
-    text('nose', String(num), 0.22, NC, 0, 0.2, { it: 1 }); logo('nose', Object.assign({}, sp(2), { bg: null, fg: SC }), 0, 0.535, 0.075, 0.26);
-    text('nose2', 'EI', 0.1, NC, 0, 0);
-    // the works teams: the brand mark large on the sidepods, the airbox and the nose
-    if ((team.id === 'lumi' || team.id === 'intake') && EI.Ads) {
-      const mark = (name, dr, dy, hM) => withFrame(name, (ppm) => { const s = hM * ppm, x = (isR(name) ? -dr : dr) * ppm - s / 2, y = -dy * ppm - s / 2; if (team.id === 'lumi') EI.Ads.lumiMark(ctx, x, y, s); else EI.Ads.intakeMark(ctx, x, y, s); });
-      for (const [eng, pod] of sides) { mark(pod, 0.62, 0.0, 0.2); mark(eng, -1.25, 0.02, 0.17); }
-      mark('nose', 0, 0.36, 0.12);
-    }
-    const tname = team.name.length > 13 ? team.short : team.name.toUpperCase();
-    for (const ep of ['endplateL', 'endplateR']) { logo(ep, Object.assign({}, sp(0), { bg: null, fg: SC }), -0.07, 0.08, 0.08, 0.28); text(ep, String(num), 0.12, SC, 0, -0.12, { it: 1 }); text(ep, tname, 0.035, SC, 0, -0.24, { ls: 0.12, w: 700 }); }
-    logo('wingtop', Object.assign({}, sp(0), { bg: null, fg: NC }), 0, 0, 0.09, 0.85); text('airbox', String(num), 0.08, NC, 0, 0, { it: 1 });
+    const sp = (i, o) => Object.assign({}, sps[i % sps.length], o || {});
+    const works = team.id === 'lumi' || team.id === 'intake';
+    const views = liveryViews(team, num, code, { P, S, A, NC, SC, sp, works, Ads });
+    if (!projectDecals(ctx, size, views, roleMaps[base])) console.warn('EI.CarGLB: livery decals skipped (no position map)');
     // 3) ambient occlusion
     ctx.globalCompositeOperation = 'multiply'; ctx.drawImage(cache.aoImg, 0, 0, size, size); ctx.globalCompositeOperation = 'source-over';
     const tex = new THREE.CanvasTexture(c); tex.flipY = false; tex.encoding = THREE.sRGBEncoding; tex.anisotropy = 8; tex.needsUpdate = true;
@@ -519,7 +771,8 @@ window.EI = window.EI || {};
     screen.position.set(0, 0.0012, WHEEL.faceW + 0.0007); screen.userData.canvas = sc; frame.add(screen);
     // the wheel display is redrawn by main.js at the HUD rate; cap its texture uploads at ~15 Hz and skip mipmaps
     screenTex.generateMipmaps = false; screenTex.minFilter = THREE.LinearFilter;
-    let upT = 0; Object.defineProperty(screenTex, 'needsUpdate', { configurable: true, set(v) { if (!v) return; const t = performance.now(); if (t - upT < 64) return; upT = t; this.version++; } });
+    // the DRS lamp is painted over the finished frame just before each upload (off / armed: blinking outline / open: solid green)
+    let upT = 0; Object.defineProperty(screenTex, 'needsUpdate', { configurable: true, set(v) { if (!v) return; const t = performance.now(); if (t - upT < 64) return; upT = t; drawDrsLamp(sc, car, t); this.version++; } });
     // ---- gloved hands at quarter-to-three: padded back of the hand, knuckle pads, three-segment fingers curled round the grip
     //      (suede tips), thumb resting on the face, gauntlet + team strap. Dark glove with team-colour accents.
     const kit = kitColours(team); const grain = gloveGrain();
@@ -713,6 +966,27 @@ window.EI = window.EI || {};
         for (const o of hidden) o.visible = true;
       },
     };
+  }
+
+  // DRS lamp on the wheel display (512 x 320 canvas). Armed: a green outline round the DRS box that blinks once the car is in the
+  // zone (press now). Open: the box fills green with OPEN under it and a green frame lights round the whole display.
+  function drawDrsLamp(sc, car, now) {
+    const ctx = sc.getContext('2d'), W = sc.width, H = sc.height; const open = !!car.drsOpen, armed = !!car.drsEligible && !open;
+    if (!open && !armed) return;
+    const inZone = armed && car.inDrsZone >= 0 && car.inDrsZone === car.drsZone; const blinkOn = !inZone || Math.floor(now / 160) % 2 === 0;
+    const x0 = 420, y0 = 262, w = 84, h = 54; const F = '"Titillium Web", Arial, sans-serif';
+    ctx.save(); ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
+    ctx.fillStyle = '#06080b'; ctx.fillRect(x0 - 2, y0 - 2, w + 4, h + 4);
+    if (open) {
+      ctx.lineWidth = 6; ctx.strokeStyle = '#22e26a'; ctx.strokeRect(3, 47, W - 6, H - 50);
+      ctx.shadowColor = '#22e26a'; ctx.shadowBlur = 14; ctx.fillStyle = '#22e26a'; ctx.fillRect(x0, y0, w, h); ctx.shadowBlur = 0;
+      ctx.fillStyle = '#04210f'; ctx.font = 'italic 900 30px ' + F; ctx.fillText('DRS', x0 + w / 2, y0 + 30); ctx.font = '900 15px ' + F; ctx.fillText('OPEN', x0 + w / 2, y0 + 48);
+    } else {
+      ctx.lineWidth = 4; ctx.strokeStyle = blinkOn ? '#22e26a' : '#1b5b33'; ctx.strokeRect(x0 + 2, y0 + 2, w - 4, h - 4);
+      ctx.fillStyle = blinkOn ? '#22e26a' : '#1b5b33'; ctx.font = 'italic 900 30px ' + F; ctx.fillText('DRS', x0 + w / 2, y0 + 30);
+      ctx.font = '700 14px ' + F; ctx.fillText(inZone ? 'PRESS' : 'ARMED', x0 + w / 2, y0 + 48);
+    }
+    ctx.restore();
   }
 
   // ---------------------------------------------------------------- build

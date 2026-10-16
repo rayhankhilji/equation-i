@@ -23,7 +23,8 @@ window.EI = window.EI || {};
       '<div class="ers"><div class="ers-top"><i class="batt"><b></b></i><span class="ers-pct">100%</span></div><div class="ers-bar"><i></i></div><div class="ers-label">ERS</div></div>' +
       '<div class="centre"><div class="gear-wrap"><div class="gear">N</div><div class="rpm"></div></div>' +
       '<div class="speed"><div class="speed-v"><b>0</b><small>KM/H</small></div><div class="pedals"><i class="thr"></i><i class="brk"></i></div></div></div>' +
-      '<div class="right"><div class="drs">DRS</div></div></div></div>' +
+      '<div class="right"><div class="drs"><b>DRS</b><small>OFF</small></div></div></div></div>' +
+      '<div class="drs-call"></div>' +
       '<div class="tags"></div><div class="corner"></div><div class="pname"></div></div>';
     $('viewports').appendChild(el);
     const q = (c) => el.querySelector(c);
@@ -37,7 +38,7 @@ window.EI = window.EI || {};
     }
     const r = { el, car, k, lapWrap: q('.tw-lap'), lapN: q('.tw-lap b'), lapT: q('.tw-lap i'), rows, posWrap: q('.tm-pos'), pos: q('.tm-pos b'), posT: q('.tm-pos small'), time: q('.tm-time'), sectors: q('.tm-sectors').children,
       last: q('.tm-last b'), best: q('.tm-best b'), delta: q('.delta'), msg: q('.msg'), msgText: q('.msg span'), map: q('.minimap').getContext('2d'), ledsEl: leds, leds: leds.children,
-      ersPct: q('.ers-pct'), ersBar: q('.ers-bar i'), ersBatt: q('.batt b'), ers: q('.ers'), gear: q('.gear'), speed: q('.speed-v b'), thr: q('.thr'), brk: q('.brk'), drs: q('.drs'), rpm: q('.rpm'), tags: q('.tags'), corner: q('.corner'),
+      ersPct: q('.ers-pct'), ersBar: q('.ers-bar i'), ersBatt: q('.batt b'), ers: q('.ers'), gear: q('.gear'), speed: q('.speed-v b'), thr: q('.thr'), brk: q('.brk'), drs: q('.drs'), drsSub: q('.drs small'), drsCall: q('.drs-call'), rpm: q('.rpm'), tags: q('.tags'), corner: q('.corner'),
       msgT: 0, tagEls: [], prevPos: car.pos, prevLap: -1, prevFlags: ['', '', ''], prevMe: -1 };
     q('.pname').innerHTML = '<i style="background:' + car.team.primary + '"></i><span>' + car.name + '</span><span class="team">' + car.team.short + '</span>' + (car.isPlayer ? '<span class="cam">' + (k === 0 ? 'C' : '/') + ' · CAMERA</span>' : '');
     r.setRect = (x, y, w, h) => {
@@ -59,8 +60,8 @@ window.EI = window.EI || {};
         setText(r.rpm, Math.round((4000 + c.rpm * 8500) / 50) * 50 + ' RPM');
         r.thr.style.setProperty('--v', (c.throttle * 100).toFixed(0) + '%'); r.brk.style.setProperty('--v', (c.brake * 100).toFixed(0) + '%');
         const ep = Math.round(c.ers * 100); setText(r.ersPct, ep + '%'); r.ersBar.style.width = ep + '%'; r.ersBatt.style.width = ep + '%'; r.ers.classList.toggle('active', !!c.ersActive);
-        r.drs.className = 'drs' + (c.drsOpen ? ' open' : c.drsEligible ? ' armed' : '');
       }
+      updateDrs(r, race, c, ck, dt);
       // ---- lap tower: 2 ahead, me, 2 behind
       const lapNow = c.finished ? 'FIN' : String(Math.min(c.lap, race.laps));
       if (lapNow !== r.prevLap) { setText(r.lapN, lapNow); if (r.prevLap !== -1) flash(r.lapWrap, 'bump', 600); r.prevLap = lapNow; }
@@ -112,6 +113,60 @@ window.EI = window.EI || {};
     return r;
   }
 
+  // ---- DRS: three-state indicator on the dash (off / armed / open) with a hint line, a callout at each detection line and
+  //      while armed in the zone, a toast when DRS is enabled, and chimes on enable / open / close. Reads car and race state only.
+  function drsKey(race, car, short) {
+    if (race.players.length < 2) return short ? 'SHIFT' : 'Shift';
+    return car.playerIndex === 0 ? (short ? 'L SHIFT' : 'Left Shift') : (short ? 'R SHIFT' : 'Right Shift');
+  }
+  // the same rule as the detection line: time to the nearest car ahead on track at this car's speed (min 15 m/s)
+  function gapAheadOnTrack(race, c) {
+    const L = race.track.length; let g = Infinity;
+    for (const o of race.cars) { if (o === c) continue; let d = o.trk.s - c.trk.s; if (d <= 0) d += L; g = Math.min(g, d / Math.max(c.v, 15)); }
+    return g;
+  }
+  function drsCall(r, html, cls, dur) { r.drsCall.innerHTML = html; r.drsCall.className = 'drs-call ' + cls; void r.drsCall.offsetWidth; r.drsCall.classList.add('show'); r.drsCallT = dur; }
+  function updateDrs(r, race, c, ck, dt) {
+    const t = race.track, L = t.length; const open = !!c.drsOpen, armed = !!c.drsEligible && !open;
+    const inZone = armed && c.inDrsZone >= 0 && c.inDrsZone === c.drsZone;
+    // dash box (hidden in the cockpit, where the wheel display carries the DRS lamp)
+    if (!ck) {
+      let cls = 'drs', sub = 'OFF';
+      if (open) { cls += ' open'; sub = 'OPEN'; }
+      else if (armed) { cls += inZone ? ' armed press' : ' armed'; if (inZone) sub = 'HOLD ' + drsKey(race, c, true); else { const z = t.drs[c.drsZone]; sub = z ? 'ZONE ' + Math.round(U.mod(z.start - c.trk.s, L)) + ' M' : 'ARMED'; } }
+      else if (race.started && !c.finished && !(c.pit && c.pit.active)) {
+        if (!race.drsEnabled || c.lapsDone < 1) sub = 'FROM LAP 2';
+        else {
+          let dDet = Infinity; for (const z of t.drs) dDet = Math.min(dDet, U.mod(z.detect - c.trk.s, L));
+          if (dDet < 600) { const g = gapAheadOnTrack(race, c); sub = g < 9.95 ? 'GAP ' + g.toFixed(1) + ' S' : 'GAP —'; cls += g <= 1.0 ? ' near' : ' far'; }
+        }
+      }
+      if (r.drs.className !== cls) r.drs.className = cls; setText(r.drsSub, sub);
+    }
+    // detection line: callout with the measured gap, toast + chime when DRS is enabled
+    const det = c.drsDetect;
+    if (det && det.n !== r.drsDetN) {
+      const fresh = r.drsDetN !== undefined || race.time - det.t < 1; r.drsDetN = det.n;
+      if (fresh) {
+        const head = '<div class="dc-k">DRS DETECTION</div>';
+        if (!det.live) drsCall(r, head + '<div class="dc-m">DRS ENABLED FROM LAP 2</div>', 'idle', 2.6);
+        else if (det.ok) {
+          drsCall(r, head + '<div class="dc-m"><b>' + det.gap.toFixed(2) + ' s</b> to the car ahead · <em>DRS ENABLED</em></div><div class="dc-h">Hold ' + drsKey(race, c) + ' in the DRS zone</div>', 'ok', 3.2);
+          r.drsToasts = (r.drsToasts || 0) + 1;
+          if (r.drsToasts <= 3) toast((race.players.length > 1 ? 'P' + (c.playerIndex + 1) + ' · ' : '') + 'DRS enabled: hold ' + drsKey(race, c) + ' in the DRS zone', 'drs');
+          if (EI.Audio && EI.Audio.drsArmed) EI.Audio.drsArmed();
+        } else drsCall(r, head + '<div class="dc-m">' + (det.gap < 1e6 ? '<b>' + det.gap.toFixed(2) + ' s</b> to the car ahead · ' : 'No car ahead · ') + 'needs within 1.0 s</div>', 'miss', 2.6);
+      }
+    }
+    // armed inside the zone but not open yet: a blinking prompt until the flap opens or the zone ends
+    if (inZone && !r.drsPrompt) { r.drsPrompt = true; drsCall(r, '<div class="dc-k">DRS ZONE</div><div class="dc-m"><em>HOLD ' + drsKey(race, c, true) + '</em> to open the wing</div>', 'zone', 99); }
+    else if (!inZone && r.drsPrompt) { r.drsPrompt = false; if (r.drsCall.classList.contains('zone')) r.drsCallT = 0.01; }
+    if (r.drsCallT > 0) { r.drsCallT -= dt; if (r.drsCallT <= 0) r.drsCall.classList.remove('show'); }
+    // chimes on open / close
+    if (r.drsWasOpen !== undefined && open !== r.drsWasOpen && EI.Audio && EI.Audio.drs) EI.Audio.drs(open);
+    r.drsWasOpen = open;
+  }
+
   // rotating local map: heading up, ~ +/-450 m around the car, whole circuit outline, DRS zones, sector ticks, cars
   function drawLocalMap(r, race) {
     const ctx = r.map, S = 360, c = r.car, t = race.track; const k = S / 180; ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.clearRect(0, 0, S, S);
@@ -125,7 +180,7 @@ window.EI = window.EI || {};
     ctx.lineWidth = 6 * k / 2; ctx.strokeStyle = '#e4e8ee'; ctx.stroke();
     // DRS zones
     ctx.strokeStyle = '#2fe36d'; ctx.lineWidth = 6 * k / 2;
-    for (const z of t.drs) { ctx.beginPath(); for (let s = z.start; s <= z.end; s += 10) { const p = P(t.idxAtS(s)); s === z.start ? ctx.moveTo(p[0], p[1]) : ctx.lineTo(p[0], p[1]); } ctx.stroke(); }
+    for (const z of t.drs) { const ze = z.end >= z.start ? z.end : z.end + t.length; ctx.beginPath(); for (let s = z.start; s <= ze; s += 10) { const p = P(t.idxAtS(s)); s === z.start ? ctx.moveTo(p[0], p[1]) : ctx.lineTo(p[0], p[1]); } ctx.stroke(); }
     // sector boundaries + start line
     const tick = (s, col, len) => { const i = t.idxAtS(s); const p = P(i); const nx = t.nx[i], nz = t.nz[i]; ctx.beginPath(); ctx.moveTo(p[0] - nx * len, p[1] - nz * len); ctx.lineTo(p[0] + nx * len, p[1] + nz * len); ctx.strokeStyle = col; ctx.lineWidth = 2.5 * k / 2; ctx.stroke(); };
     if (t.sectors) for (const s of t.sectors) tick(s, '#ffd23f', 6 * k / 2);
@@ -149,7 +204,7 @@ window.EI = window.EI || {};
     b.innerHTML = (kicker ? '<div class="bn-kicker">' + kicker + '</div>' : '') + '<div class="bn-text" style="color:' + (color || '#fff') + '">' + main + '</div>';
     b.classList.remove('hidden'); clearTimeout(banner._t); if (ms) banner._t = setTimeout(() => b.classList.add('hidden'), ms);
   }
-  function toast(text) { const d = document.createElement('div'); d.textContent = text; $('toasts').appendChild(d); setTimeout(() => d.remove(), 4000); }
+  function toast(text, cls) { const d = document.createElement('div'); d.textContent = text; if (cls) d.className = cls; $('toasts').appendChild(d); setTimeout(() => d.remove(), 4000); }
   function showResults(race) {
     const res = race.results(); const tb = $('results-table');
     let html = '<tr><th class="pos">Pos</th><th>Driver</th><th>Team</th><th>Tyre</th><th class="num">Time / Gap</th><th class="num">Best lap</th></tr>';
@@ -179,7 +234,7 @@ window.EI = window.EI || {};
     }
     // DRS zones: white dashes on top
     ctx.lineWidth = 4.5 * k; ctx.strokeStyle = '#f4f6f9'; ctx.setLineDash([5 * k, 4 * k]);
-    for (const z of track.drs) { ctx.beginPath(); for (let s = z.start; s <= z.end; s += 6) { const p = P(track.idxAtS(s)); s === z.start ? ctx.moveTo(p[0], p[1]) : ctx.lineTo(p[0], p[1]); } ctx.stroke(); }
+    for (const z of track.drs) { const ze = z.end >= z.start ? z.end : z.end + track.length; ctx.beginPath(); for (let s = z.start; s <= ze; s += 6) { const p = P(track.idxAtS(s)); s === z.start ? ctx.moveTo(p[0], p[1]) : ctx.lineTo(p[0], p[1]); } ctx.stroke(); }
     ctx.setLineDash([]);
     // start / finish
     const si = track.idxAtS(track.sf); const sp = P(si); ctx.save(); ctx.translate(sp[0], sp[1]); ctx.rotate(Math.atan2(track.tz[si], track.tx[si])); ctx.fillStyle = '#fff'; ctx.fillRect(-2 * k, -8 * k, 4 * k, 16 * k); ctx.restore();

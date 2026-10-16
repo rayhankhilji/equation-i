@@ -9,5 +9,7 @@
 @font-face { font-family: "Plus Jakarta Sans"; font-weight: 800; font-style: normal; src: url(PlusJakartaSans-800.ttf) format("truetype"); }
 /* Intake (intake.ink) brand faces: Unbounded + Instrument Sans (SIL OFL 1.1) */
 @font-face { font-family: "Unbounded"; font-weight: 800; font-style: normal; src: url(Unbounded-800.ttf) format("truetype"); }
+/* the intake wordmark weight (700): the latin subset of the variable Unbounded the intake.ink site serves (SIL OFL 1.1) */
+@font-face { font-family: "Unbounded"; font-weight: 700; font-style: normal; src: url(Unbounded-latin-var.woff2) format("woff2"); }
 @font-face { font-family: "Instrument Sans"; font-weight: 500; font-style: normal; src: url(InstrumentSans-600.ttf) format("truetype"); }
 @font-face { font-family: "Instrument Sans"; font-weight: 600; font-style: normal; src: url(InstrumentSans-600.ttf) format("truetype"); }

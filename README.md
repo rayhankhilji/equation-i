@@ -35,6 +35,13 @@ In single player either key set drives the car.
 
 ## What is in the box
 
+- **Monaco, 1:1.** The Circuit de Monaco (3.32 km) is traced from the same OpenStreetMap survey data:
+  Sainte Devote, the Beau Rivage climb, Massenet, Casino, Mirabeau, the Grand Hotel hairpin, Portier, the
+  tunnel, the Nouvelle Chicane, Tabac, the swimming pool, Rascasse and Anthony Noghes, with a hand-built
+  elevation profile (about 38 m from the harbour to Casino Square). The city around it is built from
+  a thousand OpenStreetMap building footprints with their real heights, Port Hercule with its quays and
+  moored yachts, the open sea, parks and street trees, Armco and debris fences everywhere, temporary
+  grandstands on the harbour front and the hill, and a lit tunnel. Pick the circuit in the menu.
 - **Silverstone, for real.** The centreline is traced from OpenStreetMap survey data of the Grand Prix
   circuit (5.88 km versus the official 5.891 km), resampled every 2 m, with an elevation profile over the
   lap. Corner names, the pit lane, the grandstands, the Wing, the woods and the lakes all come from the

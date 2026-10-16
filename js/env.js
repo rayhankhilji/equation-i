@@ -229,6 +229,13 @@ window.EI = window.EI || {};
       this.buildDistanceField();
       this.buildFields();
       this.occ = new Uint8Array(ON * ON);
+      // street circuit: the sea (coastline closed far out to the east and south) and the low ground round the harbour
+      if (this.data.kind === 'street') {
+        const coast = (this.data.coast || [])[0];
+        if (coast && coast.length > 10) { const a = coast[0], b = coast[coast.length - 1]; const far = 4000; this.seaPoly = coast.concat([[b[0] + far, b[1]], [b[0] + far, a[1] + far], [a[0], a[1] + far]]); }
+        this.seaY = this.t.data.seaLevel != null ? this.t.data.seaLevel : -3.6;
+        this.lowland = this.data.lowland || [];
+      }
     }
     // rendered barrier distance on a side (the track ribbon clamps offsets on the inside of tight corners)
     wallCap(i, side, off) {
@@ -245,13 +252,30 @@ window.EI = window.EI || {};
         const x = -DHALF + gx * DG, z = -DHALF + gz * DG; t.project(x, z, null, pr); const k = gz * DN + gx;
         const side = pr.lat < 0 ? -1 : 1; this.dC[k] = pr.dist; this.dF[k] = pr.dist - Math.max(t.wallL[pr.i], t.wallR[pr.i]); this.dFs[k] = pr.dist - this.wallCap(pr.i, side); this.dSide[k] = side; this.dIdx[k] = pr.i;
       }
-      // centreline polygon for robust inside tests (coarse)
-      this.loop = []; for (let i = 0; i < t.n; i += 3) this.loop.push([t.x[i], t.z[i]]);
+      // centreline polygon for robust inside tests (coarse); which lateral sign is the infield depends on the lap direction
+      this.loop = []; let cx = 0, cz = 0; for (let i = 0; i < t.n; i += 3) { this.loop.push([t.x[i], t.z[i]]); cx += t.x[i]; cz += t.z[i]; }
+      cx /= this.loop.length; cz /= this.loop.length; t.project(cx, cz, null, pr); this.insideSign = pr.lat < 0 ? -1 : 1;
+      // street circuits: where two stretches of the lap run close together at different heights (Beau Rivage above the harbour
+      // front), the ground between them follows both: the second-nearest stretch (> 120 m of lap away) and its distance
+      if (this.data.kind === 'street') {
+        this.dC2 = new Float32Array(n).fill(1e4); this.dIdx2 = new Uint16Array(n); const L = this.loop, m = L.length, step = 3;
+        for (let gz = 0; gz < DN; gz++) for (let gx = 0; gx < DN; gx++) {
+          const k = gz * DN + gx; if (this.dC[k] > 110) continue; const x = -DHALF + gx * DG, z = -DHALF + gz * DG; const i0 = this.dIdx[k]; let best = 1e4, bi = 0;
+          for (let j = 0; j < m; j++) { const idx = j * step; let di = Math.abs(idx - i0); if (di > t.n / 2) di = t.n - di; if (di < 60) continue; const dx = L[j][0] - x, dz = L[j][1] - z; const d = dx * dx + dz * dz; if (d < best) { best = d; bi = idx; } }
+          this.dC2[k] = Math.sqrt(best); this.dIdx2[k] = bi;
+        }
+      }
     }
     _bil(arr, x, z, far) {
       const fx = (x + DHALF) / DG, fz = (z + DHALF) / DG; if (fx < 0 || fz < 0 || fx >= DN - 1 || fz >= DN - 1) return far;
       const ix = fx | 0, iz = fz | 0, u = fx - ix, v = fz - iz, k = iz * DN + ix;
       return (arr[k] * (1 - u) + arr[k + 1] * u) * (1 - v) + (arr[k + DN] * (1 - u) + arr[k + DN + 1] * u) * v;
+    }
+    // track height for the ground at (x, z): the nearest lap sample, blended with the second-nearest stretch when both are close
+    tyAt(x, z) {
+      const t = this.t; const k = this._near(x, z); const y1 = t.y[this.dIdx[k]]; if (!this.dC2) return y1;
+      const d1 = Math.max(2, this.dC[k]), d2 = this.dC2[k]; if (d2 > 90) return y1; const y2 = t.y[this.dIdx2[k]];
+      const w1 = 1 / (d1 * d1 * d1), w2 = (1 - U.smoothstep(60, 90, d2)) / (d2 * d2 * d2); return (y1 * w1 + y2 * w2) / (w1 + w2);
     }
     fAt(x, z) { return this._bil(this.dF, x, z, 5000); }        // metres beyond the outermost barrier (conservative)
     fsAt(x, z) { return this._bil(this.dFs, x, z, 5000); }      // metres beyond the rendered barrier on this side
@@ -259,7 +283,7 @@ window.EI = window.EI || {};
     _near(x, z) { const gx = U.clamp(Math.round((x + DHALF) / DG), 0, DN - 1), gz = U.clamp(Math.round((z + DHALF) / DG), 0, DN - 1); return gz * DN + gx; }
     idxAt(x, z) { return this.dIdx[this._near(x, z)]; }
     // inside the circuit loop: the nearest-point side test is exact for a simple closed curve
-    inside(x, z) { const k = this._near(x, z); return this.dSide[k] < 0 && this.dC[k] < 1500; }
+    inside(x, z) { const k = this._near(x, z); return this.dSide[k] === (this.insideSign || -1) && this.dC[k] < 1500; }
     isVenue(x, z) { const f = this.fAt(x, z); return f < this.VENUE_F || (f < 900 && this.inside(x, z)); }
     // precise test for "outside the barriers by margin" (spec: project().dist > max(wallL, wallR) + margin)
     clearOfTrack(x, z, margin) { const t = this.t; const p = t.project(x, z, null, this._pr || (this._pr = {})); return p.dist > Math.max(t.wallL[p.i], t.wallR[p.i]) + margin; }
@@ -388,14 +412,26 @@ window.EI = window.EI || {};
   function gridPos(k) { const a = Math.abs(k); if (a <= KIN) return k * GS; let p = KIN * GS, st = GS; for (let j = KIN; j < a; j++) { st *= 1.125; p += st; } return Math.sign(k) * p; }
   Env.gridPos = gridPos;
   Ctx.prototype.heightRaw = function (x, z) {
+    if (this.data.kind === 'street') return this.hillRaw(x, z);
     const r = Math.hypot(x + 40, z - 60);
     const amp = 10 + 26 * U.smoothstep(1400, 4200, r);
     return (U.fbm(x / 900 + 10, z / 900 + 10, 4) - 0.5) * amp * 2 + (U.fbm(x / 260, z / 260, 3) - 0.5) * 5 + 34 * U.smoothstep(3800, 6200, r) * (0.6 + 0.4 * U.fbm(x / 1500 + 3, z / 1500 + 7, 2));
   };
+  // street circuit (Monaco): the ground climbs away from the harbour on every side (the Rocher, the hill behind the Casino),
+  // stays level towards the water. Relative to the nearest track sample so the slopes stay consistent with the course profile.
+  Ctx.prototype.hillRaw = function (x, z) {
+    const t = this.t; const hc = this.data.hill || { slope: 0.32, max: 110 }; const f = this.fAt(x, z); const i = this.idxAt(x, z);
+    // the sea sits below the quays whatever the nearest track sample says
+    if (this.seaPoly && U.pointInPoly(x, z, this.seaPoly)) return this.seaY - 1.5 - t.y[i];
+    // inside the lap (the harbour and its quays) and the listed low ground: level with the circuit
+    if (this.inside(x, z)) return 0; for (const p of this.lowland) if (U.pointInPoly(x, z, p)) return 0;
+    const base = U.clamp((f - 24) * hc.slope, 0, hc.max);
+    return base + (U.fbm(x / 240 + 5, z / 240 + 9, 3) - 0.5) * 12 * U.smoothstep(40, 260, f);
+  };
   // terrain height: flat at track level near the circuit (and a touch below the verge ribbons), rolling countryside beyond
   Ctx.prototype.terrainHeight = function (x, z) {
-    const t = this.t; const f = this.fAt(x, z), fs = this.fsAt(x, z); const ty = t.y[this.idxAt(x, z)];
-    const w = U.smoothstep(25, 220, f);
+    const t = this.t; const f = this.fAt(x, z), fs = this.fsAt(x, z); const ty = this.tyAt(x, z);
+    const w = this.data.kind === 'street' ? U.smoothstep(55, 330, f) : U.smoothstep(25, 220, f);
     return ty + this.heightRaw(x, z) * w - 0.14 * (1 - U.smoothstep(36, 52, fs));
   };
 
@@ -500,6 +536,7 @@ window.EI = window.EI || {};
   };
   Ctx.prototype.fieldRGB = function (x, z, cell, out, fpre) {
     out = out || [0, 0, 0];
+    if (this.data.kind === 'street') { const n0 = U.noise2(x / 23 + 1.7, z / 23 + 4.2); const g = 118 + n0 * 22; const h = this.hillRaw(x, z); const k = U.smoothstep(14, 60, h); out[0] = (g + 6) * (1 - k) + 92 * k; out[1] = (g + 3) * (1 - k) + 104 * k; out[2] = (g - 4) * (1 - k) + 66 * k; return out; }
     const f = fpre != null ? fpre : this.fAt(x, z); const n1 = U.noise2(x / 61 + 3.3, z / 61 + 7.1);
     let c, k;
     if (f < 48) {
@@ -546,11 +583,13 @@ window.EI = window.EI || {};
   Ctx.prototype.paintFieldMap = function (overlays) {
     const S = MAP_PX, H = MAP_HALF, ppm = S / (H * 2); const [c, ctx] = Env.canvas(S, S);
     const rgb = (a, k) => 'rgb(' + (U.clamp(a[0] * k, 0, 255) | 0) + ',' + (U.clamp(a[1] * k, 0, 255) | 0) + ',' + (U.clamp(a[2] * k, 0, 255) | 0) + ')';
-    this._mt = performance.now(); ctx.fillStyle = rgb(PAL.fields[0], 1); ctx.fillRect(0, 0, S, S);
+    const street = this.data.kind === 'street';
+    this._mt = performance.now(); ctx.fillStyle = street ? 'rgb(128,125,116)' : rgb(PAL.fields[0], 1); ctx.fillRect(0, 0, S, S);
     ctx.setTransform(ppm, 0, 0, ppm, S / 2, S / 2);
     const path = (poly) => { ctx.beginPath(); ctx.moveTo(poly[0][0], poly[0][1]); for (let i = 1; i < poly.length; i++) ctx.lineTo(poly[i][0], poly[i][1]); ctx.closePath(); };
     const R = this.FR, W = this.FW; const polys = []; this.fieldPolys = polys;
     for (let k = 0; k < W * W; k++) {
+      if (street) break;
       const sx = this.seedX[k], sz = this.seedZ[k]; if (Math.abs(sx) > H + FC * 1.5 || Math.abs(sz) > H + FC * 1.5) continue;
       const poly = this.fieldPoly(k); if (poly.length < 3) continue; polys.push([k, poly]);
       const ty = this.fType[k], tone = this.fTone[k]; path(poly); ctx.fillStyle = rgb(PAL.fields[ty], 0.88 + tone * 0.16); ctx.fill();

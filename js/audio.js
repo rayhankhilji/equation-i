@@ -54,7 +54,19 @@ window.EI = window.EI || {};
     const s = ctx.createBufferSource(); s.buffer = buf; const bp = ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 260 + Math.random() * 200; bp.Q.value = 1.2; const g = ctx.createGain(); g.gain.value = 0.35; s.connect(bp); bp.connect(g); g.connect(master); s.start();
   }
   function clack() { beep(1800, 0.03, 0.12, 'square'); setTimeout(() => beep(900, 0.04, 0.1, 'square'), 25); }
+  // soft sine chime: notes [[freq, delay s], ...] with a quick attack and ~0.16 s decay
+  function chime(notes, vol) {
+    if (!ensure()) return; const t = ctx.currentTime;
+    for (const [f, d] of notes) {
+      const o = ctx.createOscillator(); o.type = 'sine'; o.frequency.value = f; const g = ctx.createGain(); const t0 = t + d;
+      g.gain.setValueAtTime(0.0001, t0); g.gain.exponentialRampToValueAtTime(vol, t0 + 0.012); g.gain.exponentialRampToValueAtTime(0.0005, t0 + 0.17);
+      o.connect(g); g.connect(master); o.start(t0); o.stop(t0 + 0.2);
+    }
+  }
+  // DRS cues: rising two-note chime when the flap opens, falling when it closes, a double pip when DRS is armed at detection
+  function drs(open) { chime(open ? [[880, 0], [1320, 0.07]] : [[990, 0], [660, 0.07]], 0.07); }
+  function drsArmed() { chime([[1175, 0], [1175, 0.11]], 0.05); }
   function toggleMute() { muted = !muted; if (master) master.gain.value = muted ? 0 : 0.5; return muted; }
   function stopAll() { for (const e of engines) { try { e.parts.forEach(p => p.o.stop()); e.noise.stop(); } catch (err) { } } engines.length = 0; }
-  EI.Audio = { resume, createEngine, setEngine, beep, thud, pop, clack, toggleMute, stopAll, get muted() { return muted; } };
+  EI.Audio = { resume, createEngine, setEngine, beep, thud, pop, clack, drs, drsArmed, toggleMute, stopAll, get muted() { return muted; } };
 })();

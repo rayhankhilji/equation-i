@@ -17,6 +17,16 @@ window.EI = window.EI || {};
       if (c.dataset.brand === 'lumi') EI.Ads.lumiLogo(ctx, 2, c.height * 0.1, h, '#efe2ff'); else EI.Ads.intakeLogo(ctx, 2, c.height * 0.1, h, '#ffffff');
     });
   }
+  // the circuit is chosen in the menu; a change reloads the page with ?track=<id> (the whole scene is built once at start-up)
+  const trackId = (() => { try { const q = new URLSearchParams(location.search).get('track'); const id = q || localStorage.getItem('ei-track') || 'silverstone'; return EI.TRACKS[id] ? id : 'silverstone'; } catch (e) { return 'silverstone'; } })();
+  function fillTrackCard(d) {
+    const turns = d.corners.filter(c => c.t != null).length || d.corners.filter(c => !/Straight/i.test(c.name)).length;
+    const set = (id, v) => { const el = $(id); if (el) el.textContent = v; };
+    set('track-kicker', d.country); set('track-name', d.name); set('track-meta', (d.location.split(',')[0]) + ' · ' + d.direction + ' · 3 sectors');
+    set('track-km', (d.lapLength / 1000).toFixed(3)); set('track-turns', turns); set('track-drs', d.drs.length);
+    const meta = $('menu-meta'); if (meta) meta.innerHTML = '<b>Round ' + (Object.keys(EI.TRACKS).indexOf(d.id) + 1) + '</b> &middot; ' + (d.gp || d.name + ' Grand Prix') + '<br>' + (d.circuit || d.name) + ' &middot; Race day';
+    const sel = $('opt-track'); if (sel && !sel.options.length) { for (const id in EI.TRACKS) { const o = document.createElement('option'); o.value = id; o.textContent = EI.TRACKS[id].name + ' · ' + (EI.TRACKS[id].gp || ''); sel.appendChild(o); } sel.value = d.id; sel.addEventListener('change', () => { try { localStorage.setItem('ei-track', sel.value); } catch (e) { } const u = new URL(location.href); u.searchParams.set('track', sel.value); location.href = u.toString(); }); }
+  }
   function init() {
     const canvas = $('gl');
     renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
@@ -41,7 +51,8 @@ window.EI = window.EI || {};
     scene.add(sun); scene.add(sun.target);
     envMap = scene.environment;
     const timings = {}; let tm = performance.now(); const lap = (k) => { timings[k] = Math.round(performance.now() - tm); tm = performance.now(); };
-    track = new EI.Track(EI.TRACKS.silverstone); lap('track-math');
+    const tdata = EI.TRACKS[trackId] || EI.TRACKS.silverstone; EI.trackId = tdata.id;
+    track = new EI.Track(tdata); lap('track-math');
     scenery = new EI.Scenery(track); scene.add(scenery.build()); lap('scenery');
     scene.add(track.build(scenery)); lap('track-mesh'); timings.pmrem = tPmrem; EI.debug.timings = timings;
     scene.traverse(o => { if (o.material && o.material.isMeshStandardMaterial && o.material.envMapIntensity === 1) o.material.envMapIntensity = 0.3; });
@@ -57,7 +68,7 @@ window.EI = window.EI || {};
       vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }',
       fragmentShader: 'uniform sampler2D tDiffuse; uniform float strength; uniform float vignette; varying vec2 vUv; void main(){ vec2 c = vec2(0.5, 0.42); vec2 d = vUv - c; float r = length(d); vec4 col = vec4(0.0); float s = strength * smoothstep(0.15, 0.7, r); for (int i = 0; i < 8; i++) { float t = 1.0 - s * float(i) * 0.012; col += texture2D(tDiffuse, c + d * t); } col /= 8.0; col.rgb *= 1.0 - vignette * smoothstep(0.45, 0.95, r); gl_FragColor = col; }'
     }); composer.addPass(speedPass);
-    EI.HUD.drawTrackPreview(track, $('track-preview'));
+    EI.HUD.drawTrackPreview(track, $('track-preview')); fillTrackCard(track.data);
     setupMenu(); drawPartnerLogos();
     // the GLB car is optional: hide the loading overlay once it is in (or has failed and we fall back to the procedural car)
     const hideLoading = () => $('loading').classList.add('hidden');

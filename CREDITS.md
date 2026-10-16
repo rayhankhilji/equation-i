@@ -15,16 +15,29 @@ terms.
 
 ## Circuit data
 
-Silverstone centreline and scenery footprints are derived from [OpenStreetMap](https://www.openstreetmap.org/copyright)
-data, © OpenStreetMap contributors, ODbL 1.0.
+The Silverstone and Monaco centrelines, the Monaco pit lane, building footprints and heights, the harbour, parks and
+street trees are derived from [OpenStreetMap](https://www.openstreetmap.org/copyright) data, © OpenStreetMap contributors,
+ODbL 1.0. The Monaco elevation profile is hand-built from published course data.
 
 ## Libraries and fonts
 
 - three.js r128 and its example modules (MIT)
 - Titillium Web (SIL Open Font License 1.1)
-- Plus Jakarta Sans, Unbounded and Instrument Sans (SIL Open Font License 1.1), used for the race partners' trackside advertising
+- Plus Jakarta Sans, Unbounded and Instrument Sans (SIL Open Font License 1.1), used for the race partners' advertising and liveries
 
 ## Race partners
 
-The in-game advertising is for [Lumi](https://www.trylumi.co) and [Intake](https://www.intake.ink); their names, marks and
-colours belong to them.
+The in-game advertising, the two works liveries and the partner links are for [Lumi](https://www.trylumi.co) and
+[Intake](https://www.intake.ink). Their names, logos, wordmarks and colours are their trademarks; the logo files in
+`assets/brand/` were taken from their public websites (sources in `assets/brand/SOURCES.md`) and are used in this
+private, non-commercial build only. The Lumi mark in `lumi-mark.svg` / `.png` is a vector trace of the
+official raster logo. They are not covered by any licence in this repository: do not reuse them elsewhere.
+
+The employer logos in `assets/brand/employers/` (Goldman Sachs, KPMG, Rolls-Royce, Bank of England, J.P. Morgan, Lloyds
+Banking Group, BAE Systems, Barclays, Deloitte, PwC, IBM, Microsoft) are the trademarks of those companies, copied as served
+by intake.ink, where they label the degree-apprenticeship programmes it tracks. They appear only on the Intake adverts and the
+Intake works car to show those programmes, imply no sponsorship or endorsement by the companies, and must be removed if
+this build is ever shared beyond private play.
+
+The brand faces are Plus Jakarta Sans (Lumi), Unbounded and Instrument Sans (Intake), all SIL Open Font License 1.1; the
+Unbounded 700 file is the latin subset intake.ink serves.

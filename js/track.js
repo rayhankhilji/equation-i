@@ -4,7 +4,7 @@ window.EI = window.EI || {};
   const U = EI.U;
   const STEP = 2.0;
 
-  // elevation profile keyed by distance along the lap (metres). Silverstone sits on a gently rolling plateau.
+  // default elevation profile (Silverstone) keyed by distance along the lap (metres); other circuits carry data.elevation
   const ELEV = [[0, 0], [300, 0.8], [440, 1.5], [660, 4], [940, 5.5], [1010, 5.5], [1255, 4.5], [1350, 3.2], [1700, 1], [1973, -1.5], [2168, -2], [2500, -0.5], [2735, 0], [3085, 1], [3630, 3.5], [3875, 5], [4033, 4], [4300, 2.5], [4650, 1], [5028, 2.5], [5240, -2.5], [5570, -3], [5640, -1.5], [5878, 0]];
 
   // ---------------------------------------------------------------- surface shaders (MeshStandardMaterial + per-pixel track-space detail)
@@ -309,9 +309,9 @@ window.EI = window.EI || {};
     }
     buildElevation() {
       const n = this.n, L = this.length;
-      const pts = ELEV.map(p => new THREE.Vector3(p[0] / L * 100, p[1], 0));
       // closed 1D spline through the control points via catmull-rom on (s, y)
-      const cps = ELEV.slice(0, -1).map(p => [p[0] * L / 5878, p[1]]); cps.push([L, 0]);
+      const EV = this.data.elevation || ELEV, EL = this.data.elevation ? this.data.lapLength : 5878;
+      const cps = EV.slice(0, -1).map(p => [p[0] * L / EL, p[1]]); cps.push([L, 0]);
       this.y = new Float32Array(n); this.grade = new Float32Array(n);
       const m = cps.length;
       for (let i = 0; i < n; i++) {
@@ -380,14 +380,28 @@ window.EI = window.EI || {};
         this.wallL[i] = l; this.wallR[i] = r;
       }
       this.wallL = this.smooth(this.wallL, 30); this.wallR = this.smooth(this.wallR, 30);
+      // street circuits: barriers a fixed distance off the kerbs everywhere, run-off only where the data lists it ([s0, s1, 'out' | 'in', width])
+      const WD = this.data.walls;
+      if (WD) {
+        for (let i = 0; i < n; i++) { this.wallL[i] = hw + WD.base; this.wallR[i] = hw + WD.base; }
+        for (const [s0, s1, which, w] of WD.runoff || []) for (let i = 0; i < n; i++) {
+          const s = this.s[i]; if (s < s0 - 25 || s > s1 + 25) continue; const f = U.smoothstep(s0 - 25, s0, s) * (1 - U.smoothstep(s1, s1 + 25, s));
+          const outsideL = kw[i] > 0; const onL = which === 'out' ? outsideL : !outsideL; const v = hw + WD.base + (w - WD.base) * f;
+          if (onL) this.wallL[i] = Math.max(this.wallL[i], v); else this.wallR[i] = Math.max(this.wallR[i], v);
+        }
+        this.wallL = this.smooth(this.wallL, 4); this.wallR = this.smooth(this.wallR, 4);
+      }
       // inside of a corner: offsets beyond the local radius would fold the normals over each other
       this.kFold = this.smooth(this.k, 4);
       for (let i = 0; i < n; i++) { const R = 1 / (Math.abs(this.kFold[i]) + 1e-6); const cap = Math.max(hw + 3, R * 0.85); if (this.kFold[i] > 0) this.wallR[i] = Math.min(this.wallR[i], cap); else this.wallL[i] = Math.min(this.wallL[i], cap); }
       this.wallL = this.smooth(this.wallL, 6); this.wallR = this.smooth(this.wallR, 6);
       const kk = this.smooth(this.k, 8);
-      const gravelCorners = ['Copse', 'Becketts', 'Stowe', 'Club', 'Luffield', 'Abbey', 'Brooklands', 'Vale', 'Village', 'Maggotts'];
+      const gravelCorners = this.data.gravelCorners || ['Copse', 'Becketts', 'Stowe', 'Club', 'Luffield', 'Abbey', 'Brooklands', 'Vale', 'Village', 'Maggotts'];
       const cornerAt = (s) => { let name = null; for (const c of this.data.corners) if (s >= c.s - 60) name = c.name; return name; };
-      for (let i = 0; i < n; i++) {
+      if (WD) {
+        // tarmac to the barrier everywhere (no grass verge inside the walls); the listed run-offs are plain tarmac
+        for (let i = 0; i < n; i++) { this.runoffL[i] = 1; this.runoffR[i] = 1; }
+      } else for (let i = 0; i < n; i++) {
         const c = kk[i]; if (Math.abs(c) < 1 / 500) continue; const name = cornerAt(this.s[i]);
         const gravel = gravelCorners.indexOf(name) >= 0 && Math.abs(c) > 1 / 220;
         if (c > 0) { this.runoffL[i] = 1; if (gravel) this.gravelL[i] = 1; } else { this.runoffR[i] = 1; if (gravel) this.gravelR[i] = 1; }
@@ -714,7 +728,7 @@ window.EI = window.EI || {};
         this.addDecal(lb, s - len / 2, s + len / 2, la, lb2, (fs, fl) => { const u = side < 0 ? 1 - fs : fs; return A.logos(u, 1 - (slot + 1 - fl) / 4); }, Math.ceil(len / 1.5), 0.015);
       };
       const L = this.length;
-      const spots = [['Copse', 0, 34], ['Luffield', 1, 30], ['Stowe', 1, 32], ['Club', 2, 26], ['Abbey', 0, 32], ['Village', 1, 26], ['Brooklands', 0, 28], ['Vale', 3, 24], ['Woodcote', 1, 26], ['Maggotts', 0, 26], ['Becketts', 1, 26], ['Chapel Curve', 2, 24], ['The Loop', 3, 20], ['Aintree', 0, 22], ['Farm Curve', 1, 24]];
+      const spots = this.data.logoSpots || [['Copse', 0, 34], ['Luffield', 1, 30], ['Stowe', 1, 32], ['Club', 2, 26], ['Abbey', 0, 32], ['Village', 1, 26], ['Brooklands', 0, 28], ['Vale', 3, 24], ['Woodcote', 1, 26], ['Maggotts', 0, 26], ['Becketts', 1, 26], ['Chapel Curve', 2, 24], ['The Loop', 3, 20], ['Aintree', 0, 22], ['Farm Curve', 1, 24]];
       for (const [name, slot, len] of spots) {
         const c = this.data.corners.find(cc => cc.name === name); if (!c) continue;
         // the painted run-off is on the outside: find the widest run-off point in the corner
@@ -750,13 +764,13 @@ window.EI = window.EI || {};
       const atl = U.srgb(canvasTex(ca, true)), rmt = canvasTex(cr, true); atl.wrapS = rmt.wrapS = THREE.ClampToEdgeWrapping;
       const barMat = new THREE.MeshStandardMaterial({ map: atl, roughnessMap: rmt, metalnessMap: rmt, roughness: 1, metalness: 1, side: THREE.DoubleSide });
       const toBand = (geo, k) => { const uv = geo.attributes.uv; for (let i = 0; i < uv.count; i++) uv.setX(i, (k * 128 + 3 + uv.getX(i) * 122) / AW); return geo; };
-      const tyreCorners = ['Copse', 'Stowe', 'Club', 'Village', 'Vale'];
+      const tyreCorners = this.data.tyreCorners || ['Copse', 'Stowe', 'Club', 'Village', 'Vale']; const armco = this.data.barrier === 'armco';
       const cornerAt = (s) => { let name = null; for (const c of this.data.corners) if (s >= c.s - 60) name = c.name; return name; };
       for (const side of [-1, 1]) {
         const wall = side < 0 ? this.wallL : this.wallR;
         const inCorner = i => Math.abs(kk[i]) > 1 / 600;
         const isTyre = i => inCorner(i) && tyreCorners.indexOf(cornerAt(this.s[i])) >= 0 && (side < 0 ? kk[i] > 0 : kk[i] < 0);
-        const isPanel = i => !isTyre(i) && (inCorner(i) || Math.abs(this.s[i] - this.sf) < 500);
+        const isPanel = i => !armco && !isTyre(i) && (inCorner(i) || Math.abs(this.s[i] - this.sf) < 500);
         // concrete base + panels
         const pg = toBand(this.ribbon(i => side * wall[i], i => side * wall[i], { mask: isPanel, ya: () => 0.5, yb: () => 1.2, vScale: 25.6 }), side < 0 ? 0 : 4);
         g.add(new THREE.Mesh(pg, barMat));
@@ -774,7 +788,7 @@ window.EI = window.EI || {};
       const fenceMat = new THREE.MeshBasicMaterial({ map: fenceTex, transparent: true, side: THREE.DoubleSide, depthWrite: false, opacity: 0.7 });
       for (const side of [-1, 1]) {
         const wall = side < 0 ? this.wallL : this.wallR;
-        const fg = this.ribbon(i => side * (wall[i] + 0.8), i => side * (wall[i] + 0.8), { ya: () => 0, yb: () => 3.4, vScale: 3 });
+        const TD = this.data.tunnel; const fg = this.ribbon(i => side * (wall[i] + 0.8), i => side * (wall[i] + 0.8), { ya: () => 0, yb: () => 3.4, vScale: 3, mask: TD ? (i => this.s[i] < TD.s0 - 6 || this.s[i] > TD.s1 + 6) : undefined });
         const fm = new THREE.Mesh(fg, fenceMat); fm.name = 'fence'; g.add(fm);
       }
     }
@@ -843,11 +857,12 @@ window.EI = window.EI || {};
       ctx.fillStyle = '#2b2f36'; ctx.fillRect(0, 0, S, S);
       const R = {}; const cell = (key, x, y, w, h, draw) => { ctx.save(); ctx.beginPath(); ctx.rect(x, y, w, h); ctx.clip(); ctx.translate(x, y); draw(ctx, w, h); ctx.restore(); R[key] = { x, y, w, h }; };
       const TURN = { 'Abbey': 1, 'Farm Curve': 2, 'Village': 3, 'The Loop': 4, 'Aintree': 5, 'Brooklands': 6, 'Luffield': 7, 'Woodcote': 8, 'Copse': 9, 'Maggotts': 10, 'Becketts': 11, 'Chapel Curve': 13, 'Stowe': 15, 'Vale': 16, 'Club': 18 };
-      const names = []; for (const cn of this.data.corners) if (!/Straight/i.test(cn.name) && names.indexOf(cn.name) < 0) names.push(cn.name);
+      const hasT = this.data.corners.some(c => c.t != null); const turnOf = (name) => { const c = this.data.corners.find(cc => cc.name === name); return c && c.t != null ? c.t : (TURN[name] || ''); };
+      const names = []; for (const cn of this.data.corners) if (!/Straight/i.test(cn.name) && (!hasT || cn.t != null) && names.indexOf(cn.name) < 0) names.push(cn.name);
       names.slice(0, 16).forEach((name, k) => cell('corner:' + name, (k % 2) * 1024, Math.floor(k / 2) * 176, 1024, 176, (ctx, w, h) => {
         ctx.fillStyle = '#0d3a2b'; ctx.fillRect(0, 0, w, h); ctx.fillStyle = '#c8102e'; ctx.fillRect(0, h * 0.86, w, h * 0.14); ctx.fillStyle = '#e8e3d0'; ctx.fillRect(0, 0, w, h * 0.04);
         ctx.fillStyle = '#ffffff'; ctx.beginPath(); ctx.arc(h * 0.48, h * 0.46, h * 0.3, 0, 6.283); ctx.fill();
-        ctx.fillStyle = '#0d3a2b'; ctx.font = '900 ' + Math.round(h * 0.34) + 'px Arial Black, Arial'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(String(TURN[name] || ''), h * 0.48, h * 0.48);
+        ctx.fillStyle = '#0d3a2b'; ctx.font = '900 ' + Math.round(h * 0.34) + 'px Arial Black, Arial'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(String(turnOf(name)), h * 0.48, h * 0.48);
         ctx.fillStyle = '#ffffff'; ctx.font = 'italic 900 ' + Math.round(h * 0.46) + 'px Arial Black, Arial'; ctx.textAlign = 'left'; ctx.fillText(name.toUpperCase(), h * 0.95, h * 0.47, w - h * 1.1);
       }));
       const text = (txt, bg, size) => (ctx, w, h) => { ctx.fillStyle = bg; ctx.fillRect(0, 0, w, h); ctx.fillStyle = '#fff'; ctx.font = 'italic 900 ' + size + 'px Arial Black, Arial'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(txt, w / 2, h / 2, w - 16); };
@@ -901,13 +916,13 @@ window.EI = window.EI || {};
       const kk = this.smooth(this.k, 15);
       const outsideAt = (s) => (kk[this.idxAtS(s)] > 0 ? -1 : 1);
       // corner names (Silverstone style: dark green, white italic caps, turn-number badge)
-      const named = {};
+      const named = {}; const hasT = this.data.corners.some(c => c.t != null);
       for (const c of this.data.corners) {
-        if (/Straight/i.test(c.name) || named[c.name]) continue; named[c.name] = true;
+        if (/Straight/i.test(c.name) || named[c.name] || (hasT && c.t == null)) continue; named[c.name] = true;
         const sd = outsideAt(c.s + 45); addBoard(c.s + 45, sd, 'corner:' + c.name, 6.4, 1.2, 3.9, wallAt(c.s + 45, sd) + 3.8);
       }
       // braking boards: 150 / 100 / 50 m before the turn-in of the heavy stops, on the outside of the approach
-      const stops = ['Village', 'Brooklands', 'Stowe', 'Vale', 'Club', 'Abbey', 'Luffield'];
+      const stops = this.data.brakeStops || ['Village', 'Brooklands', 'Stowe', 'Vale', 'Club', 'Abbey', 'Luffield'];
       for (const c of this.data.corners) { if (stops.indexOf(c.name) < 0 || named['_d' + c.name]) continue; named['_d' + c.name] = true; const side = outsideAt(c.s + 30); for (const d of [150, 100, 50]) addBoard(c.s - d, side, 'brake:' + d, 1.5, 1.5, 1.45, Math.min(wallAt(c.s - d, side) - 1.4, this.halfWidth + this.kerbWidth + 4)); }
       for (const z of this.drs) { const dd = (s, sd, w) => Math.min(wallAt(s, sd) - 0.6 - w / 2, this.halfWidth + 5 + w / 2); addBoard(z.detect, -1, 'drsDetect', 4, 1.0, 2.3, dd(z.detect, -1, 4)); addBoard(z.start, -1, 'drs', 2.4, 1.2, 2.2, dd(z.start, -1, 2.4)); addBoard(z.start, 1, 'drs', 2.4, 1.2, 2.2, dd(z.start, 1, 2.4)); }
       // sponsor bridges
@@ -918,10 +933,11 @@ window.EI = window.EI || {};
         for (const dir of [-1, 1]) { const f = new THREE.Mesh(uvFace(new THREE.PlaneGeometry(hw * 2 + 6.8, 2.1), 'bridge:' + text), mat); f.position.set(dir * 0.62, 8.5, 0); f.rotation.y = dir * Math.PI / 2; grp.add(f); }
         grp.position.set(this.x[i], this.y[i], this.z[i]); grp.rotation.y = -this.heading[i]; g.add(grp);
       };
-      bridge(this.sf + 140, 'lumi', 'plum'); bridge(4650, 'intake', 'brown'); bridge(2850, 'lumi2', 'plum'); bridge(4850, 'intake2', 'blue'); bridge(1600, 'DRS ZONE', 'blue');
+      const F = this.data.furniture || {};
+      for (const [s, txt, beam] of F.bridges || [[this.sf + 140, 'lumi', 'plum'], [4650, 'intake', 'brown'], [2850, 'lumi2', 'plum'], [4850, 'intake2', 'blue'], [1600, 'DRS ZONE', 'blue']]) bridge(s, txt, beam);
       // marshal posts are built by EI.Infra (booths, flag marshals, number boards)
       // flood lights / camera towers along the straights for skyline interest (decorative)
-      for (const s of [500, 1500, 2600, 3300, 4500, 5400]) { const p = placeAt(s, 1, this.wallR[this.idxAtS(s)] + 4); const t = solid(new THREE.CylinderGeometry(0.25, 0.4, 18, 6), 'post', true); t.position.set(p.x, p.y + 9, p.z); g.add(t); const head = solid(new THREE.BoxGeometry(2.5, 0.8, 1.2), 'white', true); head.position.set(p.x, p.y + 18.2, p.z); head.rotation.y = -p.heading; g.add(head); }
+      for (const s of F.floodlights || [500, 1500, 2600, 3300, 4500, 5400]) { const p = placeAt(s, 1, this.wallR[this.idxAtS(s)] + 4); const t = solid(new THREE.CylinderGeometry(0.25, 0.4, 18, 6), 'post', true); t.position.set(p.x, p.y + 9, p.z); g.add(t); const head = solid(new THREE.BoxGeometry(2.5, 0.8, 1.2), 'white', true); head.position.set(p.x, p.y + 18.2, p.z); head.rotation.y = -p.heading; g.add(head); }
     }
 
     // ---------------------------------------------------------------- draw-call batching

@@ -17,30 +17,32 @@ window.EI = window.EI || {};
   };
   DIFF.rookie = DIFF.easy; DIFF.pro = DIFF.average; DIFF.legend = DIFF.veryhard;
 
+  const BRAKE_USE = 0.94;  // share of the braking limit the profile plans with (a margin for traffic and bumps)
+  // highest speed at which the car's steady-state grip (mechanical + aero) holds curvature k
+  function cornerSpeed(k) {
+    const C = EI.CAR, vTop = C.VMAX + 6;
+    if (C.latLimit(vTop) >= k * vTop * vTop) return vTop;
+    let lo = 1, hi = vTop; for (let it = 0; it < 28; it++) { const m = (lo + hi) / 2; if (C.latLimit(m) >= k * m * m) lo = m; else hi = m; }
+    return lo;
+  }
   // maximum speed profile along the racing line for the car model (shared by all bots)
   function buildSpeedProfile(track) {
-    const n = track.n, ds = track.ds;
+    const n = track.n, ds = track.ds, C = EI.CAR;
     const vmax = new Float32Array(n);
-    for (let i = 0; i < n; i++) {
-      const k = Math.abs(track.lineK[i]) + 1e-6;
-      const G = EI.CAR.GRIP;
-      let v = Math.sqrt(G.cap / k);
-      if (k > G.a1) v = Math.min(v, Math.sqrt(G.a0 / (k - G.a1)));
-      vmax[i] = Math.min(v, EI.CAR.VMAX + 6);
-    }
+    for (let i = 0; i < n; i++) vmax[i] = cornerSpeed(Math.abs(track.lineK[i]) + 1e-6);
     // smooth a touch then enforce braking (backward) and acceleration (forward) limits
     const sm = track.smooth(vmax, 3);
     for (let i = 0; i < n; i++) vmax[i] = Math.min(vmax[i], sm[i] * 1.03);
     for (let pass = 0; pass < 2; pass++) {
       for (let j = 2 * n - 1; j >= 0; j--) {
         const i = j % n, nx = (i + 1) % n;
-        const B = EI.CAR.BRAKE; const dec = Math.min(B.cap, B.b0 + B.b1 * vmax[nx] * vmax[nx]) * 0.88;
+        const vn = vmax[nx], k = Math.abs(track.lineK[i]); const dec = C.brakeLimit(vn, Math.min(1, k * vn * vn / C.latLimit(vn))) * BRAKE_USE;
         vmax[i] = Math.min(vmax[i], Math.sqrt(vmax[nx] * vmax[nx] + 2 * dec * ds));
       }
       for (let j = 0; j < 2 * n; j++) {
         const i = j % n, pv = (i + n - 1) % n;
         const v = vmax[pv];
-        const acc = Math.max(0.5, Math.min(14, EI.CAR.PM / Math.max(v, 6)) - EI.CAR.CD * v * v);
+        const acc = Math.max(0.5, C.driveLimit(v, Math.min(1, Math.abs(track.lineK[pv]) * v * v / C.latLimit(v))));
         vmax[i] = Math.min(vmax[i], Math.sqrt(v * v + 2 * acc * ds));
       }
     }
@@ -73,7 +75,10 @@ window.EI = window.EI || {};
       const car = this.car, t = this.track, inp = car.input;
       if (!race.started) { inp.throttle = 0; inp.brake = 1; inp.steer = 0; return; }
       if (EI.Pit && EI.Pit.driveBot(this, dt, race, cars)) return;
-      if (car.finished) { inp.throttle = 0.35; inp.brake = 0; inp.drs = false; inp.ers = false; this.steerToLine(10); return; }
+      if (car.finished) { // cool-down lap: well below the limit, braking for the corners like everywhere else
+        const av0 = Math.abs(car.v), i0 = car.trk.i; let tc = 45; for (let j = 0; j <= Math.round((4 + av0 * 0.12) / this.track.ds); j += 2) tc = Math.min(tc, this.track.aiSpeed[(i0 + j) % this.track.n] * 0.7);
+        this.pedals(tc, av0); inp.drs = false; inp.ers = false; this.steerToLine(5.5 + av0 * 0.36); return;
+      }
       if (race.time < this.reaction) { inp.throttle = 0; inp.brake = 1; return; }
       // --- recovery when stuck against a wall or spun
       const av = Math.abs(car.v);
@@ -157,10 +162,7 @@ window.EI = window.EI || {};
       this.steerToLine(5.5 + av * 0.36);
       inp.steer = U.clamp(inp.steer + this.noise * 0.5, -1, 1);
       // --- throttle / brake
-      const vErr = target - av;
-      if (vErr > 0.8) { inp.throttle = U.clamp(vErr / 3, 0.35, 1); inp.brake = 0; }
-      else if (vErr < -0.6) { inp.throttle = 0; inp.brake = U.clamp(-vErr / 6, 0.15, 1); }
-      else { inp.throttle = 0.55; inp.brake = 0; }
+      this.pedals(target, av);
       // launch control: ease the throttle for the first second
       if (race.time < this.reaction + 1.2) inp.throttle = Math.min(inp.throttle, 0.85);
       // heavy understeer if running wide: lift a little
@@ -172,14 +174,26 @@ window.EI = window.EI || {};
       if (car.ers > 0.95 && straight && av > 40) inp.ers = true;
     }
 
+    // ask for an acceleration proportional to the speed error and turn it into pedals with the car's own numbers, so that at
+    // the target speed mid-corner the tyres are not also asked to brake or drive (the friction circle would take it off the grip)
+    pedals(target, av) {
+      const inp = this.car.input, C = EI.CAR, vErr = target - av, aWant = U.clamp(vErr * (vErr < 0 ? 10 : 4), -60, 40), resist = C.CD * av * av + 0.6;
+      if (aWant + resist > 0) { inp.throttle = U.clamp((aWant + resist) / (C.PM / Math.max(av, 5)), 0, 1); inp.brake = 0; }
+      else { inp.throttle = 0; inp.brake = U.clamp(-(aWant + resist) / C.VEH.brakeSys, 0, 1); }
+    }
+
     steerToLine(lookDist) {
       const car = this.car, t = this.track, n = t.n;
       const j = (car.trk.i + Math.round(lookDist / t.ds)) % n;
       const tx = t.lineX[j] + t.nx[j] * this.offset, tz = t.lineZ[j] + t.nz[j] * this.offset;
-      const want = Math.atan2(tz - car.z, tx - car.x);
-      const err = U.wrapAngle(want - car.heading);
-      car.input.steer = U.clamp(-err * 2.2, -1, 1);
-      if (car.v < 0) car.input.steer *= -1;
+      const want = Math.atan2(tz - car.z, tx - car.x); const u = car.v;
+      if (u < 4) { car.input.steer = U.clamp(-U.wrapAngle(want - car.heading) * 2.2, -1, 1); if (u < 0) car.input.steer *= -1; return; }
+      // pure pursuit from the direction of travel gives the yaw rate the line needs; the steering angle for it is the
+      // car's steady-state angle (kinematic angle plus the tyres' slip difference), with a little yaw-rate feedback
+      const hv = car.heading - (car.beta || 0); const err = U.wrapAngle(want - hv);
+      const ld = Math.max(2, Math.hypot(tx - car.x, tz - car.z)); const rDes = -2 * u * Math.sin(err) / ld;
+      const delta = EI.CAR.steerFor(u, rDes) + 0.08 * (rDes - car.yaw);
+      car.input.steer = U.clamp(delta / EI.CAR.steerMax(u), -1, 1);
     }
   }
   EI.AIDriver = AIDriver;

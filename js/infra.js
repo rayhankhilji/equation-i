@@ -59,7 +59,8 @@ window.EI = window.EI || {};
       this.polys = []; for (const g of t.data.scenery.grandstands) this.polys.push(g.p); for (const b of t.data.scenery.buildings) if (b.p.length >= 3 && Math.abs(U.polyArea(b.p)) >= 60) this.polys.push(b.p);
       if (scenery.env && scenery.env.standPolys) for (const p of scenery.env.standPolys) this.polys.push(p);
       this.obstacles = this.polys.concat(t.data.scenery.woods, t.data.scenery.water);
-      this.tyreCorners = ['Copse', 'Stowe', 'Club', 'Village', 'Vale', 'Brooklands', 'Luffield'];
+      this.tyreCorners = t.data.tyreCorners || ['Copse', 'Stowe', 'Club', 'Village', 'Vale', 'Brooklands', 'Luffield']; this.F = t.data.furniture || {};
+      if (t.data.tunnel) for (let s = t.data.tunnel.s0 - 10; s <= t.data.tunnel.s1 + 10; s += 20) { this.reserve(s, 1, 12); this.reserve(s, -1, 12); }
     }
     inPit(s, side) { const L = this.t.length; return side === this.pitSide && U.mod(s - this.pitS0, L) < U.mod(this.pitS1 - this.pitS0, L); }
     outsideSide(i) { return this.kk[i] > 0 ? -1 : 1; } // k > 0 turns towards +lat, so the outside is the -1 side
@@ -154,7 +155,7 @@ window.EI = window.EI || {};
     const atlas = Infra.billboardAtlas();
     const cell = (g, k) => { const uv = g.attributes.uv; for (let v = 0; v < uv.count; v++) uv.setXY(v, (k % 2) * 0.5 + 0.004 + uv.getX(v) * 0.492, 0.5 - Math.floor(k / 2) * 0.5 + 0.006 + uv.getY(v) * 0.488); };
     let n = 0;
-    [330, 790, 1240, 1760, 2300, 2660, 3300, 3740, 4210, 4760, 5310, 5700].forEach((s0, k) => {
+    (cx.F.billboards || [330, 790, 1240, 1760, 2300, 2660, 3300, 3740, 4210, 4760, 5310, 5700]).forEach((s0, k) => {
       const i = t.idxAtS(s0 + 30); const side = cx.outsideSide(i);
       const p = cx.freeSpot(s0, side, 6.5, 6, 2.5); if (!p) return;
       frame(_m, p.x, p.y, p.z, side, p.tx, p.tz); const m = _m.clone();
@@ -266,7 +267,7 @@ window.EI = window.EI || {};
   function buildScreens(cx) {
     const t = cx.t; const frames = [], screens = [[], [], []];
     const steel = C(0x9ba1a8), dark = C(0x15171a), rail = C(0x6b7178);
-    const want = [[3040, 'out'], [4990, 'out'], [2190, 'out'], [t.sf + 90, 'nonpit']];
+    const want = cx.F.screens || [[3040, 'out'], [4990, 'out'], [2190, 'out'], [t.sf + 90, 'nonpit']];
     let placed = 0;
     want.forEach((w, k) => {
       const i0 = t.idxAtS(w[0]); const side = w[1] === 'out' ? cx.outsideSide(t.idxAtS(w[0] + 40)) : -cx.pitSide;
@@ -390,7 +391,7 @@ window.EI = window.EI || {};
     const tile = (geo, brand, u0, u1) => { const uv = geo.attributes.uv; for (let v = 0; v < uv.count; v++) uv.setXY(v, ((brand % 4) + u0 + (u1 - u0) * uv.getX(v)) * 0.25, 0.5 - Math.floor(brand / 4) * 0.5 + 0.06 + uv.getY(v) * 0.4); };
     // camera scaffolds: tube towers ~2.6 m with a plank deck, rails, tripod camera, operator and an umbrella
     let scaff = 0;
-    for (const s0 of [610, 1130, 1960, 2470, 3470, 3790, 4230, 5290, 5560, 760, 2860]) {
+    for (const s0 of cx.F.scaffolds || [610, 1130, 1960, 2470, 3470, 3790, 4230, 5290, 5560, 760, 2860]) {
       const i = t.idxAtS(s0 + 20); const side = cx.outsideSide(i); const p = cx.freeSpot(s0, side, 4.2, 1.6, 2.4); if (!p) continue;
       frame(_m, p.x, p.y, p.z, side, p.tx, p.tz); const m = _m.clone(); const Hh = 2.4 + (scaff % 3) * 0.6;
       for (const [x, z] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) beam(geos, [x, 0, z], [x, Hh + 1.05, z], 0.06, tube, m);
@@ -405,7 +406,7 @@ window.EI = window.EI || {};
     }
     // camera cranes (jibs): ballast base, mast, lattice arm reaching out over the debris fence, remote head at the tip
     let cranes = 0;
-    for (const s0 of [5130, 3330, 2290]) {
+    for (const s0 of cx.F.cranes || [5130, 3330, 2290]) {
       const i = t.idxAtS(s0); const side = cx.outsideSide(t.idxAtS(s0 + 40)); const p = cx.freeSpot(s0, side, 7.5, 3, 4); if (!p) continue;
       frame(_m, p.x, p.y, p.z, side, p.tx, p.tz); const m = _m.clone();
       box(geos, 2.4, 0.9, 3.2, 0, 0.45, -1, C(0x3a3d42), m); for (const x of [-1, 1]) for (const z of [-2.4, 0.4]) cyl(geos, 0.3, 0.3, 0.25, 8, x * 1.25, 0.3, z, C(0x1c1c1c), m);
@@ -418,7 +419,7 @@ window.EI = window.EI || {};
     }
     // advertising gantries over the straights: two lattice towers outside the barriers, a box truss and sponsor panels both ways
     let gantries = 0;
-    for (const s0 of [1660, 4610]) {
+    for (const s0 of cx.F.gantries || [1660, 4610]) {
       let ok = false, s = s0;
       for (const ds of [0, 30, -30, 60, -60]) { s = s0 + ds; if (!cx.isReserved(s, 1) && !cx.isReserved(s, -1) && !cx.inPit(s, 1) && !cx.inPit(s, -1)) { const A = cx.at(s, -1, 3.0), B = cx.at(s, 1, 3.0); if (!cx.inObstacle(A.x, A.z) && !cx.inObstacle(B.x, B.z)) { ok = true; break; } } }
       if (!ok) continue;
@@ -525,7 +526,7 @@ window.EI = window.EI || {};
     const t = cx.t, sc = cx.sc, rng = U.rng(515); const geos = []; let vans = 0;
     const palette = [0xe63946, 0x457b9d, 0xffb703, 0x2a9d8f, 0x6a4c93, 0xf77f00, 0x1d3557, 0x8ecae6, 0x386641, 0xbc4749];
     // fields outside Copse, Hangar Straight, Wellington Straight and Abbey, 110-130 m beyond the fence
-    const fields = [[3300, 1, 125], [4700, 1, 120], [1650, -1, 115], [560, 1, 120], [3850, -1, 120], [2400, 1, 130]];
+    const fields = cx.F.carParks || [[3300, 1, 125], [4700, 1, 120], [1650, -1, 115], [560, 1, 120], [3850, -1, 120], [2400, 1, 130]];
     const cellOf = sc.cellOf || (() => 0);
     // a field candidate scores by how many of its 12 x 5 bays are open grass in one farm field (no woods, buildings, hedgerow boundaries or the paddock)
     const bays = (s0, side, dist) => {

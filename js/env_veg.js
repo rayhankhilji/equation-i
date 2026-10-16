@@ -178,16 +178,19 @@ window.EI = window.EI || {};
         if (!ok(px, pz, wd * 0.6)) continue; add(px, pz, sp, wd, ht, null, null, de > 10); nWood++;
       }
     }
+    const street = E.data.kind === 'street';
+    // ---- street trees from the map (boulevard planes / palms stand in as round-crowned trees)
+    if (street) for (const [x, z] of t.data.scenery.trees || []) { if (!ok(x, z, 2.5)) continue; add(x, z, SP.OAK, 6 + rng() * 3, 8 + rng() * 4); }
     // ---- copses in a few far fields
     let nCopse = 0;
-    for (const [k, poly] of E.fieldPolys || []) {
+    for (const [k, poly] of street ? [] : (E.fieldPolys || [])) {
       if (E.fType[k] !== 8) continue; const sx = E.seedX[k], sz = E.seedZ[k]; if (E.isVenue(sx, sz) || Math.max(Math.abs(sx), Math.abs(sz)) > Env.CARD_HALF) continue; const R = 45 + E.fTone[k] * 35;
       { const ring = []; for (let a = 0; a <= 12; a++) ring.push([sx + Math.cos(a / 12 * 6.283) * R * 1.1, sz + Math.sin(a / 12 * 6.283) * R * 0.8]); inner.push([ring, 14]); }
       for (let i = 0; i < R * R * 0.032; i++) { const a = rng() * 6.283, d = Math.sqrt(rng()) * R; const x = sx + Math.cos(a) * d * 1.2, z = sz + Math.sin(a) * d * 0.85; const [wd, ht] = oakSize(); if (!ok(x, z, wd)) continue; add(x, z, rng() < 0.15 ? SP.PINE : SP.OAK, wd, ht); nCopse++; }
     }
     // ---- hedgerows along the field boundaries (outside the venue): shrubs every ~3 m, standard oaks, some poplar rows and tree lines
     const seen = new Set(); let nHedge = 0; const hc = {};
-    for (const [k, poly] of E.fieldPolys || []) {
+    for (const [k, poly] of street ? [] : (E.fieldPolys || [])) {
       for (let i = 0; i < poly.length; i++) {
         const a = poly[i], b = poly[(i + 1) % poly.length]; const key = Math.round((a[0] + b[0]) / 4) + ',' + Math.round((a[1] + b[1]) / 4); if (seen.has(key)) continue; seen.add(key);
         const L = Math.hypot(b[0] - a[0], b[1] - a[1]); if (L < 2) continue; if (!E.hedgeOn(a, b, hc)) continue; const h = Env.hash2(Math.round(a[0]), Math.round(b[1]), 77);
@@ -209,7 +212,7 @@ window.EI = window.EI || {};
     // ---- roadside hedges and trees: public roads everywhere, and close to the circuit (within ~700 m of the barriers) a dense
     // double hedgerow with standard oaks along every road, the estate service roads included
     let nRoad = 0;
-    for (const r of E.roads || []) {
+    for (const r of street ? [] : (E.roads || [])) {
       const pts = r.line; const pub = r.kind === 'public';
       for (let i = 0; i + 1 < pts.length; i++) {
         const a = pts[i], b = pts[i + 1]; const L = Math.hypot(b[0] - a[0], b[1] - a[1]); if (L < 0.5) continue; const nx = -(b[1] - a[1]) / L, nz = (b[0] - a[0]) / L;
@@ -234,13 +237,13 @@ window.EI = window.EI || {};
     }
     // ---- tree lines behind the grandstands and along the outside of the perimeter fence
     let nLine = 0;
-    for (const [x0, z0, x1, z1] of E.treeLines || []) {
+    for (const [x0, z0, x1, z1] of street ? [] : (E.treeLines || [])) {
       const L = Math.hypot(x1 - x0, z1 - z0); inner.push([[[x0, z0], [x1, z1]], 13]);
       for (let s = rng() * 5; s < L; s += 6 + rng() * 5) { const u = s / L; const x = x0 + (x1 - x0) * u + (rng() - 0.5) * 2, z = z0 + (z1 - z0) * u + (rng() - 0.5) * 2; const kind = rng(); const pop = kind < 0.1; const [wd, ht] = pop ? [4.5 + rng() * 2, 16 + rng() * 6] : oakSize(); if (!ok(x, z, wd)) continue; add(x, z, pop ? SP.POPLAR : SP.OAK, wd, ht); nLine++; }
     }
     // ---- scattered clumps around the estate (between stands, car parks and roads)
     let nClump = 0;
-    for (let c = 0; c < 900 && nClump < 2400; c++) {
+    for (let c = 0; c < (street ? 0 : 900) && nClump < 2400; c++) {
       const s = rng() * t.length, side = rng() < 0.55 ? 1 : -1; const i = t.idxAtS(s); const d = E.wallCap(i, side) + 18 + rng() * 170;
       const cx = t.x[i] + t.nx[i] * side * d, cz = t.z[i] + t.nz[i] * side * d; if (!E.isVenue(cx, cz) || E.occAt(cx, cz)) continue;
       const nn = 2 + Math.floor(rng() * 6);

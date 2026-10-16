@@ -45,7 +45,7 @@
             <div class="subtitle">Grand Prix racing &middot; World Championship</div>
           </div>
         </div>
-        <div class="meta"><b>Round 1</b> &middot; British Grand Prix<br>Silverstone Circuit &middot; Race day</div>
+        <div class="meta" id="menu-meta"><b>Round 1</b> &middot; British Grand Prix<br>Silverstone Circuit &middot; Race day</div>
       </header>
 
       <div class="menu-grid">
@@ -54,14 +54,17 @@
           <div class="track-card panel">
             <div class="track-map"><canvas id="track-preview" width="392" height="392"></canvas></div>
             <div class="track-info">
-              <div class="track-kicker">United Kingdom</div>
-              <div class="track-name">Silverstone</div>
-              <div class="track-meta">Northamptonshire &middot; clockwise &middot; 3 sectors</div>
+              <div class="track-kicker" id="track-kicker">United Kingdom</div>
+              <div class="track-name" id="track-name">Silverstone</div>
+              <div class="track-meta" id="track-meta">Northamptonshire &middot; clockwise &middot; 3 sectors</div>
               <div class="track-stats">
-                <div><b>5.881</b><span>km</span></div>
-                <div><b>18</b><span>turns</span></div>
-                <div><b>2</b><span>DRS zones</span></div>
+                <div><b id="track-km">5.881</b><span>km</span></div>
+                <div><b id="track-turns">18</b><span>turns</span></div>
+                <div><b id="track-drs">2</b><span>DRS zones</span></div>
               </div>
+              <label class="field track-select"><span class="fl">Circuit</span>
+                <select id="opt-track"></select>
+              </label>
               <div class="track-legend"><span><i style="background:#ff3b2d"></i>S1</span><span><i style="background:#3d8dff"></i>S2</span><span><i style="background:#ffd23f"></i>S3</span><span><i style="background:#f4f6f9"></i>DRS</span></div>
             </div>
           </div>
@@ -140,7 +143,7 @@
             <div class="livery-wrap"><canvas class="livery-preview" id="p2-preview" width="440" height="150"></canvas></div>
           </div>
           <div class="hint">
-            <b>How to race</b><br>Accelerate, brake before the corner, turn in smoothly and stay inside the white lines. DRS opens in the two DRS zones when you are within 1&nbsp;s of the car ahead at the detection line (from lap 2). ERS gives a short power boost and recharges under braking. Hold until the five red lights go out &mdash; a jump start costs 5 seconds.
+            <b>How to race</b><br>Accelerate, brake before the corner, turn in smoothly and stay inside the white lines. DRS, from lap 2: a <i>DRS detection</i> board and white line sit before each DRS zone (the green stretches on the minimap). Cross that line within 1.0&nbsp;s of the car ahead and the DRS light on your dash turns green (<i>armed</i>); at the blue DRS boards hold Shift (two players: P1 Left Shift, P2 Right Shift; gamepad A) and the rear-wing flap opens, the light goes solid green <i>OPEN</i> and the car gains top speed. It closes when you brake or the zone ends. ERS gives a short power boost and recharges under braking. Hold until the five red lights go out &mdash; a jump start costs 5 seconds.
           </div>
         </section>
       </div>
@@ -150,10 +153,10 @@
         <div class="keys-hint">
           <span><kbd>Esc</kbd>pause</span><span><kbd>M</kbd>mute</span><span><kbd>R</kbd>restart</span><span><kbd>C</kbd><kbd>/</kbd>camera: chase, cockpit, TV</span>
         </div>
-        <div class="partners">
+        <div class="partners" aria-label="Race partners">
           <span class="partners-label">Race partners</span>
-          <a class="partner lumi" href="https://www.trylumi.co" target="_blank" rel="noopener"><canvas class="partner-logo" data-brand="lumi" width="160" height="40"></canvas><span>Learn anything. Actually understand it.</span></a>
-          <a class="partner intake" href="https://www.intake.ink" target="_blank" rel="noopener"><canvas class="partner-logo" data-brand="intake" width="160" height="40"></canvas><span>Win your degree <b>apprenticeship.</b></span></a>
+          <a class="partner lumi" href="https://www.trylumi.co" target="_blank" rel="noopener" title="Lumi: trylumi.co"><span class="pchip lumi"><img src="assets/brand/lumi-logo.png" alt="" width="20" height="20"><b>lumi</b></span><span class="ptag">Learn anything. Actually understand it.</span></a>
+          <a class="partner intake" href="https://www.intake.ink" target="_blank" rel="noopener" title="Intake: intake.ink"><span class="pchip intake"><img src="assets/brand/intake-icon.svg" alt="" width="16" height="16"><b>intake</b></span><span class="ptag">Win your degree <b>apprenticeship.</b></span></a>
         </div>
       </footer>
     </div>
@@ -168,6 +171,7 @@
       <button id="btn-restart">Restart race</button>
       <button id="btn-quit">Back to menu</button>
       <div class="keys-hint"><span><kbd>Esc</kbd>resume</span><span><kbd>M</kbd>mute</span><span><kbd>R</kbd>restart</span></div>
+      <div class="partners partners-sm" aria-label="Race partners"><span class="partners-label">Race partners</span><a class="partner" href="https://www.trylumi.co" target="_blank" rel="noopener" title="trylumi.co"><span class="pchip lumi"><img src="assets/brand/lumi-logo.png" alt="" width="20" height="20"><b>lumi</b></span></a><a class="partner" href="https://www.intake.ink" target="_blank" rel="noopener" title="intake.ink"><span class="pchip intake"><img src="assets/brand/intake-icon.svg" alt="" width="16" height="16"><b>intake</b></span></a></div>
       <div id="controls-card" style="text-align:left;font-size:12px;line-height:1.7;margin-top:10px;border-top:1px solid rgba(255,255,255,0.1);padding-top:8px;color:#cfd6e0">
         <div style="display:grid;grid-template-columns:auto 1fr 1fr;gap:2px 14px;font-variant-numeric:tabular-nums">
           <b></b><b style="color:#fff">PLAYER 1</b><b style="color:#fff">PLAYER 2</b>
@@ -197,12 +201,13 @@
         <div class="menu-actions">
           <button id="btn-again" class="primary">Race again</button>
           <button id="btn-menu">Menu</button>
+          <div class="partners partners-sm" aria-label="Race partners"><span class="partners-label">Race partners</span><a class="partner" href="https://www.trylumi.co" target="_blank" rel="noopener" title="trylumi.co"><span class="pchip lumi"><img src="assets/brand/lumi-logo.png" alt="" width="20" height="20"><b>lumi</b></span><span class="ptag">Revise like you race</span></a><a class="partner" href="https://www.intake.ink" target="_blank" rel="noopener" title="intake.ink"><span class="pchip intake"><img src="assets/brand/intake-icon.svg" alt="" width="16" height="16"><b>intake</b></span><span class="ptag">Apprenticeships open now</span></a></div>
         </div>
       </div>
     </div>
   </div>
 
-  <div id="loading" class="overlay"><div class="loader"><div class="wordmark"><div class="wm-mark"></div><div class="wm-text"><h1>EQUATION&nbsp;<em>I</em></h1></div></div><div class="loader-bar"><i></i></div><div class="loader-text">Building Silverstone</div></div></div>
+  <div id="loading" class="overlay"><div class="loader"><div class="wordmark"><div class="wm-mark"></div><div class="wm-text"><h1>EQUATION&nbsp;<em>I</em></h1></div></div><div class="loader-bar"><i></i></div><div class="loader-text">Building Silverstone</div><div class="loader-partners"><span>Race partners</span><span class="pchip lumi"><img src="assets/brand/lumi-logo.png" alt="" width="20" height="20"><b>lumi</b></span><i>·</i><span class="pchip intake"><img src="assets/brand/intake-icon.svg" alt="" width="16" height="16"><b>intake</b></span></div></div></div>
 </div>
 
 <script src="vendor/three.min.js"></script>
@@ -216,14 +221,17 @@
 <script src="vendor/FXAAShader.js"></script>
 <script src="vendor/Sky.js"></script>
 <script src="js/data/silverstone.js"></script>
+<script src="js/data/monaco.js"></script>
 <script src="js/util.js"></script>
 <script src="js/ads.js"></script>
 <script src="js/teams.js"></script>
 <script src="js/track.js"></script>
 <script src="js/scenery.js"></script>
 <script src="js/data/silverstone_env.js"></script>
+<script src="js/data/monaco_env.js"></script>
 <script src="js/env.js"></script>
 <script src="js/env_venue.js"></script>
+<script src="js/env_street.js"></script>
 <script src="js/env_veg.js"></script>
 <script src="js/infra.js"></script>
 <script src="js/particles.js"></script>

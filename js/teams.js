@@ -67,8 +67,16 @@ window.EI = window.EI || {};
       ctx.fillStyle = color; ctx.font = '900 ' + size + 'px ' + (font || 'Arial Black, Arial, sans-serif');
       ctx.textAlign = align || 'center'; ctx.textBaseline = 'middle'; ctx.fillText(txt, 0, 0); ctx.restore();
     }
-    // sponsor-like blocks: lightweight text decals in team style
-    const sponsors = (team.sponsors || []).map(sp => sp.n).concat(['EI', 'EI', 'EI', 'EI']).slice(0, 4);
+    // partner decals (EI.Ads.drawDecal: brand lock-ups on their plates, URLs in the brand faces); colours chosen against the paint
+    const lumOf2 = (hex) => { const c = parseInt(hex.slice(1), 16); return (0.2126 * (c >> 16) + 0.7152 * ((c >> 8) & 255) + 0.0722 * (c & 255)) / 255; };
+    const onP = lumOf2(P) > 0.55 ? '#141414' : '#ffffff', onS = lumOf2(S) > 0.55 ? '#141414' : '#ffffff';
+    const sps = (team.sponsors && team.sponsors.length ? team.sponsors : [{ n: 'EQUATION' }, { n: 'EI' }, { n: 'EI' }, { n: 'EI' }]);
+    const spAt = (i, x, y, cap, maxW, rot, fg) => {
+      const sp = Object.assign({}, sps[i % sps.length]); if (fg && !sp.bg) sp.fg = fg; if (!sp.fg) sp.fg = onP;
+      ctx.save(); ctx.translate(x, y); ctx.rotate(rot || 0);
+      if (EI.Ads && EI.Ads.drawDecal) EI.Ads.drawDecal(ctx, sp, 0, 0, cap, maxW); else { ctx.fillStyle = sp.fg; ctx.font = '900 ' + cap + 'px Arial'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(sp.n, 0, 0); }
+      ctx.restore();
+    };
 
     // ---- team-specific pattern on the top view ----
     switch (team.id) {
@@ -94,11 +102,14 @@ window.EI = window.EI || {};
       case 'alpenne':
         band(0, 512, P); band(0, 512, S, 0, 1024); band(0, 512, P, 140, 1024, 0); band(0, 512, A, 700, 1024, 0); band(0, 512, P, 860, 1024, 0);
         break;
-      case 'intake':
-        band(0, 512, P); band(0, 512, S, 300, 1024, 0); band(0, 512, P, 520, 1024, 0); band(0, 512, S, 720, 1024, 0); band(0, 512, P, 760, 1024, 0);
+      case 'intake':   // sky-blue car, cocoa engine cover on dotted paper, cream edge stripe
+        band(0, 512, P); band(0, 512, S, 560, 1024, 0); band(0, 512, A, 548, 560, 0);
+        ctx.fillStyle = 'rgba(255,248,236,0.16)'; for (let x = 572; x < 1024; x += 14) for (let y = 7; y < 512; y += 14) { ctx.beginPath(); ctx.arc(x, y, 1.8, 0, 7); ctx.fill(); }
+        if (EI.Ads) EI.Ads.intakeMark(ctx, 700, 196, 120);
         break;
-      case 'lumi':
-        band(0, 512, P); band(0, 512, S, 0, 180, 0); band(0, 512, A, 860, 1024, 0); band(236, 276, S, 180, 860, 0);
+      case 'lumi':     // cream car, plum rear, the mark's lilac and green as pinstripes
+        band(0, 512, P); band(0, 512, S, 600, 1024, 0); band(0, 512, '#e6c8ff', 584, 596, 0); band(0, 512, A, 570, 578, 0);
+        if (EI.Ads) EI.Ads.lumiMark(ctx, 700, 196, 120, null, true);
         break;
       case 'kinetik':
         band(0, 512, P); band(0, 512, S, 0, 130, 0); band(0, 512, S, 540, 700, 0); band(0, 512, S, 930, 1024, 0);
@@ -117,23 +128,23 @@ window.EI = window.EI || {};
       ctx.fillStyle = S; ctx.fillRect(0, y0, 140, 256);          // nose tip
       ctx.fillStyle = A; ctx.fillRect(0, y0 + 110, 1024, 18);     // accent stripe along sidepod
       ctx.fillStyle = S; ctx.fillRect(860, y0, 164, 256);         // engine cover tail
-      textAt(sponsors[k], 500, y0 + 60, 54, k === 0 ? A : A, 0); textAt(sponsors[2 + k], 500, y0 + 160, 40, A, 0);
-      textAt(team.name.toUpperCase(), 280, y0 + 212, 26, A, 0);
+      spAt(0, 500, y0 + 60, 40, 300); spAt(2 + k, 500, y0 + 160, 30, 260);
+      textAt(team.name.toUpperCase(), 280, y0 + 212, 26, onS, 0);
       // race number on sidepod
       textAt(String(driverNum), 700, y0 + 60, 70, team.numberColor, 0, 'italic 900 Arial Black, Arial');
       // EI stamp on tail
-      textAt('EI', 940, y0 + 100, 60, A, 0);
+      textAt('EI', 940, y0 + 100, 60, onS, 0);
     }
     // ---- top-view decals: number on nose, sponsors on sidepods/engine cover, driver code on the airbox ----
     textAt(String(driverNum), 150, 256, 130, team.numberColor, Math.PI / 2, 'italic 900 Arial Black, Arial');
-    textAt(sponsors[0], 560, 80, 44, A, 0); textAt(sponsors[1], 560, 432, 44, A, 0);
-    textAt(sponsors[2], 880, 256, 36, A, Math.PI / 2); textAt(sponsors[3], 700, 256, 30, A, Math.PI / 2);
+    spAt(0, 420, 80, 34, 300); spAt(1, 420, 432, 34, 300);
+    if (team.id !== 'lumi' && team.id !== 'intake') { spAt(2, 880, 256, 28, 300, Math.PI / 2, onS); spAt(3, 700, 256, 24, 260, Math.PI / 2); }
     textAt(code, 520, 256, 60, team.numberColor, Math.PI / 2);
-    textAt('EQUATION I', 320, 256, 28, A, Math.PI / 2);
+    textAt('EQUATION I', 320, 256, 28, onP, Math.PI / 2);
     // front wing stripe + number plates on the wing endplates region (left/right edge of top view)
     ctx.fillStyle = A; ctx.fillRect(0, 0, 60, 10); ctx.fillRect(0, 502, 60, 10);
     // mirror-side driver name on the engine cover sides
-    textAt((driver ? driver.name : team.name).toUpperCase(), 300, 512 + 40, 22, A, 0); textAt((driver ? driver.name : team.name).toUpperCase(), 300, 768 + 40, 22, A, 0);
+    textAt((driver ? driver.name : team.name).toUpperCase(), 300, 512 + 40, 22, onP, 0); textAt((driver ? driver.name : team.name).toUpperCase(), 300, 768 + 40, 22, onP, 0);
     // subtle panel lines
     ctx.strokeStyle = 'rgba(0,0,0,0.25)'; ctx.lineWidth = 3;
     for (const x of [180, 330, 640, 800]) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, 512); ctx.stroke(); }

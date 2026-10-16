@@ -119,7 +119,7 @@ window.EI = window.EI || {};
         const crossed = (s) => (a <= s && b >= s && b - a < track.length / 2) || (a > b && (s >= a || s <= b)); // handles wrap
         track.drs.forEach((z, zi) => {
           if (crossed(z.detect)) {
-            car.drsEligible = false;
+            car.drsEligible = false; let detGap = null;
             if (this.drsEnabled && car.lapsDone >= 1) {
               // within 1.0 s of any car ahead on track
               let gapT = 1e9;
@@ -128,8 +128,11 @@ window.EI = window.EI || {};
                 let d = o.trk.s - car.trk.s; if (d < 0) d += track.length;
                 const tgap = d / Math.max(car.v, 15); if (tgap < gapT) gapT = tgap;
               }
+              detGap = gapT;
               if (gapT <= 1.0) { car.drsEligible = true; car.drsZone = zi; if (car.isPlayer) this.emit('drsOn', car); }
             }
+            // last detection result, read by the HUD (n counts crossings so a repeat result still shows)
+            if (this.started) car.drsDetect = { n: (car.drsDetect ? car.drsDetect.n : 0) + 1, zone: zi, gap: detGap, ok: car.drsEligible, live: detGap != null, t: this.time };
           }
           if (crossed(z.end)) { car.drsEligible = false; car.drsOpen = false; }
         });

@@ -4,8 +4,62 @@ window.EI = window.EI || {};
   const U = EI.U;
   const L = 5.6, W = 2.0, WB = 3.6, VMAX = 92, PM = 900, CD = PM / (VMAX * VMAX * VMAX), WHEEL_R = 0.36;
   const GEARS = [0.16, 0.26, 0.37, 0.49, 0.61, 0.74, 0.88, 1.06].map(f => f * VMAX);
-  const GRIP = { a0: 28, a1: 0.006, cap: 56 }, BRAKE = { b0: 34, b1: 0.004, cap: 52 };
+  // ---------------------------------------------------------------- vehicle model constants
+  // Single-track (bicycle) model with a front and a rear axle. Everything is per unit mass (forces in m/s^2).
+  // Each axle: load = static share + aero share of downforce +- longitudinal load transfer; grip = mu * load with
+  // load sensitivity; lateral force follows a slip-angle curve that rises to a peak and falls gently into a slide;
+  // braking and drive forces share each tyre's grip through a friction circle.
+  const G = 9.81;
+  const VEH = {
+    b: 0.46 * WB, a: 0.54 * WB,   // CoG to rear / front axle: 46 % of the static weight on the front
+    h: 0.28,                      // CoG height (longitudinal load transfer)
+    iz: 0.85 * 0.54 * 0.46 * WB * WB, // yaw inertia / mass (m^2): a low-polar-moment car
+    mu0: 1.74, ls: 0.15,          // tyre friction at static load, load sensitivity
+    kdf: 0.011, aero: 0.43,       // downforce / mass = kdf * v^2 (3.4 x weight at 200 km/h), share on the front axle
+    frontTrim: 0.96,              // front grip a touch below the rear: gentle understeer at the limit
+    peakF: 0.075, peakR: 0.06,    // slip angle (rad) at peak lateral force, front / rear
+    shapeF: 1.2, shapeR: 1.35,    // curve shape: beyond the peak the force falls to sin(shape * pi / 2) of it, 95 % front, 85 % rear
+    slide: 0.85,                  // sliding friction / peak friction for a locked or spinning tyre
+    longMu: 1.04,                 // tyres give a little more grip along the wheel than sideways
+    brakeSys: 50, bias: 0.6,      // brake system decel limit (m/s^2) and front share
+    abs: 0.92, absR: 0.86, tc: 0.95, // fraction of the available grip the ABS (front / rear) and TC hold the tyres at
+    lock0: 0.48, lockK: 1.3,      // road-wheel lock at parking speed (rad); at speed, full lock = lockK x the angle the grip limit needs
+    drs: 0.9,                     // drag multiplier with the DRS flap open
+  };
+  VEH.nf0 = G * VEH.b / WB; VEH.nr0 = G * VEH.a / WB;
+  VEH.bF = Math.tan(Math.PI / (2 * VEH.shapeF)); VEH.bR = Math.tan(Math.PI / (2 * VEH.shapeR)); // so each curve peaks at slip = peak
+  function curve(x, c, b) { return Math.sin(c * Math.atan(b * x)); } // x = slip / peak slip; 0 -> 0, 1 -> 1 (peak), inf -> sin(c pi / 2)
+  function axleGrip(n, n0, mu) { return mu * VEH.mu0 * n / (1 + VEH.ls * (n / n0 - 1)); }
+  // steady-state limits at nominal grip (no longitudinal load), shared with the bots' speed profile
+  function axleMax(v) {
+    const df = VEH.kdf * v * v; const nf = VEH.nf0 + VEH.aero * df, nr = VEH.nr0 + (1 - VEH.aero) * df;
+    return [axleGrip(nf, VEH.nf0, VEH.frontTrim), axleGrip(nr, VEH.nr0, 1)];
+  }
+  function latLimit(v) { const m = axleMax(v); return Math.min(m[0] * WB / VEH.b, m[1] * WB / VEH.a); }
+  // longitudinal limits; latUse (0..1) = share of the lateral limit in use, which the friction circle takes off the tyres
+  function brakeLimit(v, latUse) { const m = axleMax(v), c = Math.sqrt(Math.max(0.04, 1 - (latUse || 0) * (latUse || 0))); return Math.min(VEH.brakeSys, c * VEH.longMu * (VEH.abs * m[0] + VEH.absR * m[1])) + CD * v * v + 0.6; }
+  function driveLimit(v, latUse) { const m = axleMax(v), c = Math.sqrt(Math.max(0.02, 1 - (latUse || 0) * (latUse || 0))); return Math.min(PM / Math.max(v, 5), c * VEH.tc * VEH.longMu * m[1] * 1.08) - CD * v * v - 0.6; }
+  // steady-state road-wheel angle for yaw rate r at speed u (nominal grip): kinematic angle + front slip - rear slip
+  function steerFor(u, r) {
+    const au = Math.max(1, Math.abs(u)), m = axleMax(au), ay = Math.abs(u * r);
+    const inv = (y, c, b) => Math.tan(Math.asin(Math.min(1, y)) / c) / b;
+    const af = VEH.peakF * inv(ay * VEH.b / WB / m[0], VEH.shapeF, VEH.bF), ar = VEH.peakR * inv(ay * VEH.a / WB / m[1], VEH.shapeR, VEH.bR);
+    return WB * r / au + Math.sign(r) * (af - ar);
+  }
+  // road-wheel angle at full steering input: generous at parking speed, proportional to what the grip can use at speed
+  function steerMax(v) { const av = Math.abs(v); if (av < 1) return VEH.lock0; return Math.min(VEH.lock0, VEH.lockK * (WB * latLimit(av) / (av * av) + 0.035)); }
   const ASSIST = { full: { steerHelp: true, abs: true, tc: true }, medium: { steerHelp: false, abs: true, tc: true }, none: { steerHelp: false, abs: false, tc: false } };
+  // one axle's tyres: longitudinal demand fx and slip angle alpha in, forces out (TY). Grip fmax sideways, fxCap along the wheel
+  // (loose ground digs in: more drive than side grip). Within the friction ellipse the side force follows the slip curve with
+  // its peak shrunk by the longitudinal load; beyond it the tyre locks or spins and slides, the friction acting along the sliding
+  // direction: a locked front only steers by sin(alpha) (understeer), a spinning rear lets go sideways (power oversteer).
+  const TY = { fx: 0, fy: 0, slide: false };
+  function tyre(fx, alpha, fmax, fxCap, peak, c, b, u, vSlip) {
+    const ax = Math.abs(fx);
+    if (ax <= fxCap) { const q = fx / fxCap; TY.fx = fx; TY.fy = Math.sign(alpha) * fmax * Math.sqrt(1 - q * q) * curve(Math.abs(alpha) / peak, c, b); TY.slide = false; return; }
+    const vy = u * Math.abs(Math.sin(alpha)); const s = vy / Math.max(1e-6, Math.hypot(vy, vSlip));
+    TY.fy = Math.sign(alpha) * fmax * VEH.slide * s; TY.fx = Math.sign(fx) * fxCap * VEH.slide * Math.sqrt(1 - s * s); TY.slide = true;
+  }
 
   // ---------------------------------------------------------------- geometry helpers
   // rounded box via extruded rounded rectangle in YZ, extruded along X; optional taper of the +x end and of the top
@@ -150,75 +204,125 @@ window.EI = window.EI || {};
       if (this.lodFar && far !== this.lodIsFar) { this.lodIsFar = far; this.lodNear.visible = !far; this.lodFar.visible = far; }
       const cast = dist < 90; if (cast !== this._cast) { this._cast = cast; for (const o of this.shadowMeshes) o.castShadow = cast; }
     }
-    place(x, z, heading, y) { this.x = x; this.z = z; this.y = y || 0; this.heading = heading; this.v = 0; this.vLat = 0; this.steer = 0; this.yaw = 0; this.trk.i = -1; this._px = null; this.vx = null; this.updateVisual(0); }
+    place(x, z, heading, y) {
+      this.x = x; this.z = z; this.y = y || 0; this.heading = heading; this.v = 0; this.vLat = 0; this.steer = 0; this.yaw = 0; this.trk.i = -1; this._px = null; this.vx = null;
+      this._w = 0; this._vLatOut = 0; this._yawOut = 0; this._kb = 0; this._ax = 0; this._fyr = 0; this.delta = 0; this.updateVisual(0);
+    }
     get speedKmh() { return Math.abs(this.v) * 3.6; }
 
     // ------------------------------------------------------------------ physics
     update(dt, track, race) {
       const inp = this.input; const pr = track.project(this.x, this.z, this.trk.i, this.trk); const hw = track.halfWidth, kw = track.kerbWidth; const lat = pr.lat, i = pr.i;
-      let surfGrip = 1, surfDrag = 0, surfRoll = 0.6; const absLat = Math.abs(lat);
+      // surfaces: lateral grip, extra drag, rolling resistance, and how much drive / braking grip loose ground still gives
+      // (tyres dig in for traction, but downforce barely helps on grass or gravel: capped per axle)
+      let surfGrip = 1, surfDrag = 0, surfRoll = 0.6, surfLong = 1, surfCap = Infinity; const absLat = Math.abs(lat);
       if (absLat <= hw) this.surface = 'asphalt';
-      else if (absLat <= hw + kw) { this.surface = 'kerb'; surfGrip = 0.93; }
+      else if (absLat <= hw + kw) { this.surface = 'kerb'; surfGrip = 0.97; }
       else if (absLat <= hw + kw + 2) { this.surface = 'asphalt'; surfGrip = 0.97; }
       else if ((lat < 0 ? track.runoffL[i] : track.runoffR[i]) && absLat <= hw + kw + ((lat < 0 ? track.gravelL[i] : track.gravelR[i]) ? 7 : 14)) { this.surface = 'runoff'; surfGrip = 0.9; surfRoll = 1.2; }
-      else { const grav = lat < 0 ? track.gravelL[i] : track.gravelR[i]; if (grav) { this.surface = 'gravel'; surfGrip = 0.55; surfDrag = 3.0 + 0.07 * Math.abs(this.v); surfRoll = 2.6; } else { this.surface = 'grass'; surfGrip = 0.62; surfDrag = 1.8 + 0.045 * Math.abs(this.v); surfRoll = 2; } }
+      else { const grav = lat < 0 ? track.gravelL[i] : track.gravelR[i]; if (grav) { this.surface = 'gravel'; surfGrip = 0.55; surfLong = 1.9; surfCap = 10.5; surfDrag = 3.0 + 0.07 * Math.abs(this.v); surfRoll = 2.6; } else { this.surface = 'grass'; surfGrip = 0.62; surfLong = 1.6; surfCap = 11; surfDrag = 1.8 + 0.045 * Math.abs(this.v); surfRoll = 2; } }
       this.offTrack = this.surface === 'grass' || this.surface === 'gravel' ? this.offTrack + dt : 0;
       const mu = this.tyre.grip * surfGrip * (1 - 0.3 * Math.min(1, this.wear));
+      // the pit lane and car-to-car contact write v / vLat / yaw directly: fold those writes into the internal lateral velocity
+      if (this._w == null || this.yaw !== this._yawOut) this._w = this.vLat || 0;
+      else if (this.vLat !== this._vLatOut) this._w += this.vLat - this._vLatOut;
       const v = this.v, av = Math.abs(v);
       // pedals: a short first-order lag so digital keys ramp like a foot on a pedal (brake quicker than throttle)
       const thrT = U.clamp(inp.throttle, 0, 1), brkT = U.clamp(inp.brake, 0, 1);
       this.throttle += (thrT - this.throttle) * (1 - Math.exp(-dt / (thrT > this.throttle ? 0.14 : 0.08)));
-      this.brake += (brkT - this.brake) * (1 - Math.exp(-dt / (brkT > this.brake ? 0.07 : 0.1)));
+      this.brake += (brkT - this.brake) * (1 - Math.exp(-dt / (brkT > this.brake ? 0.05 : 0.1)));
       if (Math.abs(this.throttle - thrT) < 0.004) this.throttle = thrT; if (Math.abs(this.brake - brkT) < 0.004) this.brake = brkT;
       if (this.finished && !this.isPlayer) this.throttle = Math.min(this.throttle, 0.6);
-      let aEng = 0; this.shiftCut = Math.max(0, (this.shiftCut || 0) - dt);
-      if (this.throttle > 0 && v >= -0.5) { const tract = (this.assist.tc ? 14 : 16) * Math.min(1, mu * 1.3); aEng = this.throttle * Math.min(tract, PM / Math.max(av, 6)); if (!this.assist.tc && this.throttle > 0.9 && av < 30 && this.surface !== 'asphalt') aEng *= 0.5; }
+      // engine: power-limited drive force at the rear tyres, ERS, ignition cut on upshifts, engine braking off throttle
+      let drive = 0; this.shiftCut = Math.max(0, (this.shiftCut || 0) - dt);
+      if (this.throttle > 0 && v >= -0.5) drive = this.throttle * PM / Math.max(av, 5);
       this.ersActive = !!inp.ers && this.ers > 0.02 && this.throttle > 0.5 && v > 5;
-      if (this.ersActive) { aEng += 4.5; this.ers = Math.max(0, this.ers - 0.22 * dt); } else this.ers = Math.min(1, this.ers + (0.012 + this.brake * 0.14) * dt);
-      if (this.shiftCut > 0) aEng *= 0.15;                                        // ignition cut during an upshift
-      if (this.throttle < 0.05 && v > 3) aEng -= 1.2 + 0.02 * av;                 // engine braking off throttle
-      this.inDrsZone = -1; track.drs.forEach((z, zi) => { if (pr.s >= z.start && pr.s <= z.end) this.inDrsZone = zi; });
+      if (this.ersActive) { drive += 4.5; this.ers = Math.max(0, this.ers - 0.22 * dt); } else this.ers = Math.min(1, this.ers + (0.012 + this.brake * 0.14) * dt);
+      if (this.shiftCut > 0) drive *= 0.15;
+      const engBrake = this.throttle < 0.05 && v > 3 ? 1.2 + 0.02 * av : 0;
+      this.inDrsZone = -1; track.drs.forEach((z, zi) => { if (z.end >= z.start ? (pr.s >= z.start && pr.s <= z.end) : (pr.s >= z.start || pr.s <= z.end)) this.inDrsZone = zi; });   // a zone may wrap the start line
       this.drsOpen = !!inp.drs && this.inDrsZone >= 0 && this.drsEligible && this.drsZone === this.inDrsZone && this.brake < 0.1 && v > 25;
-      const dragMul = (this.drsOpen ? 0.74 : 1) * (1 - 0.3 * this.slipstream);
-      const aDrag = CD * v * av * dragMul + surfDrag * U.sign(v) * Math.min(1, av / 2);
-      let aBrk = 0; if (this.brake > 0) { const bmax = Math.min(BRAKE.cap, BRAKE.b0 + BRAKE.b1 * v * v) * Math.max(0.3, mu); aBrk = this.brake * bmax * U.sign(v) * Math.min(1, av / 1.5); }
-      const aRoll = surfRoll * U.sign(v) * Math.min(1, av / 1.5);
+      const dragMul = (this.drsOpen ? VEH.drs : 1) * (1 - 0.3 * this.slipstream);
       const grade = track.grade[i]; this.gradeNow = grade;
-      this.aLong = aEng - aDrag - aBrk - aRoll - 9.81 * grade;
-      let nv = v + this.aLong * dt;
+      const brakeF = this.brake * VEH.brakeSys;
+
+      // steering. Keyboard / d-pad: the key ramps the wheel in like a hand (slower at speed) and lets it self-centre quickly,
+      // so a tap is a small correction and a hold builds to full lock. Analog sticks go straight through.
+      let steerT = U.clamp(inp.steer, -1, 1); const ai = !this.isPlayer;
+      if (!ai && inp.steerDigital) {
+        const kb = this._kb || 0; const rIn = 1.6 + 3.4 / (1 + (av / 30) * (av / 30)), rOut = 6;
+        if (steerT === 0 || (kb !== 0 && Math.sign(steerT) !== Math.sign(kb))) this._kb = Math.abs(kb) <= rOut * dt ? 0 : kb - Math.sign(kb) * rOut * dt;
+        else this._kb = kb + U.clamp(steerT - kb, -rIn * dt, rIn * dt);
+        steerT = this._kb;
+      } else this._kb = steerT;
+      // hands: a light low-pass plus a rate limit in input units (the road-wheel angle per unit input already shrinks with speed)
+      const returning = Math.abs(steerT) < Math.abs(this.steer) || Math.sign(steerT) !== Math.sign(this.steer);
+      const sRate = ai ? 30 : (returning ? 10 : 7);
+      const sWant = this.steer + (steerT - this.steer) * (1 - Math.exp(-dt / (ai ? 0.02 : 0.04)));
+      this.steer += U.clamp(sWant - this.steer, -sRate * dt, sRate * dt);
+      const dMax = steerMax(av);
+
+      // axle loads: static + aero + longitudinal load transfer (from the filtered acceleration: the chassis pitches)
+      const dfv = VEH.kdf * v * v * (this.drsOpen ? 0.92 : 1); const dn = -(this._ax || 0) * VEH.h / WB;
+      const nf = Math.max(0.25 * VEH.nf0, VEH.nf0 + VEH.aero * dfv + dn), nr = Math.max(0.25 * VEH.nr0, VEH.nr0 + (1 - VEH.aero) * dfv - dn);
+      // kerbs: the car skips across the ridges, the front and the rear axle losing grip out of step
+      let kf = 1, kr = 1;
+      if (this.surface === 'kerb') { this._odo = (this._odo || 0) + av * dt; kf = 1 - 0.12 * (0.5 + 0.5 * Math.sin(this._odo * 1.6)); kr = 1 - 0.12 * (0.5 + 0.5 * Math.sin(this._odo * 1.6 - 1.7)); }
+      const fmf = axleGrip(nf, VEH.nf0, mu * VEH.frontTrim * kf), fmr = axleGrip(nr, VEH.nr0, mu * kr);
+      // explicit integration of stiff tyres: sub-step at low speed; below walking pace the car simply follows its front wheels
+      const cLin = VEH.shapeF * VEH.bF * fmf / VEH.peakF + VEH.shapeR * VEH.bR * fmr / VEH.peakR;
+      const nSub = Math.min(8, Math.max(1, Math.ceil(dt * 2.5 * cLin / Math.max(av, 2)))); const h = dt / nSub;
+      const kDyn = U.clamp((av - 2.5) / 4, 0, 1);
+      const resistRoll = surfRoll + surfDrag;
+      let u = v, w = this._w, r = this.yaw, Fx = 0, Fy = 0, delta = 0, af = 0, ar = 0, fyr = this._fyr || 0, lockF = false, spinR = false;
+      for (let k = 0; k < nSub; k++) {
+        const au = Math.abs(u), su = U.sign(u) * Math.min(1, au / 1.5);
+        delta = this.steer * dMax; af = 0; ar = 0;
+        if (u > 0.5) {
+          const thF = Math.atan2(w + VEH.a * r, u), thR = Math.atan2(w - VEH.b * r, u);
+          // when the rear lets go, the steering reference follows the slide (centred stick = wheels along the direction of
+          // travel), so the small lock a pad or keyboard gives at speed can still catch a power slide
+          const ex = Math.abs(thR) - VEH.peakR; if (ex > 0) delta = U.clamp(delta + Math.sign(thR) * ex * (this.assist.steerHelp ? 1 : 0.8), -VEH.lock0, VEH.lock0);
+          // steering assist: never ask the front tyres for more slip than their peak (no scrubbing, catches slides)
+          if (this.assist.steerHelp) delta = U.clamp(delta, thF - VEH.peakF, thF + VEH.peakF);
+          af = delta - thF; ar = -thR;
+        }
+        // longitudinal demand per axle (positive = retarding): brake balance, engine braking on the rear; ABS / TC trim it
+        let bf = brakeF * VEH.bias * su, br = (brakeF * (1 - VEH.bias) + engBrake) * su, dr = drive;
+        const fxCapF = Math.min(surfCap, fmf * VEH.longMu * surfLong), fxCapR = Math.min(surfCap, fmr * VEH.longMu * surfLong);
+        if (this.assist.abs) { bf = U.clamp(bf, -VEH.abs * fxCapF, VEH.abs * fxCapF); br = U.clamp(br, -VEH.absR * fxCapR, VEH.absR * fxCapR); }
+        if (this.assist.tc && dr > 0) dr = Math.min(dr, br + VEH.tc * fxCapR * Math.sqrt(Math.max(0, 1 - (fyr / fmr) * (fyr / fmr))));
+        tyre(-bf, af, fmf, fxCapF, VEH.peakF, VEH.shapeF, VEH.bF, au, au); const fxf = TY.fx, fyf = TY.fy; lockF = TY.slide;
+        tyre(dr - br, ar, fmr, fxCapR, VEH.peakR, VEH.shapeR, VEH.bR, au, dr > br ? 1.5 + 0.05 * au : au); const fxr = TY.fx; fyr = TY.fy; spinR = TY.slide && dr > br;
+        const cd = Math.cos(delta), sd = Math.sin(delta); const fyFront = fxf * sd + fyf * cd;
+        Fx = fxf * cd - fyf * sd + fxr - CD * u * au * dragMul - resistRoll * su - G * grade;
+        Fy = fyFront + fyr;
+        const Mz = VEH.a * fyFront - VEH.b * fyr;
+        const u0 = u;
+        u += h * (Fx + kDyn * r * w); w += h * (Fy - r * u0); r += h * Mz / VEH.iz;
+        if (kDyn < 1) { const rk = u * Math.tan(delta) / WB; r = U.lerp(rk, r, kDyn); w = U.lerp(rk * VEH.b, w, kDyn); }
+        if (u0 > 0 && u < 0 && brakeF > 0) u = 0;
+        this.heading = U.wrapAngle(this.heading - r * h);
+        const cx = Math.cos(this.heading), cz = Math.sin(this.heading);
+        this.x += (cx * u + cz * w) * h; this.z += (cz * u - cx * w) * h;
+      }
       // reverse: bots only on an explicit request; players after holding the brake for half a second at a standstill once racing
       if (this.brake > 0.5 && av < 0.6 && this.throttle === 0 && race && race.started) this.brakeHold = (this.brakeHold || 0) + dt; else this.brakeHold = 0;
-      if (inp.reverse || (this.isPlayer && this.brakeHold > 0.5)) nv = Math.max(-6, nv - 4 * dt);
-      if (v > 0 && nv < 0 && this.brake > 0) nv = 0;
-      this.v = nv;
-      // steering: smooth approach to the target with a speed-sensitive rate limit (slow hands at speed, quick return to centre)
-      const steerTarget = U.clamp(inp.steer, -1, 1); const returning = Math.abs(steerTarget) < Math.abs(this.steer) || Math.sign(steerTarget) !== Math.sign(this.steer);
-      // bots steer through the controller, not a hand on a wheel: a much lighter filter keeps their line-following precise
-      const ai = !this.isPlayer; const rate = (ai ? 4 : 1) * (returning ? 2.0 : 1.0) * (1.6 + 14 / (1 + av / 12));
-      const want = this.steer + (steerTarget - this.steer) * (1 - Math.exp(-dt * (ai ? 30 : 9)));
-      this.steer += U.clamp(want - this.steer, -rate * dt, rate * dt);
-      let aLatMax = mu * Math.min(GRIP.cap, GRIP.a0 + GRIP.a1 * v * v);
-      if (!this.assist.abs && this.brake > 0.92 && av > 8) aLatMax *= 0.45;
-      const dMax = 0.42 / (1 + av / 18); const delta = this.steer * dMax; let omega;
-      if (this.assist.steerHelp) { const gripOmega = av > 0.5 ? aLatMax / av : 99; omega = this.steer * Math.min(Math.abs(v * Math.tan(dMax) / WB), gripOmega) * U.sign(v); this.aLat = v * omega; }
-      else {
-        omega = v * Math.tan(delta) / WB; this.aLat = v * omega;
-        if (Math.abs(this.aLat) > aLatMax && av > 1) { const over = Math.abs(this.aLat) - aLatMax; omega = U.sign(omega) * (aLatMax / av) * 0.92; this.v -= Math.min(over * 0.12, 8) * dt * U.sign(v); this.vLat -= U.sign(this.aLat) * over * 0.35 * dt; this.aLat = v * omega; }
-      }
-      if (surfGrip < 0.6 && av > 5) this.vLat -= U.sign(this.aLat) * Math.abs(this.aLat) * 0.15 * dt;
-      const tauYaw = (this.isPlayer ? 0.05 + 0.06 * Math.min(1, av / 60) : 0.03);                         // tyres take a moment to build slip angle
-      this.yaw += (omega - this.yaw) * (1 - Math.exp(-dt / tauYaw)); this.aLat = v * this.yaw;
-      this.heading = U.wrapAngle(this.heading - this.yaw * dt); this.vLat *= Math.exp(-dt * (surfGrip < 0.6 ? 2.5 : 7));
-      const fx = Math.cos(this.heading), fz = Math.sin(this.heading); const lx = fz, lz = -fx;
-      this.x += (fx * this.v + lx * this.vLat) * dt; this.z += (fz * this.v + lz * this.vLat) * dt;
+      if (inp.reverse || (this.isPlayer && this.brakeHold > 0.5)) u = Math.max(-6, u - 4 * dt);
+      this.v = u; this._w = w; this.yaw = r; this._fyr = fyr; this.delta = delta; this.alphaF = af; this.alphaR = ar; this.lockF = lockF && brakeF > 0; this.spinR = spinR;
+      this.aLong = Fx; this.aLat = kDyn * Fy + (1 - kDyn) * u * r; this.beta = Math.atan2(w, Math.max(1, Math.abs(u)));
+      this._ax = (this._ax || 0) + (Fx - (this._ax || 0)) * (1 - Math.exp(-dt / 0.06));
       const p2 = track.project(this.x, this.z, this.trk.i, this.trk); const wl = track.wallR[p2.i] - 1.0, wr = track.wallL[p2.i] - 1.0; // L arrays are the lat<0 side (drawing convention)
       this.wallHit = Math.max(0, this.wallHit - dt);
       if (p2.lat > wl || p2.lat < -wr) {
         const side = p2.lat > wl ? 1 : -1; const target = side > 0 ? wl : -wr;
         this.x += track.nx[p2.i] * (target - p2.lat); this.z += track.nz[p2.i] * (target - p2.lat);
         const th = track.heading[p2.i]; const rel = U.wrapAngle(this.heading - th); const into = Math.abs(Math.sin(rel)) * av;
-        this.v *= Math.max(0.35, 1 - into * 0.06); this.vLat = 0; this.heading = U.wrapAngle(th + side * 0.08); this.wallHit = Math.min(1, into * 0.15 + 0.2); p2.lat = target;
+        this.v *= Math.max(0.35, 1 - into * 0.06); this._w = 0; this.yaw *= 0.25; this.heading = U.wrapAngle(th + side * 0.08); this.wallHit = Math.min(1, into * 0.15 + 0.2); p2.lat = target;
       }
+      // published lateral velocity: the slide, i.e. how fast the rear axle moves sideways beyond what the tyres hold at peak slip
+      const vr = this._w - VEH.b * this.yaw, gripV = Math.abs(this.v) * Math.tan(VEH.peakR) * 1.5;
+      this.vLat = Math.abs(vr) > gripV ? vr - Math.sign(vr) * gripV : 0; this._vLatOut = this.vLat; this._yawOut = this.yaw;
       this.y = track.y[p2.i] + track.grade[p2.i] * p2.along;
       if (race && race.started) { let ds = p2.s - this._prevS; if (ds > track.length / 2) ds -= track.length; if (ds < -track.length / 2) ds += track.length; this.dist += ds; }
       this._prevS = p2.s;
@@ -256,9 +360,9 @@ window.EI = window.EI || {};
       this.body.position.y = heaveAmp * Math.sin(this._t * (this.surface === 'kerb' ? 75 : 40) + this.id) - this.aLong * 0.0008;
       if (this.animateDriver) this.animateDriver(this.steer, this.steer * 0.12);
       this.wheelSpin -= (this.v / WHEEL_R) * dt; for (const w of this.wheels) w.rotation.z = this.wheelSpin; if (this.lodIsFar && this.farWheels) for (const w of this.farWheels) w.rotation.z = this.wheelSpin;
-      const sa = this.steer * 0.42 / (1 + Math.abs(this.v) / 18); for (const p of this.frontPivots) p.rotation.y = sa;
+      const sa = this.delta || 0; for (const p of this.frontPivots) p.rotation.y = sa;
       const ft = this.drsOpen ? this.flapOpen : this.flapClosed; this.flap.rotation.z += (ft - this.flap.rotation.z) * Math.min(1, dt * 12);
     }
   }
-  EI.Car = Car; EI.CAR = { L, W, WB, VMAX, GEARS, GRIP, BRAKE, PM, CD };
+  EI.Car = Car; EI.CAR = { L, W, WB, VMAX, GEARS, PM, CD, VEH, latLimit, brakeLimit, driveLimit, steerMax, steerFor };
 })();
