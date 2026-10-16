@@ -971,21 +971,15 @@ window.EI = window.EI || {};
   // DRS lamp on the wheel display (512 x 320 canvas). Armed: a green outline round the DRS box that blinks once the car is in the
   // zone (press now). Open: the box fills green with OPEN under it and a green frame lights round the whole display.
   function drawDrsLamp(sc, car, now) {
-    const ctx = sc.getContext('2d'), W = sc.width, H = sc.height; const open = !!car.drsOpen, armed = !!car.drsEligible && !open;
-    if (!open && !armed) return;
-    const inZone = armed && car.inDrsZone >= 0 && car.inDrsZone === car.drsZone; const blinkOn = !inZone || Math.floor(now / 160) % 2 === 0;
+    const ctx = sc.getContext('2d'), W = sc.width, H = sc.height; const open = !!car.drsOpen, ready = !!car.drsEligible && !open;
+    if (!open && !ready) return;
     const x0 = 420, y0 = 262, w = 84, h = 54; const F = '"Titillium Web", Arial, sans-serif';
     ctx.save(); ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
     ctx.fillStyle = '#06080b'; ctx.fillRect(x0 - 2, y0 - 2, w + 4, h + 4);
-    if (open) {
-      ctx.lineWidth = 6; ctx.strokeStyle = '#22e26a'; ctx.strokeRect(3, 47, W - 6, H - 50);
-      ctx.shadowColor = '#22e26a'; ctx.shadowBlur = 14; ctx.fillStyle = '#22e26a'; ctx.fillRect(x0, y0, w, h); ctx.shadowBlur = 0;
-      ctx.fillStyle = '#04210f'; ctx.font = 'italic 900 30px ' + F; ctx.fillText('DRS', x0 + w / 2, y0 + 30); ctx.font = '900 15px ' + F; ctx.fillText('OPEN', x0 + w / 2, y0 + 48);
-    } else {
-      ctx.lineWidth = 4; ctx.strokeStyle = blinkOn ? '#22e26a' : '#1b5b33'; ctx.strokeRect(x0 + 2, y0 + 2, w - 4, h - 4);
-      ctx.fillStyle = blinkOn ? '#22e26a' : '#1b5b33'; ctx.font = 'italic 900 30px ' + F; ctx.fillText('DRS', x0 + w / 2, y0 + 30);
-      ctx.font = '700 14px ' + F; ctx.fillText(inZone ? 'PRESS' : 'ARMED', x0 + w / 2, y0 + 48);
-    }
+    // ready: the DRS box lights green; open: it fills bright green and a green frame lights round the display
+    if (open) { ctx.lineWidth = 6; ctx.strokeStyle = '#22e26a'; ctx.strokeRect(3, 47, W - 6, H - 50); }
+    ctx.shadowColor = '#22e26a'; ctx.shadowBlur = open ? 16 : 8; ctx.fillStyle = open ? '#3dff86' : '#1fbf5a'; ctx.fillRect(x0, y0, w, h); ctx.shadowBlur = 0;
+    ctx.fillStyle = '#04210f'; ctx.font = 'italic 900 32px ' + F; ctx.fillText('DRS', x0 + w / 2, y0 + 38);
     ctx.restore();
   }
 

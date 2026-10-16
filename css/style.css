@@ -130,7 +130,7 @@ html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text);
 .vp .pedals .thr::after { background: var(--green); } .vp .pedals .brk::after { background: var(--red-2); }
 .vp .right { display: flex; justify-content: flex-end; align-items: center; }
 .vp .drs { font-size: 15px; font-weight: 900; letter-spacing: 3px; padding: 7px 0; width: 88px; text-align: center; border: 2px solid #3a4150; border-radius: 4px; color: #6b7585; font-style: italic; }
-.vp .drs.armed { border-color: var(--green); color: var(--green); animation: drsPulse 1s ease-in-out infinite; }
+.vp .drs.armed { border-color: var(--green); color: var(--green); animation: none; }
 @keyframes drsPulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(47,227,109,0); } 50% { box-shadow: 0 0 14px 1px rgba(47,227,109,0.65); } }
 .vp .drs.open { background: var(--green); border-color: var(--green); color: #03210d; box-shadow: 0 0 18px rgba(47,227,109,0.7); }
 
@@ -405,14 +405,14 @@ button.primary:hover { background: linear-gradient(180deg, #ff4536, #e40700); }
 /* ----- DRS: three-state dash indicator (off / armed / open), detection + zone callout, DRS toast ----- */
 .vp .drs { width: 108px; padding: 5px 0 5px; line-height: 1; display: flex; flex-direction: column; align-items: center; }
 .vp .drs b { display: block; font-size: 18px; font-weight: 900; letter-spacing: 3px; }
-.vp .drs small { display: block; margin-top: 3px; font-size: 9.5px; font-weight: 700; font-style: normal; letter-spacing: 1.4px; color: var(--dim); white-space: nowrap; }
+.vp .drs small { display: none; margin-top: 3px; font-size: 9.5px; font-weight: 700; font-style: normal; letter-spacing: 1.4px; color: var(--dim); white-space: nowrap; }
 .vp .drs.near small { color: var(--green); }
 .vp .drs.far small { color: var(--muted); }
 .vp .drs.armed { background: rgba(47,227,109,0.08); }
 .vp .drs.armed small { color: var(--green); }
-.vp .drs.armed.press { animation: drsPress 0.5s steps(2) infinite; }
+.vp .drs.armed.press { animation: none; }
 @keyframes drsPress { 0% { border-color: var(--green); color: var(--green); background: rgba(47,227,109,0.22); box-shadow: 0 0 16px 2px rgba(47,227,109,0.7); } 100% { border-color: #1d6b3a; color: #1d6b3a; background: rgba(47,227,109,0.04); box-shadow: none; } }
-.vp .drs.open { animation: drsOpenGlow 0.9s ease-in-out infinite; }
+.vp .drs.open { animation: none; }
 .vp .drs.open small { color: #03210d; }
 @keyframes drsOpenGlow { 0%, 100% { box-shadow: 0 0 12px rgba(47,227,109,0.55); } 50% { box-shadow: 0 0 26px 5px rgba(47,227,109,0.95); } }
 .vp .drs-call { left: 50%; top: calc(19% + 80px * var(--s)); transform: translateX(-50%) scale(var(--s)); transform-origin: top center; opacity: 0; pointer-events: none; white-space: nowrap; text-align: center; padding: 6px 18px 7px 16px; background: var(--glass); border: 1px solid var(--line); border-left: 4px solid #5a6475; border-radius: var(--radius); box-shadow: var(--shadow); transition: opacity 0.3s ease; }

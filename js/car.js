@@ -48,7 +48,9 @@ window.EI = window.EI || {};
   }
   // road-wheel angle at full steering input: generous at parking speed, proportional to what the grip can use at speed
   function steerMax(v) { const av = Math.abs(v); if (av < 1) return VEH.lock0; return Math.min(VEH.lock0, VEH.lockK * (WB * latLimit(av) / (av * av) + 0.035)); }
-  const ASSIST = { full: { steerHelp: true, abs: true, tc: true }, medium: { steerHelp: false, abs: true, tc: true }, none: { steerHelp: false, abs: false, tc: false } };
+  // stab: stability control strength for the player's car (keeps the yaw rate to what the steering asks for and stops the rear
+  // sliding past its grip peak); 'none' keeps a light touch so a keyboard driver can still catch the car
+  const ASSIST = { full: { steerHelp: true, abs: true, tc: true, stab: 1 }, medium: { steerHelp: false, abs: true, tc: true, stab: 0.8 }, none: { steerHelp: false, abs: false, tc: false, stab: 0.35 } };
   // one axle's tyres: longitudinal demand fx and slip angle alpha in, forces out (TY). Grip fmax sideways, fxCap along the wheel
   // (loose ground digs in: more drive than side grip). Within the friction ellipse the side force follows the slip curve with
   // its peak shrunk by the longitudinal load; beyond it the tyre locks or spins and slides, the friction acting along the sliding
@@ -250,7 +252,7 @@ window.EI = window.EI || {};
       // so a tap is a small correction and a hold builds to full lock. Analog sticks go straight through.
       let steerT = U.clamp(inp.steer, -1, 1); const ai = !this.isPlayer;
       if (!ai && inp.steerDigital) {
-        const kb = this._kb || 0; const rIn = 1.6 + 3.4 / (1 + (av / 30) * (av / 30)), rOut = 6;
+        const kb = this._kb || 0; const rIn = 0.8 + 3.4 / (1 + (av / 22) * (av / 22)), rOut = 8;
         if (steerT === 0 || (kb !== 0 && Math.sign(steerT) !== Math.sign(kb))) this._kb = Math.abs(kb) <= rOut * dt ? 0 : kb - Math.sign(kb) * rOut * dt;
         else this._kb = kb + U.clamp(steerT - kb, -rIn * dt, rIn * dt);
         steerT = this._kb;
@@ -300,6 +302,15 @@ window.EI = window.EI || {};
         const Mz = VEH.a * fyFront - VEH.b * fyr;
         const u0 = u;
         u += h * (Fx + kDyn * r * w); w += h * (Fy - r * u0); r += h * Mz / VEH.iz;
+        // stability control (player cars): the yaw rate follows what the steering asks for, capped at what the tyres can hold,
+        // and the rear is not allowed to slide far past its grip peak, so the car neither spins nor keeps rotating after a tap
+        const stab = ai ? 0 : (this.assist.stab || 0);
+        if (stab > 0 && u > 4) {
+          const rMax = (fmf + fmr) * 0.97 / u; const rT = U.clamp(u * Math.tan(delta) / WB, -rMax, rMax);
+          r += (rT - r) * stab * (1 - Math.exp(-h / 0.09));
+          const vr = w - VEH.b * r, lim = u * Math.tan(VEH.peakR * 1.1);
+          if (Math.abs(vr) > lim) w += (Math.sign(vr) * lim - vr) * stab * (1 - Math.exp(-h / 0.05));
+        }
         if (kDyn < 1) { const rk = u * Math.tan(delta) / WB; r = U.lerp(rk, r, kDyn); w = U.lerp(rk * VEH.b, w, kDyn); }
         if (u0 > 0 && u < 0 && brakeF > 0) u = 0;
         this.heading = U.wrapAngle(this.heading - r * h);
@@ -309,6 +320,13 @@ window.EI = window.EI || {};
       // reverse: bots only on an explicit request; players after holding the brake for half a second at a standstill once racing
       if (this.brake > 0.5 && av < 0.6 && this.throttle === 0 && race && race.started) this.brakeHold = (this.brakeHold || 0) + dt; else this.brakeHold = 0;
       if (inp.reverse || (this.isPlayer && this.brakeHold > 0.5)) u = Math.max(-6, u - 4 * dt);
+      // straight-line help (full assists, player): with the wheel centred the car settles onto the road's direction, so a light
+      // keyboard tap is a lane change rather than a new heading the driver has to tap back out of. Small errors only (< ~8 deg),
+      // never against a deliberate input, and at most 4 deg/s
+      if (!ai && this.assist.steerHelp && Math.abs(steerT) < 0.01 && Math.abs(this.steer) < 0.04 && av > 15) {
+        const err = U.wrapAngle(track.heading[i] - this.heading);
+        if (Math.abs(err) < 0.14) { const d = U.clamp(err * (1 - Math.exp(-dt / 0.45)), -0.07 * dt, 0.07 * dt); this.heading = U.wrapAngle(this.heading + d); }
+      }
       this.v = u; this._w = w; this.yaw = r; this._fyr = fyr; this.delta = delta; this.alphaF = af; this.alphaR = ar; this.lockF = lockF && brakeF > 0; this.spinR = spinR;
       this.aLong = Fx; this.aLat = kDyn * Fy + (1 - kDyn) * u * r; this.beta = Math.atan2(w, Math.max(1, Math.abs(u)));
       this._ax = (this._ax || 0) + (Fx - (this._ax || 0)) * (1 - Math.exp(-dt / 0.06));

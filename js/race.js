@@ -57,7 +57,8 @@ window.EI = window.EI || {};
         const g = track.gridSlot(pos);
         car.place(g.x, g.z, g.heading, g.y);
         car.gridPos = pos + 1; car.pos = pos + 1;
-        track.project(car.x, car.z, null, car.trk); car._prevS = car.trk.s; car.dist = car.trk.s;
+        // distance counted from behind the line (so a grid that wraps past the end of the lap still starts short of lap 1)
+        track.project(car.x, car.z, null, car.trk); car._prevS = car.trk.s; car.dist = track.sf - U.mod(track.sf - car.trk.s, track.length);
         car.crossedStart = false; car.sectorFlags = ['', '', '']; car.lastLapFlags = ['', '', '']; car.marks = new Float32Array(Math.ceil((this.laps + 2) * track.length / 10) + 10).fill(-1);
         car.lapMarks = new Float32Array(Math.ceil(track.length / 10) + 2); car.bestMarks = null;
       });

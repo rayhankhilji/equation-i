@@ -24,7 +24,6 @@ window.EI = window.EI || {};
       '<div class="centre"><div class="gear-wrap"><div class="gear">N</div><div class="rpm"></div></div>' +
       '<div class="speed"><div class="speed-v"><b>0</b><small>KM/H</small></div><div class="pedals"><i class="thr"></i><i class="brk"></i></div></div></div>' +
       '<div class="right"><div class="drs"><b>DRS</b><small>OFF</small></div></div></div></div>' +
-      '<div class="drs-call"></div>' +
       '<div class="tags"></div><div class="corner"></div><div class="pname"></div></div>';
     $('viewports').appendChild(el);
     const q = (c) => el.querySelector(c);
@@ -125,46 +124,11 @@ window.EI = window.EI || {};
     for (const o of race.cars) { if (o === c) continue; let d = o.trk.s - c.trk.s; if (d <= 0) d += L; g = Math.min(g, d / Math.max(c.v, 15)); }
     return g;
   }
-  function drsCall(r, html, cls, dur) { r.drsCall.innerHTML = html; r.drsCall.className = 'drs-call ' + cls; void r.drsCall.offsetWidth; r.drsCall.classList.add('show'); r.drsCallT = dur; }
-  function updateDrs(r, race, c, ck, dt) {
-    const t = race.track, L = t.length; const open = !!c.drsOpen, armed = !!c.drsEligible && !open;
-    const inZone = armed && c.inDrsZone >= 0 && c.inDrsZone === c.drsZone;
-    // dash box (hidden in the cockpit, where the wheel display carries the DRS lamp)
-    if (!ck) {
-      let cls = 'drs', sub = 'OFF';
-      if (open) { cls += ' open'; sub = 'OPEN'; }
-      else if (armed) { cls += inZone ? ' armed press' : ' armed'; if (inZone) sub = 'HOLD ' + drsKey(race, c, true); else { const z = t.drs[c.drsZone]; sub = z ? 'ZONE ' + Math.round(U.mod(z.start - c.trk.s, L)) + ' M' : 'ARMED'; } }
-      else if (race.started && !c.finished && !(c.pit && c.pit.active)) {
-        if (!race.drsEnabled || c.lapsDone < 1) sub = 'FROM LAP 2';
-        else {
-          let dDet = Infinity; for (const z of t.drs) dDet = Math.min(dDet, U.mod(z.detect - c.trk.s, L));
-          if (dDet < 600) { const g = gapAheadOnTrack(race, c); sub = g < 9.95 ? 'GAP ' + g.toFixed(1) + ' S' : 'GAP —'; cls += g <= 1.0 ? ' near' : ' far'; }
-        }
-      }
-      if (r.drs.className !== cls) r.drs.className = cls; setText(r.drsSub, sub);
-    }
-    // detection line: callout with the measured gap, toast + chime when DRS is enabled
-    const det = c.drsDetect;
-    if (det && det.n !== r.drsDetN) {
-      const fresh = r.drsDetN !== undefined || race.time - det.t < 1; r.drsDetN = det.n;
-      if (fresh) {
-        const head = '<div class="dc-k">DRS DETECTION</div>';
-        if (!det.live) drsCall(r, head + '<div class="dc-m">DRS ENABLED FROM LAP 2</div>', 'idle', 2.6);
-        else if (det.ok) {
-          drsCall(r, head + '<div class="dc-m"><b>' + det.gap.toFixed(2) + ' s</b> to the car ahead · <em>DRS ENABLED</em></div><div class="dc-h">Hold ' + drsKey(race, c) + ' in the DRS zone</div>', 'ok', 3.2);
-          r.drsToasts = (r.drsToasts || 0) + 1;
-          if (r.drsToasts <= 3) toast((race.players.length > 1 ? 'P' + (c.playerIndex + 1) + ' · ' : '') + 'DRS enabled: hold ' + drsKey(race, c) + ' in the DRS zone', 'drs');
-          if (EI.Audio && EI.Audio.drsArmed) EI.Audio.drsArmed();
-        } else drsCall(r, head + '<div class="dc-m">' + (det.gap < 1e6 ? '<b>' + det.gap.toFixed(2) + ' s</b> to the car ahead · ' : 'No car ahead · ') + 'needs within 1.0 s</div>', 'miss', 2.6);
-      }
-    }
-    // armed inside the zone but not open yet: a blinking prompt until the flap opens or the zone ends
-    if (inZone && !r.drsPrompt) { r.drsPrompt = true; drsCall(r, '<div class="dc-k">DRS ZONE</div><div class="dc-m"><em>HOLD ' + drsKey(race, c, true) + '</em> to open the wing</div>', 'zone', 99); }
-    else if (!inZone && r.drsPrompt) { r.drsPrompt = false; if (r.drsCall.classList.contains('zone')) r.drsCallT = 0.01; }
-    if (r.drsCallT > 0) { r.drsCallT -= dt; if (r.drsCallT <= 0) r.drsCall.classList.remove('show'); }
-    // chimes on open / close
-    if (r.drsWasOpen !== undefined && open !== r.drsWasOpen && EI.Audio && EI.Audio.drs) EI.Audio.drs(open);
-    r.drsWasOpen = open;
+  // DRS on the dash: a single box, dim when DRS is not available, green outline when it is ready to use, solid green while
+  // the flap is open. Nothing else (no callouts, toasts or chimes): in the cockpit the steering-wheel display carries the lamp.
+  function updateDrs(r, race, c, ck) {
+    if (ck) return; const open = !!c.drsOpen, ready = !!c.drsEligible && !open;
+    const cls = 'drs' + (open ? ' open' : ready ? ' armed' : ''); if (r.drs.className !== cls) r.drs.className = cls; setText(r.drsSub, '');
   }
 
   // rotating local map: heading up, ~ +/-450 m around the car, whole circuit outline, DRS zones, sector ticks, cars

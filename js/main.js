@@ -354,8 +354,6 @@ window.EI = window.EI || {};
         case 'light': EI.HUD.setLights(e.data); EI.Audio.beep(440, 0.25, 0.25); if (e.data === 1) { EI.HUD.toast('P1: W A S D · Shift = DRS · Ctrl/Space = ERS boost · C = camera'); if (race.players.length > 1) EI.HUD.toast('P2: Arrows · Right Shift = DRS · Enter = ERS boost · / = camera'); } break;
         case 'go': $('lights').classList.add('hidden'); EI.HUD.banner('LIGHTS OUT!', 1500, '#37d67a'); EI.Audio.beep(880, 0.6, 0.3); break;
         case 'penalty': viewports[e.data.playerIndex].showMsg('JUMP START  +5s', 'bad', 3); EI.HUD.toast(e.data.name + ': jump start, +5 s penalty'); break;
-        case 'drsOn': viewports[e.data.playerIndex].showMsg('DRS ENABLED', 'good', 1.5); break;
-        case 'drsFlap': if (e.data.isPlayer) EI.Audio.clack(); break;
         case 'fastest': EI.HUD.toast('Fastest lap: ' + e.data.name + ' ' + U.fmtTime(race.fastest.time)); if (e.data.isPlayer) viewports[e.data.playerIndex].showMsg('FASTEST LAP ' + U.fmtTime(race.fastest.time), 'good', 2.5); break;
         case 'finalLap': if (e.data.isPlayer) viewports[e.data.playerIndex].showMsg('FINAL LAP', 'warn', 2.5); else if (e.data.pos === 1) EI.HUD.toast('Final lap for the leader ' + e.data.name); break;
         case 'leaderFinished': EI.HUD.toast(e.data.name + ' takes the chequered flag!'); break;
