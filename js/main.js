@@ -170,7 +170,7 @@ window.EI = window.EI || {};
   // cockpit: head physics (lateral sway, brake dip, rpm vibration, look-to-apex), halo framing
   const _f = new THREE.Vector3(), _l = new THREE.Vector3(), _tgt = new THREE.Vector3(), _look = new THREE.Vector3(), _q = new THREE.Quaternion();
   function camState(cam) { const u = cam.userData; if (!u.cs) u.cs = { yaw: null, roll: 0, lat: 0, fov: 60, sway: 0, dip: 0, shake: 0, blend: 0 }; return u.cs; }
-  function surfaceShake(car) { const v = Math.abs(car.v); const base = { asphalt: 0.0012 * v, runoff: 0.002 * v, kerb: 0.035 + 0.001 * v, grass: 0.05 + 0.002 * v, gravel: 0.07 + 0.002 * v }[car.surface] || 0; return base * Math.min(1, v / 8); }
+  function surfaceShake(car) { const v = Math.abs(car.v); const base = { asphalt: 0, runoff: 0.001 * v, kerb: 0.035 + 0.001 * v, grass: 0.05 + 0.002 * v, gravel: 0.07 + 0.002 * v }[car.surface] || 0; return base * Math.min(1, v / 8); }
   function placeCamera(cam, car, k, snap, dt) {
     const mode = CAM_MODES[camModes[k] || 0]; const cs = camState(cam);
     const v = Math.abs(car.v); const cx = car.vx != null ? car.vx : cx, cy = car.vy != null ? car.vy : cy, cz = car.vz != null ? car.vz : cz, ch = car.vh != null ? car.vh : ch; const fx = Math.cos(ch), fz = Math.sin(ch); const lx = fz, lz = -fx;
@@ -217,12 +217,12 @@ window.EI = window.EI || {};
     const kYaw = 1 - Math.exp(-dt * (v > 5 ? 5.5 : 9)); cs.yaw += U.wrapAngle(ch - cs.yaw) * kYaw;   // the camera swings round behind the car with a lag
     const cfx = Math.cos(cs.yaw), cfz = Math.sin(cs.yaw), clx = cfz, clz = -cfx;
     const kD = 1 - Math.exp(-dt * 4); cs.dist += (dist - cs.dist) * kD; cs.h += (height - cs.h) * kD;
-    cs.lat += (U.clamp(car.yaw * 0.6, -0.4, 0.4) - cs.lat) * (1 - Math.exp(-dt * 2.5));                   // drift towards the inside of the turn
+    cs.lat += (U.clamp(car.yaw * 0.6, -0.4, 0.4) - cs.lat) * (1 - Math.exp(-dt * 1.4));                   // drift towards the inside of the turn
     cam.position.set(cx - cfx * cs.dist - clx * cs.lat * 0.6, cy + cs.h, cz - cfz * cs.dist - clz * cs.lat * 0.6);
     const minY = track.y[car.trk.i] + 1.0; if (cam.position.y < minY) cam.position.y = minY;
     _look.set(cx + fx * 5.5 + lx * (cs.lat * 1.3 + jx * 4), cy + 0.6 + jy * 4, cz + fz * 5.5 + lz * (cs.lat * 1.3 + jz * 4));
     cam.up.set(0, 1, 0); cam.lookAt(_look);
-    cs.roll += (U.clamp(-car.aLat * 0.0009, -0.025, 0.025) - cs.roll) * (1 - Math.exp(-dt * 6)); cam.rotateZ(cs.roll);
+    cs.roll += (U.clamp(-car.aLat * 0.0007, -0.02, 0.02) - cs.roll) * (1 - Math.exp(-dt * 3)); cam.rotateZ(cs.roll);
     const fovT = 54 + v * 0.11 + (car.ersActive ? 2 : 0) + (car.drsOpen ? 1.5 : 0); cs.fov += (fovT - cs.fov) * Math.min(1, dt * 3); cam.fov = cs.fov; cam.updateProjectionMatrix();
   }
   // pre-race cinematic: a slow dolly down the grid, then an orbit around the player's car, then cut to the player camera

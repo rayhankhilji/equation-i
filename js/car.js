@@ -252,7 +252,7 @@ window.EI = window.EI || {};
       // so a tap is a small correction and a hold builds to full lock. Analog sticks go straight through.
       let steerT = U.clamp(inp.steer, -1, 1); const ai = !this.isPlayer;
       if (!ai && inp.steerDigital) {
-        const kb = this._kb || 0; const rIn = 0.8 + 3.4 / (1 + (av / 22) * (av / 22)), rOut = 8;
+        const kb = this._kb || 0; const rIn = 0.8 + 2.8 / (1 + (av / 22) * (av / 22)), rOut = 3.6;
         if (steerT === 0 || (kb !== 0 && Math.sign(steerT) !== Math.sign(kb))) this._kb = Math.abs(kb) <= rOut * dt ? 0 : kb - Math.sign(kb) * rOut * dt;
         else this._kb = kb + U.clamp(steerT - kb, -rIn * dt, rIn * dt);
         steerT = this._kb;
@@ -307,7 +307,7 @@ window.EI = window.EI || {};
         const stab = ai ? 0 : (this.assist.stab || 0);
         if (stab > 0 && u > 4) {
           const rMax = (fmf + fmr) * 0.97 / u; const rT = U.clamp(u * Math.tan(delta) / WB, -rMax, rMax);
-          r += (rT - r) * stab * (1 - Math.exp(-h / 0.09));
+          r += (rT - r) * stab * (1 - Math.exp(-h / 0.2));
           const vr = w - VEH.b * r, lim = u * Math.tan(VEH.peakR * 1.1);
           if (Math.abs(vr) > lim) w += (Math.sign(vr) * lim - vr) * stab * (1 - Math.exp(-h / 0.05));
         }
@@ -375,7 +375,7 @@ window.EI = window.EI || {};
       // suspension heave: kerb rattle, grass/gravel judder, a little squat under acceleration
       const av2 = Math.abs(this.v); this._t = (this._t || 0) + dt;
       const heaveAmp = this.surface === 'kerb' ? 0.012 : (this.surface === 'grass' ? 0.009 : this.surface === 'gravel' ? 0.014 : 0) * Math.min(1, av2 / 20);
-      this.body.position.y = heaveAmp * Math.sin(this._t * (this.surface === 'kerb' ? 75 : 40) + this.id) - this.aLong * 0.0008;
+      this.body.position.y = heaveAmp * Math.sin(this._t * (this.surface === 'kerb' ? 75 : 40) + this.id) - (this._ax != null ? this._ax : this.aLong) * 0.0008;
       if (this.animateDriver) this.animateDriver(this.steer, this.steer * 0.12);
       this.wheelSpin -= (this.v / WHEEL_R) * dt; for (const w of this.wheels) w.rotation.z = this.wheelSpin; if (this.lodIsFar && this.farWheels) for (const w of this.farWheels) w.rotation.z = this.wheelSpin;
       const sa = this.delta || 0; for (const p of this.frontPivots) p.rotation.y = sa;
