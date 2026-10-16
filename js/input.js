@@ -2,7 +2,6 @@
 window.EI = window.EI || {};
 (function () {
   const keys = {};
-  const STICK_DZ = 0.07, TRIG_DZ = 0.04;
   const MAPS = [
     { up: ['KeyW'], down: ['KeyS'], left: ['KeyA'], right: ['KeyD'], drs: ['ShiftLeft'], ers: ['ControlLeft', 'Space'], pit: ['KeyP'], soft: ['Digit1'], medium: ['Digit2'], hard: ['Digit3'] },
     { up: ['ArrowUp'], down: ['ArrowDown'], left: ['ArrowLeft'], right: ['ArrowRight'], drs: ['ShiftRight'], ers: ['Enter', 'NumpadEnter'], pit: ['Backspace'], soft: ['Digit8'], medium: ['Digit9'], hard: ['Digit0'] },
@@ -25,19 +24,15 @@ window.EI = window.EI || {};
     const pads = navigator.getGamepads ? navigator.getGamepads() : [];
     const gp = pads && pads[playerIndex];
     if (gp) {
-      // stick: small deadzone rescaled so there is no jump at its edge, then a mild curve (finer near the centre, full lock at the end)
-      const ax = gp.axes[0] || 0, m = Math.abs(ax);
-      if (m > STICK_DZ) { const x = Math.min(1, (m - STICK_DZ) / (1 - STICK_DZ)); steer = -Math.sign(ax) * x * (0.65 + 0.35 * x * x); analog = true; }
+      const ax = gp.axes[0] || 0; if (Math.abs(ax) > 0.12) { steer = -ax; analog = true; }
       const rtv = gp.buttons[7] ? gp.buttons[7].value : 0, ltv = gp.buttons[6] ? gp.buttons[6].value : 0;
-      if (rtv > TRIG_DZ) { thr = Math.min(1, (rtv - TRIG_DZ) / (0.97 - TRIG_DZ)); analog = true; } if (ltv > TRIG_DZ) { brk = Math.min(1, (ltv - TRIG_DZ) / (0.97 - TRIG_DZ)); analog = true; }
+      if (rtv > 0.05) { thr = rtv; analog = true; } if (ltv > 0.05) { brk = ltv; analog = true; }
       if (gp.buttons[0] && gp.buttons[0].pressed) drs = true; if ((gp.buttons[2] && gp.buttons[2].pressed) || (gp.buttons[1] && gp.buttons[1].pressed)) ers = true;
       if (gp.buttons[14] && gp.buttons[14].pressed) lf = true; if (gp.buttons[15] && gp.buttons[15].pressed) rt = true;
     }
-    // steerDigital: the steering came from keys, d-pad or touch buttons; the car ramps it in like a hand and self-centres it
-    let steerDigital = false;
-    if (!analog) { steer = (lf ? 1 : 0) - (rt ? 1 : 0); thr = up ? 1 : 0; brk = dn ? 1 : 0; steerDigital = true; }
-    else { if (lf) { steer = 1; steerDigital = true; } if (rt) { steer = -1; steerDigital = true; } if (up) thr = 1; if (dn) brk = 1; }
-    return { throttle: thr, brake: brk, steer, steerDigital, drs, ers, pit, tyre };
+    if (!analog) { steer = (lf ? 1 : 0) - (rt ? 1 : 0); thr = up ? 1 : 0; brk = dn ? 1 : 0; }
+    else { if (lf) steer = 1; if (rt) steer = -1; if (up) thr = 1; if (dn) brk = 1; }
+    return { throttle: thr, brake: brk, steer, drs, ers, pit, tyre };
   }
   function pressed(code) { return !!keys[code]; }
   function consume(code) { const v = !!keys[code]; keys[code] = false; return v; }
