@@ -26,9 +26,9 @@ on-screen buttons for one player.
 | DRS (only in a DRS zone when armed) | Left Shift | Right Shift | A |
 | ERS boost | Left Ctrl or Space | Enter | B / X |
 | Camera (chase / cockpit / TV) | C | / | Y |
-| Request a pit stop | P | Backspace | |
+| Request a pit stop | P | Backspace | RB |
 | Choose tyres for the stop (soft / medium / hard) | 1 / 2 / 3 | 8 / 9 / 0 | |
-| Pause | Esc or P | | |
+| Pause | Esc | | Start |
 | Mute / restart | M / R | | |
 
 In single player either key set drives the car.
@@ -52,7 +52,11 @@ In single player either key set drives the car.
 - **Rendering.** Physically based materials lit by a Preetham sky model with a matching sun and a PMREM
   environment for reflections, normal-mapped asphalt and gravel, tone mapping, soft shadows, billboard
   trees, and dust / gravel / tyre-smoke particles. A Graphics setting picks Low (1024 shadows, no soft
-  shadows, 1x pixel ratio), Medium (default, MSAA only) or High (adds bloom and FXAA post-processing).
+  shadows, 1x pixel ratio), Medium (default, MSAA only) or High (adds bloom and FXAA post-processing); each tier
+  also caps the pixel count on large or high-density screens. The sun shadow of the static scenery is cached and
+  redrawn only when the shadow box moves (every ~10 m); the cars are drawn into it every frame through one
+  simplified mesh each. Cars use three levels of detail (detailed within ~25 m, one draw call beyond, a coarser
+  one-call mesh beyond ~70 m) built once and shared by the whole field.
 - **Pit complex and buildings.** A designed pit building with garages, team signs, glass band, cantilever
   roof and pit wall stands, plus OSM-footprint buildings with office, hall and brick facades and parapets.
 - **Track proportions.** 15 m asphalt, raised red-white kerbs, green-painted strips, tarmac aprons up to
@@ -88,7 +92,9 @@ In single player either key set drives the car.
 - **Physics tuned for fun.** Grip rises with speed (downforce), strong brakes, grass and gravel slow you
   down, barriers scrub speed. Assists: *Full* keeps you at the grip limit so you cannot spin from steering
   alone; *Medium* removes the steering help; *None* adds locked wheels and wheelspin.
-- **Two players** on one keyboard in split screen (side by side on landscape screens, stacked on portrait).
+- **Two players** on one keyboard (and / or one gamepad each) in split screen: stacked top and bottom by default, each view
+  with its own compact HUD along the outer edge and a wide field of view; side by side on very wide windows or when chosen
+  in the menu (Split: Auto / Top-bottom / Side-by-side).
 
 ## Pit stops
 

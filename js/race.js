@@ -9,10 +9,31 @@ window.EI = window.EI || {};
       this.cars = []; this.ais = []; this.players = [];
       this.phase = 'grid'; this.time = 0; this.started = false; this.lightsOn = 0; this.phaseT = 0; this.finishedCount = 0;
       this.events = []; this.fastest = { time: -1, car: null }; this.leaderFinished = false; this.over = false; this.overT = 0;
-      this.rng = U.rng(cfg.seed || (Date.now() & 0xffff));
+      this.seed = (cfg.seed || (Date.now() & 0xffff)) >>> 0;
+      this.rng = U.rng(this.seed);
       this.drsEnabled = false; this.bestSectors = [-1, -1, -1];
       this.buildGrid();
       if (EI.Pit) EI.Pit.init(this);
+      lastRace = this; this.renderField();
+    }
+
+    // ------------------------------------------------------------------ pause "Field" card: each bot's archetype and traits
+    renderField() {
+      if (typeof document === 'undefined' || !EI.AI_TRAITS) return;
+      const el = document.getElementById('pause-field'); if (!el) return;
+      const TR = EI.AI_TRAITS, esc = (x) => String(x).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+      let h = '<div class="fd-row fd-head"><span class="fd-pos">P</span><span class="fd-name">Driver</span><span class="fd-arch">Style</span>';
+      for (const t of TR) h += '<span class="fd-t" title="' + esc(t.name + ': 0.01 ' + t.lo + ' · 1.00 ' + t.hi) + '">' + t.short + '</span>';
+      h += '</div>';
+      for (const car of this.order) {
+        const ai = this.aiFor(car);
+        h += '<div class="fd-row' + (car.isPlayer ? ' fd-player' : '') + '"><span class="fd-pos">' + car.pos + '</span><span class="fd-name"><i style="background:' + car.team.primary + '"></i>' + esc(car.name) + '</span>';
+        if (!ai) { h += '<span class="fd-arch fd-you">Player</span><span class="fd-none">your call</span></div>'; continue; }
+        h += '<span class="fd-arch arch-' + ai.archetype.id + '">' + esc(ai.archetype.name) + '</span>';
+        for (const t of TR) { const v = ai.traits[t.id]; h += '<span class="fd-t" title="' + esc(t.name + ' ' + v.toFixed(2)) + '"><b style="width:' + Math.round(v * 100) + '%"></b><em>' + v.toFixed(2) + '</em></span>'; }
+        h += '</div>';
+      }
+      el.innerHTML = h;
     }
 
     buildGrid() {
@@ -39,12 +60,15 @@ window.EI = window.EI || {};
         const e = pool[i];
         const car = new EI.Car({ id: id++, team: e.team, driver: e.driver, tyre: tyreChoices[Math.floor(rng() * tyreChoices.length)], assist: 'full', skill: e.team.skill, envMap: cfg.envMap });
         this.cars.push(car);
-        this.ais.push(new EI.AIDriver(car, track, cfg.difficulty, rng));
+        // personality: seeded from the race seed and the seat, so the same seed always gives the same field; teammates
+        // never share an archetype
+        const mate = this.ais.find(a => a.car.team === e.team);
+        this.ais.push(new EI.AIDriver(car, track, cfg.difficulty, rng, { seed: this.seed, slot: e.team.index * 2 + e.team.drivers.indexOf(e.driver), avoid: mate ? [mate.archetype.id] : null }));
       }
       // grid order
       let order = this.cars.slice();
       const bots = order.filter(c => !c.isPlayer), players = order.filter(c => c.isPlayer);
-      const botsByPace = bots.slice().sort((a, b) => (this.aiFor(b).speedFactor + rng() * 0.012) - (this.aiFor(a).speedFactor + rng() * 0.012));
+      const botsByPace = bots.slice().sort((a, b) => (this.aiFor(b).paceIndex() + rng() * 0.012) - (this.aiFor(a).paceIndex() + rng() * 0.012));
       if (cfg.grid === 'front') order = players.concat(botsByPace);
       else if (cfg.grid === 'back') order = botsByPace.concat(players);
       else if (cfg.grid === 'random') { order = this.cars.slice(); for (let i = order.length - 1; i > 0; i--) { const j = Math.floor(rng() * (i + 1)); [order[i], order[j]] = [order[j], order[i]]; } }
@@ -269,4 +293,10 @@ window.EI = window.EI || {};
     }
   }
   EI.Race = Race;
+  // refresh the Field card (current running order) every time the pause overlay opens
+  let lastRace = null;
+  if (typeof document !== 'undefined' && typeof MutationObserver !== 'undefined') {
+    const hook = () => { const p = document.getElementById('pause'); if (!p) return; new MutationObserver(() => { if (lastRace && !p.classList.contains('hidden')) lastRace.renderField(); }).observe(p, { attributes: true, attributeFilter: ['class'] }); };
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', hook); else hook();
+  }
 })();

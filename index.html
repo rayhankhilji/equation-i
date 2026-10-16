@@ -116,8 +116,15 @@
               <option value="2">2 players (split screen)</option>
             </select>
           </label>
+          <label class="field hidden" id="split-field"><span class="fl">Split</span>
+            <select id="opt-split">
+              <option value="auto" selected>Auto (top / bottom on a laptop)</option>
+              <option value="tb">Top / bottom</option>
+              <option value="sbs">Side by side</option>
+            </select>
+          </label>
           <div class="player-setup panel" id="p1-setup">
-            <div class="ps-head"><div class="ps-title">Player 1</div><div class="keys"><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> &middot; <kbd>Shift</kbd>DRS &middot; <kbd>Ctrl</kbd>ERS &middot; <kbd>C</kbd>camera</div></div>
+            <div class="ps-head"><div class="ps-title">Player 1</div><div class="keys"><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> &middot; <kbd>L.Shift</kbd>DRS &middot; <kbd>Space</kbd>ERS &middot; <kbd>C</kbd>camera</div></div>
             <label class="field name"><span class="fl">Name</span><input type="text" id="p1-name" maxlength="14" value="YOU" placeholder="Name"></label>
             <label class="field"><span class="fl">Team</span><select id="p1-team"></select></label>
             <label class="field"><span class="fl">Tyre</span>
@@ -164,6 +171,7 @@
 
   <!-- Pause -->
   <div id="pause" class="overlay hidden">
+    <div class="pause-wrap">
     <div class="menu-card small-card">
       <h1>Paused</h1>
       <div class="subtitle">Race suspended</div>
@@ -183,6 +191,11 @@
           <span>Tyres S / M / H</span><span>1 / 2 / 3</span><span>8 / 9 / 0</span>
         </div>
       </div>
+    </div>
+    <div class="menu-card field-card">
+      <div class="fd-top"><h2>Field</h2><span class="fd-key">Driver styles this race &middot; each trait 0.01&ndash;1.00 &middot; hover a column for what it does</span></div>
+      <div id="pause-field" class="fd-table"></div>
+    </div>
     </div>
   </div>
 

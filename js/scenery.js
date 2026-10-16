@@ -67,7 +67,7 @@ window.EI = window.EI || {};
       this.treeBlobs = T.blobs;
       if (this.treeLod) { this.treeLod.near.castShadow = T.shadows; this.treeLod.blobs.visible = T.blobs && this.treeLod.near.visible; }
       if (this.crowdLod) this.crowdLod.inst.castShadow = T.shadows;
-      for (const m of this.cityTrees || []) m.visible = q !== 'low';      // hillside pines / cypresses: medium and high only
+      if (this.cityChunks && EI.EnvCity && EI.EnvCity.setQuality) EI.EnvCity.setQuality(this, q);   // street city: draw ranges and shader per tier
       this._forceLod = true;
     }
     // per-frame LOD bookkeeping (cheap: a few distance tests, buffer regathers only after the eye has moved tens of metres)
@@ -78,13 +78,20 @@ window.EI = window.EI || {};
       if (this.crowdLod) this.crowdLod.update(dt, x, z);
       if (this.parkedCars) this.parkedCars.dyn.update(x, z, force);
       for (const tn of this.tents || []) tn.dyn.update(x, z, force);
-      for (const c of this.clutter || []) c.visible = EI.Env.boxDist(c.userData.box, x, z) < T.clutter;
+      for (const c of this.clutter || []) c.visible = EI.Env.eyeDist(c.userData.box, x, z) < T.clutter;
       for (const f of this.nearFar || []) { f.far.range(100, T.clutter); f.near.range(0, 200); f.far.update(x, z, force); f.near.update(x, z, force); }
       // shadow casters: the sun shadow covers ~70 m round a point just ahead of the camera and the sun is 42 degrees up, so
       // static tiles further than ~170 m away cannot reach it - they skip the shadow pass (the bulk of its cost)
-      for (const c of this.shadowTiles || []) c.castShadow = EI.Env.boxDist(c.userData.box, x, z) < 170;
-      // the city (street circuits): chunks cast shadows near the eye only; the outer hillside chunks drop out on the low tier
-      for (const c of this.cityChunks || []) { const d = EI.Env.boxDist(c.userData.box, x, z); c.castShadow = d < 170; c.visible = !c.userData.far || d < T.cityFar; }
+      for (const c of this.shadowTiles || []) c.castShadow = EI.Env.eyeDist(c.userData.box, x, z) < 170;
+      // the city (street circuits): detail tiles near the eye (casting shadows close by), proxy tiles out to the tier's range
+      if (this.cityChunks && EI.EnvCity && EI.EnvCity.update) EI.EnvCity.update(this, x, z, T);
+    }
+
+    // per-view eye for the distance fades (trees, crowd sprites, tree-line strips): uniforms only, the sets gathered in update() stay
+    setEye(x, z) {
+      if (this.treeLod) this.treeLod.update(x, z);
+      if (this.crowdLod) this.crowdLod.update(0, x, z);
+      if (this.innerStrips) this.innerStrips.uni.uEye.value.set(x, 0, z);
     }
 
     // visible ground height: the verge ribbons (track level) near the circuit, the terrain mesh beyond
@@ -95,6 +102,9 @@ window.EI = window.EI || {};
         let v = (E.dC2 ? E.tyAt(x, z) : t.y[E.idxAt(x, z)]) - 0.03; if (!E.dem) return v;
         // street circuits: on and right next to the road the surface is the road's own (the blended level belongs to the verges)
         const p = t.project(x, z, null, this._hp || (this._hp = {})); if (p.dist < Math.max(t.wallL[p.i], t.wallR[p.i]) + 1.5) v = t.y[p.i] - 0.03;
+        // where the barrier width jumps between samples (escape roads), the nearest sample alone does not tell: any sample close by
+        // that has (x, z) between its barriers puts the ground at its road level
+        const n = t.n; for (let k = p.i - 12; k <= p.i + 12; k++) { const j = (k % n + n) % n; const dx = x - t.x[j], dz = z - t.z[j]; if (Math.abs(dx * t.tx[j] + dz * t.tz[j]) > 1.1) continue; const la = dx * t.nx[j] + dz * t.nz[j]; if (la > -t.wallL[j] - 1.5 && la < t.wallR[j] + 1.5) v = Math.min(v, t.y[j] - 0.03); }
         return Math.max(v, this.gridHeight(x, z));
       }
       return this.gridHeight(x, z);
@@ -128,8 +138,11 @@ window.EI = window.EI || {};
       this.clouds.position.y = 520; this.group.add(this.clouds);
       const cloud2 = this.clouds.clone(); cloud2.material = this.clouds.material.clone(); cloud2.material.opacity = 0.25; cloud2.position.y = 760; cloud2.scale.set(1.6, 1, 1.6); this.group.add(cloud2); this.clouds2 = cloud2;
     }
-    update(dt, camX, camZ) {
+    // one update per frame; split screen passes the second view's eye too (x2, z2): every gathered set and tile visibility then
+    // covers both views (one gather, not two), and setEye(x, z) moves the per-view fade centres before each view renders
+    update(dt, camX, camZ, x2, z2) {
       const fc = EI.debug && EI.debug.freeCam; if (fc && fc.pos) { camX = fc.pos[0]; camZ = fc.pos[2]; }
+      EI.Env.eyes = x2 != null && z2 != null ? [[camX, camZ], [x2, z2]] : null;
       // the track draws its own detailed grass verge (named 'verge', ei-track shader): when present, our overlay ribbon steps aside
       if (!this._vergeChecked && this.env && this.env.vergeMesh) { this._vergeChecked = true; const tv = this.track.group && this.track.group.getObjectByName('verge'); if (tv && tv.material && tv.material.customProgramCacheKey && /ei-track/.test(tv.material.customProgramCacheKey())) { this.env.vergeMesh.visible = false; this.grassTint = [0.96, 1.0, 0.94]; } }
       if (this.grass) this.grass.update(dt, camX, camZ);
@@ -202,9 +215,9 @@ window.EI = window.EI || {};
     }
   }
   Scenery.TIERS = {
-    low: { treeNear: 300, treeFar: 900, grass: [0, 0], crowd: 250, crowdFar: 600, cars: 400, tents: 400, clutter: 450, blobs: true, shadows: false, cityFar: 1500 },
-    medium: { treeNear: 500, treeFar: 1500, grass: [38, 60], crowd: 400, crowdFar: 1e5, cars: 800, tents: 1e5, clutter: 900, blobs: true, shadows: false, cityFar: 1e5 },
-    high: { treeNear: 500, treeFar: 1e5, grass: [55, 85], crowd: 650, crowdFar: 1e5, cars: 1e5, tents: 1e5, clutter: 1e5, blobs: true, shadows: true, cityFar: 1e5 },
+    low: { treeNear: 300, treeFar: 900, grass: [0, 0], crowd: 250, crowdFar: 600, cars: 400, tents: 400, clutter: 450, blobs: true, shadows: false, cityDetail: 250, cityFar: 2600 },
+    medium: { treeNear: 500, treeFar: 1500, grass: [38, 60], crowd: 400, crowdFar: 1e5, cars: 800, tents: 1e5, clutter: 900, blobs: true, shadows: false, cityDetail: 400, cityFar: 1e5 },
+    high: { treeNear: 500, treeFar: 1e5, grass: [55, 85], crowd: 650, crowdFar: 1e5, cars: 1e5, tents: 1e5, clutter: 1e5, blobs: true, shadows: true, cityDetail: 620, cityFar: 1e5 },
   };
   EI.Scenery = Scenery;
 })();

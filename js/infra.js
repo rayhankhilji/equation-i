@@ -90,7 +90,14 @@ window.EI = window.EI || {};
     }
     add(mesh, name) { mesh.name = name || mesh.name; this.group.add(mesh); return mesh; }
     // untextured vertex-coloured structures go to the scenery's merged, spatially chunked statics (one material for everything)
-    static(geos, rough, metal, layer, name) { if (!geos.length) return; const g = merge(geos); if (this.sc.statics) { this.sc.statics.add(g, rough, metal, layer); this.stats[name + 'Tris'] = g.attributes.position.count / 3; return; } const m = new THREE.Mesh(g, stdMat({ roughness: rough, metalness: metal })); m.castShadow = true; m.receiveShadow = true; this.add(m, name); }
+    // street circuits: everything goes into the street world's cells (shared atlas material) instead of the lap-wide statics
+    kit() { const SKx = EI.StreetKit; return this.t.data.street && SKx && SKx.World && this.sc ? SKx : null; }
+    textured(list, texture, region, w, h, rough) {
+      const SKx = this.kit(); if (!SKx || !list.length) return false; const img = texture.image; const r = SKx.Atlas.region(region, w, h, (x, ww, hh) => x.drawImage(img, 0, 0, ww, hh), null, null, 'none');
+      const B = new SKx.Batch().set(r, rough || 0.55, 0); const W1 = new THREE.Color(1, 1, 1); for (const g of list) B.geo(g, null, W1); SKx.world(this.sc).add(B, 'detail'); return true;
+    }
+    static(geos, rough, metal, layer, name) { if (!geos.length) return; const SKx = this.kit();
+      if (SKx) { const B = new SKx.Batch().mat(rough, metal); const W1 = new THREE.Color(1, 1, 1); for (const g of geos) B.geo(g, null, g.userData.color || W1); SKx.world(this.sc).add(B, 'detail'); this.stats[name + 'Tris'] = B.count / 3; return; } const g = merge(geos); if (this.sc.statics) { this.sc.statics.add(g, rough, metal, layer); this.stats[name + 'Tris'] = g.attributes.position.count / 3; return; } const m = new THREE.Mesh(g, stdMat({ roughness: rough, metalness: metal })); m.castShadow = true; m.receiveShadow = true; this.add(m, name); }
   }
 
   // ---------------------------------------------------------------- 1. advertising hoardings
@@ -165,7 +172,7 @@ window.EI = window.EI || {};
       cx.reserve(p.s, side, 6); n++;
     });
     cx.static(geos, 0.5, 0.4, 'main', 'billboardPosts');
-    if (panels.length) { const bm = new THREE.Mesh(merge(panels), new THREE.MeshStandardMaterial({ map: atlas, roughness: 0.5 })); bm.castShadow = true; bm.receiveShadow = true; cx.add(bm, 'billboards'); }
+    if (panels.length && !cx.textured(panels, atlas, 'billboards', 1024, 512, 0.5)) { const bm = new THREE.Mesh(merge(panels), new THREE.MeshStandardMaterial({ map: atlas, roughness: 0.5 })); bm.castShadow = true; bm.receiveShadow = true; cx.add(bm, 'billboards'); }
     cx.stats.billboards = n;
   }
 
@@ -378,7 +385,7 @@ window.EI = window.EI || {};
     }
     if (!geos.length) return;
     cx.static(geos, 0.7, 0.05, 'clutter', 'marshalPosts');
-    cx.add(new THREE.Mesh(merge(boards), new THREE.MeshStandardMaterial({ map: numberAtlas(), roughness: 0.6 })), 'marshalBoards');
+    if (!cx.textured(boards, numberAtlas(), 'marshalNumbers', 256, 384, 0.6)) cx.add(new THREE.Mesh(merge(boards), new THREE.MeshStandardMaterial({ map: numberAtlas(), roughness: 0.6 })), 'marshalBoards');
     cx.stats.marshalPosts = num;
   }
 
@@ -451,7 +458,7 @@ window.EI = window.EI || {};
       }
     }
     cx.static(geos, 0.5, 0.35, 'clutter', 'broadcast');
-    if (boards.length) { const bm = new THREE.Mesh(merge(boards), new THREE.MeshStandardMaterial({ map: atlas, roughness: 0.55, side: THREE.DoubleSide })); bm.receiveShadow = true; cx.add(bm, 'infraBoards'); }
+    if (boards.length && !cx.textured(boards, atlas, 'hoardings', 1024, 128, 0.55)) { const bm = new THREE.Mesh(merge(boards), new THREE.MeshStandardMaterial({ map: atlas, roughness: 0.55, side: THREE.DoubleSide })); bm.receiveShadow = true; cx.add(bm, 'infraBoards'); }
     Object.assign(cx.stats, { cameraScaffolds: scaff, cranes, gantries, sponsorWalls: walls });
   }
 

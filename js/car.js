@@ -135,19 +135,33 @@ window.EI = window.EI || {};
     }
 
     buildModel() {
-      const m = (EI.CarGLB && EI.CarGLB.ready) ? EI.CarGLB.build(this, this.isPlayer ? 'hi' : 'lo') : EI.CarModel.build(this);
-      // wrapper group: the detailed model plus, for bots, a cheap far model (procedural, ~10k triangles) swapped in beyond ~150 m
-      this.group = new THREE.Group(); this.group.add(m.group); this.lodNear = m.group; this.lodFar = null; this.lodIsFar = false;
-      if (!this.isPlayer && EI.CarGLB && EI.CarGLB.ready) { const f = EI.CarModel.build(this); this.lodFar = f.group; this.lodFar.visible = false; this.group.add(this.lodFar); this.farWheels = f.wheels; }
+      const glb = EI.CarGLB && EI.CarGLB.ready;
+      const m = glb ? EI.CarGLB.build(this, this.isPlayer ? 'hi' : 'lo') : EI.CarModel.build(this);
+      // wrapper group: the detailed model plus, for bots, a one-draw-call mid model (~25-120 m) and a coarse far model beyond
+      this.group = new THREE.Group(); this.group.add(m.group); this.lodNear = m.group; this.lodMid = m.mid || null; this.lodFar = m.far || null; this.lodLevel = 0; this.lodIsFar = false;
+      if (this.lodMid) { this.group.add(this.lodMid); this.group.add(this.lodFar); }
+      else if (!this.isPlayer && glb) { const f = EI.CarModel.build(this); this.lodFar = f.group; this.lodFar.visible = false; this.group.add(this.lodFar); this.farWheels = f.wheels; }
       this.shadowMeshes = []; m.group.traverse(o => { if (o.isMesh && o.castShadow) this.shadowMeshes.push(o); }); this._cast = true;
+      // shadow proxy: the GLB cars cast through one mesh (the mid geometry) that main.js draws in the shadow pass only
+      this.shadowProxy = null; this.shadowOn = true;
+      if (m.shadowGeo) { const p = new THREE.Mesh(m.shadowGeo, Car.proxyMat || (Car.proxyMat = new THREE.MeshBasicMaterial({ side: THREE.DoubleSide }))); p.castShadow = true; p.matrixAutoUpdate = false; p.name = 'carShadow'; this.shadowProxy = p; }
       this.body = m.body; this.wheels = m.wheels; this.frontPivots = m.frontPivots; this.flap = m.flap; this.helmet = m.helmet; this.bodyMat = m.bodyMat; this.animateDriver = m.animate || null; this.screen = m.screen || null; this.screenTex = m.screenTex || null; this.flapClosed = m.flapClosed != null ? m.flapClosed : 0.5; this.flapOpen = m.flapOpen != null ? m.flapOpen : -0.15;
+      this.pose = m.pose || null;
       this.group.name = 'car-' + this.id; this.wheelSpin = 0;
       this._fwd = new THREE.Vector3(); this._up = new THREE.Vector3(); this._right = new THREE.Vector3(); this._m = new THREE.Matrix4();
     }
 
-    // distance-based level of detail for bots; also drops shadow casting for distant cars
+    // distance-based level of detail (dist: metres from the nearest camera, already scaled for zoom and tier by main.js):
+    // near (< 25 m) the detailed model, mid (< 70 m) and far: one draw call each; the sun shadow stops at 60 m
     setLOD(far, dist) {
+      if (this.lodMid) {
+        const L = this.lodLevel; const n = L === 0 ? (dist > 27 ? (dist > 72 ? 2 : 1) : 0) : L === 1 ? (dist < 23 ? 0 : dist > 75 ? 2 : 1) : (dist < 23 ? 0 : dist < 66 ? 1 : 2);
+        if (n !== L) { this.lodLevel = n; this.lodNear.visible = n === 0; this.lodMid.visible = n === 1; this.lodFar.visible = n === 2; this.lodIsFar = n === 2; }
+        this.shadowOn = dist < 60; this.blobOn = dist < 160; return;
+      }
+      if (far == null) far = this.lodIsFar ? dist > 120 : dist > 150;
       if (this.lodFar && far !== this.lodIsFar) { this.lodIsFar = far; this.lodNear.visible = !far; this.lodFar.visible = far; }
+      this.shadowOn = dist < 60 || this.isPlayer;
       const cast = dist < 90; if (cast !== this._cast) { this._cast = cast; for (const o of this.shadowMeshes) o.castShadow = cast; }
     }
     place(x, z, heading, y) { this.x = x; this.z = z; this.y = y || 0; this.heading = heading; this.v = 0; this.vLat = 0; this.steer = 0; this.yaw = 0; this.trk.i = -1; this._px = null; this.vx = null; this.updateVisual(0); }
@@ -256,10 +270,12 @@ window.EI = window.EI || {};
       const av2 = Math.abs(this.v); this._t = (this._t || 0) + dt;
       const heaveAmp = this.surface === 'kerb' ? 0.012 : (this.surface === 'grass' ? 0.009 : this.surface === 'gravel' ? 0.014 : 0) * Math.min(1, av2 / 20);
       this.body.position.y = heaveAmp * Math.sin(this._t * (this.surface === 'kerb' ? 75 : 40) + this.id) - this.aLong * 0.0008;
+      if (this.lodLevel === 2) return;   // far: frozen wheels, flap and driver
       if (this.animateDriver) this.animateDriver(this.steer, this.steer * 0.12);
       this.wheelSpin -= (this.v / WHEEL_R) * dt; for (const w of this.wheels) w.rotation.z = this.wheelSpin; if (this.lodIsFar && this.farWheels) for (const w of this.farWheels) w.rotation.z = this.wheelSpin;
       const sa = this.steer * 0.42 / (1 + Math.abs(this.v) / 18); for (const p of this.frontPivots) p.rotation.y = sa;
       const ft = this.drsOpen ? this.flapOpen : this.flapClosed; this.flap.rotation.z += (ft - this.flap.rotation.z) * Math.min(1, dt * 12);
+      if (this.pose) this.pose(this.wheelSpin, sa, this.flap.rotation.z, this.body);
     }
   }
   EI.Car = Car; EI.CAR = { L, W, WB, VMAX, GEARS, GRIP, BRAKE, PM, CD };

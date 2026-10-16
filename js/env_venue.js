@@ -326,9 +326,21 @@ window.EI = window.EI || {};
   // ================================================================ build
   V.build = function (E) {
     const sc = E.sc, t = E.t, T0 = performance.now(); const stats = E.stats; const ST = sc.statics;
-    const B = new Env.Builder();     // stands: concrete, seats, cladding, roofs (main layer)
-    const M = new Env.Builder();     // steel: columns, roof stays, cladding ribs (main layer, metallic)
-    const MD = new Env.Builder();    // fine steel + trim: handrails, under-roof lattice, purlins, lights, rear stairs, step nosings (clutter layer)
+    // street circuits write the stands into the street world's cells (shared atlas material) instead of the lap-wide statics
+    const SKx = t.data.street && EI.StreetKit && EI.StreetKit.World ? EI.StreetKit : null;
+    const B = SKx ? new SKx.Batch().mat(0.8, 0.04) : new Env.Builder();     // stands: concrete, seats, cladding, roofs (main layer)
+    const M = SKx ? new SKx.Batch().mat(0.42, 0.65) : new Env.Builder();    // steel: columns, roof stays, cladding ribs (main layer, metallic)
+    const MD = SKx ? new SKx.Batch().mat(0.45, 0.55) : new Env.Builder();   // fine steel + trim: handrails, under-roof lattice, purlins, lights, rear stairs, step nosings (clutter layer)
+    const Sb = SKx ? new SKx.Batch() : null, Fr = SKx ? new SKx.Batch() : null; let seatR = null, sponR = null;
+    if (SKx) {
+      // seat texture: v 0.5..1 moulded backs (rounded, lighter rim), v 0..0.5 the pans; one seat per 0.5 m along u
+      seatR = SKx.Atlas.region('seat', 64, 128, (x2, w, h) => { x2.clearRect(0, 0, w, h); const grad = x2.createLinearGradient(0, 0, 0, 64); grad.addColorStop(0, '#5f8ee0'); grad.addColorStop(0.5, '#2f66c4'); grad.addColorStop(1, '#1d4a99');
+        x2.fillStyle = grad; x2.beginPath(); if (x2.roundRect) x2.roundRect(6, 4, 52, 58, 12); else x2.rect(6, 4, 52, 58); x2.fill(); x2.fillStyle = 'rgba(255,255,255,0.18)'; x2.fillRect(10, 8, 44, 5);
+        x2.fillStyle = '#2a5cb4'; x2.beginPath(); if (x2.roundRect) x2.roundRect(6, 66, 52, 56, 10); else x2.rect(6, 66, 52, 56); x2.fill(); x2.fillStyle = 'rgba(0,0,0,0.25)'; x2.fillRect(6, 112, 52, 8); },
+        (x2, w, h) => { const g2 = x2.createLinearGradient(0, 0, 0, 64); g2.addColorStop(0, 'rgb(170,170,170)'); g2.addColorStop(1, 'rgb(100,100,100)'); x2.fillStyle = g2; x2.fillRect(6, 4, 52, 58); }, null, 'u');
+      sponR = SKx.Atlas.region('standSponsor', 1024, 64, (x2, w, h) => { for (let k = 0; k < 8; k++) { x2.save(); x2.translate(k * 128, 0); x2.scale(0.5, 0.5); EI.Ads.paintTile(x2, k, 0, 0, 256, 128); x2.restore(); x2.fillStyle = 'rgba(0,0,0,0.35)'; x2.fillRect(k * 128 + 126, 0, 2, 64); } }, null, null, 'u');
+      Sb.set(seatR, 0.5, 0); Fr.set(sponR, 0.55, 0);
+    }
     const H = new Env.Builder();     // hospitality, BRDC clubhouse, sheds (main layer)
     const D = new Env.Builder();     // clutter: light towers, gates, lorries, flag poles (dropped in the distance on low / medium)
     const fronts = [], flags = [], banners = [];
@@ -451,7 +463,7 @@ window.EI = window.EI || {};
     if (street) {
       const seaY = E.seaY != null ? E.seaY : -3.6; const kk = t.smooth(t.k, 10);
       const deck = C(0xb9bec4), riser = C(0x5b6168), base = C(0xf1f2f0), baseD = C(0xd9dbd9), tube = C(0x9ea5ac), tubeD = C(0x737a82), rail = C(0xc2c8cd), roofW = C(0xf4f5f5), orange = C(0xe2771e);
-      const seatQuad = (a, b, c, d, u0, u1, v0, v1, nrm) => { const k = SS.p.length / 3; for (const q of [a, b, c, d]) SS.p.push(q[0], q[1], q[2]); SS.uv.push(u0, v0, u1, v0, u1, v1, u0, v1); for (let j = 0; j < 4; j++) SS.n.push(nrm[0], nrm[1], nrm[2]); SS.idx.push(k, k + 1, k + 2, k, k + 2, k + 3); };
+      const seatQuad = Sb ? (a, b, c, d, u0, u1, v0, v1, nrm) => { const W1 = C(0xffffff); Sb.triN(a, b, c, nrm, nrm, nrm, W1, W1, W1, [u0, v0, u1, v0, u1, v1]); Sb.triN(a, c, d, nrm, nrm, nrm, W1, W1, W1, [u0, v0, u1, v1, u0, v1]); } : (a, b, c, d, u0, u1, v0, v1, nrm) => { const k = SS.p.length / 3; for (const q of [a, b, c, d]) SS.p.push(q[0], q[1], q[2]); SS.uv.push(u0, v0, u1, v0, u1, v1, u0, v1); for (let j = 0; j < 4; j++) SS.n.push(nrm[0], nrm[1], nrm[2]); SS.idx.push(k, k + 1, k + 2, k, k + 2, k + 3); };
       for (const st of t.data.scenery.grandstands) {
         if (st.s0 == null) continue; const side = st.side, style = st.style; const span = U.mod(st.s1 - st.s0, t.length);
         const rows = U.clamp(Math.floor((st.depth - 1.6) / 0.85), 6, 26); const rise = 0.46, tread = 0.85; const y0 = style === 'water' ? 1.9 : 2.5, z0 = 0.5;
@@ -476,7 +488,7 @@ window.EI = window.EI || {};
           // base: white clad front wall below the first row (with a sponsor strip), grey underside of the decks
           B.box(m, L, y0, 0.25, 0, 0, 0.12, base); B.quad(P(-hl, y0 - 0.02, 0.26), P(hl, y0 - 0.02, 0.26), P(hl, 0.4, 0.26), P(-hl, 0.4, 0.26), baseD);
           if (style === 'water') for (let a = -hl + 1; a <= hl - 0.5; a += 3) M.box(m, 0.35, -yFoot + 0.4, 0.35, a, yFoot, 0.12, C(0xcfd2d4));
-          const strip = (yb, h, zz) => { const g = new THREE.PlaneGeometry(L, h); g.rotateY(Math.PI); const suv = g.attributes.uv; const u0 = rng() * 8; for (let v = 0; v < suv.count; v++) suv.setXY(v, u0 + suv.getX(v) * L / (5 * h), 0.52 + suv.getY(v) * 0.46); g.translate(0, yb + h / 2, zz); g.applyMatrix4(m); fronts.push(g); };
+          const strip = (yb, h, zz) => { const g = new THREE.PlaneGeometry(L, h); g.rotateY(Math.PI); const suv = g.attributes.uv; const u0 = rng() * 8; for (let v = 0; v < suv.count; v++) suv.setXY(v, u0 + suv.getX(v) * L / (5 * h), Fr ? 0.04 + suv.getY(v) * 0.92 : 0.52 + suv.getY(v) * 0.46); g.translate(0, yb + h / 2, zz); g.applyMatrix4(m); if (Fr) Fr.geo(g, null, C(0xffffff)); else fronts.push(g); };
           strip(y0 - 1.2, 0.9, -0.01);
           // front rail (glass-less tube rail) on the first deck
           MD.beam(m, [-hl, y0 + 1.05, z0 - 0.2], [hl, y0 + 1.05, z0 - 0.2], 0.05, rail); MD.beam(m, [-hl, y0 + 0.55, z0 - 0.2], [hl, y0 + 0.55, z0 - 0.2], 0.035, rail);
@@ -595,7 +607,8 @@ window.EI = window.EI || {};
       D.box(m, 14, 1.6, 0.6, 0, 5.0, 0, C(k % 2 ? 0xc8102e : 0x0b3d2e)); D.box(m, 14.1, 0.25, 0.65, 0, 6.6, 0, white);
       D.box(m, 3, 2.6, 2.4, 9.5, 0, 0, C(0xe9eaea)); D.box(m, 3.1, 0.9, 2.5, 9.5, 1.1, 0, glass); D.box(m, 3.6, 0.25, 3.0, 9.5, 2.6, 0, C(0xc8102e));
     });
-    ST.add(B.geometry(), 0.8, 0.04, 'main'); ST.add(M.geometry(), 0.42, 0.65, 'main'); ST.add(MD.geometry(), 0.45, 0.55, 'clutter');
+    if (SKx) { const W = SKx.world(sc); W.add(B, 'main'); W.add(M, 'detail'); W.add(MD, 'fine'); W.add(Sb, 'main'); W.add(Fr, 'detail'); stats.seatQuads = Sb.count / 6; }
+    else { ST.add(B.geometry(), 0.8, 0.04, 'main'); ST.add(M.geometry(), 0.42, 0.65, 'main'); ST.add(MD.geometry(), 0.45, 0.55, 'clutter'); }
     if (H.count) { ST.add(H.geometry(), 0.6, 0.08, 'main'); stats.venueTris = H.count / 3; }
     if (D.count) ST.add(D.geometry(), 0.55, 0.25, 'clutter');
     // sponsor boards (top half of the atlas) and fan banners (bottom half) share one textured mesh

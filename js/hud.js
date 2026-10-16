@@ -9,9 +9,31 @@ window.EI = window.EI || {};
   function flash(el, cls, ms) { el.classList.remove(cls); void el.offsetWidth; el.classList.add(cls); clearTimeout(el['_t_' + cls]); el['_t_' + cls] = setTimeout(() => el.classList.remove(cls), ms || 900); }
   function setText(el, s) { if (el._v !== s) { el._v = s; el.textContent = s; } }
 
-  function makeViewport(k, car) {
-    const el = document.createElement('div'); el.className = 'vp';
-    el.innerHTML =
+  // Two players get a purpose-built compact HUD (class 'split'): a single band along the outer edge of each view (P1 along the top
+  // of the screen, P2 along the bottom; side by side: corners) with a three-row position tower, a small minimap, the timing box and a
+  // short dash, all sized in real pixels from the view size (--u) rather than scaled, plus per-view start lights, banner, toasts
+  // and a finished card. The single-player HUD below is unchanged.
+  const live = [];   // viewports of the current race
+  function splitMarkup(k) {
+    let lights = ''; for (let i = 0; i < 5; i++) lights += '<div class="light-col"><span></span><span></span></div>';
+    return '<div class="hud">' +
+      '<div class="sp-tower panel"><div class="sp-head"><span class="sp-pl">P' + (k + 1) + '</span><div class="tm-pos"><span>POS</span><b>1</b><small>/ 20</small></div><div class="tw-lap"><span>LAP</span><b>1</b><i>/ 1</i></div></div><div class="tw-rows"></div></div>' +
+      '<div class="mapwrap"><canvas class="minimap" width="360" height="360"></canvas><i class="map-n"></i></div>' +
+      '<div class="sp-timing panel"><div class="tm-time">0:00.000</div><div class="tm-sectors"><span>S1</span><span>S2</span><span>S3</span></div>' +
+      '<div class="tm-foot"><span class="tm-last">LAST<b>--:--.---</b></span><span class="tm-best">BEST<b>--:--.---</b></span><span class="delta"></span></div></div>' +
+      '<div class="dash panel"><div class="leds"></div><div class="dash-main">' +
+      '<div class="ers"><div class="ers-top"><i class="batt"><b></b></i><span class="ers-pct">100%</span></div><div class="ers-bar"><i></i></div><div class="ers-label">ERS</div></div>' +
+      '<div class="centre"><div class="gear-wrap"><div class="gear">N</div><div class="rpm"></div></div>' +
+      '<div class="speed"><div class="speed-v"><b>0</b><small>KM/H</small></div><div class="pedals"><i class="thr"></i><i class="brk"></i></div></div></div>' +
+      '<div class="right"><div class="drs"><b>DRS</b><small>OFF</small></div></div></div></div>' +
+      '<div class="msg"><span></span></div><div class="sp-fin"><b></b><span></span></div>' +
+      '<div class="sp-lights">' + lights + '</div><div class="sp-banner"></div><div class="sp-toasts"></div>' +
+      '<div class="tags"></div><div class="corner"></div><div class="pname"></div></div>';
+  }
+  function makeViewport(k, car, nPlayers) {
+    const split = nPlayers > 1;
+    const el = document.createElement('div'); el.className = 'vp' + (split ? ' split p' + (k + 1) : '');
+    el.innerHTML = split ? splitMarkup(k) :
       '<div class="hud">' +
       '<div class="tower panel"><div class="tw-head"><div class="tw-label">LAP</div><div class="tw-lap"><b>1</b><i>/ 1</i></div><div class="tw-session">GRAND PRIX</div></div><div class="tw-rows"></div></div>' +
       '<div class="timing panel"><div class="tm-top"><div class="tm-pos"><b>1</b><small>/ 20</small></div><div class="tm-time">0:00.000</div></div>' +
@@ -26,33 +48,45 @@ window.EI = window.EI || {};
       '<div class="right"><div class="drs"><b>DRS</b><small>OFF</small></div></div></div></div>' +
       '<div class="tags"></div><div class="corner"></div><div class="pname"></div></div>';
     $('viewports').appendChild(el);
+    for (let i = live.length - 1; i >= 0; i--) if (!live[i].el.isConnected) live.splice(i, 1);
     const q = (c) => el.querySelector(c);
     const leds = q('.leds'); for (let i = 0; i < 15; i++) { const d = document.createElement('i'); d.className = i < 5 ? 'g' : i < 10 ? 'r' : 'b'; leds.appendChild(d); }
     // five persistent rows (2 ahead, me, 2 behind) so position flashes and transitions survive updates
-    const rowsEl = q('.tw-rows'); const rows = [];
-    for (let i = 0; i < 5; i++) {
+    const rowsEl = q('.tw-rows'); const rows = []; const NROWS = split ? 3 : 5;
+    for (let i = 0; i < NROWS; i++) {
       const d = document.createElement('div'); d.className = 'lp-row empty';
       d.innerHTML = '<span class="p"></span><span class="bar"></span><span class="n"></span><span class="ty"></span><span class="g"></span>';
       rowsEl.appendChild(d); rows.push({ el: d, p: d.children[0], bar: d.children[1], n: d.children[2], ty: d.children[3], g: d.children[4] });
     }
-    const r = { el, car, k, lapWrap: q('.tw-lap'), lapN: q('.tw-lap b'), lapT: q('.tw-lap i'), rows, posWrap: q('.tm-pos'), pos: q('.tm-pos b'), posT: q('.tm-pos small'), time: q('.tm-time'), sectors: q('.tm-sectors').children,
+    const r = { el, car, k, split, lapWrap: q('.tw-lap'), lapN: q('.tw-lap b'), lapT: q('.tw-lap i'), rows, posWrap: q('.tm-pos'), pos: q('.tm-pos b'), posT: q('.tm-pos small'), time: q('.tm-time'), sectors: q('.tm-sectors').children,
       last: q('.tm-last b'), best: q('.tm-best b'), delta: q('.delta'), msg: q('.msg'), msgText: q('.msg span'), map: q('.minimap').getContext('2d'), ledsEl: leds, leds: leds.children,
       ersPct: q('.ers-pct'), ersBar: q('.ers-bar i'), ersBatt: q('.batt b'), ers: q('.ers'), gear: q('.gear'), speed: q('.speed-v b'), thr: q('.thr'), brk: q('.brk'), drs: q('.drs'), drsSub: q('.drs small'), drsCall: q('.drs-call'), rpm: q('.rpm'), tags: q('.tags'), corner: q('.corner'),
       msgT: 0, tagEls: [], prevPos: car.pos, prevLap: -1, prevFlags: ['', '', ''], prevMe: -1 };
     q('.pname').innerHTML = '<i style="background:' + car.team.primary + '"></i><span>' + car.name + '</span><span class="team">' + car.team.short + '</span>' + (car.isPlayer ? '<span class="cam">' + (k === 0 ? 'C' : '/') + ' · CAMERA</span>' : '');
-    r.setRect = (x, y, w, h) => {
+    r.setRect = (x, y, w, h, sp) => {
       el.style.left = x + 'px'; el.style.top = y + 'px'; el.style.width = w + 'px'; el.style.height = h + 'px'; r.w = w; r.h = h;
+      if (split) {
+        // --u: one unit in px for this view, from its size (1 = a 1920 x 539 stacked view); everything is laid out in real pixels
+        const tb = !sp || sp.dir !== 'sbs'; const u = tb ? U.clamp(Math.min(w / 1920, h / 540), 0.72, 1.35) : U.clamp(Math.min(w / 1000, h / 1000), 0.72, 1.2);
+        r.s = u; el.style.setProperty('--u', u.toFixed(3)); el.style.setProperty('--s', u.toFixed(3));
+        el.classList.toggle('edge-top', tb && k === 0); el.classList.toggle('edge-bottom', tb && k === 1); el.classList.toggle('sbs', !tb); el.classList.toggle('sbs-left', !tb && k === 0); el.classList.toggle('sbs-right', !tb && k === 1);
+        return;
+      }
       const s = U.clamp(Math.min(w / 1280, h / 720), 0.7, 1.3); r.s = s; el.style.setProperty('--s', s.toFixed(3));
       const side = (w - 520 * s) / 2; el.classList.toggle('narrow', side < 200 * s); el.classList.toggle('tight', side < 120 * s);   // room left beside the centre dash
     };
-    r.showMsg = (text, cls, dur) => { r.msgText.textContent = text; r.msg.className = 'msg ' + (cls || ''); void r.msg.offsetWidth; r.msg.classList.add('show'); r.msgT = dur || 2.5; };
+    // finished (two players): a card that stays up for the rest of the race while the cool-down lap is driven
+    r.setFinished = (pos) => { const f = q('.sp-fin'); if (!f) return; f.children[0].textContent = 'P' + pos + ' · FINISHED'; f.children[1].textContent = 'Cool-down lap'; f.classList.add('show'); r.msgT = 0; r.msg.classList.remove('show'); r.fin = true; };
+    r.toastEl = q('.sp-toasts'); r.bannerEl = q('.sp-banner');
+    live.push(r);
+    r.showMsg = (text, cls, dur) => { if (r.fin && split) return; r.msgText.textContent = text; r.msg.className = 'msg ' + (cls || ''); void r.msg.offsetWidth; r.msg.classList.add('show'); r.msgT = dur || 2.5; };
     r.update = (race, dt) => {
       const c = car, t = race.track;
       // cockpit view: the wheel display carries gear / speed / ERS / DRS, so the centre dash (and the corner / driver chips) go away;
       // only the lap tower, timing box, minimap and name tags stay, plus a vignette that frames the cockpit
       const ck = !!(c._cockpitT && performance.now() - c._cockpitT < 400); if (ck !== r.ck) { r.ck = ck; el.classList.toggle('cockpit', ck); }
       // ---- dash (hidden in the cockpit, where the wheel display carries it: skip the DOM work entirely)
-      if (!ck) {
+      if (!ck || split) {   // split screen keeps its dash in the cockpit (the short view crops the wheel display)
         setText(r.speed, String(Math.round(c.speedKmh))); setText(r.gear, c.gear === 0 ? 'N' : c.v < -0.5 ? 'R' : String(c.gear));
         const lit = Math.round(c.rpm * 15); for (let i = 0; i < 15; i++) r.leds[i].classList.toggle('on', i < lit);
         r.ledsEl.classList.toggle('shift', c.rpm > 0.96 && c.gear > 0 && c.gear < 8);
@@ -60,13 +94,13 @@ window.EI = window.EI || {};
         r.thr.style.setProperty('--v', (c.throttle * 100).toFixed(0) + '%'); r.brk.style.setProperty('--v', (c.brake * 100).toFixed(0) + '%');
         const ep = Math.round(c.ers * 100); setText(r.ersPct, ep + '%'); r.ersBar.style.width = ep + '%'; r.ersBatt.style.width = ep + '%'; r.ers.classList.toggle('active', !!c.ersActive);
       }
-      updateDrs(r, race, c, ck, dt);
+      updateDrs(r, race, c, ck && !split, dt);
       // ---- lap tower: 2 ahead, me, 2 behind
       const lapNow = c.finished ? 'FIN' : String(Math.min(c.lap, race.laps));
       if (lapNow !== r.prevLap) { setText(r.lapN, lapNow); if (r.prevLap !== -1) flash(r.lapWrap, 'bump', 600); r.prevLap = lapNow; }
-      setText(r.lapT, '/ ' + race.laps);
-      const order = race.order; const idx = c.pos - 1; let a = Math.max(0, idx - 2); let b = Math.min(order.length, a + 5); a = Math.max(0, b - 5);
-      for (let i = 0; i < 5; i++) {
+      setText(r.lapT, split && c.finished ? '' : '/ ' + race.laps);
+      const order = race.order; const idx = c.pos - 1; let a = Math.max(0, idx - (NROWS >> 1)); let b = Math.min(order.length, a + NROWS); a = Math.max(0, b - NROWS);
+      for (let i = 0; i < NROWS; i++) {
         const row = rows[i]; const j = a + i; const o = order[j];
         if (!o) { row.el.className = 'lp-row empty'; continue; }
         const me = o === c; let gap;
@@ -139,12 +173,17 @@ window.EI = window.EI || {};
     const n = t.n, step = Math.max(1, Math.round(6 / (t.ds || 1)));
     const P = (i) => [(t.x[i] - c.x) * scale, (t.z[i] - c.z) * scale];
     ctx.lineCap = 'round'; ctx.lineJoin = 'round';
-    ctx.beginPath(); for (let i = 0; i <= n; i += step) { const p = P(i % n); i === 0 ? ctx.moveTo(p[0], p[1]) : ctx.lineTo(p[0], p[1]); } ctx.closePath();
-    ctx.lineWidth = 11 * k / 2; ctx.strokeStyle = 'rgba(0,0,0,0.55)'; ctx.stroke();
-    ctx.lineWidth = 6 * k / 2; ctx.strokeStyle = '#e4e8ee'; ctx.stroke();
-    // DRS zones
-    ctx.strokeStyle = '#2fe36d'; ctx.lineWidth = 6 * k / 2;
-    for (const z of t.drs) { const ze = z.end >= z.start ? z.end : z.end + t.length; ctx.beginPath(); for (let s = z.start; s <= ze; s += 10) { const p = P(t.idxAtS(s)); s === z.start ? ctx.moveTo(p[0], p[1]) : ctx.lineTo(p[0], p[1]); } ctx.stroke(); }
+    // track outline and DRS zones: world-space paths built once per circuit, stroked under a car-centred transform
+    if (!t._mapPaths) {
+      const tp = new Path2D(); for (let i = 0; i <= n; i += step) { const j = i % n; i === 0 ? tp.moveTo(t.x[j], t.z[j]) : tp.lineTo(t.x[j], t.z[j]); } tp.closePath();
+      const drs = t.drs.map((z) => { const ze = z.end >= z.start ? z.end : z.end + t.length; const dp = new Path2D(); for (let s = z.start; s <= ze; s += 10) { const j = t.idxAtS(s); s === z.start ? dp.moveTo(t.x[j], t.z[j]) : dp.lineTo(t.x[j], t.z[j]); } return dp; });
+      t._mapPaths = { tp, drs };
+    }
+    ctx.save(); ctx.scale(scale, scale); ctx.translate(-c.x, -c.z);
+    ctx.lineWidth = 11 * k / 2 / scale; ctx.strokeStyle = 'rgba(0,0,0,0.55)'; ctx.stroke(t._mapPaths.tp);
+    ctx.lineWidth = 6 * k / 2 / scale; ctx.strokeStyle = '#e4e8ee'; ctx.stroke(t._mapPaths.tp);
+    ctx.strokeStyle = '#2fe36d'; for (const dp of t._mapPaths.drs) ctx.stroke(dp);
+    ctx.restore();
     // sector boundaries + start line
     const tick = (s, col, len) => { const i = t.idxAtS(s); const p = P(i); const nx = t.nx[i], nz = t.nz[i]; ctx.beginPath(); ctx.moveTo(p[0] - nx * len, p[1] - nz * len); ctx.lineTo(p[0] + nx * len, p[1] + nz * len); ctx.strokeStyle = col; ctx.lineWidth = 2.5 * k / 2; ctx.stroke(); };
     if (t.sectors) for (const s of t.sectors) tick(s, '#ffd23f', 6 * k / 2);
@@ -161,22 +200,49 @@ window.EI = window.EI || {};
     ctx.beginPath(); ctx.moveTo(0, -10); ctx.lineTo(7.5, 8); ctx.lineTo(0, 4); ctx.lineTo(-7.5, 8); ctx.closePath(); ctx.fill(); ctx.shadowBlur = 0; ctx.stroke(); ctx.restore();
   }
 
-  function setLights(n) { const cols = $('lights').querySelectorAll('.light-col'); cols.forEach((c, i) => c.classList.toggle('on', i < n)); }
+  function setLights(n) {
+    const cols = $('lights').querySelectorAll('.light-col'); cols.forEach((c, i) => c.classList.toggle('on', i < n));
+    // split screen: n < 0 takes the per-view gantries away (lights out)
+    for (const r of live) if (r.split && r.el.isConnected) { r.el.classList.toggle('lights-on', n >= 0); r.el.querySelectorAll('.sp-lights .light-col').forEach((c, i) => c.classList.toggle('on', i < n)); }
+  }
+  const splitLive = () => live.filter(r => r.split && r.el.isConnected);
   function banner(text, ms, color) {
     const b = $('banner'); const parts = String(text).split(' · ');
     const kicker = parts.length > 1 ? parts.slice(0, -1).join(' · ') : ''; const main = parts[parts.length - 1];
     b.innerHTML = (kicker ? '<div class="bn-kicker">' + kicker + '</div>' : '') + '<div class="bn-text" style="color:' + (color || '#fff') + '">' + main + '</div>';
     b.classList.remove('hidden'); clearTimeout(banner._t); if (ms) banner._t = setTimeout(() => b.classList.add('hidden'), ms);
+    // split screen: the same banner centred in each view
+    for (const r of splitLive()) { r.bannerEl.innerHTML = b.innerHTML; r.bannerEl.classList.remove('show'); void r.bannerEl.offsetWidth; r.bannerEl.classList.add('show'); }
+    if (ms) { clearTimeout(banner._t2); banner._t2 = setTimeout(() => { for (const r of splitLive()) r.bannerEl.classList.remove('show'); }, ms); }
   }
-  function toast(text, cls) { const d = document.createElement('div'); d.textContent = text; if (cls) d.className = cls; $('toasts').appendChild(d); setTimeout(() => d.remove(), 4000); }
+  // toasts: one player's (k given) go to that player's view in split screen; the others show in every view
+  function toast(text, cls, k) {
+    const views = splitLive();
+    if (views.length) {
+      for (const r of views) {
+        if (k != null && r.k !== k) continue;
+        const d = document.createElement('div'); d.textContent = text; if (cls) d.className = cls; r.toastEl.appendChild(d); setTimeout(() => d.remove(), 4000);
+        while (r.toastEl.children.length > 3) r.toastEl.firstChild.remove();
+      }
+      return;
+    }
+    const d = document.createElement('div'); d.textContent = text; if (cls) d.className = cls; $('toasts').appendChild(d); setTimeout(() => d.remove(), 4000);
+  }
+  // the thin bar between the two views
+  function setDivider(rect) {
+    let d = $('split-divider');
+    if (!rect) { if (d) d.remove(); return; }
+    if (!d) { d = document.createElement('div'); d.id = 'split-divider'; ($('app') || document.body).appendChild(d); }
+    d.style.left = rect[0] + 'px'; d.style.top = rect[1] + 'px'; d.style.width = rect[2] + 'px'; d.style.height = rect[3] + 'px'; d.className = rect[2] > rect[3] ? 'h' : 'v';
+  }
   function showResults(race) {
     const res = race.results(); const tb = $('results-table');
     let html = '<tr><th class="pos">Pos</th><th>Driver</th><th>Team</th><th>Tyre</th><th class="num">Time / Gap</th><th class="num">Best lap</th></tr>';
     res.forEach(r => {
-      const c = r.car; const dnf = !c.finished && r.lapsBehind === 0 && r.gap == null;
+      const c = r.car; const dnf = !c.finished && r.lapsBehind === 0 && r.gap == null; const ai = race.aiFor ? race.aiFor(c) : null;
       const gap = r.pos === 1 ? fmt(r.time != null ? r.time : race.time) : r.lapsBehind > 0 ? '+' + r.lapsBehind + ' LAP' + (r.lapsBehind > 1 ? 'S' : '') : r.gap != null ? '+' + r.gap.toFixed(3) : 'DNF';
       const isFl = race.fastest.car === c && c.bestLap > 0;
-      html += '<tr class="' + (c.isPlayer ? 'player' : '') + (dnf ? ' dnf' : '') + '"><td class="pos">' + r.pos + '</td><td class="drv"><span class="c" style="background:' + c.team.primary + '"></span>' + c.name + (c.penalty ? ' <span class="pen">+' + c.penalty + 's</span>' : '') + '</td><td class="team">' + c.team.name + '</td><td><span class="ty ' + c.tyreKey + '">' + (TYRE_LETTER[c.tyreKey] || '?') + '</span></td><td class="num">' + gap + '</td><td class="num' + (isFl ? ' fl' : '') + '">' + U.fmtTime(c.bestLap, '—') + '</td></tr>';
+      html += '<tr class="' + (c.isPlayer ? 'player' : '') + (dnf ? ' dnf' : '') + '"><td class="pos">' + r.pos + '</td><td class="drv"><span class="c" style="background:' + c.team.primary + '"></span>' + c.name + (c.penalty ? ' <span class="pen">+' + c.penalty + 's</span>' : '') + (ai ? '<span class="arch-tag arch-' + ai.archetype.id + '">' + ai.archetype.name + '</span>' : '') + '</td><td class="team">' + c.team.name + '</td><td><span class="ty ' + c.tyreKey + '">' + (TYRE_LETTER[c.tyreKey] || '?') + '</span></td><td class="num">' + gap + '</td><td class="num' + (isFl ? ' fl' : '') + '">' + U.fmtTime(c.bestLap, '—') + '</td></tr>';
     });
     tb.innerHTML = html; const w = res[0].car;
     $('results-sub').textContent = w.name + ' wins the ' + race.track.name + ' Grand Prix' + (race.fastest.car ? ' · Fastest lap ' + race.fastest.car.name + ' ' + U.fmtTime(race.fastest.time) : '');
@@ -218,5 +284,5 @@ window.EI = window.EI || {};
   // range sliders: keep the filled part of the track in sync with the value (main.js may set .value/.max directly)
   function syncRanges() { document.querySelectorAll('input[type=range]').forEach(el => { const v = (el.value - el.min) / Math.max(1, el.max - el.min) * 100; const f = v.toFixed(1) + '%'; if (el._fill !== f) { el._fill = f; el.style.setProperty('--fill', f); } }); }
   window.addEventListener('DOMContentLoaded', () => { syncRanges(); document.addEventListener('input', e => { if (e.target && e.target.type === 'range') syncRanges(); }); setInterval(() => { const m = $('menu'); if (m && !m.classList.contains('hidden')) syncRanges(); }, 150); });
-  EI.HUD = { makeViewport, setLights, banner, toast, showResults, drawTrackPreview, $ };
+  EI.HUD = { makeViewport, setLights, banner, toast, setDivider, showResults, drawTrackPreview, $ };
 })();

@@ -50,6 +50,25 @@ window.EI = window.EI || {};
     }
     eCol = mix(eCol, mix(eCol, vec3(dot(eCol, vec3(0.33))), 0.6) * vec3(0.84, 0.84, 0.86) * (0.95 + 0.1 * eM2.r), ePatch);
     eCol *= 1.0 - 0.5 * eSeam;
+#ifdef EI_STREET
+    // street circuit: a patchwork of resurfacing (newer, darker and finer repairs and older greyer ones), bitumen sealer lines
+    // snaking along and across the lanes over the seams and cracks, glossy where they catch the sun
+    float eSeal = 0.0;
+    { float sg = floor((eS + 11.0) / 23.0); float hh = eiHash(vec2(sg, 7.7));
+      if (hh > 0.42) { float pc = (eiHash(vec2(sg, 2.3)) - 0.5) * eiHW * 1.5; float pw = 1.2 + eiHash(vec2(sg, 8.1)) * 3.6; float ps0 = sg * 23.0 - 11.0 + eiHash(vec2(sg, 3.9)) * 6.0; float ps1 = ps0 + 3.5 + eiHash(vec2(sg, 6.6)) * 13.0;
+        float pin = eiBox(eLat, pc - pw * 0.5, pc + pw * 0.5, eAA) * eiBox(eS, ps0, ps1, eAS); float pse = eiBox(eLat, pc - pw * 0.5 - 0.07, pc + pw * 0.5 + 0.07, eAA) * eiBox(eS, ps0 - 0.07, ps1 + 0.07, eAS) - pin;
+        float newer = step(0.5, eiHash(vec2(sg, 4.4)));
+        eCol = mix(eCol, newer > 0.5 ? eCol * vec3(0.7, 0.7, 0.72) : mix(eCol, vec3(dot(eCol, vec3(0.33))), 0.7) * 1.14, pin * (0.75 + 0.25 * eM1.g)); eSeal = max(eSeal, pse * 0.9); }
+      float cl = floor(eS / 13.0); float h2 = eiHash(vec2(cl, 1.9));
+      if (h2 > 0.55) { float c0 = (eiHash(vec2(cl, 5.1)) - 0.5) * eiHW * 1.6; float cc = c0 + 0.55 * sin(eS * 0.31 + h2 * 6.28) + 0.18 * sin(eS * 1.7 + h2 * 3.1);
+        float cw = 0.022 + 0.022 * eiHash(vec2(cl, 9.3)); float ca = cl * 13.0 + eiHash(vec2(cl, 3.3)) * 5.0; float cb = ca + 4.0 + eiHash(vec2(cl, 7.2)) * 9.0;
+        eSeal = max(eSeal, (1.0 - smoothstep(cw, cw + eAA, abs(eLat - cc))) * eiBox(eS, ca, cb, eAS)); }
+      float tl = floor(eS / 17.0); float h3 = eiHash(vec2(tl, 6.2));
+      if (h3 > 0.62) { float t0 = tl * 17.0 + 8.5 + 0.35 * sin(eLat * 0.8 + h3 * 9.0) + 0.12 * sin(eLat * 3.1); float la = (eiHash(vec2(tl, 1.1)) - 0.7) * eiHW, lb = la + eiHW * (0.6 + eiHash(vec2(tl, 2.6)));
+        eSeal = max(eSeal, (1.0 - smoothstep(0.04, 0.04 + eAS, abs(eS - t0))) * eiBox(eLat, la, lb, eAA)); }
+      eSeal *= 1.0 - smoothstep(eiHW - 0.35, eiHW - 0.2, eAl);
+      eCol = mix(eCol, vec3(0.035, 0.035, 0.037), eSeal * 0.72); }
+#endif
     float eCr = texture2D(eiAux, vec2(eLat * 0.09 + 0.4, eS * eiSP.z * 2.0)).a * smoothstep(0.45, 0.7, eM1.g);
     eCol *= 1.0 - 0.28 * eCr * (1.0 - ePatch);
     float eRw = 1.2 + 0.6 * eCorner + 0.4 * eBrk;
@@ -86,6 +105,9 @@ window.EI = window.EI || {};
     roughnessFactor = clamp(roughnessFactor * (1.0 - 0.38 * eRubber) + eDirtA * 0.2, 0.3, 1.0);
     roughnessFactor = mix(roughnessFactor, 0.55, ePaint);
     float eiFlat = clamp(ePaint * 0.85 + eRubber * 0.55 + ePatch * 0.35, 0.0, 1.0);
+#ifdef EI_STREET
+    roughnessFactor = mix(roughnessFactor, 0.26, eSeal);
+#endif
   `;
   const FLATTEN = 'normal = normalize(mix(normal, eiGeoN, eiFlat));';
   // run-off: shoulder asphalt, green strip behind kerbs, colour-blocked paint with white borders and weathering, gravel spill
@@ -233,10 +255,10 @@ window.EI = window.EI || {};
   // ---------------------------------------------------------------- canvas textures for kerbs and paint
   function canvasTex(c, wrap) { const t = new THREE.CanvasTexture(c); if (wrap) t.wrapS = t.wrapT = THREE.RepeatWrapping; t.anisotropy = 8; return t; }
   // kerb: x = across (0 at the track edge), y = along; one tile = one red + one white block with slanted (sawtooth) joints
-  function kerbTexture() {
+  function kerbTexture(style) {
     const W = 256, H = 512; const c = document.createElement('canvas'); c.width = W; c.height = H; const ctx = c.getContext('2d');
     ctx.fillStyle = '#ece9e1'; ctx.fillRect(0, 0, W, H);
-    const slant = H * 0.07; const joint = (y0) => [[0, y0 - slant], [W, y0 + slant]];
+    const slant = style === 'street' ? 0 : H * 0.07; const joint = (y0) => [[0, y0 - slant], [W, y0 + slant]];
     ctx.fillStyle = '#c8141e';
     for (const off of [-H, 0, H]) { const a = joint(off), b = joint(off + H / 2); ctx.beginPath(); ctx.moveTo(a[0][0], a[0][1]); ctx.lineTo(a[1][0], a[1][1]); ctx.lineTo(b[1][0], b[1][1]); ctx.lineTo(b[0][0], b[0][1]); ctx.closePath(); ctx.fill(); }
     ctx.strokeStyle = 'rgba(25,10,10,0.55)'; ctx.lineWidth = 3;
@@ -504,6 +526,8 @@ window.EI = window.EI || {};
       const g = this.group; this.scenery = scenery;
       this.buildSurfaces(g); this.buildBarriers(g); this.buildPitLane(g); this.buildFurniture(g);
       this.mergeStatic(g);
+      // street circuits: every street-level batch (scenery + barriers) is cut into cells and drawn through the shared atlas material
+      if (this.data.street && scenery && scenery.sworld) { scenery.sworld.build(); this.streetStats = Object.assign(this.streetStats || {}, { world: scenery.sworld.stats }); }
       return g;
     }
 
@@ -554,17 +578,18 @@ window.EI = window.EI || {};
           trk2: [4, (ii) => [this.wearCorner[ii], this.wearExit[ii], U.clamp(0.3 + 0.7 * Math.max(this.wearExit[ii], Math.abs(this.wearCorner[ii]) * 0.6), 0, 1), 0]],
         },
       });
-      const aMat = shaderMat({ map: T.asphalt.map, normalMap: T.asphalt.normalMap, normalScale: new THREE.Vector2(0.9, 0.9), roughnessMap: T.asphalt.roughnessMap, roughness: 1, metalness: 0 }, 'asphalt', common, VARY4, ASPHALT_FRAG, ASPHALT_ROUGH, FLATTEN);
+      const street = !!this.data.street; const SDEF = street ? '#define EI_STREET\n' : '';
+      const aMat = shaderMat({ map: T.asphalt.map, normalMap: T.asphalt.normalMap, normalScale: new THREE.Vector2(0.9, 0.9), roughnessMap: T.asphalt.roughnessMap, roughness: 1, metalness: 0 }, street ? 'asphalt-street' : 'asphalt', common, VARY4, SDEF + ASPHALT_FRAG, ASPHALT_ROUGH, FLATTEN);
       const aMesh = new THREE.Mesh(aGeo, aMat); aMesh.receiveShadow = true; aMesh.name = 'asphalt'; g.add(aMesh);
 
       // ------------------------------------------------ kerbs: bevelled profile (rise, top, fall), sawtooth red/white tiled by arc length
-      const kerbTex = kerbTexture();
+      const kerbTex = kerbTexture(this.data.street ? 'street' : null);
       const kerbMat = new THREE.MeshStandardMaterial({ map: kerbTex, vertexColors: true, roughness: 0.48, metalness: 0, normalMap: T.runoff.normalMap, normalScale: new THREE.Vector2(0.25, 0.25) });
       const ramp = new Float32Array(n); { const a = new Float32Array(n), b = new Float32Array(n);
         for (let k = 0; k < 2 * n; k++) { const i = k % n, p = (i + n - 1) % n; a[i] = kerbMask(p) ? a[p] + 1 : 0; }
         for (let k = 2 * n; k >= 0; k--) { const i = k % n, q = (i + 1) % n; b[i] = kerbMask(i) ? b[q] + 1 : 0; }
         for (let i = 0; i < n; i++) ramp[i] = U.clamp(Math.min(a[i], b[i]) * ds / 3.0, 0, 1); }
-      const prof = [[0, 0.004], [0.3, 0.068], [kw - 0.32, 0.074], [kw, 0.0]];
+      const prof = this.data.street ? [[0, 0.004], [0.1, 0.026], [kw - 0.1, 0.03], [kw, 0.006]] : [[0, 0.004], [0.3, 0.068], [kw - 0.32, 0.074], [kw, 0.0]];
       const kerbTone = new Float32Array(n); for (let i = 0; i < n; i++) kerbTone[i] = 0.82 + 0.18 * U.noise2(i * 0.11, 4.2);
       for (const side of [-1, 1]) {
         // stripes advance with the arc length at the kerb's middle so they never stretch on the outside of a corner
@@ -592,6 +617,9 @@ window.EI = window.EI || {};
         Copse: [0, RED, BLUE], Luffield: [1, BLUE, RED], Woodcote: [1, BLUE, RED], Stowe: [0, GREEN, BLUE], Vale: [2, RED, BLUE], Club: [2, RED, BLUE],
         Abbey: [1, GREEN, BLUE], Village: [1, RED, BLUE], 'The Loop': [1, RED, BLUE], Brooklands: [0, GREEN, DBLUE],
       };
+      // street circuit: the escape road at the Nouvelle Chicane is painted solid red with white borders, Sainte Devote's in blue / red bands
+      const WHITE_ = lin(0xe9e9e6);
+      if (this.data.street) Object.assign(SCHEMES, { 'Nouvelle Chicane': [0, RED, RED], 'Sainte Dévote': [2, BLUE, WHITE_], 'La Rascasse': [2, RED, WHITE_] });
       const aw0 = hw + kw + 2.0;
       const rMat = shaderMat({ map: T.runoff.map, normalMap: T.runoff.normalMap, normalScale: new THREE.Vector2(0.7, 0.7), roughnessMap: T.runoff.roughnessMap, roughness: 1, metalness: 0, polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 2 }, 'runoff', common, VARY_RUN, RUNOFF_FRAG, RUNOFF_ROUGH, FLATTEN);
       const gMat = shaderMat({ map: T.gravel.map, normalMap: T.gravel.normalMap, normalScale: new THREE.Vector2(1.25, 1.25), roughnessMap: T.gravel.roughnessMap, roughness: 1, metalness: 0, polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 3 }, 'gravel', common, VARY4, GRAVEL_FRAG, GRAVEL_ROUGH, '', GRAVEL_NORMAL);
@@ -731,7 +759,7 @@ window.EI = window.EI || {};
         this.addDecal(lb, s - len / 2, s + len / 2, la, lb2, (fs, fl) => { const u = side < 0 ? 1 - fs : fs; return A.logos(u, 1 - (slot + 1 - fl) / 4); }, Math.ceil(len / 1.5), 0.015);
       };
       const L = this.length;
-      const spots = this.data.logoSpots || [['Copse', 0, 34], ['Luffield', 1, 30], ['Stowe', 1, 32], ['Club', 2, 26], ['Abbey', 0, 32], ['Village', 1, 26], ['Brooklands', 0, 28], ['Vale', 3, 24], ['Woodcote', 1, 26], ['Maggotts', 0, 26], ['Becketts', 1, 26], ['Chapel Curve', 2, 24], ['The Loop', 3, 20], ['Aintree', 0, 22], ['Farm Curve', 1, 24]];
+      const spots = this.data.logoSpots || (this.data.street ? [['Nouvelle Chicane', 1, 22], ['Sainte Dévote', 0, 16], ['Tunnel', 2, 18]] : null) || [['Copse', 0, 34], ['Luffield', 1, 30], ['Stowe', 1, 32], ['Club', 2, 26], ['Abbey', 0, 32], ['Village', 1, 26], ['Brooklands', 0, 28], ['Vale', 3, 24], ['Woodcote', 1, 26], ['Maggotts', 0, 26], ['Becketts', 1, 26], ['Chapel Curve', 2, 24], ['The Loop', 3, 20], ['Aintree', 0, 22], ['Farm Curve', 1, 24]];
       for (const [name, slot, len] of spots) {
         const c = this.data.corners.find(cc => cc.name === name); if (!c) continue;
         // the painted run-off is on the outside: find the widest run-off point in the corner
@@ -872,73 +900,127 @@ window.EI = window.EI || {};
         X.grate = U.srgb(canvasTex(c, false)); }
       Track._stex = X; return X;
     }
+    // street circuit barriers, written into the scenery's street world (cells, shared atlas material): triple galvanised W-beam rails on
+    // posts (profiled strip, adaptive sampling, bolts in the atlas, a plain back), partner sleeves, chain-link debris fence with posts,
+    // overhanging catch arms, braces, tensioned catch cables and marshal gates, TecPro blocks with straps, belted tyre walls, foam end
+    // blocks and marker poles at the pit road openings
     buildStreetBarriers(g) {
-      const n = this.n, ds = this.ds, hw = this.halfWidth; const Z = this.streetZones(); const X = this.streetTextures(); const TD = this.data.tunnel;
-      const lin = (h) => new THREE.Color(h).convertSRGBToLinear();
+      const SKx = EI.StreetKit, sc = this.scenery; if (!SKx || !sc || !SKx.World) return;
+      const n = this.n, ds = this.ds; const Z = this.streetZones(); const X = this.streetTextures(); const TD = this.data.tunnel; const AT = SKx.Atlas; const W = SKx.world(sc);
+      const lin = (h) => new THREE.Color(h).convertSRGBToLinear(); const L = this.length; const I4 = new THREE.Matrix4();
       const inTunnel = (i) => TD && this.s[i] > TD.s0 - 6 && this.s[i] < TD.s1 + 6;
-      const B = new EI.Env.Builder(); const I4 = new THREE.Matrix4();
-      const railMat = new THREE.MeshStandardMaterial({ map: X.rail, color: 0xd0d4d8, roughness: 0.38, metalness: 0.7, side: THREE.DoubleSide, envMapIntensity: 0.75 });
-      const coverMat = new THREE.MeshStandardMaterial({ map: X.cover, roughness: 0.6, metalness: 0.0, side: THREE.DoubleSide });
-      const fenceMat = new THREE.MeshStandardMaterial({ map: X.mesh, color: new THREE.Color(0x9ea4aa).convertSRGBToLinear(), transparent: true, depthWrite: false, alphaTest: 0.02, side: THREE.DoubleSide, roughness: 0.55, metalness: 0.3 });
-      fenceMat.onBeforeCompile = (sh) => { sh.fragmentShader = sh.fragmentShader.replace('#include <alphatest_fragment>', 'float fGz = abs(dot(normalize(vViewPosition), normalize(vNormal)));\ndiffuseColor.a = mix(0.3, diffuseColor.a, smoothstep(0.08, 0.4, fGz));\n#include <alphatest_fragment>'); };
-      fenceMat.customProgramCacheKey = () => 'ei-street-fence';
-      // four stacked W-beams, ~1.15 m: profile [height, protrusion towards the track]
-      const prof = []; for (let b = 0; b < 4; b++) { const yb = 0.1 + b * 0.262; for (const [dy, d] of [[0, 0], [0.06, 0.058], [0.128, 0.016], [0.196, 0.058]]) prof.push([yb + dy, d]); } prof.push([0.1 + 4 * 0.262, 0]);
+      // ---- atlas regions
+      const fromCanvas = (img) => (x, w, h) => x.drawImage(img, 0, 0, w, h);
+      const rail = AT.region('rail', 128, 512, fromCanvas(X.rail.image), (x, w, h) => {
+        // height: the bolt heads at the posts (4 m tile = 2 posts) and the lapped rail joints
+        for (let p = 0; p < 2; p++) for (let b = 0; b < 3; b++) for (const dy of [-11, 11]) { const cx = (0.155 + b * 0.31 + 0.1) / 1.15 * w * 0.86 + 6, cy = p * h / 2 + h / 4 + dy; const gr = x.createRadialGradient(cx, cy, 0, cx, cy, 4.5); gr.addColorStop(0, 'rgb(230,230,230)'); gr.addColorStop(1, 'rgba(128,128,128,0)'); x.fillStyle = gr; x.fillRect(cx - 5, cy - 5, 10, 10); }
+        x.fillStyle = 'rgb(150,150,150)'; x.fillRect(0, h / 4 - 16, w, 32); x.fillStyle = 'rgb(110,110,110)'; x.fillRect(0, h / 4 - 17, w, 1.5); x.fillRect(0, h / 4 + 16, w, 1.5);
+      }, (x, w, h) => { const r = U.rng(3); for (let i = 0; i < 700; i++) { const v = 100 + r() * 70 | 0; x.fillStyle = 'rgb(' + v + ',' + v + ',' + v + ')'; x.fillRect(r() * w, r() * h, 2 + r() * 6, 3 + r() * 20); } }, 'v');
+      const sleeves = SKx.sleeves();
+      const chain = AT.region('chain', 64, 64, (x, w, h) => { x.clearRect(0, 0, w, h); x.strokeStyle = 'rgba(204,208,212,1)'; x.lineWidth = 1.2; for (let k = -64; k <= 128; k += 8) { x.beginPath(); x.moveTo(k, 0); x.lineTo(k + 64, 64); x.stroke(); x.beginPath(); x.moveTo(k, 64); x.lineTo(k + 64, 0); x.stroke(); } }, null, (x, w, h) => { x.fillStyle = 'rgb(110,110,110)'; x.fillRect(0, 0, w, h); }, 'uv');
+      const tec = AT.region('tecpro', 128, 96, (x, w, h) => { x.fillStyle = '#ffffff'; x.fillRect(0, 0, w, h); x.fillStyle = 'rgba(0,0,0,0.1)'; x.fillRect(0, 0, w, 4); x.fillRect(0, h - 4, w, 4); x.fillStyle = '#1a1b1e'; x.fillRect(0, h * 0.2, w, h * 0.09); x.fillRect(0, h * 0.68, w, h * 0.09); x.fillStyle = 'rgba(255,255,255,0.9)'; x.font = '900 18px Arial Black, Arial'; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillStyle = 'rgba(30,30,30,0.85)'; x.fillText('SAFETY', w / 2, h * 0.49); weather(x, w, h, 71, 300); },
+        (x, w, h) => { x.fillStyle = 'rgb(150,150,150)'; x.fillRect(0, h * 0.2, w, h * 0.09); x.fillRect(0, h * 0.68, w, h * 0.09); const g2 = x.createLinearGradient(0, 0, 0, 10); g2.addColorStop(0, 'rgb(90,90,90)'); g2.addColorStop(1, 'rgb(128,128,128)'); x.fillStyle = g2; x.fillRect(0, 0, w, 10); }, (x, w, h) => { x.fillStyle = 'rgb(160,160,160)'; x.fillRect(0, 0, w, h); }, 'none');
+      const belt = AT.region('belt', 256, 64, (x, w, h) => { x.fillStyle = '#1b1c1e'; x.fillRect(0, 0, w, h); const r = U.rng(9); for (let i = 0; i < 400; i++) { x.fillStyle = 'rgba(255,255,255,' + (0.02 + r() * 0.05) + ')'; x.fillRect(r() * w, r() * h, 1 + r() * 3, 1); } x.fillStyle = '#5b5e62'; for (let k = 8; k < w; k += 32) for (const yy of [8, h - 8]) { x.beginPath(); x.arc(k, yy, 2.6, 0, 6.283); x.fill(); } },
+        (x, w, h) => { x.fillStyle = 'rgb(128,128,128)'; x.fillRect(0, 0, w, h); x.fillStyle = 'rgb(200,200,200)'; for (let k = 8; k < w; k += 32) for (const yy of [8, h - 8]) { x.beginPath(); x.arc(k, yy, 2.6, 0, 6.283); x.fill(); } }, (x, w, h) => { x.fillStyle = 'rgb(190,190,190)'; x.fillRect(0, 0, w, h); }, 'u');
+      const Rm = new SKx.Batch(), Rd = new SKx.Batch(), Rf = new SKx.Batch(), Fn = new SKx.Batch(), Ln = new SKx.Lines();
+      // rail profile: three W-beams stacked from 0.1 m to 1.03 m, [height, protrusion towards the road]
+      const prof = []; for (let b = 0; b < 3; b++) { const yb = 0.1 + b * 0.31; for (const [dy, d] of [[0, 0], [0.075, 0.055], [0.155, 0.018], [0.235, 0.055]]) prof.push([yb + dy, d]); } prof.push([0.1 + 3 * 0.31, 0]); prof.push([1.03, -0.06]);
       const K = prof.length;
+      const post = lin(0x7d8389), postD = lin(0x5d6267), railPost = lin(0x9ea4a8), cable = lin(0x3a3d40), white = lin(0xf0f0ee), red = lin(0xc8162b), dark = lin(0x1a1a1c), orange = lin(0xf08a1a), gateC = lin(0xe8a21a);
+      let railTris = 0;
       for (const side of [-1, 1]) {
         const z = Z[side], wall = side < 0 ? this.wallL : this.wallR; const base = (ii) => wall[ii] + z.back[ii];
-        const railOn = (ii) => !z.gap[ii] && !z.island[ii];
-        const rg = this.strip(K, { mask: railOn, normals: 'compute', lat: (ii, c) => side * (base(ii) - prof[c][1]), y: (ii, c) => prof[c][0], uv: (ii, c, l, i) => [prof[c][0] / 1.15, i * ds / 4] });
-        const rm = new THREE.Mesh(rg, railMat); rm.castShadow = true; rm.receiveShadow = true; rm.name = 'armco'; g.add(rm);
-        // sleeves: boards read left to right from the road (along +s on the driver's left, against it on the right)
-        const cg = this.strip(2, { mask: (ii) => railOn(ii) && z.cover[ii] >= 0, lat: (ii) => side * (base(ii) - 0.064), y: (ii, c) => c ? 1.1 : 0.12, normals: 'compute',
-          uv: (ii, c, l, i) => { const k = z.cover[ii] >= 0 ? z.cover[ii] : 0; return [side * i * ds / 8, 1 - (k + 1 - (0.03 + c * 0.94)) / 8]; } });
-        const cm = new THREE.Mesh(cg, coverMat); cm.receiveShadow = true; cm.name = 'armcoCovers'; g.add(cm);
-        // debris fence: chain-link panels from the ground to 3.5 m behind the rail, then a catch section leaning 0.75 m over the road
-        const fl = (ii) => side * (base(ii) + 0.32); const fenceOn = (ii) => railOn(ii) && !inTunnel(ii);
-        const fg = this.strip(2, { mask: fenceOn, lat: fl, y: (ii, c) => c ? 3.5 : 0.0, uv: (ii, c, l, i) => [c ? 7 : 0, i * ds / 0.5], normals: 'compute' });
-        const fm = new THREE.Mesh(fg, fenceMat); fm.name = 'fence'; fm.renderOrder = 2; g.add(fm);
-        const lg = this.strip(2, { mask: fenceOn, lat: (ii, c) => side * (base(ii) + 0.32 - (c ? 0.75 : 0)), y: (ii, c) => c ? 4.35 : 3.5, uv: (ii, c, l, i) => [c ? 2.3 : 0, i * ds / 0.5], normals: 'compute' });
-        const lm2 = new THREE.Mesh(lg, fenceMat); lm2.name = 'fence'; lm2.renderOrder = 2; g.add(lm2);
-        // fence posts (every ~4.2 m) with the leaning catch arm and a brace behind, three tensioned cables; rail posts every 4 m
-        const post = lin(0x7d8389), postD = lin(0x5d6267), railPost = lin(0xd9dcde), cable = lin(0x3a3d40);
-        const P = (ii, d, y) => { const l = side * d; const kf = this.kFold[ii], cap = Math.max(2, 0.9 / (Math.abs(kf) + 1e-6)); const ll = kf > 0 ? Math.min(l, cap) : Math.max(l, -cap); return [this.x[ii] + this.nx[ii] * ll, this.y[ii] + y, this.z[ii] + this.nz[ii] * ll]; };
-        let last = null, prevPost = null;
+        const railOn = (ii) => !z.gap[ii] && !z.island[ii]; const fenceOn = (ii) => railOn(ii) && !inTunnel(ii);
+        const cap = (ii, l) => { const kf = this.kFold[ii], c = Math.max(2, 0.9 / (Math.abs(kf) + 1e-6)); return kf > 0 ? Math.min(l, c) : Math.max(l, -c); };
+        const P = (ii, d, y) => { const l = cap(ii, side * d); return [this.x[ii] + this.nx[ii] * l, this.y[ii] + y, this.z[ii] + this.nz[ii] * l]; };
+        // adaptive samples along the rail line: every 2 m in bends, up to 8 m on straights; breaks where the rail stops
+        const runs = []; let cur = null, lastH = 0, lastS = -1e9;
+        for (let i = 0; i <= n; i++) { const ii = i % n; if (!railOn(ii)) { if (cur && cur.length > 1) runs.push(cur); cur = null; continue; }
+          const h = this.heading[ii]; let dh = Math.abs(h - lastH); if (dh > Math.PI) dh = 2 * Math.PI - dh; const s = i * ds;
+          const nextOff = !railOn((ii + 1) % n) || i === n;
+          if (!cur) { cur = [ii]; lastH = h; lastS = s; } else if (dh > 0.03 || s - lastS >= 8 || nextOff || Math.abs(z.back[ii] - z.back[cur[cur.length - 1]]) > 0.05) { cur.push(ii); lastH = h; lastS = s; } }
+        if (cur && cur.length > 1) runs.push(cur);
+        for (const run of runs) {
+          // arc length along the rail line for the texture (bolts every 2 m)
+          const arc = [0]; for (let k = 1; k < run.length; k++) { const a = P(run[k - 1], base(run[k - 1]), 0), b = P(run[k], base(run[k]), 0); arc.push(arc[k - 1] + Math.hypot(b[0] - a[0], b[2] - a[2])); }
+          const col = (k) => { const ii = run[k]; const out = [], nr = []; for (let c = 0; c < K; c++) out.push(P(ii, base(ii) - prof[c][1], prof[c][0]));
+            for (let c = 0; c < K; c++) { const a = prof[Math.min(K - 1, c + 1)], b = prof[Math.max(0, c - 1)]; const dq = a[1] - b[1], dy = a[0] - b[0]; let qn = dy, yn = -dq; const l = Math.hypot(qn, yn) || 1; qn /= l; yn /= l; if (c === K - 1) { qn = 0; yn = 1; }
+              nr.push([-side * this.nx[ii] * qn, yn, -side * this.nz[ii] * qn]); } return [out, nr]; };
+          let prev = col(0);
+          Rm.set(rail, 0.36, 0.75);
+          for (let k = 1; k < run.length; k++) {
+            const curC = col(k); const v0 = arc[k - 1] / 4, v1 = arc[k] / 4;
+            for (let c = 0; c < K - 1; c++) {
+              const a = prev[0][c], b = curC[0][c], cc = curC[0][c + 1], d = prev[0][c + 1]; const uA = prof[c][0] / 1.15, uB = prof[c + 1][0] / 1.15; const tone = c >= K - 2 ? lin(0xb9bdc0) : white;
+              const uvs1 = [uA, v0, uA, v1, uB, v1], uvs2 = [uA, v0, uB, v1, uB, v0];
+              if (side > 0) { Rm.triN(a, b, cc, prev[1][c], curC[1][c], curC[1][c + 1], tone, tone, tone, uvs1); Rm.triN(a, cc, d, prev[1][c], curC[1][c + 1], prev[1][c + 1], tone, tone, tone, uvs2); }
+              else { Rm.triN(a, cc, b, prev[1][c], curC[1][c + 1], curC[1][c], tone, tone, tone, [uA, v0, uB, v1, uA, v1]); Rm.triN(a, d, cc, prev[1][c], prev[1][c + 1], curC[1][c + 1], tone, tone, tone, [uA, v0, uB, v0, uB, v1]); }
+              railTris += 2;
+            }
+            // plain back face (seen from the pavements, the stands and the harbour)
+            const ia = run[k - 1], ib = run[k]; const ba = [P(ia, base(ia) + 0.06, 0.1), P(ib, base(ib) + 0.06, 0.1), P(ib, base(ib) + 0.06, 1.03), P(ia, base(ia) + 0.06, 1.03)];
+            Rm.set('white', 0.5, 0.6); if (side > 0) Rm.quad(ba[1], ba[0], ba[3], ba[2], lin(0x8d9397)); else Rm.quad(ba[0], ba[1], ba[2], ba[3], lin(0x8d9397)); Rm.set(rail, 0.36, 0.75);
+            prev = curC;
+          }
+          // posts behind the rails every 2 m of rail (fine layer), a C-section with a block-out
+          let next = 1; for (let k = 1; k < run.length; k++) { while (next < arc[k]) { const f = (next - arc[k - 1]) / Math.max(0.01, arc[k] - arc[k - 1]); const ia = run[k - 1], ib = run[k]; const pa = P(ia, base(ia) + 0.16, 0), pb = P(ib, base(ib) + 0.16, 0); const q = [pa[0] + (pb[0] - pa[0]) * f, pa[1] + (pb[1] - pa[1]) * f, pa[2] + (pb[2] - pa[2]) * f];
+            const m = EI.Env.frame(q[0], q[1], q[2], this.tx[ia], this.tz[ia], this.nx[ia] * side, this.nz[ia] * side); Rf.set('white', 0.5, 0.6); Rf.box(m, 0.15, 1.08, 0.1, 0, 0, 0, railPost); Rf.box(m, 0.1, 0.18, 0.14, 0, 0.7, -0.1, railPost); next += 2; } }
+          // sleeves where the data lists them: boards read left to right from the road
+          for (let k = 1; k < run.length; k++) { const ia = run[k - 1], ib = run[k]; if (z.cover[ia] < 0 || z.cover[ib] < 0) continue; const kk = z.cover[ia];
+            const a = P(ia, base(ia) - 0.068, 0.12), b = P(ib, base(ib) - 0.068, 0.12), c = P(ib, base(ib) - 0.068, 1.0), d = P(ia, base(ia) - 0.068, 1.0); const u0 = side * arc[k - 1] / 8, u1 = side * arc[k] / 8;
+            Rm.set(sleeves[kk % 8], 0.55, 0.0); if (side > 0) Rm.quad(a, b, c, d, white, [u0, 0, u1, 0, u1, 1, u0, 1]); else Rm.quad(a, d, c, b, white, [u0, 0, u0, 1, u1, 1, u1, 0]); }
+        }
+        // ---- debris fence: chain-link to 3.5 m behind the rail, the catch section leaning 0.75 m over the road; posts every ~4 m
+        const fl = (ii) => base(ii) + 0.34; let fprev = null, last = null, prevPost = null, sinceGate = 60;
+        const fRuns = []; let fc = null; for (let i = 0; i <= n; i++) { const ii = i % n; if (!fenceOn(ii)) { if (fc && fc.length > 1) fRuns.push(fc); fc = null; continue; } if (!fc) fc = []; if (i % 2 === 0 || !fenceOn((ii + 1) % n)) fc.push(ii); } if (fc && fc.length > 1) fRuns.push(fc);
+        for (const run of fRuns) {
+          let acc = 0; fprev = null;
+          for (let k = 0; k < run.length; k++) { const ii = run[k]; const lo = P(ii, fl(ii), 0), up = P(ii, fl(ii), 3.5), arm = P(ii, fl(ii) - 0.75, 4.35);
+            if (fprev) { acc += Math.hypot(lo[0] - fprev.lo[0], lo[2] - fprev.lo[2]); const v0 = fprev.acc / 0.5, v1 = acc / 0.5; Fn.set(chain, 0.55, 0.3); Fn.quad(fprev.lo, lo, up, fprev.up, lin(0xa3a9ae), [0, v0, 0, v1, 7, v1, 7, v0]); Fn.quad(fprev.up, up, arm, fprev.arm, lin(0xa3a9ae), [0, v0, 0, v1, 2.3, v1, 2.3, v0]); }
+            fprev = { lo, up, arm, acc }; }
+        }
         for (let i = 0; i < n; i++) {
           if (!fenceOn(i)) { prevPost = null; continue; }
-          const a = P(i, base(i) + 0.4, 0); if (last && Math.hypot(a[0] - last[0], a[2] - last[2]) < 4.2) continue; last = a;
-          const top = P(i, base(i) + 0.4, 3.55), arm = P(i, base(i) + 0.4 - 0.78, 4.4);
-          B.beam(I4, a, top, 0.1, post); B.beam(I4, top, arm, 0.08, post);
-          if ((i & 1) === 0) B.beam(I4, P(i, base(i) + 0.4, 2.4), P(i, base(i) + 1.5, 0), 0.06, postD);
-          if (prevPost) for (const h of [1.2, 2.3, 3.4]) B.beam(I4, [prevPost[0], prevPost[1] + h, prevPost[2]], [a[0], a[1] + h, a[2]], 0.025, cable);
-          prevPost = a;
+          const a = P(i, fl(i) + 0.06, 0); if (last && Math.hypot(a[0] - last[0], a[2] - last[2]) < 4.0) continue; last = a;
+          const top = P(i, fl(i) + 0.06, 3.55), arm = P(i, fl(i) + 0.06 - 0.8, 4.42);
+          Rd.set('white', 0.45, 0.6); Rd.beam(I4, a, top, 0.11, post); Rd.beam(I4, top, arm, 0.09, post);
+          if ((i & 3) === 0) Rd.beam(I4, P(i, fl(i) + 0.1, 2.4), P(i, fl(i) + 1.6, 0), 0.07, postD);
+          if (prevPost) for (const h of [1.25, 2.35, 3.4]) Ln.seg([prevPost[0], prevPost[1] + h, prevPost[2]], [a[0], a[1] + h, a[2]], cable);
+          if (prevPost) Ln.seg(P(i, fl(i) - 0.74, 4.4), prevPost.arm, cable);
+          prevPost = a; prevPost.arm = arm;
+          // marshal gates in the fence on the outside of the lap every ~110 m: a framed door with a yellow band
+          sinceGate += 4; if (sinceGate > 110 && i % 3 === 0) { sinceGate = 0; const m = EI.Env.frame(a[0], a[1], a[2], this.tx[i], this.tz[i], this.nx[i] * side, this.nz[i] * side);
+            Rd.set('white', 0.5, 0.5); Rd.box(m, 0.12, 2.3, 0.12, -0.6, 0, 0.02, gateC); Rd.box(m, 0.12, 2.3, 0.12, 1.6, 0, 0.02, gateC); Rd.box(m, 2.32, 0.12, 0.12, 0.5, 2.3, 0.02, gateC); Rd.box(m, 2.2, 0.06, 0.06, 0.5, 1.15, 0.02, lin(0x7d8389)); Rd.beam(m, [-0.55, 0.1, 0.02], [1.55, 2.2, 0.02], 0.05, lin(0x7d8389)); }
         }
-        let lr = null; for (let i = 0; i < n; i += 2) { if (!railOn(i)) { lr = null; continue; } const a = P(i, base(i) + 0.13, 0); if (lr && Math.hypot(a[0] - lr[0], a[2] - lr[2]) < 3.9) continue; lr = a; B.beam(I4, a, P(i, base(i) + 0.13, 1.14), 0.12, railPost); }
-        // pit road openings: orange foam end blocks and red / white marker poles
-        for (let i = 0; i < n; i++) { const j = (i + 1) % n; if (railOn(i) === railOn(j)) continue; const k = railOn(i) ? i : j; const c = P(k, base(k) - 0.3, 0); B.box(EI.Env.frame(c[0], c[1], c[2], this.tx[k], this.tz[k], this.nx[k], this.nz[k]), 1.2, 1.15, 0.6, 0, 0, 0, lin(0xf08a1a)); const q = P(k, base(k) + 0.6, 0); for (let h = 0; h < 1.6; h += 0.4) B.beam(I4, [q[0], q[1] + h, q[2]], [q[0], q[1] + h + 0.4, q[2]], 0.09, lin(h % 0.8 < 0.2 ? 0xc8102e : 0xf2f2f2)); }
-        // red / white block barriers and tyre walls, stepped along the lap at 0.25 m (finer than the 2 m samples) so the modules close up
-        const red = lin(0xc8162b), white = lin(0xf0f0ee), strap = lin(0x26282c), dark = lin(0x1a1a1c); const L = this.length;
-        const Ps = (s, dOff, y) => { const f = U.mod(s / ds, n); const i = Math.floor(f) % n, j = (i + 1) % n, u = f - i; const d = U.lerp(wall[i], wall[j], u) + dOff; const kf = this.kFold[i], cap = Math.max(2, 0.9 / (Math.abs(kf) + 1e-6)); let l = side * d; l = kf > 0 ? Math.min(l, cap) : Math.max(l, -cap);
-          return [U.lerp(this.x[i], this.x[j], u) + this.nx[i] * l, U.lerp(this.y[i], this.y[j], u) + y, U.lerp(this.z[i], this.z[j], u) + this.nz[i] * l, i]; };
+        // ---- pit road openings: orange foam end blocks and red / white marker poles
+        for (let i = 0; i < n; i++) { const j = (i + 1) % n; if (railOn(i) === railOn(j)) continue; const k = railOn(i) ? i : j; const c = P(k, base(k) - 0.3, 0); const m = EI.Env.frame(c[0], c[1], c[2], this.tx[k], this.tz[k], this.nx[k], this.nz[k]); Rd.set('white', 0.7, 0); Rd.box(m, 1.2, 1.15, 0.6, 0, 0, 0, orange); Rd.box(m, 1.22, 0.1, 0.62, 0, 0.75, 0, dark); const q = P(k, base(k) + 0.6, 0); for (let h = 0; h < 1.6; h += 0.4) Rd.beam(I4, [q[0], q[1] + h, q[2]], [q[0], q[1] + h + 0.4, q[2]], 0.09, h % 0.8 < 0.2 ? red : white); }
+        // ---- TecPro blocks (red / white, two straps, chamfered top), stepped at 0.25 m along the lap so the modules close up
+        const Ps = (s, dOff, y) => { const f = U.mod(s / ds, n); const i = Math.floor(f) % n, j = (i + 1) % n, u = f - i; const d = U.lerp(wall[i], wall[j], u) + dOff; const l = cap(i, side * d); return [U.lerp(this.x[i], this.x[j], u) + this.nx[i] * l, U.lerp(this.y[i], this.y[j], u) + y, U.lerp(this.z[i], this.z[j], u) + this.nz[i] * l, i]; };
         let lb = null, cnt = 0;
         for (let s = 0; s < L; s += 0.25) {
           const i = Math.floor(s / ds) % n; if (!z.tec[i] || z.gap[i]) { lb = null; continue; } const a = Ps(s, 0.42, 0); if (lb && Math.hypot(a[0] - lb[0], a[2] - lb[2]) < 1.5) continue; lb = a;
-          const m = EI.Env.frame(a[0], a[1], a[2], this.tx[i], this.tz[i], this.nx[i], this.nz[i]); const col = (cnt++ & 1) ? white : red;
-          B.box(m, 1.46, 0.98, 0.8, 0, 0, 0, col, { top: col }); B.box(m, 1.48, 0.08, 0.82, 0, 0.62, 0, strap); B.box(m, 1.48, 0.08, 0.82, 0, 0.22, 0, strap);
+          const m = EI.Env.frame(a[0], a[1], a[2], this.tx[i], this.tz[i], this.nx[i] * side, this.nz[i] * side); const col = (cnt++ & 1) ? white : red; const P2 = (x, y, zz) => EI.Env.xf(m, x, y, zz);
+          // body: front face textured (logo band and straps), chamfered top edge towards the road, sides and back plain
+          Rd.set(tec, 0.62, 0.0); Rd.quad(P2(-0.72, 0.02, -0.38), P2(-0.72, 0.86, -0.38), P2(0.72, 0.86, -0.38), P2(0.72, 0.02, -0.38), col, [0, 0, 0, 0.88, 1, 0.88, 1, 0]);
+          Rd.set('white', 0.62, 0.0); Rd.quad(P2(-0.72, 0.86, -0.38), P2(-0.72, 0.98, -0.26), P2(0.72, 0.98, -0.26), P2(0.72, 0.86, -0.38), col); Rd.quad(P2(-0.72, 0.98, -0.26), P2(-0.72, 0.98, 0.38), P2(0.72, 0.98, 0.38), P2(0.72, 0.98, -0.26), col);
+          for (const sx of [-0.72, 0.72]) { const f = sx < 0 ? 1 : -1; const q = [P2(sx, 0.02, -0.38), P2(sx, 0.86, -0.38), P2(sx, 0.98, -0.26), P2(sx, 0.98, 0.38), P2(sx, 0.02, 0.38)]; if (f > 0) { Rd.tri(q[0], q[4], q[1], col); Rd.tri(q[1], q[4], q[2], col); Rd.tri(q[2], q[4], q[3], col); } else { Rd.tri(q[0], q[1], q[4], col); Rd.tri(q[1], q[2], q[4], col); Rd.tri(q[2], q[3], q[4], col); } }
+          Rd.quad(P2(0.72, 0.02, 0.38), P2(0.72, 0.98, 0.38), P2(-0.72, 0.98, 0.38), P2(-0.72, 0.02, 0.38), col);
+          // connecting pins on top
+          Rd.set('white', 0.4, 0.7); Rd.box(m, 0.1, 0.05, 0.1, 0.72, 0.98, 0, lin(0x8c9196));
         }
-        lb = null; cnt = 0;
+        // ---- tyre walls: stacks of four behind a bolted conveyor belt facing the road; the top tyres stay visible
+        lb = null; cnt = 0; let beltPrev = null;
         for (let s = 0; s < L; s += 0.25) {
-          const i = Math.floor(s / ds) % n; if (!z.tyre[i] || z.gap[i] || z.tec[i]) { lb = null; continue; } const a = Ps(s, 0.36, 0); if (lb && Math.hypot(a[0] - lb[0], a[2] - lb[2]) < 0.66) continue; lb = a;
-          const col = (Math.floor(cnt++ / 2) & 1) ? white : red;
-          for (let tt = 0; tt < 4; tt++) { const y0 = tt * 0.245; const segs = 8;
-            for (let k = 0; k < segs; k++) { const a0 = k / segs * 6.283, a1 = (k + 1) / segs * 6.283; const p0 = [a[0] + Math.cos(a0) * 0.33, a[1] + y0 + 0.02, a[2] + Math.sin(a0) * 0.33], p1 = [a[0] + Math.cos(a1) * 0.33, a[1] + y0 + 0.02, a[2] + Math.sin(a1) * 0.33];
-              B.quad([p0[0], p0[1] + 0.21, p0[2]], [p1[0], p1[1] + 0.21, p1[2]], p1, p0, tt & 1 ? dark : col); }
-          }
-          for (let k = 0; k < 8; k++) { const a0 = k / 8 * 6.283, a1 = (k + 1) / 8 * 6.283; B.tri([a[0], a[1] + 0.98, a[2]], [a[0] + Math.cos(a1) * 0.33, a[1] + 0.98, a[2] + Math.sin(a1) * 0.33], [a[0] + Math.cos(a0) * 0.33, a[1] + 0.98, a[2] + Math.sin(a0) * 0.33], dark); }
+          const i = Math.floor(s / ds) % n; if (!z.tyre[i] || z.gap[i] || z.tec[i]) { lb = null; beltPrev = null; continue; } const a = Ps(s, 0.36, 0); if (lb && Math.hypot(a[0] - lb[0], a[2] - lb[2]) < 0.66) continue; lb = a;
+          const col = (Math.floor(cnt++ / 2) & 1) ? white : red; Rd.set('white', 0.85, 0);
+          for (let k = 0; k < 8; k++) { const a0 = k / 8 * 6.283, a1 = (k + 1) / 8 * 6.283; const p0 = [a[0] + Math.cos(a0) * 0.33, a[1] + 0.76, a[2] + Math.sin(a0) * 0.33], p1 = [a[0] + Math.cos(a1) * 0.33, a[1] + 0.76, a[2] + Math.sin(a1) * 0.33];
+            Rd.quad([p0[0], p0[1] + 0.22, p0[2]], [p1[0], p1[1] + 0.22, p1[2]], p1, p0, col); Rd.tri([a[0], a[1] + 0.98, a[2]], [a[0] + Math.cos(a1) * 0.33, a[1] + 0.98, a[2] + Math.sin(a1) * 0.33], [a[0] + Math.cos(a0) * 0.33, a[1] + 0.98, a[2] + Math.sin(a0) * 0.33], dark); }
+          const bq = Ps(s, 0.0, 0); if (beltPrev) { const u0 = beltPrev[3], u1 = u0 + Math.hypot(bq[0] - beltPrev[0], bq[2] - beltPrev[2]) / 2; Rd.set(belt, 0.8, 0.0); const A = [beltPrev[0], beltPrev[1] + 0.02, beltPrev[2]], Bq = [bq[0], bq[1] + 0.02, bq[2]], Cq = [bq[0], bq[1] + 0.84, bq[2]], D = [beltPrev[0], beltPrev[1] + 0.84, beltPrev[2]]; if (side > 0) Rd.quad(A, Bq, Cq, D, white, [u0, 0, u1, 0, u1, 1, u0, 1]); else Rd.quad(A, D, Cq, Bq, white, [u0, 0, u0, 1, u1, 1, u1, 0]); bq[3] = u1; } else bq[3] = 0;
+          beltPrev = bq;
         }
       }
-      const pm = new THREE.Mesh(B.geometry(), new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.55, metalness: 0.35, side: THREE.DoubleSide })); pm.castShadow = true; pm.receiveShadow = true; pm.name = 'barrierParts'; g.add(pm);
-      this.streetStats = { barrierPartsTris: B.count / 3 };
+      W.add(Rm, 'main'); W.add(Rd, 'detail'); W.add(Rf, 'fine'); W.add(Fn, 'fence'); W.add(Ln, 'lines');
+      this.streetStats = { railTris, barrierMainTris: Rm.count / 3, barrierDetailTris: Rd.count / 3, barrierFineTris: Rf.count / 3, fenceTris: Fn.count / 3, cables: Ln.count };
     }
 
     buildPitLane(g) {
@@ -1049,6 +1131,12 @@ window.EI = window.EI || {};
       for (let c = 0; c < 5; c++) for (let rr = 0; rr < 2; rr++) { const hood = solid(new THREE.CylinderGeometry(0.34, 0.34, 0.12, 14), 'hood'); hood.rotation.z = Math.PI / 2; hood.position.set(-0.3, 6.55 - rr * 0.65, (c - 2) * 1.15); gantry.add(hood); }
       // the lamps change colour at the start: kept as separate meshes (not merged)
       this.startLights = []; const offMat = new THREE.MeshBasicMaterial({ color: 0x2a0b0b });
+      if (this.data.street) {
+        // street circuit: the ten lamps are one instanced draw (per-lamp colour)
+        const im = new THREE.InstancedMesh(new THREE.SphereGeometry(0.28, 10, 8), new THREE.MeshBasicMaterial({ color: 0xffffff }), 10); im.name = 'startLamp'; const mm = new THREE.Matrix4(), cc = new THREE.Color(0x2a0b0b);
+        for (let c = 0; c < 5; c++) for (let rr = 0; rr < 2; rr++) { mm.makeTranslation(-0.25, 6.55 - rr * 0.65, (c - 2) * 1.15); im.setMatrixAt(c * 2 + rr, mm); im.setColorAt(c * 2 + rr, cc); }
+        gantry.add(im); this.startInst = im;
+      } else
       for (let c = 0; c < 5; c++) { const col = []; for (let rr = 0; rr < 2; rr++) { const lamp = new THREE.Mesh(new THREE.SphereGeometry(0.28, 10, 8), offMat.clone()); lamp.position.set(-0.25, 6.55 - rr * 0.65, (c - 2) * 1.15); lamp.name = 'startLamp'; gantry.add(lamp); col.push(lamp); } this.startLights.push(col); }
       gantry.position.set(this.x[i0], this.y[i0], this.z[i0]); gantry.rotation.y = -this.heading[i0]; gantry.name = 'startGantry'; g.add(gantry);
       // boards face oncoming cars (toed 15 degrees towards the track); dist = lateral distance of the board centre
@@ -1094,7 +1182,7 @@ window.EI = window.EI || {};
     // placed at the end of their batch so setQuality('low') can drop them with a draw range.
     mergeStatic(g) {
       g.updateMatrixWorld(true); const inv = new THREE.Matrix4().copy(g.matrixWorld).invert();
-      const keep = new Set(); for (const col of this.startLights || []) for (const l of col) keep.add(l);
+      const keep = new Set(); for (const col of this.startLights || []) for (const l of col) keep.add(l); if (this.startInst) keep.add(this.startInst);
       const batches = new Map(), list = [];
       g.traverse(o => {
         if (!o.isMesh || keep.has(o) || Array.isArray(o.material) || /^pit(Lane|Markings|Text)$/.test(o.name || '')) return;
@@ -1133,7 +1221,7 @@ window.EI = window.EI || {};
       const an = low ? 2 : q === 'high' ? 8 : 4; const T = Track._tex;
       if (T) for (const k of ['asphalt', 'runoff', 'grass', 'gravel']) for (const tk of ['map', 'normalMap', 'roughnessMap']) { const t = T[k] && T[k][tk]; if (t && t.anisotropy !== an) { t.anisotropy = an; t.needsUpdate = true; } }
     }
-    setStartLights(count) { if (!this.startLights) return; this.startLights.forEach((col, c) => col.forEach(l => { l.material.color.setHex(c < count ? 0xff1a1a : 0x2a0b0b); })); }
+    setStartLights(count) { if (this.startInst) { const c = new THREE.Color(); for (let k = 0; k < 10; k++) this.startInst.setColorAt(k, c.setHex((k >> 1) < count ? 0xff1a1a : 0x2a0b0b)); this.startInst.instanceColor.needsUpdate = true; return; } if (!this.startLights) return; this.startLights.forEach((col, c) => col.forEach(l => { l.material.color.setHex(c < count ? 0xff1a1a : 0x2a0b0b); })); }
   }
   EI.Track = Track;
 })();

@@ -17,14 +17,14 @@ window.EI = window.EI || {};
         vertexShader: 'attribute float psize; attribute float palpha; varying float vA; varying vec3 vC; uniform float scaleY; void main(){ vA = palpha; vC = color; vec4 mv = modelViewMatrix * vec4(position,1.0); gl_PointSize = psize * scaleY / -mv.z; gl_Position = projectionMatrix * mv; }',
         fragmentShader: 'uniform sampler2D map; varying float vA; varying vec3 vC; void main(){ vec4 t = texture2D(map, gl_PointCoord); gl_FragColor = vec4(vC, t.a * vA); }'
       });
-      this.points = new THREE.Points(geo, mat); this.points.frustumCulled = false; this.n = 0; this.cursor = 0; scene.add(this.points); this.mat = mat;
+      this.points = new THREE.Points(geo, mat); this.points.frustumCulled = false; this.points.visible = false; this.live = 0; this.n = 0; this.cursor = 0; scene.add(this.points); this.mat = mat;
       this.tmpC = new THREE.Color();
     }
     emit(x, y, z, vx, vy, vz, color, size, life, grow) {
       const i = this.cursor; this.cursor = (this.cursor + 1) % MAX;
       this.pos[i * 3] = x; this.pos[i * 3 + 1] = y; this.pos[i * 3 + 2] = z; this.vel[i * 3] = vx; this.vel[i * 3 + 1] = vy; this.vel[i * 3 + 2] = vz;
       this.tmpC.set(color); this.col[i * 3] = this.tmpC.r; this.col[i * 3 + 1] = this.tmpC.g; this.col[i * 3 + 2] = this.tmpC.b;
-      this.size[i] = size; this.life[i] = life; this.maxLife[i] = life; this.grow[i] = grow || 1; this.alpha[i] = 1;
+      this.size[i] = size; this.life[i] = life; this.maxLife[i] = life; this.grow[i] = grow || 1; this.alpha[i] = 1; this.live = MAX;
     }
     // called per car per frame
     fromCar(car, dt) {
@@ -39,14 +39,17 @@ window.EI = window.EI || {};
       const slip = Math.abs(car.vLat) > 3 || (car.brake > 0.9 && !car.assist.abs && av > 15);
       if (slip && Math.random() < 50 * dt) for (const side of [-1, 1]) { const p = rear(side); this.emit(p[0], p[1] + 0.1, p[2], (Math.random() - 0.5) * 1.5, 0.8 + Math.random(), (Math.random() - 0.5) * 1.5, 0xe8e8ec, 1.8, 1.2, 2.6); }
     }
+    // only while something is alive: the loop and the four buffer uploads are skipped once every particle has faded
     update(dt) {
+      if (!this.live) return; let alive = 0;
       for (let i = 0; i < MAX; i++) {
-        if (this.life[i] <= 0) continue; this.life[i] -= dt;
+        if (this.life[i] <= 0) continue; this.life[i] -= dt; alive++;
         if (this.life[i] <= 0) { this.alpha[i] = 0; continue; }
         const t = this.life[i] / this.maxLife[i]; this.alpha[i] = t * 0.75; this.size[i] += this.grow[i] * dt;
         this.pos[i * 3] += this.vel[i * 3] * dt; this.pos[i * 3 + 1] += this.vel[i * 3 + 1] * dt; this.pos[i * 3 + 2] += this.vel[i * 3 + 2] * dt;
         this.vel[i * 3] *= 0.96; this.vel[i * 3 + 2] *= 0.96; this.vel[i * 3 + 1] = this.vel[i * 3 + 1] * 0.95 + 0.3 * dt;
       }
+      this.live = alive; this.points.visible = alive > 0;
       const a = this.points.geometry.attributes; a.position.needsUpdate = true; a.palpha.needsUpdate = true; a.psize.needsUpdate = true; a.color.needsUpdate = true;
     }
     setViewportHeight(h) { this.mat.uniforms.scaleY.value = h * 0.55; }

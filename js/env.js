@@ -151,10 +151,14 @@ window.EI = window.EI || {};
       this.raw = null; this.keys = null; return this;
     }
     // copy every cell whose square may hold items at distance r0..r1 from (x, z) into the target arrays; returns the item count
+    // with Env.eyes set (split screen: one list of [x, z] per view) a cell is taken when it is in range of any eye
     gather(x, z, r0, r1, targets) {
-      const h = this.cell * 0.7072, st = this.strides; let n = 0;
+      const h = this.cell * 0.7072, st = this.strides; let n = 0; const eyes = Env.eyes; const cap = targets[0].length / st[0];
       for (const c of this.cells) {
-        const d = Math.hypot(c.x - x, c.z - z); if (d + h < r0 || d - h > r1) continue;
+        let take = false;
+        if (eyes) { for (const e of eyes) { const d = Math.hypot(c.x - e[0], c.z - e[1]); if (!(d + h < r0 || d - h > r1)) { take = true; break; } } }
+        else { const d = Math.hypot(c.x - x, c.z - z); take = !(d + h < r0 || d - h > r1); }
+        if (!take || n + c.count > cap) continue;
         for (let k = 0; k < st.length; k++) targets[k].set(this.data[k].subarray(c.start * st[k], (c.start + c.count) * st[k]), n * st[k]);
         n += c.count;
       }
@@ -168,8 +172,11 @@ window.EI = window.EI || {};
     constructor(set, attrs, setCount, move) { this.set = set; this.attrs = attrs; this.setCount = setCount; this.move = move || 30; this.last = null; this.r0 = 0; this.r1 = 0; this.n = 0; }
     range(r0, r1) { if (r0 !== this.r0 || r1 !== this.r1) { this.r0 = r0; this.r1 = r1; this.last = null; } }
     update(x, z, force) {
-      if (!force && this.last && (this.r0 <= 0 && this.r1 >= 1e4 || Math.hypot(x - this.last[0], z - this.last[1]) < this.move)) return false;
-      this.last = [x, z]; const st = this.set.strides;
+      // split screen (Env.eyes): one gather for the union of the views, redone when any eye has moved
+      const eyes = Env.eyes ? Env.eyes.map(e => [e[0], e[1]]) : [[x, z]];
+      const still = this.last && this.last.length === eyes.length && eyes.every((e, k) => Math.hypot(e[0] - this.last[k][0], e[1] - this.last[k][1]) < this.move);
+      if (!force && this.last && (this.r0 <= 0 && this.r1 >= 1e4 || still)) return false;
+      this.last = eyes; const st = this.set.strides;
       const n = this.r1 > this.r0 ? this.set.gather(x, z, this.r0, this.r1, this.attrs.map(a => a.array)) : 0;
       this.attrs.forEach((a, k) => { a.updateRange.offset = 0; a.updateRange.count = Math.max(1, n * st[k]); a.needsUpdate = true; });
       this.n = n; this.setCount(n); return true;
@@ -226,6 +233,8 @@ window.EI = window.EI || {};
   }
   Env.Statics = Statics;
   // horizontal distance from (x, z) to a Box3
+  // distance to the nearest eye (split screen: Env.eyes lists every view's eye)
+  Env.eyeDist = function (b, x, z) { const E = Env.eyes; if (!E) return Env.boxDist(b, x, z); let d = Infinity; for (const e of E) d = Math.min(d, Env.boxDist(b, e[0], e[1])); return d; };
   Env.boxDist = function (b, x, z) { const dx = Math.max(b.min.x - x, 0, x - b.max.x), dz = Math.max(b.min.z - z, 0, z - b.max.z); return Math.hypot(dx, dz); };
 
   // ---------------------------------------------------------------- the environment context (per scenery build)
@@ -566,17 +575,31 @@ window.EI = window.EI || {};
       pos[k * 3] = x; pos[k * 3 + 1] = h; pos[k * 3 + 2] = z;
       if (Math.abs(i - K) <= KIN && Math.abs(j - K) <= KIN) heights[(j - K + KIN) * HW + (i - K + KIN)] = h;
       // (well inside the field map the vertex colour is never seen: skip the street colour model there)
-      const c = fine && Math.max(Math.abs(x), Math.abs(z)) < 2040 ? inner : this.fieldRGB(x, z, cell); tmp.setRGB(c[0] / 255, c[1] / 255, c[2] / 255).convertSRGBToLinear();
+      this._coarse = fine; const c = fine && Math.max(Math.abs(x), Math.abs(z)) < 2040 ? inner : this.fieldRGB(x, z, cell); this._coarse = false; tmp.setRGB(c[0] / 255, c[1] / 255, c[2] / 255).convertSRGBToLinear();
       col[k * 3] = tmp.r; col[k * 3 + 1] = tmp.g; col[k * 3 + 2] = tmp.b;
       uv[k * 2] = (x + MAP_HALF) / (MAP_HALF * 2); uv[k * 2 + 1] = 1 - (z + MAP_HALF) / (MAP_HALF * 2);
     }
     const idx = []; for (let j = 0; j < W - 1; j++) for (let i = 0; i < W - 1; i++) { const a = j * W + i, b = a + 1, c = a + W, d = c + 1; idx.push(a, c, b, b, c, d); }
     const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.BufferAttribute(pos, 3)); geo.setAttribute('color', new THREE.BufferAttribute(col, 3)); geo.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
-    geo.setIndex(idx); geo.computeVertexNormals(); geo.computeBoundingSphere();
+    geo.setIndex(idx); geo.computeVertexNormals();
     sc.heights = heights; sc.hHalf = KIN * GS; sc.hN = HW; sc.hCell = GS;
     const mat = this.groundMaterial(false); mat.polygonOffset = true; mat.polygonOffsetFactor = 4; mat.polygonOffsetUnits = 8;
-    const m = new THREE.Mesh(geo, mat); m.receiveShadow = true; m.name = 'terrainMesh'; sc.group.add(m);
-    this.stats.terrainTris = idx.length / 3;
+    // cut into tiles (shared vertex buffers, an index list and a real bounding box each) so the frustum culls what is behind the
+    // camera: the fine grid in 3 x 3 blocks, the coarse outer ring in its four sides and four corners
+    const cuts = [0, K - KIN, K - KIN + Math.round(2 * KIN / 3), K + KIN - Math.round(2 * KIN / 3), K + KIN, W - 1]; const tiles = []; let tris = 0;
+    const blocks = []; const c = cuts;
+    for (let bj = 1; bj <= 3; bj++) for (let bi = 1; bi <= 3; bi++) blocks.push([c[bi], c[bi + 1], c[bj], c[bj + 1]]);
+    for (const [bi, bj] of [[0, 0], [4, 0], [0, 4], [4, 4]]) blocks.push([c[bi], c[bi + 1], c[bj], c[bj + 1]]);
+    blocks.push([c[0], c[1], c[1], c[4]], [c[4], c[5], c[1], c[4]], [c[1], c[4], c[0], c[1]], [c[1], c[4], c[4], c[5]]);
+    for (const [i0, i1, j0, j1] of blocks) {
+      const ti = []; const mn = new THREE.Vector3(Infinity, Infinity, Infinity), mx = new THREE.Vector3(-Infinity, -Infinity, -Infinity);
+      for (let j = j0; j < j1; j++) for (let i = i0; i < i1; i++) { const a = j * W + i, b = a + 1, c = a + W, d = c + 1; ti.push(a, c, b, b, c, d); }
+      for (let j = j0; j <= j1; j++) for (let i = i0; i <= i1; i++) { const k = (j * W + i) * 3; mn.min(new THREE.Vector3(pos[k], pos[k + 1], pos[k + 2])); mx.max(new THREE.Vector3(pos[k], pos[k + 1], pos[k + 2])); }
+      const g = new THREE.BufferGeometry(); for (const nm of ['position', 'normal', 'color', 'uv']) g.setAttribute(nm, geo.attributes[nm]);
+      g.setIndex(new THREE.BufferAttribute(W * W > 65535 ? new Uint32Array(ti) : new Uint16Array(ti), 1)); g.boundingBox = new THREE.Box3(mn, mx); g.boundingSphere = g.boundingBox.getBoundingSphere(new THREE.Sphere());
+      const m = new THREE.Mesh(g, mat); m.receiveShadow = true; m.name = 'terrainMesh'; m.matrixAutoUpdate = false; sc.group.add(m); tiles.push(m); tris += ti.length / 3;
+    }
+    sc.terrainTiles = tiles; this.stats.terrainTris = tris; this.stats.terrainTiles = tiles.length;
     // compatibility for track.js, which samples the 'terrain' vertex colours on a uniform tSize x tSegs grid just beyond its verge:
     // an invisible carrier of the field-map colours (linear) on such a grid
     const TS = 2 * MAP_HALF, TG = 230, TW = TG + 1; const tc = new Float32Array(TW * TW * 3); const cc = new THREE.Color();
@@ -642,10 +665,29 @@ window.EI = window.EI || {};
     const t = new THREE.DataTexture(out, S, S, THREE.RGBAFormat); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.magFilter = THREE.LinearFilter; t.minFilter = THREE.LinearMipmapLinearFilter; t.generateMipmaps = true; t.anisotropy = 8; t.needsUpdate = true;
     return t;
   };
+  // a 256 px tile of Mediterranean scrub seen from above at the field map's scale (~2.2 m / px): dark crowns of pines and holm oaks
+  // with their shadows, olive clumps of lentisk and broom, pale limestone outcrops and ochre soil; transparent between
+  Env.scrubTile = function () {
+    if (Env._scrub) return Env._scrub; const S = 256; const [c, ctx] = Env.canvas(S, S); const r = U.rng(6203);
+    const blob = (x, y, rad, col) => { for (const ox of [-S, 0, S]) for (const oy of [-S, 0, S]) { if (x + ox < -rad || x + ox > S + rad || y + oy < -rad || y + oy > S + rad) continue; ctx.fillStyle = col; ctx.beginPath(); ctx.ellipse(x + ox, y + oy, rad, rad * (0.75 + r() * 0.3), r() * 3, 0, 6.283); ctx.fill(); } };
+    // bare ground between: ochre soil and pale limestone
+    for (let i = 0; i < 200; i++) blob(r() * S, r() * S, 1.5 + r() * 4, 'rgba(' + (128 + r() * 30 | 0) + ',' + (114 + r() * 26 | 0) + ',' + (90 + r() * 20 | 0) + ',' + (0.2 + r() * 0.25).toFixed(2) + ')');
+    for (let i = 0; i < 120; i++) blob(r() * S, r() * S, 0.8 + r() * 2.2, 'rgba(' + (156 + r() * 30 | 0) + ',' + (150 + r() * 28 | 0) + ',' + (134 + r() * 24 | 0) + ',' + (0.3 + r() * 0.3).toFixed(2) + ')');
+    // shrub clumps (lentisk, broom, rosemary): low olive cushions
+    for (let i = 0; i < 1800; i++) { const v = r(); blob(r() * S, r() * S, 0.7 + r() * 1.5, 'rgba(' + (64 + v * 34 | 0) + ',' + (72 + v * 30 | 0) + ',' + (48 + v * 20 | 0) + ',' + (0.4 + r() * 0.4).toFixed(2) + ')'); }
+    // groves: pines and holm oaks in clusters, each crown with its shadow and a sunlit side
+    for (let g = 0; g < 46; g++) {
+      const gx = r() * S, gy = r() * S, gr = 6 + r() * 16, n = 4 + (r() * 14 | 0);
+      for (let i = 0; i < n; i++) { const a = r() * 6.283, d = Math.sqrt(r()) * gr; const x = gx + Math.cos(a) * d, y = gy + Math.sin(a) * d, rad = 1.6 + r() * 2.6; const v = r();
+        blob(x + rad * 0.45, y + rad * 0.55, rad, 'rgba(18,22,14,0.28)'); blob(x, y, rad, 'rgba(' + (40 + v * 22 | 0) + ',' + (52 + v * 22 | 0) + ',' + (34 + v * 12 | 0) + ',0.9)'); blob(x - rad * 0.3, y - rad * 0.3, rad * 0.5, 'rgba(104,118,76,0.32)'); }
+    }
+    for (let i = 0; i < 160; i++) { const x = r() * S, y = r() * S, rad = 1.4 + r() * 2.4; blob(x + rad * 0.5, y + rad * 0.6, rad, 'rgba(18,22,14,0.25)'); blob(x, y, rad, 'rgba(' + (44 + r() * 20 | 0) + ',' + (56 + r() * 20 | 0) + ',' + (36 + r() * 10 | 0) + ',0.88)'); }
+    return (Env._scrub = c);
+  };
   Ctx.prototype.groundMaterial = function (tinted) {
     if (!this._detail) this._detail = this.dem ? Env.groundDetail() : Env.grassDetail();
     const det = this._detail; const rocky = !!this.dem && !tinted;
-    const mat = new THREE.MeshStandardMaterial({ map: this.fieldTex, vertexColors: true, roughness: 0.96, metalness: 0.0 });
+    const mat = new THREE.MeshStandardMaterial({ map: this.fieldTex, vertexColors: true, roughness: 0.96, metalness: 0.0 }); if (rocky) mat.extensions = { derivatives: true };
     mat.onBeforeCompile = (sh) => {
       sh.uniforms.detailMap = { value: det };
       sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nvarying vec3 vWPos;').replace('#include <project_vertex>', '#include <project_vertex>\nvWPos = (modelMatrix * vec4(transformed, 1.0)).xyz;');
@@ -660,12 +702,30 @@ window.EI = window.EI || {};
           'vec3 d3 = texture2D(detailMap, wq * 0.031 + 0.37).rgb;',
           'float mac = texture2D(detailMap, wq * 0.0071).a * 0.65 + texture2D(detailMap, vec2(-wq.y, wq.x) * 0.0023 + 0.5).a * 0.35;',
           'diffuseColor.rgb *= (d1 * 0.5 + d2 * 0.3 + d3 * 0.2) * 2.0 * (0.78 + 0.44 * mac);'].concat(rocky ? [
-          // mountains: steep faces turn to bedded limestone (strata along the height, broken by the detail noise), gullies darker
-          'float rkSteep = smoothstep(0.42, 0.8, 1.0 - vWN.y) * smoothstep(40.0, 160.0, vWPos.y);',
-          'float rkStrata = texture2D(detailMap, vec2(wq.x * 0.004 + wq.y * 0.003, vWPos.y * 0.09)).r * 0.6 + texture2D(detailMap, vec2(vWPos.y * 0.21, wq.x * 0.011 - wq.y * 0.008)).g * 0.4;',
-          'vec3 rkCol = vec3(0.30, 0.285, 0.26) * (0.55 + 0.9 * rkStrata) * (0.75 + 0.5 * mac);',
-          'diffuseColor.rgb = mix(diffuseColor.rgb, rkCol, rkSteep * 0.85);'] : []).join('\n'))
+          // mountains: steep faces turn to weathered limestone - buttresses and ledges in bands along the height (projected along
+          // the face, broken by noise), grey to warm ochre, dark scrub in the gullies and on the ledges; a relief normal from the
+          // same bands breaks up the big terrain facets
+          'float rkSl = 1.0 - vWN.y, rkHk = smoothstep(60.0, 320.0, vWPos.y);',
+          // outside the city (beyond the field map, or high up): the slopes turn to limestone and scrub
+          'float rkSteep = clamp(smoothstep(0.05, 0.3, rkSl) * (0.55 + 0.45 * rkHk) + rkHk * 0.3, 0.0, 1.0) * smoothstep(40.0, 130.0, vWPos.y) * max(1.0 - inMap, smoothstep(200.0, 320.0, vWPos.y));',
+          'vec2 rkQ = vec2(dot(wq, normalize(vec2(-vWN.z, vWN.x) + 1e-4)), vWPos.y);',
+          // (the detail map's alpha is its smooth low-frequency noise: buttresses / ledges / patches at three scales)
+          'float rkA = texture2D(detailMap, rkQ * vec2(0.0045, 0.0105) + 0.13).a;',
+          'float rkB = texture2D(detailMap, rkQ * vec2(0.014, 0.036) + 0.61).a;',
+          'float rkC = texture2D(detailMap, wq * 0.0062 + 0.7).a;',
+          'float rkL = rkA * 0.55 + rkB * 0.3 + rkC * 0.15; rkH = rkL;',
+          'vec3 rkCol = mix(vec3(0.085, 0.08, 0.072), vec3(0.25, 0.235, 0.205), smoothstep(0.3, 0.7, rkL));',
+          'rkCol = mix(rkCol, rkCol * vec3(1.08, 0.98, 0.86), smoothstep(0.5, 0.7, rkC));',
+          'float rkVeg = smoothstep(0.42, 0.6, rkC * 0.55 + (1.0 - rkB) * 0.45 + (0.22 - rkSl) * 1.1 - rkHk * 0.12);',
+          'rkCol = mix(rkCol, vec3(0.05, 0.062, 0.042) * (0.7 + 0.6 * rkB), rkVeg * 0.8);',
+          'rkMix = rkSteep * 0.92; diffuseColor.rgb = mix(diffuseColor.rgb, rkCol * (0.85 + 0.3 * mac), rkMix);'] : []).join('\n'))
         .replace('#include <color_fragment>', '');
+      if (rocky) {
+        sh.fragmentShader = sh.fragmentShader.replace('void main() {', 'float rkH = 0.5, rkMix = 0.0;\nvoid main() {').replace('#include <normal_fragment_maps>', [
+          '#include <normal_fragment_maps>',
+          '{ vec2 dH = vec2(dFdx(rkH), dFdy(rkH)) * 14.0 * rkMix; vec3 sp = -vViewPosition; vec3 vSx = dFdx(sp), vSy = dFdy(sp); vec3 R1 = cross(vSy, normal), R2 = cross(normal, vSx);',
+          '  float fDet = dot(vSx, R1) * faceDirection; vec3 vGrad = sign(fDet) * (dH.x * R1 + dH.y * R2); normal = normalize(abs(fDet) * normal - vGrad); }'].join('\n'));
+      }
       if (rocky) { sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nvarying vec3 vWN;').replace('#include <project_vertex>', '#include <project_vertex>\nvWN = normalize(mat3(modelMatrix) * objectNormal);'); sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nvarying vec3 vWN;'); }
     };
     mat.customProgramCacheKey = () => (tinted ? 'ground-tint' : 'ground') + (rocky ? '-rock' : '');
@@ -716,24 +776,28 @@ window.EI = window.EI || {};
   };
   // street circuit ground colour (sRGB): built-up city, Mediterranean scrub (garrigue), umbrella-pine woods and the grey limestone
   // of the steep faces and the high ground; the harbour floor under the water
-  const SPAL = { city: [112, 108, 102], cityDark: [90, 88, 84], scrub: [72, 74, 56], scrubDark: [50, 55, 40], pine: [38, 45, 31], rock: [140, 136, 128], rockDark: [104, 100, 93], high: [100, 96, 80], sea: [70, 78, 76] };
+  const SPAL = { city: [112, 108, 102], cityDark: [90, 88, 84], scrub: [80, 82, 66], scrubDark: [52, 58, 45], dry: [120, 112, 94], pine: [38, 46, 34], rock: [128, 123, 112], rockDark: [86, 82, 74], high: [98, 98, 82], garden: [58, 66, 48], gardenDry: [90, 90, 72], sea: [70, 78, 76] };
   Env.SPAL = SPAL;
   Ctx.prototype.streetRGB = function (x, z, out) {
     out = out || [0, 0, 0];
     if (this.isSea(x, z)) { out[0] = SPAL.sea[0]; out[1] = SPAL.sea[1]; out[2] = SPAL.sea[2]; return out; }
     const g = this.groundAbs(x, z); const e = 14; const sl = Math.hypot(this.demAt(x + e, z) - this.demAt(x - e, z), this.demAt(x, z + e) - this.demAt(x, z - e)) / (2 * e);
-    const n1 = U.noise2(x / 37 + 2.3, z / 37 + 7.7), n2 = U.fbm(x / 160 + 5.1, z / 160 + 1.3, 3), n3 = U.noise2(x / 9 + 1.1, z / 9 + 3.9);
+    const n1 = this._coarse ? U.noise2(x / 420 + 2.3, z / 420 + 7.7) : U.noise2(x / 37 + 2.3, z / 37 + 7.7), n2 = U.fbm(x / 160 + 5.1, z / 160 + 1.3, 3), n3 = this._coarse ? 0.5 : U.noise2(x / 9 + 1.1, z / 9 + 3.9);
     let r = SPAL.scrub[0] + (SPAL.scrubDark[0] - SPAL.scrub[0]) * n1, gg = SPAL.scrub[1] + (SPAL.scrubDark[1] - SPAL.scrub[1]) * n1, b = SPAL.scrub[2] + (SPAL.scrubDark[2] - SPAL.scrub[2]) * n1;
     const mixc = (c, k) => { r += (c[0] - r) * k; gg += (c[1] - gg) * k; b += (c[2] - b) * k; };
     mixc(SPAL.high, U.smoothstep(450, 800, g) * 0.7);
+    // garrigue: dry grass and bare ochre soil between the shrubs on the sunny slopes, umbrella-pine woods lower down
+    mixc(SPAL.dry, U.smoothstep(0.52, 0.72, U.fbm(x / 90 + 7.3, z / 90 + 2.9, 3)) * (0.35 + 0.4 * U.smoothstep(0.15, 0.45, sl)) * (1 - U.smoothstep(500, 800, g)));
     mixc(SPAL.pine, U.smoothstep(0.5, 0.64, n2) * U.smoothstep(15, 70, g) * (1 - U.smoothstep(520, 760, g)) * 0.9);
     const rock = Math.min(1, U.smoothstep(0.34, 0.75, sl) * U.smoothstep(60, 220, g) + U.smoothstep(0.55, 0.75, n2 + sl * 0.35) * U.smoothstep(200, 520, g) * 0.7);
     const rk = U.smoothstep(0.25, 0.75, n3); mixc([SPAL.rockDark[0] + (SPAL.rock[0] - SPAL.rockDark[0]) * rk, SPAL.rockDark[1] + (SPAL.rock[1] - SPAL.rockDark[1]) * rk, SPAL.rockDark[2] + (SPAL.rock[2] - SPAL.rockDark[2]) * rk], rock * (0.7 + 0.3 * n1));
     const city = U.smoothstep(0.02, 0.16, this.coverAt(x, z)); const f = this.fAt(x, z); let near = 1 - U.smoothstep(40, 140, f); const ck = U.smoothstep(0.2, 0.8, n3);
     // next to the circuit: steep unbuilt banks are terraced gardens (dark greens), not paving
-    if (near > 0 && f > 8) { const d = 6; const hs = Math.hypot(this.streetHeight(x + d, z) - this.streetHeight(x - d, z), this.streetHeight(x, z + d) - this.streetHeight(x, z - d)) / (2 * d); const gk = U.smoothstep(0.18, 0.4, hs) * (1 - U.smoothstep(0.1, 0.3, this.coverAt(x, z))); if (gk > 0) { mixc(n2 > 0.5 ? [52, 66, 36] : [70, 80, 46], gk); near *= 1 - gk; } }
-    mixc([SPAL.cityDark[0] + (SPAL.city[0] - SPAL.cityDark[0]) * ck, SPAL.cityDark[1] + (SPAL.city[1] - SPAL.cityDark[1]) * ck, SPAL.cityDark[2] + (SPAL.city[2] - SPAL.cityDark[2]) * ck], Math.max(city * 0.85, near));
-    const k = 0.93 + n3 * 0.12; out[0] = r * k; out[1] = gg * k; out[2] = b * k; return out;
+    if (near > 0 && f > 8) { const d = 6; const hs = Math.hypot(this.streetHeight(x + d, z) - this.streetHeight(x - d, z), this.streetHeight(x, z + d) - this.streetHeight(x, z - d)) / (2 * d); const gk = U.smoothstep(0.18, 0.4, hs) * (1 - U.smoothstep(0.1, 0.3, this.coverAt(x, z))); if (gk > 0) { mixc(n2 > 0.5 ? SPAL.garden : SPAL.gardenDry, gk); near *= 1 - gk; } }
+    const built = Math.max(city * 0.85, near);
+    mixc([SPAL.cityDark[0] + (SPAL.city[0] - SPAL.cityDark[0]) * ck, SPAL.cityDark[1] + (SPAL.city[1] - SPAL.cityDark[1]) * ck, SPAL.cityDark[2] + (SPAL.city[2] - SPAL.cityDark[2]) * ck], built);
+    // out[3]: how natural the ground is (the field map scatters shrubs, pines and rock over it)
+    const k = 0.93 + n3 * 0.12; out[0] = r * k; out[1] = gg * k; out[2] = b * k; out[3] = (1 - built) * (1 - rock * 0.55); return out;
   };
   function mix3(a, b, t) { return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t]; }
 
@@ -763,8 +827,14 @@ window.EI = window.EI || {};
     if (street && this.dem) {
       // natural / built-up ground per 9 m pixel, smoothed up to the full map (the overlays add the streets, paving, parks...)
       const BN = 512; const [bc, bctx] = Env.canvas(BN, BN); const bi = bctx.createImageData(BN, BN); const col = [0, 0, 0];
-      for (let j = 0; j < BN; j++) for (let i = 0; i < BN; i++) { const x = -H + (i + 0.5) * 2 * H / BN, z = -H + (j + 0.5) * 2 * H / BN; this.streetRGB(x, z, col); const o = (j * BN + i) * 4; bi.data[o] = col[0]; bi.data[o + 1] = col[1]; bi.data[o + 2] = col[2]; bi.data[o + 3] = 255; }
+      this._natBuf = new Float32Array(BN * BN);
+      for (let j = 0; j < BN; j++) for (let i = 0; i < BN; i++) { const x = -H + (i + 0.5) * 2 * H / BN, z = -H + (j + 0.5) * 2 * H / BN; col[3] = 0; this.streetRGB(x, z, col); const o = (j * BN + i) * 4; bi.data[o] = col[0]; bi.data[o + 1] = col[1]; bi.data[o + 2] = col[2]; bi.data[o + 3] = 255; this._natBuf[j * BN + i] = col[3] || 0; }
       bctx.putImageData(bi, 0, 0); ctx.imageSmoothingEnabled = true; ctx.drawImage(bc, 0, 0, S, S);
+      // garrigue over the natural ground: clumps of holm oak and lentisk, umbrella pines, pale limestone and ochre soil (a tiled
+      // scatter, masked by how natural each 9 m pixel is) - the hills read as Mediterranean scrub instead of flat green
+      for (let i = 0; i < BN * BN; i++) { bi.data[i * 4 + 3] = U.clamp(Math.round(this._natBuf[i] * 255), 0, 255); }
+      bctx.putImageData(bi, 0, 0); const [pc, pctx] = Env.canvas(S, S); pctx.fillStyle = pctx.createPattern(Env.scrubTile(), 'repeat'); pctx.fillRect(0, 0, S, S);
+      pctx.globalCompositeOperation = 'destination-in'; pctx.imageSmoothingEnabled = true; pctx.drawImage(bc, 0, 0, S, S); ctx.drawImage(pc, 0, 0); this._natBuf = null;
     }
     ctx.setTransform(ppm, 0, 0, ppm, S / 2, S / 2);
     const path = (poly) => { ctx.beginPath(); ctx.moveTo(poly[0][0], poly[0][1]); for (let i = 1; i < poly.length; i++) ctx.lineTo(poly[i][0], poly[i][1]); ctx.closePath(); };

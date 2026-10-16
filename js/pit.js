@@ -108,6 +108,7 @@ window.EI = window.EI || {};
     else if (name === 'cyl') g = new THREE.CylinderGeometry(1, 1, 1, 12, 1);
     else if (name === 'cyl6') g = new THREE.CylinderGeometry(1, 1, 1, 6, 1);
     else if (name === 'sph') g = new THREE.SphereGeometry(1, 10, 8);
+    else if (name === 'sphL') g = new THREE.SphereGeometry(1, 7, 5);
     g = g.toNonIndexed(); UNIT[name] = { p: g.attributes.position.array, n: g.attributes.normal.array, uv: g.attributes.uv.array }; return UNIT[name];
   }
   class GB {
@@ -360,12 +361,17 @@ window.EI = window.EI || {};
     for (const [dd, sgn] of [[L.garD0, -1], [L.garD1, 1]]) { const gf = frameAt(dd, GAR_FRONT, 0); shell.add('box', lm(gf, sgn * 0.2, 5.0, sZ(GAR_D / 2), 0.4, 10, GAR_D + 0.3), white); }
     // signage boards: pit entry, limit, exit
     {
-      const board = (d, o, text, bg, fg, w) => { const f = frameAt(d, o, 0); shell.add('box', lm(f, 0, 1.2, 0, 0.12, 2.4, 0.12), dark); const tx = U.srgb(U.textTexture(text, { w: 512, h: 128, bg, color: fg, size: 64, font: 'italic 900 Arial Black, Arial' })); const mm = new THREE.Mesh(new THREE.PlaneGeometry(w, w / 4), new THREE.MeshBasicMaterial({ map: tx, side: THREE.DoubleSide })); mm.applyMatrix4(lm(f, 0.08, 2.6, 0, 1, 1, 1, -Math.PI / 2)); grp.add(mm); };
+      // street circuit: the four boards share one canvas (one draw call); other circuits keep a texture per board
+      const sbc = street ? document.createElement('canvas') : null, sbg = []; if (sbc) { sbc.width = 512; sbc.height = 512; }
+      const board = street ? (d, o, text, bg, fg, w) => { const f = frameAt(d, o, 0); shell.add('box', lm(f, 0, 1.2, 0, 0.12, 2.4, 0.12), dark); const k = sbg.length; const tc = U.textTexture(text, { w: 512, h: 128, bg, color: fg, size: 64, font: 'italic 900 Arial Black, Arial' }); sbc.getContext('2d').drawImage(tc.image, 0, k * 128);
+        const g = new THREE.PlaneGeometry(w, w / 4); const uv = g.attributes.uv; for (let v = 0; v < uv.count; v++) uv.setY(v, 1 - (k + 1 - uv.getY(v)) / 4); g.applyMatrix4(lm(f, 0.08, 2.6, 0, 1, 1, 1, -Math.PI / 2)); sbg.push(g); } :
+        (d, o, text, bg, fg, w) => { const f = frameAt(d, o, 0); shell.add('box', lm(f, 0, 1.2, 0, 0.12, 2.4, 0.12), dark); const tx = U.srgb(U.textTexture(text, { w: 512, h: 128, bg, color: fg, size: 64, font: 'italic 900 Arial Black, Arial' })); const mm = new THREE.Mesh(new THREE.PlaneGeometry(w, w / 4), new THREE.MeshBasicMaterial({ map: tx, side: THREE.DoubleSide })); mm.applyMatrix4(lm(f, 0.08, 2.6, 0, 1, 1, 1, -Math.PI / 2)); grp.add(mm); };
       const ext = V.laneExt;
       board(L.dRoad0 - 30, ext(L.dRoad0)[1] + 1.2, 'PIT ENTRY', '#1a73e8', '#ffffff', 3.2);
       board(L.dLimIn - 4, ext(L.dLimIn)[1] + 0.8, 'PIT LIMIT 80', '#ffffff', '#c8102e', 3.4);
       board(L.dLimOut + 4, ext(L.dLimOut)[1] + 0.8, 'END LIMIT', '#ffd200', '#111111', 3.0);
       board(L.dRoad1 - 50, ext(L.dRoad1 - 50)[1] + 1.2, 'PIT EXIT', '#1a73e8', '#ffffff', 3.0);
+      if (sbg.length) { const geo = U.mergeGeometries(sbg.map(g => ({ geo: g, matrix: new THREE.Matrix4() }))); const tx = new THREE.CanvasTexture(sbc); tx.encoding = THREE.sRGBEncoding; grp.add(new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ map: tx, side: THREE.DoubleSide }))); }
     }
     const shellM = shell.mesh(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.6, metalness: 0.05 })); shellM.castShadow = true; shellM.receiveShadow = true; grp.add(shellM);
     // garage interiors are lit: a little emissive and the full environment so faces turned away from the sun are not black
@@ -406,14 +412,16 @@ window.EI = window.EI || {};
     out.shL = -a * 0.8 * s; out.shR = a * 0.8 * s; out.abL = 0.1; out.abR = 0.1; out.elL = run ? 1.4 : 0.35; out.elR = run ? 1.4 : 0.35; return out;
   }
   function buildFigureMeshes(count, group) {
+    // street circuit: lighter heads (the crews are seen from the stands and the grid, a few hundred figures in one draw per part)
+    const SPH = L.track && L.track.data.street ? 'sphL' : 'sph';
     const mk = (fn) => { const gb = new GB(); fn(gb); return gb.geometry(); };
     const I = new THREE.Matrix4();
     const S = (x, y, z, sx, sy, sz) => new THREE.Matrix4().makeTranslation(x, y, z).multiply(new THREE.Matrix4().makeScale(sx, sy, sz));
     const geos = {
       torso: mk(g => { g.add('box', S(0, 0.3, 0, 0.25, 0.6, 0.42), 0xffffff); g.add('box', S(0, -0.02, 0, 0.22, 0.18, 0.36), 0xffffff); g.add('box', S(-0.02, 0.43, 0, 0.27, 0.06, 0.44), col(0xffffff, 0.55)); }),
-      helmet: mk(g => { g.add('sph', S(0.0, 0.14, 0, 0.145, 0.145, 0.14), 0xffffff); g.add('box', S(0.1, 0.15, 0, 0.07, 0.07, 0.2), col(0x111111)); g.add('box', S(0, 0.02, 0, 0.1, 0.06, 0.1), col(0x222222)); }),
-      face: mk(g => { g.add('sph', S(0, 0.13, 0, 0.11, 0.125, 0.105), col(0xd9a37e)); g.add('box', S(-0.01, 0.15, 0, 0.05, 0.1, 0.25), col(0x15161a)); g.add('box', S(0.0, 0.25, 0, 0.04, 0.03, 0.24), col(0x15161a)); g.add('box', S(0.09, 0.08, 0.1, 0.1, 0.02, 0.02), col(0x15161a)); g.add('box', S(0, 0.02, 0, 0.08, 0.06, 0.08), col(0xd9a37e)); }),
-      cap: mk(g => { g.add('sph', S(0, 0.2, 0, 0.115, 0.07, 0.11), 0xffffff); g.add('box', S(0.1, 0.18, 0, 0.1, 0.015, 0.16), 0xffffff); }),
+      helmet: mk(g => { g.add(SPH, S(0.0, 0.14, 0, 0.145, 0.145, 0.14), 0xffffff); g.add('box', S(0.1, 0.15, 0, 0.07, 0.07, 0.2), col(0x111111)); g.add('box', S(0, 0.02, 0, 0.1, 0.06, 0.1), col(0x222222)); }),
+      face: mk(g => { g.add(SPH, S(0, 0.13, 0, 0.11, 0.125, 0.105), col(0xd9a37e)); g.add('box', S(-0.01, 0.15, 0, 0.05, 0.1, 0.25), col(0x15161a)); g.add('box', S(0.0, 0.25, 0, 0.04, 0.03, 0.24), col(0x15161a)); g.add('box', S(0.09, 0.08, 0.1, 0.1, 0.02, 0.02), col(0x15161a)); g.add('box', S(0, 0.02, 0, 0.08, 0.06, 0.08), col(0xd9a37e)); }),
+      cap: mk(g => { g.add(SPH, S(0, 0.2, 0, 0.115, 0.07, 0.11), 0xffffff); g.add('box', S(0.1, 0.18, 0, 0.1, 0.015, 0.16), 0xffffff); }),
       uarm: mk(g => { g.add('box', S(0, -0.15, 0, 0.11, 0.32, 0.11), 0xffffff); }),
       larm: mk(g => { g.add('box', S(0, -0.14, 0, 0.1, 0.28, 0.1), 0xffffff); g.add('box', S(0.01, -0.31, 0, 0.09, 0.1, 0.07), col(0x15161a)); }),
       uleg: mk(g => { g.add('box', S(0, -0.22, 0, 0.16, 0.47, 0.16), 0xffffff); }),
@@ -506,6 +514,14 @@ window.EI = window.EI || {};
     for (const f of V.figs) setFigureColors(f.i, f);
     for (const k in V.fig) if (V.fig[k].instanceColor) V.fig[k].instanceColor.needsUpdate = true;
     buildProps(group, V.boxes.length);
+    // street circuit: the crews and their props only ever stand round the pit lane - a bounding sphere over the lane lets the camera
+    // and the shadow pass skip all the instanced crew draws whenever the pit is out of view
+    if (L.track && L.track.data.street) {
+      let x0 = Infinity, x1 = -Infinity, z0 = Infinity, z1 = -Infinity, y0 = Infinity, y1 = -Infinity; const p = {};
+      for (let d = L.garD0 - 40; d <= L.garD1 + 40; d += 5) { pathAt(d, p); x0 = Math.min(x0, p.x); x1 = Math.max(x1, p.x); z0 = Math.min(z0, p.z); z1 = Math.max(z1, p.z); y0 = Math.min(y0, p.y); y1 = Math.max(y1, p.y); }
+      const sph = new THREE.Sphere(new THREE.Vector3((x0 + x1) / 2, (y0 + y1) / 2, (z0 + z1) / 2), Math.hypot(x1 - x0, y1 - y0, z1 - z0) / 2 + 30);
+      group.traverse(o => { if (o.isInstancedMesh && /^pit-/.test(o.name)) { o.geometry.boundingSphere = sph.clone(); o.frustumCulled = true; } });
+    }
   }
   // garage-local point (x along the lane, z into the garage) -> world
   function gl(box, x, z, out) { out = out || new THREE.Vector3(); return out.copy(box.GO).addScaledVector(box.fwd, x).addScaledVector(box.G, z); }
@@ -807,6 +823,8 @@ window.EI = window.EI || {};
       // animate people and props only when a camera is near the pit lane
       const cams = (EI.debug && EI.debug.cameras) || []; let near = false; const mid = V.boxes[5] || V.boxes[0];
       for (const c of cams) if (c && c.position.distanceTo(mid.O) < 650) near = true;
+      // street circuit: the crews, engineers and their props (a dozen instanced draws) are only drawn within ~450 m of the pit lane
+      if (L.track && L.track.data.street) { let vis = false; for (const c of cams) if (c && c.position.distanceTo(mid.O) < 450) vis = true; if (V._crewVis !== vis) { V._crewVis = vis; V.group.traverse(o => { if (o.isInstancedMesh && /^pit-/.test(o.name)) o.visible = vis; }); } }
       if (near || !V.posed) { animatePeople(race, dt); V.posed = true; }
       updateLamps();
       updateUI(race, dt);
