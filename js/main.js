@@ -43,12 +43,16 @@ window.EI = window.EI || {};
     // physically based sky, with the sun light aligned to it and a PMREM environment for reflections / ambient
     // per-circuit light: Silverstone keeps its English afternoon; Monaco gets a high late-May sun from over the sea (so the
     // city facades facing the harbour are lit), a clearer sky, sea haze on the horizon and warm stone bounce light
-    const LOOKS = { monaco: { elev: 52, azim: 338, turb: 1.9, ray: 1.5, mie: 0.003, horizon: 0xbcd3ea, fog: [550, 2400], fogLow: [320, 1400], hemi: [0xa8cdf2, 0x8a7a66, 0.42], sun: [0xfff3e0, 2.65] } };
+    const LOOKS = { monaco: { elev: 52, azim: 338, turb: 1.9, ray: 1.5, mie: 0.003, horizon: 0xbcd3ea, fog: [550, 2400], fogLow: [320, 1400], hemi: [0xa8cdf2, 0x8a7a66, 0.42], sun: [0xfff3e0, 2.65] },
+      // Yas Marina: the race starts at sunset - the sun low over the Gulf in the west-south-west, warm haze, long shadows
+      abudhabi: { elev: 6, skyElev: 1.6, mieG: 0.9, azim: 295, turb: 8, ray: 2.6, mie: 0.016, horizon: 0xd99a6c, fog: [700, 2800], fogLow: [380, 1500], hemi: [0xa6badb, 0x947658, 0.62], sun: [0xffb878, 2.3] } };
     const LK = Object.assign({ elev: 42, azim: 205, turb: 2.5, ray: 2.0, mie: 0.004, horizon: 0xa9c4e4, fog: [600, 2600], fogLow: [350, 1500], hemi: [0x9fc4ee, 0x3f5a2e, 0.35], sun: [0xfff1dd, 2.4] }, LOOKS[trackId] || {}); EI.look = LK;
     const sunDir = new THREE.Vector3(); const elev = LK.elev, azim = LK.azim; const phi = THREE.MathUtils.degToRad(90 - elev), theta = THREE.MathUtils.degToRad(azim); sunDir.setFromSphericalCoords(1, phi, theta);
-    skyMesh = new THREE.Sky(); skyMesh.scale.setScalar(5500); const su = skyMesh.material.uniforms; su.turbidity.value = LK.turb; su.rayleigh.value = LK.ray; su.mieCoefficient.value = LK.mie; su.mieDirectionalG.value = 0.85; su.sunPosition.value.copy(sunDir); scene.add(skyMesh);
+    skyMesh = new THREE.Sky(); skyMesh.scale.setScalar(5500); const su = skyMesh.material.uniforms; su.turbidity.value = LK.turb; su.rayleigh.value = LK.ray; su.mieCoefficient.value = LK.mie; su.mieDirectionalG.value = LK.mieG || 0.85;
+    // the sky may put its sun lower than the light's (a sunset glow without shadows stretched across the whole circuit)
+    const skySun = LK.skyElev != null ? new THREE.Vector3().setFromSphericalCoords(1, THREE.MathUtils.degToRad(90 - LK.skyElev), theta) : sunDir; su.sunPosition.value.copy(skySun); scene.add(skyMesh);
     const t0 = performance.now(); const pm = new THREE.PMREMGenerator(renderer); pm.compileEquirectangularShader();
-    const skyScene = new THREE.Scene(); const sky2 = new THREE.Sky(); sky2.scale.setScalar(5500); sky2.material.uniforms.turbidity.value = LK.turb; sky2.material.uniforms.rayleigh.value = LK.ray; sky2.material.uniforms.sunPosition.value.copy(sunDir); skyScene.add(sky2);
+    const skyScene = new THREE.Scene(); const sky2 = new THREE.Sky(); sky2.scale.setScalar(5500); sky2.material.uniforms.turbidity.value = LK.turb; sky2.material.uniforms.rayleigh.value = LK.ray; if (LK.skyElev != null) { sky2.material.uniforms.mieCoefficient.value = LK.mie; sky2.material.uniforms.mieDirectionalG.value = LK.mieG || 0.85; } sky2.material.uniforms.sunPosition.value.copy(skySun); skyScene.add(sky2);
     scene.environment = pm.fromScene(skyScene, 0.02).texture; pm.dispose(); const tPmrem = Math.round(performance.now() - t0);
     const horizon = LK.horizon; scene.fog = new THREE.Fog(horizon, LK.fog[0], LK.fog[1]);
     hemi = new THREE.HemisphereLight(LK.hemi[0], LK.hemi[1], LK.hemi[2]); scene.add(hemi);

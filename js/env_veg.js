@@ -242,23 +242,24 @@ window.EI = window.EI || {};
         if (!ok(px, pz, wd * 0.6)) continue; add(px, pz, sp, wd, ht, null, null, de > 10); nWood++;
       }
     }
-    const street = E.data.kind === 'street';
+    const street = E.data.kind === 'street', desert = E.data.kind === 'desert', noFarm = street || desert;
     // ---- street trees from the map (boulevard planes / palms stand in as round-crowned trees)
     const SK = street && t.data.street && EI.StreetKit;
     const MED = { pine: SP.UMBRELLA, palm: SP.PALM, cypress: SP.CYPRESS, oleander: SP.OLEANDER, cactus: SP.CYPRESS, shrub: SP.SHRUB, oak: SP.OAK };
     const medSize = (sp) => sp === SP.UMBRELLA ? [11 + rng() * 6, 12 + rng() * 5] : sp === SP.PALM ? [6 + rng() * 2.5, 10 + rng() * 6] : sp === SP.CYPRESS ? [2.6 + rng() * 1, 10 + rng() * 5] : [6 + rng() * 3, 8 + rng() * 4];
     if (street) for (const [x, z] of t.data.scenery.trees || []) { if (!ok(x, z, 2.5)) continue; const nm = SK ? EI.StreetKit.treeSpecies(E, x, z) : null; const sp = nm ? MED[nm] : SP.OAK; if (sp === SP.OAK) add(x, z, SP.OAK, 6 + rng() * 3, 8 + rng() * 4); else { const [w, h] = medSize(sp); add(x, z, sp, w, h); } }
+    if (desert) for (const [x, z, nm, w, h] of Veg.desertTrees(E, rng)) { const sp = MED[nm]; if (sp == null) continue; if (!ok(x, z, 2)) continue; add(x, z, sp, w, h); }
     if (SK) for (const [x, z, nm, w, h] of EI.StreetKit.trees(E)) { const sp = MED[nm]; if (sp == null) continue; add(x, z, sp, nm === 'cactus' ? 1.8 : w, nm === 'cactus' ? 3 : h, null, nm === 'cactus' ? 1.25 : null); }
     // ---- copses in a few far fields
     let nCopse = 0;
-    for (const [k, poly] of street ? [] : (E.fieldPolys || [])) {
+    for (const [k, poly] of noFarm ? [] : (E.fieldPolys || [])) {
       if (E.fType[k] !== 8) continue; const sx = E.seedX[k], sz = E.seedZ[k]; if (E.isVenue(sx, sz) || Math.max(Math.abs(sx), Math.abs(sz)) > Env.CARD_HALF) continue; const R = 45 + E.fTone[k] * 35;
       { const ring = []; for (let a = 0; a <= 12; a++) ring.push([sx + Math.cos(a / 12 * 6.283) * R * 1.1, sz + Math.sin(a / 12 * 6.283) * R * 0.8]); inner.push([ring, 14]); }
       for (let i = 0; i < R * R * 0.032; i++) { const a = rng() * 6.283, d = Math.sqrt(rng()) * R; const x = sx + Math.cos(a) * d * 1.2, z = sz + Math.sin(a) * d * 0.85; const [wd, ht] = oakSize(); if (!ok(x, z, wd)) continue; add(x, z, rng() < 0.15 ? SP.PINE : SP.OAK, wd, ht); nCopse++; }
     }
     // ---- hedgerows along the field boundaries (outside the venue): shrubs every ~3 m, standard oaks, some poplar rows and tree lines
     const seen = new Set(); let nHedge = 0; const hc = {};
-    for (const [k, poly] of street ? [] : (E.fieldPolys || [])) {
+    for (const [k, poly] of noFarm ? [] : (E.fieldPolys || [])) {
       for (let i = 0; i < poly.length; i++) {
         const a = poly[i], b = poly[(i + 1) % poly.length]; const key = Math.round((a[0] + b[0]) / 4) + ',' + Math.round((a[1] + b[1]) / 4); if (seen.has(key)) continue; seen.add(key);
         const L = Math.hypot(b[0] - a[0], b[1] - a[1]); if (L < 2) continue; if (!E.hedgeOn(a, b, hc)) continue; const h = Env.hash2(Math.round(a[0]), Math.round(b[1]), 77);
@@ -280,7 +281,7 @@ window.EI = window.EI || {};
     // ---- roadside hedges and trees: public roads everywhere, and close to the circuit (within ~700 m of the barriers) a dense
     // double hedgerow with standard oaks along every road, the estate service roads included
     let nRoad = 0;
-    for (const r of street ? [] : (E.roads || [])) {
+    for (const r of noFarm ? [] : (E.roads || [])) {
       const pts = r.line; const pub = r.kind === 'public';
       for (let i = 0; i + 1 < pts.length; i++) {
         const a = pts[i], b = pts[i + 1]; const L = Math.hypot(b[0] - a[0], b[1] - a[1]); if (L < 0.5) continue; const nx = -(b[1] - a[1]) / L, nz = (b[0] - a[0]) / L;
@@ -305,13 +306,13 @@ window.EI = window.EI || {};
     }
     // ---- tree lines behind the grandstands and along the outside of the perimeter fence
     let nLine = 0;
-    for (const [x0, z0, x1, z1] of street ? [] : (E.treeLines || [])) {
+    for (const [x0, z0, x1, z1] of noFarm ? [] : (E.treeLines || [])) {
       const L = Math.hypot(x1 - x0, z1 - z0); inner.push([[[x0, z0], [x1, z1]], 13]);
       for (let s = rng() * 5; s < L; s += 6 + rng() * 5) { const u = s / L; const x = x0 + (x1 - x0) * u + (rng() - 0.5) * 2, z = z0 + (z1 - z0) * u + (rng() - 0.5) * 2; const kind = rng(); const pop = kind < 0.1; const [wd, ht] = pop ? [4.5 + rng() * 2, 16 + rng() * 6] : oakSize(); if (!ok(x, z, wd)) continue; add(x, z, pop ? SP.POPLAR : SP.OAK, wd, ht); nLine++; }
     }
     // ---- scattered clumps around the estate (between stands, car parks and roads)
     let nClump = 0;
-    for (let c = 0; c < (street ? 0 : 900) && nClump < 2400; c++) {
+    for (let c = 0; c < (noFarm ? 0 : 900) && nClump < 2400; c++) {
       const s = rng() * t.length, side = rng() < 0.55 ? 1 : -1; const i = t.idxAtS(s); const d = E.wallCap(i, side) + 18 + rng() * 170;
       const cx = t.x[i] + t.nx[i] * side * d, cz = t.z[i] + t.nz[i] * side * d; if (!E.isVenue(cx, cz) || E.occAt(cx, cz)) continue;
       const nn = 2 + Math.floor(rng() * 6);
@@ -324,10 +325,48 @@ window.EI = window.EI || {};
     E.timings.trees = Math.round(performance.now() - T0);
   };
 
+  // ---------------------------------------------------------------- desert planting (Yas Island): date palms in avenues along the roads
+  // near the circuit (both verges, ~11 m apart), the mapped tree rows, palm groups on the irrigated lawns, a few oleander shrubs.
+  // Returns [x, z, species name, width, height]; Veg.build drops anything that lands on a road, building, water or the track.
+  Veg.desertTrees = function (E, rng) {
+    const out = []; const D = E.data; const palm = (x, z, k) => out.push([x, z, 'palm', 5.5 + rng() * 2.5, (9 + rng() * 6) * (k || 1)]);
+    const LIM = 1750;
+    for (const r of D.roads || []) {
+      if (r.bridge || r.w < 7) continue; const pts = r.pts;
+      for (let i = 0; i + 1 < pts.length; i++) {
+        const a = pts[i], b = pts[i + 1]; const L = Math.hypot(b[0] - a[0], b[1] - a[1]); if (L < 1) continue; const nx = -(b[1] - a[1]) / L, nz = (b[0] - a[0]) / L;
+        const fm = E.fAt((a[0] + b[0]) / 2, (a[1] + b[1]) / 2); if (fm > 1300) continue; const step = fm < 500 ? 11 : 16;
+        for (let s = rng() * step; s < L; s += step) for (const sd of [-1, 1]) {
+          const off = r.w / 2 + 2.5 + rng() * 0.6; const x = a[0] + (b[0] - a[0]) * s / L + nx * sd * off, z = a[1] + (b[1] - a[1]) * s / L + nz * sd * off;
+          if (Math.abs(x) < LIM && Math.abs(z) < LIM) palm(x, z);
+        }
+        // the central reservation of the dual carriageways
+        if (r.w >= 14) for (let s = rng() * 14; s < L; s += 14) { const x = a[0] + (b[0] - a[0]) * s / L, z = a[1] + (b[1] - a[1]) * s / L; if (Math.abs(x) < LIM && Math.abs(z) < LIM) palm(x + nx * 0.2, z + nz * 0.2, 0.9); }
+      }
+    }
+    // round the circuit: palm avenues just outside the perimeter fence line and behind the barriers on the long straights
+    const t = E.t; for (let s = 0; s < t.length; s += 13 + rng() * 6) for (const sd of [-1, 1]) {
+      const i = t.idxAtS(s); const d = E.wallCap(i, sd) + 9 + rng() * 5 + (rng() < 0.35 ? 22 : 0); palm(t.x[i] + t.nx[i] * sd * d, t.z[i] + t.nz[i] * sd * d);
+    }
+    for (const row of D.treeRows || []) for (let i = 0; i + 1 < row.length; i++) {
+      const a = row[i], b = row[i + 1]; const L = Math.hypot(b[0] - a[0], b[1] - a[1]);
+      for (let s = rng() * 9; s < L; s += 9) palm(a[0] + (b[0] - a[0]) * s / L, a[1] + (b[1] - a[1]) * s / L);
+    }
+    for (const p of D.lawns || []) {
+      const area = Math.abs(U.polyArea(p)); if (area < 300) continue; const bb = U.polyBounds(p); const c = [(bb.x0 + bb.x1) / 2, (bb.z0 + bb.z1) / 2];
+      if (E.fAt(c[0], c[1]) > 1400) continue; const n = Math.min(40, Math.round(area / 650));
+      for (let k = 0; k < n * 3 && k < 120; k++) {
+        const x = bb.x0 + rng() * (bb.x1 - bb.x0), z = bb.z0 + rng() * (bb.z1 - bb.z0); if (!U.pointInPoly(x, z, p)) continue;
+        if (rng() < 0.75) palm(x, z); else out.push([x, z, 'oleander', 3 + rng() * 2, 2.2 + rng() * 1.2]);
+      }
+    }
+    return out;
+  };
+
   // ---------------------------------------------------------------- instancing: one cell-sorted record set feeding the near (3-card) LOD,
   // the soft contact shadows under near trees and the far (1-card billboard) LOD; both regathered around the eye
   Veg.instance = function (E, trees) {
-    const sc = E.sc; const med = E.data.kind === 'street'; const atlas = paintAtlas(med); const rng = U.rng(99); const mk = med ? '-med' : '';
+    const sc = E.sc; const med = E.data.kind === 'street' || E.data.kind === 'desert'; const atlas = paintAtlas(med); const rng = U.rng(99); const mk = med ? '-med' : '';
     const set = new Env.CellSet([4, 4, 4], 60);
     for (const tr of trees) {
       const [x, z, sp, w, h, v, tint, interior] = tr; const y = sc.height(x, z) - 0.15;
@@ -459,7 +498,7 @@ window.EI = window.EI || {};
     return Env.cutout(c, { aniso: 4 });
   }
   Veg.buildGrass = function (E) {
-    const sc = E.sc, t = E.t, rng = U.rng(4040), hw = t.halfWidth, kw = t.kerbWidth; const OCC = Env.OCC; const street = E.data.kind === 'street';
+    const sc = E.sc, t = E.t, rng = U.rng(4040), hw = t.halfWidth, kw = t.kerbWidth; const OCC = Env.OCC; const street = E.data.kind === 'street', desert = E.data.kind === 'desert';
     // candidate tufts, cell-sorted: a ready instance matrix + colour each (the regather around the eye is then a few block copies)
     const set = new Env.CellSet([16, 3], 32); let total = 0; const col = new THREE.Color();
     const m = new THREE.Matrix4(), q = new THREE.Quaternion(), sv = new THREE.Vector3(), p = new THREE.Vector3(), up = new THREE.Vector3(0, 1, 0);
@@ -476,6 +515,7 @@ window.EI = window.EI || {};
             const d = a + Math.pow(rng(), 1.4) * (b - a); const along = (rng() - 0.5) * t.ds; const x = t.x[i] + t.nx[i] * side * d + t.tx[i] * along, z = t.z[i] + t.nz[i] * side * d + t.tz[i] * along;
             if (d > wall && (E.occAt(x, z) & (OCC.ROAD | OCC.BUILT | OCC.WATER | OCC.PARK))) continue;
             if (street && !(E.occAt(x, z) & OCC.WOOD)) continue;
+            if (desert) { E.mapColor(x, z, col); if (col.g < col.r * 1.08) continue; }   // desert: tufts on the irrigated lawns only
             if (d > wall && E.fsAt(x, z) < 2.0) continue; // another part of the track
             push(x, t.y[i] - 0.03, z, 0.6 + rng() * 0.7);
           }

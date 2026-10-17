@@ -28,16 +28,18 @@ window.EI = window.EI || {};
       this.statics = new Env.Statics();
       Venue.layout(E); E.allWoods = this.track.data.scenery.woods.concat(E.data.woods || []); lap('layout');
       const City = E.data.kind === 'street' && E.dem ? EI.EnvCity : null;
-      E.paintFieldMap(City ? [City.paintBase(E), Venue.paint(E), City.paint(E)] : [Venue.paint(E)]); lap('fieldMap');
+      const desert = E.data.kind === 'desert';
+      E.paintFieldMap(City ? [City.paintBase(E), Venue.paint(E), City.paint(E)] : desert ? [E.desertPaint(), Venue.paint(E)] : [Venue.paint(E)]); lap('fieldMap');
       E.buildTerrain(); E.buildVerge(); lap('terrain');
       this.buildSky(); lap('sky');
       this.buildBuildings(); lap('buildings');
       if (!(E.data.kind === 'street')) this.buildWater(); lap('water');
       Venue.build(E); lap('venue');
       if (EI.EnvStreet && E.data.kind === 'street') { EI.EnvStreet.build(E); lap('street'); }
+      if (EI.EnvYas && E.data.kind === 'desert') { EI.EnvYas.build(E); lap('yas'); }
       Veg.build(E); lap('trees');
       // street circuits: the farmland hedgerow strips beyond the field map have no place on mountains and sea
-      if (E.dem) { const ts = this.group.getObjectByName('treeStrips'); if (ts) ts.visible = false; }
+      if (E.dem || desert) { const ts = this.group.getObjectByName('treeStrips'); if (ts) ts.visible = false; }
       Veg.buildGrass(E); lap('grass');
       if (EI.Infra) this.group.add(EI.Infra.build(this.track, this)); lap('infra');
       this.statics.build(this.group); E.stats.staticChunks = this.statics.chunks.length; E.stats.staticTris = this.statics.tris; lap('statics');
@@ -171,7 +173,7 @@ window.EI = window.EI || {};
     }
     buildBuildings() {
       const t = this.track, sc = t.data.scenery; const pr = {}; const Env = EI.Env;
-      const street = (EI.ENVDATA && EI.ENVDATA[t.data.id] || {}).kind === 'street';
+      const kindE = (EI.ENVDATA && EI.ENVDATA[t.data.id] || {}).kind; const street = kindE === 'street', desert = kindE === 'desert';
       // street circuits with a city model: every footprint becomes a designed building (js/env_city.js)
       if (street && EI.EnvCity && this.env && this.env.dem) { EI.EnvCity.build(this.env); return; }
       const pitGroup = street ? null : this.buildPitComplex(); if (pitGroup) this.group.add(pitGroup);
@@ -180,17 +182,18 @@ window.EI = window.EI || {};
       const officeTex = mkTex(ctx => { ctx.fillStyle = '#ececec'; ctx.fillRect(0, 0, 256, 128); for (const y of [22, 86]) { ctx.fillStyle = '#41546b'; ctx.fillRect(0, y, 256, 26); ctx.fillStyle = 'rgba(255,255,255,0.25)'; ctx.fillRect(0, y, 256, 5); ctx.fillStyle = '#c9c9c9'; for (let x = 0; x < 256; x += 32) ctx.fillRect(x, y, 3, 26); } ctx.fillStyle = '#d4d4d4'; ctx.fillRect(0, 60, 256, 4); ctx.fillRect(0, 124, 256, 4); });
       const hallTex = mkTex(ctx => { ctx.fillStyle = '#dcdcdc'; ctx.fillRect(0, 0, 256, 128); ctx.fillStyle = 'rgba(0,0,0,0.09)'; for (let x = 0; x < 256; x += 8) ctx.fillRect(x, 0, 3, 128); ctx.fillStyle = 'rgba(255,255,255,0.18)'; for (let x = 4; x < 256; x += 8) ctx.fillRect(x, 0, 1, 128); ctx.fillStyle = '#596574'; ctx.fillRect(40, 70, 70, 58); ctx.fillRect(170, 92, 40, 36); });
       const houseTex = mkTex(ctx => { ctx.fillStyle = '#efefef'; ctx.fillRect(0, 0, 256, 128); ctx.fillStyle = '#3c4654'; for (let x = 18; x < 256; x += 56) { ctx.fillRect(x, 30, 26, 30); ctx.fillRect(x, 84, 26, 30); } ctx.fillStyle = '#ffffff'; for (let x = 18; x < 256; x += 56) { ctx.fillRect(x - 2, 58, 30, 4); ctx.fillRect(x - 2, 112, 30, 4); } });
-      const tints = street ? { hall: [0xf1e4c8, 0xe9d8b4, 0xf4ede0, 0xd9c7a6, 0xf3f0ea], office: [0xf6ecd9, 0xf0dcc0, 0xffffff, 0xe6cfa9, 0xf2e3d3, 0xdfc3a0], house: [0xf3e1c0, 0xe8c9a0, 0xf7f1e4, 0xd8b68c, 0xf0dcc8] } : { hall: [0xd9dcdf, 0xc9d1d8, 0xbfc5c9, 0xe6e2d6, 0x9fb0bd, 0x8d9b88, 0xe9e9e4], office: [0xffffff, 0xe8e8e8, 0xdde3ea, 0xf1ece2], house: [0xffffff, 0xe9dccb, 0xb88a6c, 0xd8d0c4, 0xa77a5c] };
-      const roofs = street ? [0xb8674a, 0xa85c40, 0xc9c6bd, 0x9c5a44, 0xd0ccc2] : [0xb9bcbf, 0x8f9499, 0x6e7177, 0xcfd1d2, 0x7c6a5c];
+      const tints = desert ? { hall: [0xf2ede3, 0xe6dccb, 0xdcd8d0, 0xf6f3ec, 0xd6c8ae], office: [0xf7f4ee, 0xece2d0, 0xffffff, 0xe2d4ba, 0xd9d6d0, 0xefe6d6], house: [0xf3e7d2, 0xe8d6b8, 0xf7f1e4, 0xdcc6a2, 0xf0e2cc] } : street ? { hall: [0xf1e4c8, 0xe9d8b4, 0xf4ede0, 0xd9c7a6, 0xf3f0ea], office: [0xf6ecd9, 0xf0dcc0, 0xffffff, 0xe6cfa9, 0xf2e3d3, 0xdfc3a0], house: [0xf3e1c0, 0xe8c9a0, 0xf7f1e4, 0xd8b68c, 0xf0dcc8] } : { hall: [0xd9dcdf, 0xc9d1d8, 0xbfc5c9, 0xe6e2d6, 0x9fb0bd, 0x8d9b88, 0xe9e9e4], office: [0xffffff, 0xe8e8e8, 0xdde3ea, 0xf1ece2], house: [0xffffff, 0xe9dccb, 0xb88a6c, 0xd8d0c4, 0xa77a5c] };
+      const roofs = desert ? [0xd8d4cc, 0xc9c5bd, 0xbab6ae, 0xe2ded6, 0xa9a6a0] : street ? [0xb8674a, 0xa85c40, 0xc9c6bd, 0x9c5a44, 0xd0ccc2] : [0xb9bcbf, 0x8f9499, 0x6e7177, 0xcfd1d2, 0x7c6a5c];
       const lists = { office: [], hall: [], house: [] }; const col = new THREE.Color(), roofC = new THREE.Color(); let k = 0;
       for (const b of sc.buildings) {
         const poly = b.p; const area = Math.abs(U.polyArea(poly)); if (poly.length < 3 || area < 60) continue;
+        if (desert && b.w) continue;   // the W hotel is built by js/env_yas.js
         let clear = true, cx = 0, cz = 0, minY = Infinity;
         for (const q of poly) { t.project(q[0], q[1], null, pr); if (pr.dist < Math.max(t.wallL[pr.i], t.wallR[pr.i]) + 1) { clear = false; break; } cx += q[0]; cz += q[1]; minY = Math.min(minY, this.height(q[0], q[1])); }
         if (!clear) continue; cx /= poly.length; cz /= poly.length;
         if (this.pitBox && Math.hypot(cx - this.pitBox.cx, cz - this.pitBox.cz) < this.pitBox.r) continue;
         const shape = new THREE.Shape(); shape.moveTo(poly[0][0], poly[0][1]); for (let i = 1; i < poly.length; i++) shape.lineTo(poly[i][0], poly[i][1]); shape.closePath();
-        const h = b.h ? Math.min(b.h, street ? 60 : 24) : (area > 2500 ? 9 + Math.min(8, area / 1500) : area > 500 ? 6 + Math.min(6, area / 400) : 3.5 + Math.min(3, area / 80));
+        const h = b.h ? Math.min(b.h, street ? 60 : desert ? 75 : 24) : (area > 2500 ? 9 + Math.min(8, area / 1500) : area > 500 ? 6 + Math.min(6, area / 400) : 3.5 + Math.min(3, area / 80));
         const kind = area > 2500 ? 'hall' : area > 500 ? 'office' : 'house'; const tl = tints[kind]; k++;
         col.setHex(tl[Math.floor(Math.abs(cx * 13 + cz * 7)) % tl.length]).convertSRGBToLinear(); roofC.setHex(roofs[Math.floor(Math.abs(cx * 3 + cz * 11)) % roofs.length]).convertSRGBToLinear();
         const geo = new THREE.ExtrudeGeometry(shape, { depth: h + 2, bevelEnabled: false }); geo.rotateX(Math.PI / 2); geo.translate(0, h + minY - 1, 0);

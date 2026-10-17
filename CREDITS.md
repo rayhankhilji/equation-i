@@ -15,8 +15,8 @@ terms.
 
 ## Circuit data
 
-The Silverstone and Monaco centrelines, the Monaco pit lane, building footprints and heights, the harbour, parks and
-street trees are derived from [OpenStreetMap](https://www.openstreetmap.org/copyright) data, © OpenStreetMap contributors,
+The Silverstone, Monaco and Yas Marina centrelines, the Monaco and Yas Marina pit lanes, building footprints and heights,
+the harbour, the marina and the Yas Island coastline, parks, lawns, roads and street trees are derived from [OpenStreetMap](https://www.openstreetmap.org/copyright) data, © OpenStreetMap contributors,
 ODbL 1.0. The Monaco elevation profile is hand-built from published course data.
 
 ## Libraries and fonts

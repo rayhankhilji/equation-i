@@ -702,6 +702,8 @@ window.EI = window.EI || {};
     Gb.tint(C(0x1e2c3a)); const W = SKx.world(sc); W.add(B, 'main'); W.add(Gb, 'main');
   }
 
+  // shared with other circuits' harbours (js/env_yas.js): the boat kit, the water material and the boats' reflections on the water
+  Street.yachtKit = yachtKit; Street.waterMaterial = waterMaterial; Street.buildReflections = buildReflections;
   Street.build = function (E) {
     const T0 = performance.now();
     buildWater(E); if (E.t.data.street) buildTunnelVault(E); else buildTunnel(E);

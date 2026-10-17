@@ -261,6 +261,16 @@ window.EI = window.EI || {};
         this.lowland = this.data.lowland || [];
         if (this.data.dem) this.initStreetGround();
       }
+      if (this.data.kind === 'desert') this.initDesert();
+    }
+    // ------------------------------------------------ desert circuit (Yas Marina): flat ground round the circuit, low dunes far out, the sea and the
+    // marina basin from the map's water polygons as a raster mask (isSea), with a seabed a few metres below the quays
+    initDesert() {
+      const SH = 4400, SP = 2048; const [c, ctx] = Env.canvas(SP, SP); ctx.fillStyle = '#000'; ctx.fillRect(0, 0, SP, SP);
+      ctx.setTransform(SP / (2 * SH), 0, 0, SP / (2 * SH), SP / 2, SP / 2); ctx.fillStyle = '#fff';
+      for (const w of this.t.data.scenery.water || []) { if (w.length < 3) continue; ctx.beginPath(); w.forEach((p, i) => i ? ctx.lineTo(p[0], p[1]) : ctx.moveTo(p[0], p[1])); ctx.closePath(); ctx.fill(); }
+      const d = ctx.getImageData(0, 0, SP, SP).data; this.seaMask = new Uint8Array(SP * SP); for (let i = 0; i < SP * SP; i++) this.seaMask[i] = d[i * 4] > 127 ? 1 : 0;
+      this.seaMaskH = SH; this.seaMaskN = SP; this.seaY = -2.6;
     }
     // ------------------------------------------------ street circuit ground: real terrain heights, a raster sea mask, the built-up cover
     initStreetGround() {
@@ -404,11 +414,21 @@ window.EI = window.EI || {};
     oi(x, z) { const gx = Math.floor((x + OHALF) / OG), gz = Math.floor((z + OHALF) / OG); if (gx < 0 || gz < 0 || gx >= ON || gz >= ON) return -1; return gz * ON + gx; }
     occAt(x, z) { const k = this.oi(x, z); return k < 0 ? 0 : this.occ[k]; }
     mark(x, z, bit) { const k = this.oi(x, z); if (k >= 0) this.occ[k] |= bit; }
+    // every cell whose centre is inside the polygon (even-odd, scanline spans per row of the grid), plus a band `pad` metres
+    // wide along its outline. Linear in the polygon size: the sea round Yas Island is a ~950-point ring kilometres across.
     markPoly(poly, bit, pad) {
-      const b = U.polyBounds(poly); pad = pad || 0;
-      for (let z = Math.floor((b.z0 - pad) / OG) * OG + OG / 2; z <= b.z1 + pad; z += OG) for (let x = Math.floor((b.x0 - pad) / OG) * OG + OG / 2; x <= b.x1 + pad; x += OG) {
-        if (U.pointInPoly(x, z, poly) || (pad && this.distToPoly(x, z, poly) < pad)) this.mark(x, z, bit);
+      const b = U.polyBounds(poly); const n = poly.length; const xs = [];
+      const gz0 = Math.max(0, Math.floor((b.z0 + OHALF) / OG)), gz1 = Math.min(ON - 1, Math.floor((b.z1 + OHALF) / OG));
+      for (let gz = gz0; gz <= gz1; gz++) {
+        const z = -OHALF + (gz + 0.5) * OG; xs.length = 0;
+        for (let i = 0, j = n - 1; i < n; j = i++) { const zi = poly[i][1], zj = poly[j][1]; if ((zi > z) !== (zj > z)) xs.push(poly[i][0] + (z - zi) * (poly[j][0] - poly[i][0]) / (zj - zi)); }
+        if (xs.length < 2) continue; xs.sort((p, q) => p - q);
+        for (let k = 0; k + 1 < xs.length; k += 2) {
+          const g0 = Math.max(0, Math.ceil((xs[k] + OHALF) / OG - 0.5)), g1 = Math.min(ON - 1, Math.floor((xs[k + 1] + OHALF) / OG - 0.5));
+          for (let gx = g0; gx <= g1; gx++) this.occ[gz * ON + gx] |= bit;
+        }
       }
+      if (pad) this.markLine(poly.concat([poly[0]]), pad, bit);
     }
     distToPoly(x, z, poly) { let best = Infinity; for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) { best = Math.min(best, segDist(x, z, poly[j][0], poly[j][1], poly[i][0], poly[i][1])); } return best; }
     // oriented rectangle: centre, unit axis (ax,az), half-length along axis hl, half-depth hd
@@ -541,11 +561,21 @@ window.EI = window.EI || {};
   // terrain height: flat at track level near the circuit (and a touch below the verge ribbons), rolling countryside beyond
   Ctx.prototype.terrainHeight = function (x, z) {
     if (this.dem) return this.streetHeight(x, z);
+    if (this.data.kind === 'desert') return this.desertHeight(x, z);
     const t = this.t; const f = this.fAt(x, z), fs = this.fsAt(x, z); const ty = this.tyAt(x, z);
     const w = this.data.kind === 'street' ? U.smoothstep(55, 330, f) : U.smoothstep(25, 220, f);
     return ty + this.heightRaw(x, z) * w - 0.14 * (1 - U.smoothstep(36, 52, fs));
   };
 
+  // desert circuit: track level beside the circuit, easing to sea level and low wind-shaped dunes further out; the seabed under the
+  // sea and the marina (their water sits at ~seaY + 0.25, the quays and the track a couple of metres above)
+  Ctx.prototype.desertHeight = function (x, z) {
+    const f = this.fAt(x, z), fs = this.fsAt(x, z); const ty = this.tyAt(x, z);
+    if (this.isSea(x, z)) return this.seaY - 2.4;
+    const far = U.smoothstep(60, 420, f);
+    const dunes = (U.fbm(x / 330 + 4.1, z / 330 + 8.3, 3) - 0.5) * 8 * U.smoothstep(500, 2400, f) + (U.fbm(x / 85 + 1.3, z / 85 + 2.9, 2) - 0.5) * 1.4 * U.smoothstep(150, 700, f);
+    return ty * (1 - far) + dunes - 0.14 * (1 - U.smoothstep(36, 52, fs));
+  };
   // street circuit with a terrain model: the harbour and the quays inside the lap (and the listed low ground) stay at circuit level;
   // outside it the ground blends from the pavement (circuit level) into the real slopes over the first ~75 m; the sea sits below
   // the coast. Near the track the ground never drops below the verge bands (it falls away beyond them at most 1:1).
@@ -754,6 +784,7 @@ window.EI = window.EI || {};
   Ctx.prototype.fieldRGB = function (x, z, cell, out, fpre) {
     out = out || [0, 0, 0];
     if (this.dem) return this.streetRGB(x, z, out);
+    if (this.data.kind === 'desert') return this.desertRGB(x, z, out, fpre);
     if (this.data.kind === 'street') { const n0 = U.noise2(x / 23 + 1.7, z / 23 + 4.2); const g = 118 + n0 * 22; const h = this.hillRaw(x, z); const k = U.smoothstep(14, 60, h); out[0] = (g + 6) * (1 - k) + 92 * k; out[1] = (g + 3) * (1 - k) + 104 * k; out[2] = (g - 4) * (1 - k) + 66 * k; return out; }
     const f = fpre != null ? fpre : this.fAt(x, z); const n1 = U.noise2(x / 61 + 3.3, z / 61 + 7.1);
     let c, k;
@@ -777,6 +808,33 @@ window.EI = window.EI || {};
       else { const a = this.fAng[cell.k]; const u = x * Math.cos(a) + z * Math.sin(a); const m = ((u % 24) + 24) % 24; if (Math.abs(m - 11) < 0.9 || Math.abs(m - 13) < 0.9) k *= 0.8; }
     }
     out[0] = c[0] * k; out[1] = c[1] * k; out[2] = c[2] * k; return out;
+  };
+  // desert ground colour (sRGB, muted like the rest - the frame grade adds the warmth): pale wind-rippled sand, darker compacted
+  // patches and tyre-worn tracks, the landscaped circuit surrounds a touch paler; wet sand at the shore, the seabed under the water
+  const DPAL = { sand: [168, 146, 110], sandDark: [138, 116, 84], pale: [186, 168, 134], wet: [118, 104, 82], seabed: [92, 118, 108] };
+  Env.DPAL = DPAL;
+  Ctx.prototype.desertRGB = function (x, z, out, fpre) {
+    out = out || [0, 0, 0];
+    if (this.isSea(x, z)) { const c = DPAL.seabed; out[0] = c[0]; out[1] = c[1]; out[2] = c[2]; return out; }
+    const f = fpre != null ? fpre : this.fAt(x, z);
+    const n1 = U.fbm(x / 140 + 2.3, z / 140 + 7.7, 3), n2 = U.noise2(x / 19 + 4.4, z / 19 + 1.9), rip = Math.sin((x * 0.82 + z * 0.57) * 0.9 + U.noise2(x / 30, z / 30) * 6);
+    const dk = U.smoothstep(0.45, 0.75, n1) * 0.55, pl = U.smoothstep(0.62, 0.9, 1 - n1) * 0.3 + (1 - U.smoothstep(40, 200, f)) * 0.35;
+    const k = 0.95 + n2 * 0.08 + rip * 0.015;
+    for (let q = 0; q < 3; q++) { let v = DPAL.sand[q] + (DPAL.sandDark[q] - DPAL.sand[q]) * dk; v += (DPAL.pale[q] - v) * pl; out[q] = v * k; }
+    // shore: a band of darker damp sand along the water's edge
+    if (this.isSea(x + 6, z) || this.isSea(x - 6, z) || this.isSea(x, z + 6) || this.isSea(x, z - 6)) for (let q = 0; q < 3; q++) out[q] = out[q] * 0.55 + DPAL.wet[q] * 0.45;
+    return out;
+  };
+  // painted overlays for the desert field map: the irrigated lawns, open sand, car parks
+  Ctx.prototype.desertPaint = function () {
+    const E = this, D = this.data;
+    return (ctx, path) => {
+      const fillAll = (list, col) => { ctx.fillStyle = col; for (const p of list || []) { if (p.length < 3) continue; path(p); ctx.fill(); } };
+      fillAll(D.sand, 'rgb(182,160,122)');
+      fillAll(D.lawns, 'rgb(66,82,40)');
+      ctx.strokeStyle = 'rgba(40,52,24,0.55)'; ctx.lineWidth = 1.2; for (const p of D.lawns || []) { if (p.length < 3) continue; path(p); ctx.stroke(); }
+      fillAll(D.parking, 'rgb(78,78,80)');
+    };
   };
   // street circuit ground colour (sRGB): built-up city, Mediterranean scrub (garrigue), umbrella-pine woods and the grey limestone
   // of the steep faces and the high ground; the harbour floor under the water
@@ -827,7 +885,14 @@ window.EI = window.EI || {};
     const S = MAP_PX, H = MAP_HALF, ppm = S / (H * 2); const [c, ctx] = Env.canvas(S, S);
     const rgb = (a, k) => 'rgb(' + (U.clamp(a[0] * k, 0, 255) | 0) + ',' + (U.clamp(a[1] * k, 0, 255) | 0) + ',' + (U.clamp(a[2] * k, 0, 255) | 0) + ')';
     const street = this.data.kind === 'street';
-    this._mt = performance.now(); ctx.fillStyle = street ? 'rgb(128,125,116)' : rgb(PAL.fields[0], 1); ctx.fillRect(0, 0, S, S);
+    const desert = this.data.kind === 'desert';
+    this._mt = performance.now(); ctx.fillStyle = street ? 'rgb(128,125,116)' : desert ? rgb(DPAL.sand, 1) : rgb(PAL.fields[0], 1); ctx.fillRect(0, 0, S, S);
+    if (desert) {
+      // the desert colour per 9 m pixel over the whole map (sand tones, shore, seabed), smoothed up to full size
+      const BN = 512; const [bc, bctx] = Env.canvas(BN, BN); const bi = bctx.createImageData(BN, BN); const col = [0, 0, 0];
+      for (let j = 0; j < BN; j++) for (let i = 0; i < BN; i++) { const x = -H + (i + 0.5) * 2 * H / BN, z = -H + (j + 0.5) * 2 * H / BN; this.desertRGB(x, z, col, 5000); const o = (j * BN + i) * 4; bi.data[o] = col[0]; bi.data[o + 1] = col[1]; bi.data[o + 2] = col[2]; bi.data[o + 3] = 255; }
+      bctx.putImageData(bi, 0, 0); ctx.imageSmoothingEnabled = true; ctx.drawImage(bc, 0, 0, S, S);
+    }
     if (street && this.dem) {
       // natural / built-up ground per 9 m pixel, smoothed up to the full map (the overlays add the streets, paving, parks...)
       const BN = 512; const [bc, bctx] = Env.canvas(BN, BN); const bi = bctx.createImageData(BN, BN); const col = [0, 0, 0];
@@ -844,7 +909,7 @@ window.EI = window.EI || {};
     const path = (poly) => { ctx.beginPath(); ctx.moveTo(poly[0][0], poly[0][1]); for (let i = 1; i < poly.length; i++) ctx.lineTo(poly[i][0], poly[i][1]); ctx.closePath(); };
     const R = this.FR, W = this.FW; const polys = []; this.fieldPolys = polys;
     for (let k = 0; k < W * W; k++) {
-      if (street) break;
+      if (street || desert) break;
       const sx = this.seedX[k], sz = this.seedZ[k]; if (Math.abs(sx) > H + FC * 1.5 || Math.abs(sz) > H + FC * 1.5) continue;
       const poly = this.fieldPoly(k); if (poly.length < 3) continue; polys.push([k, poly]);
       const ty = this.fType[k], tone = this.fTone[k]; path(poly); ctx.fillStyle = rgb(PAL.fields[ty], 0.88 + tone * 0.16); ctx.fill();

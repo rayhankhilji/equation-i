@@ -665,7 +665,8 @@ window.EI = window.EI || {};
       const farCol = this.terrainColourSampler();
       // street circuits: the verge stops short of any other stretch of the lap within its 40 m (Beau Rivage runs ~10 m above the
       // harbour front, and a flat ribbon at its level would roof over the road below)
-      const vw = this.data.street ? this.streetVergeWidths() : null;
+      const desert = !!(this.scenery && this.scenery.env && this.scenery.env.data.kind === 'desert');
+      const vw = this.data.street || desert ? this.streetVergeWidths() : null;
       // street circuits on a terrain model: the ribbon runs out from the barriers in steps that follow the ground, so where the hill
       // falls away (the descent from Mirabeau to the hairpin) the verge drapes down the slope instead of hanging flat at road level
       const vsc = vw && this.scenery && this.scenery.heights && this.scenery.env && this.scenery.env.dem ? this.scenery : null; const VF = vsc ? [1, 0.6, 0.3, 0.1, 0] : [1], VK = VF.length * 2;
@@ -833,11 +834,13 @@ window.EI = window.EI || {};
     streetVergeWidths() {
       if (this._svw) return this._svw;
       const n = this.n, out = [new Float32Array(n), new Float32Array(n)], pr = {};
+      // desert circuits: the verge also stops at the water's edge (the marina comes right up to the barriers round the hotel)
+      const env = this.scenery && this.scenery.env; const sea = env && env.data.kind === 'desert' && env.seaMask ? (x, z) => env.isSea(x, z) : null;
       for (const [k, side] of [[0, -1], [1, 1]]) {
         const wall = side < 0 ? this.wallL : this.wallR; const raw = new Float32Array(n);
         for (let i = 0; i < n; i++) {
           // brute-force nearest sample (project() can settle on the wrong stretch between two close ones)
-          let w = 40; for (let d = 1; d <= 40; d += 1.5) { const l = wall[i] + d; const px = this.x[i] + this.nx[i] * side * l, pz = this.z[i] + this.nz[i] * side * l; let bj = 0, bd = Infinity; for (let j = 0; j < n; j += 2) { const dd = (this.x[j] - px) ** 2 + (this.z[j] - pz) ** 2; if (dd < bd) { bd = dd; bj = j; } } let di = Math.abs(bj - i); di = Math.min(di, n - di); if (di > 25 && Math.sqrt(bd) < Math.max(this.wallL[bj], this.wallR[bj]) + 6) { w = Math.max(0.5, d - 2); break; } }
+          let w = 40; for (let d = 1; d <= 40; d += 1.5) { const l = wall[i] + d; const px = this.x[i] + this.nx[i] * side * l, pz = this.z[i] + this.nz[i] * side * l; if (sea && sea(px, pz)) { w = Math.max(0.5, d - 2); break; } let bj = 0, bd = Infinity; for (let j = 0; j < n; j += 2) { const dd = (this.x[j] - px) ** 2 + (this.z[j] - pz) ** 2; if (dd < bd) { bd = dd; bj = j; } } let di = Math.abs(bj - i); di = Math.min(di, n - di); if (di > 25 && Math.sqrt(bd) < Math.max(this.wallL[bj], this.wallR[bj]) + 6) { w = Math.max(0.5, d - 2); break; } }
           raw[i] = w;
         }
         // erode (take the local minimum) then smooth so the cut edge is clean

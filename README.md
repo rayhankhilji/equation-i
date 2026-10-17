@@ -35,6 +35,14 @@ In single player either key set drives the car.
 
 ## What is in the box
 
+- **Abu Dhabi, Yas Marina at sunset.** The 2021-onwards Grand Prix layout (5.30 km traced versus the official
+  5.281 km) from OpenStreetMap survey data, run anticlockwise with all 16 turns numbered: the Turn 5 hairpin under
+  the North Grandstand, the long back straight, the Turn 6-7 chicane, the marina straight, the banked Turn 9 and
+  the hotel section where the track runs under the W Abu Dhabi's LED gridshell. Around it: the marina basin inside
+  the circuit and the sea round Yas Island traced from the coastline, the real grandstands, building footprints
+  with their heights, Ferrari World's red roof on the skyline, date-palm avenues along the island's roads,
+  irrigated lawns on the sand, floodlight towers, and a low sun over the Gulf. Two DRS zones (back straight,
+  marina straight). The pit lane runs along the start straight and rejoins before Turn 1.
 - **Monaco, 1:1.** The Circuit de Monaco (3.32 km) is traced from the same OpenStreetMap survey data:
   Sainte Devote, the Beau Rivage climb, Massenet, Casino, Mirabeau, the Grand Hotel hairpin, Portier, the
   tunnel, the Nouvelle Chicane, Tabac, the swimming pool, Rascasse and Anthony Noghes, with a hand-built
