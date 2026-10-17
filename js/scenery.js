@@ -214,10 +214,11 @@ window.EI = window.EI || {};
       const m = new THREE.Mesh(mergeGeos(geos), new THREE.MeshStandardMaterial({ color: 0x2c4f5e, roughness: 0.06, metalness: 0.55, side: THREE.DoubleSide })); m.name = 'water'; this.group.add(m);
     }
   }
+  // draw ranges stop at (or short of) the fog's far end per circuit (~2.4-2.6 km; ~1.4-1.5 km on low): past it nothing shows anyway
   Scenery.TIERS = {
-    low: { treeNear: 300, treeFar: 900, grass: [0, 0], crowd: 250, crowdFar: 600, cars: 400, tents: 400, clutter: 450, blobs: true, shadows: false, cityDetail: 250, cityFar: 2600 },
-    medium: { treeNear: 500, treeFar: 1500, grass: [38, 60], crowd: 400, crowdFar: 1e5, cars: 800, tents: 1e5, clutter: 900, blobs: true, shadows: false, cityDetail: 400, cityFar: 1e5 },
-    high: { treeNear: 500, treeFar: 1e5, grass: [55, 85], crowd: 650, crowdFar: 1e5, cars: 1e5, tents: 1e5, clutter: 1e5, blobs: true, shadows: true, cityDetail: 620, cityFar: 1e5 },
+    low: { treeNear: 250, treeFar: 700, grass: [0, 0], crowd: 220, crowdFar: 500, cars: 350, tents: 350, clutter: 380, blobs: true, shadows: false, cityDetail: 220, cityFar: 1450 },
+    medium: { treeNear: 420, treeFar: 1100, grass: [34, 55], crowd: 350, crowdFar: 1100, cars: 600, tents: 1200, clutter: 650, blobs: true, shadows: false, cityDetail: 340, cityFar: 2500 },
+    high: { treeNear: 500, treeFar: 1600, grass: [50, 80], crowd: 550, crowdFar: 1600, cars: 1000, tents: 1800, clutter: 1100, blobs: true, shadows: true, cityDetail: 520, cityFar: 2650 },
   };
   EI.Scenery = Scenery;
 })();

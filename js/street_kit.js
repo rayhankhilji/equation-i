@@ -243,11 +243,11 @@ window.EI = window.EI || {};
   const GRIDS = { A: { cell: 600, order: ['main', 'detail'] }, B: { cell: 260, order: ['fine'] }, Y: { cell: 450, order: ['yFar', 'yNear'] } };
   const LAYERS = {
     main: { grid: 'A' }, detail: { grid: 'A' }, fine: { grid: 'B' }, yFar: { grid: 'Y' }, yNear: { grid: 'Y' },
-    fence: { cell: 600, vis: [260, 700, 1400], mat: 'fence' },
-    lines: { cell: 800, vis: [250, 600, 1200], lines: true },
+    fence: { cell: 600, vis: [240, 600, 1100], mat: 'fence' },
+    lines: { cell: 800, vis: [220, 500, 900], lines: true },
     linesNear: { cell: 400, vis: [120, 260, 400], lines: true },
   };
-  const NEAR = [110, 220, 340], NEARY = [130, 260, 380], MID = [280, 520, 1e9], SHADOW = [100, 150, 220];
+  const NEAR = [100, 190, 300], NEARY = [120, 230, 340], MID = [250, 440, 800], SHADOW = [100, 150, 220];
   SK.LAYERS = LAYERS;
   class World {
     constructor(sc) {

@@ -43,8 +43,8 @@ window.EI = window.EI || {};
     // physically based sky, with the sun light aligned to it and a PMREM environment for reflections / ambient
     // per-circuit light: Silverstone keeps its English afternoon; Monaco gets a high late-May sun from over the sea (so the
     // city facades facing the harbour are lit), a clearer sky, sea haze on the horizon and warm stone bounce light
-    const LOOKS = { monaco: { elev: 52, azim: 338, turb: 1.9, ray: 1.5, mie: 0.003, horizon: 0xbcd3ea, fog: [1500, 7500], fogLow: [800, 3800], hemi: [0xa8cdf2, 0x8a7a66, 0.42], sun: [0xfff3e0, 2.65] } };
-    const LK = Object.assign({ elev: 42, azim: 205, turb: 2.5, ray: 2.0, mie: 0.004, horizon: 0xa9c4e4, fog: [1300, 6000], fogLow: [700, 3200], hemi: [0x9fc4ee, 0x3f5a2e, 0.35], sun: [0xfff1dd, 2.4] }, LOOKS[trackId] || {}); EI.look = LK;
+    const LOOKS = { monaco: { elev: 52, azim: 338, turb: 1.9, ray: 1.5, mie: 0.003, horizon: 0xbcd3ea, fog: [550, 2400], fogLow: [320, 1400], hemi: [0xa8cdf2, 0x8a7a66, 0.42], sun: [0xfff3e0, 2.65] } };
+    const LK = Object.assign({ elev: 42, azim: 205, turb: 2.5, ray: 2.0, mie: 0.004, horizon: 0xa9c4e4, fog: [600, 2600], fogLow: [350, 1500], hemi: [0x9fc4ee, 0x3f5a2e, 0.35], sun: [0xfff1dd, 2.4] }, LOOKS[trackId] || {}); EI.look = LK;
     const sunDir = new THREE.Vector3(); const elev = LK.elev, azim = LK.azim; const phi = THREE.MathUtils.degToRad(90 - elev), theta = THREE.MathUtils.degToRad(azim); sunDir.setFromSphericalCoords(1, phi, theta);
     skyMesh = new THREE.Sky(); skyMesh.scale.setScalar(5500); const su = skyMesh.material.uniforms; su.turbidity.value = LK.turb; su.rayleigh.value = LK.ray; su.mieCoefficient.value = LK.mie; su.mieDirectionalG.value = 0.85; su.sunPosition.value.copy(sunDir); scene.add(skyMesh);
     const t0 = performance.now(); const pm = new THREE.PMREMGenerator(renderer); pm.compileEquirectangularShader();
@@ -103,7 +103,7 @@ window.EI = window.EI || {};
     EI.quality = q; if (scenery && scenery.setQuality) scenery.setQuality(q); if (EI.Pit && EI.Pit.setQuality) EI.Pit.setQuality(q); if (track && track.setQuality) track.setQuality(q);
     // low: no live mirrors, no grass tufts / decorative instancing named 'detail', fog closer
     scene.traverse(o => { if (/tuft|detail/i.test(o.name || '')) o.visible = q !== 'low'; });
-    if (scene.fog) { const L = EI.look || { fog: [1300, 6000], fogLow: [700, 3200] }; const f = q === 'low' ? L.fogLow : L.fog; scene.fog.near = f[0]; scene.fog.far = f[1]; }
+    if (scene.fog) { const L = EI.look || { fog: [600, 2600], fogLow: [350, 1500] }; const f = q === 'low' ? L.fogLow : L.fog; scene.fog.near = f[0]; scene.fog.far = f[1]; } fitFarPlane();
     onResize();
   }
 
@@ -189,12 +189,18 @@ window.EI = window.EI || {};
     if (EI.CarGLB && EI.CarGLB.pump) { _eyes.length = 0; for (const cam of cameras) _eyes.push(cam.position); EI.CarGLB.pump(!race.started && introT < introLen ? 10 : 3, race.cars, _eyes); }
   }
   const _eyes = [];
+  // nothing beyond the fog's far end can be seen: the far plane stops there, and the sky box shrinks to fit inside it
+  function fitFarPlane() {
+    const far = Math.min(6000, scene && scene.fog ? scene.fog.far : 6000);
+    for (const cam of cameras || []) { cam.far = far; cam.updateProjectionMatrix(); }
+    if (skyMesh) skyMesh.scale.setScalar(far * 1.1);
+  }
   function raceRenderSetup() {
     // all contact shadows in one draw call, rewritten once per frame just before the first render of the frame
     if (EI.CarGLB && EI.CarGLB.ContactShadows && race.cars.some(c => c.lodMid)) { contactShadows = new EI.CarGLB.ContactShadows(race.cars); scene.add(contactShadows.mesh); }
     scene.onBeforeRender = () => { if (contactShadows && lodFrame !== frameNo) { lodFrame = frameNo; contactShadows.update(); } };
     // nothing beyond the fog's far end can be seen: the far plane stops there
-    const far = Math.min(6000, scene.fog ? scene.fog.far : 6000); for (const cam of cameras) { cam.far = far; cam.updateProjectionMatrix(); }
+    fitFarPlane();
     // compile every program the race can use now (all car LODs, every scenery material) instead of hitching on first sight
     try { renderer.compile(scene, cameras[0]); } catch (e) { }
     collectShadowMovers(); invalidateShadowCache();
