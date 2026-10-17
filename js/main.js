@@ -451,7 +451,7 @@ window.EI = window.EI || {};
     if (!race) {
       if (!loaded) return;   // nothing to draw behind the loading screen: the car model loads and parses sooner
       menuCamera(now / 1000); scenery.update(dt, cameras[0].position.x, cameras[0].position.z);
-      renderer.setScissorTest(false); renderer.setViewport(0, 0, renderer.domElement.width, renderer.domElement.height);
+      renderer.setScissorTest(false); renderer.setViewport(0, 0, window.innerWidth, window.innerHeight);   // CSS pixels: three scales by the pixel ratio itself
       sunFollow(cameras[0].position.x, cameras[0].position.z); particles.update(dt); renderView(cameras[0], true); return;
     }
     if (paused) dt = 0;
@@ -494,7 +494,9 @@ window.EI = window.EI || {};
     const h = renderer.domElement.height, pr = renderer.getPixelRatio(); const rects = layout(cameras.length, window.innerWidth, window.innerHeight);
     renderer.setScissorTest(split);
     cameras.forEach((cam, k) => {
-      const r = rects[k]; const x = Math.floor(r[0] * pr), y = Math.floor(h - (r[1] + r[3]) * pr), rw = Math.floor(r[2] * pr), rh = Math.floor(r[3] * pr);
+      // viewport / scissor in CSS pixels (three multiplies by the pixel ratio itself; scaling here as well shrank the picture
+      // into a corner whenever the ratio was below 1, and cropped it above 1)
+      const r = rects[k]; const x = r[0], y = window.innerHeight - (r[1] + r[3]), rw = r[2], rh = r[3];
       renderer.setViewport(x, y, rw, rh); renderer.setScissor(x, y, rw, rh);
       const car = race.players[k];
       if (!split) sunFollow(car.x, car.z);
