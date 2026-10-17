@@ -8,14 +8,17 @@ window.EI = window.EI || {};
   const C = (h) => new THREE.Color(h).convertSRGBToLinear();
   const Yas = {};
   const isDesert = (t) => ((EI.ENVDATA && EI.ENVDATA[t.data.id]) || {}).kind === 'desert';
+  const isNight = () => !!(EI.Night && EI.Night.on);
+  // night variants of the facade textures live with the architecture module's regions
+  const NR = () => { const AT = EI.StreetKit.Atlas; return { glassN: AT.R.yasGlassN || AT.R.yasGlass }; };
   // footprints modelled here instead of by the scenery's generic box buildings (they still reserve their ground for the venue
   // layout and the trackside infrastructure: only the box-building pass skips them)
-  const OWN = (b) => b.w || /^(Control Tower|Etihad Arena)$/.test(b.n || '');
+  const OWN = (b, t) => b.w || /^(Control Tower|Etihad Arena)$/.test(b.n || '') || !!(t && EI.EnvYasArch && EI.EnvYasArch.owns(b, t));
   if (EI.Scenery) {
     const orig = EI.Scenery.prototype.buildBuildings;
     EI.Scenery.prototype.buildBuildings = function () {
       const sc = this.track.data.scenery; if (!isDesert(this.track)) return orig.call(this);
-      const all = sc.buildings; sc.buildings = all.filter(b => !OWN(b));
+      const all = sc.buildings; const tr = this.track; sc.buildings = all.filter(b => !OWN(b, tr));
       try { return orig.call(this); } finally { sc.buildings = all; }
     };
   }
@@ -130,7 +133,7 @@ window.EI = window.EI || {};
 
   // ================================================================ the W Abu Dhabi - Yas Island
   function buildHotel(E, W, R, out) {
-    const H = E.data.hotel; if (!H || !H.parts) return; const t = E.t, sc = E.sc;
+    const H = E.data.hotel; if (!H || !H.parts) return; const t = E.t, sc = E.sc; const night = isNight();
     const B = new (SKx().Batch)(); const parts = H.parts.filter(p => p.h > 1 && p.p.length >= 3);
     const ground = (p) => { let y = Infinity; for (const q of p) y = Math.min(y, E.ground(q[0], q[1])); return y - 0.3; };
     const white = C(0xf2f0eb), roofC = C(0xb8bcc0), glassTint = C(0xffffff);
@@ -139,8 +142,8 @@ window.EI = window.EI || {};
       const y0 = ground(p.p);
       if (p.h <= 12) { B.set(R.stone, 0.75, 0); prism(B, p.p, y0, y0 + p.h, white, 16, 8, C(0xd6d2c8), 'white'); continue; }
       wings.push({ p: p.p, h: p.h, y0 });
-      B.set(R.stone, 0.75, 0); prism(B, p.p, y0, y0 + 9, white, 16, 8);
-      B.set(R.glass, 0.25, 0.1); prism(B, p.p, y0 + 9, y0 + p.h, glassTint, 9, 13.2, roofC, 'white');
+      B.set(R.stone, 0.75, 0, night ? 0.25 : 0); prism(B, p.p, y0, y0 + 9, white, 16, 8);
+      B.set(night ? NR().glassN : R.glass, 0.25, 0.1, night ? 0.75 : 0); prism(B, p.p, y0 + 9, y0 + p.h, glassTint, 9, 13.2, roofC, 'white');
     }
     // the bridge across the track (9 m clear), glazed sides, white soffit
     const br = H.bridge; let bridgeY = null;
@@ -166,14 +169,38 @@ window.EI = window.EI || {};
     };
     const S = new (SKx().Batch)(); const tA = C(0xe9eef6), tB = C(0xeadff8);
     const uvOf = (p) => { const k = 1 / 4.2; return [(p[0] + p[2]) * k + p[1] * 0.12, (p[0] - p[2]) * k - p[1] * 0.12]; };
-    let nq = 0;
+    let nq = 0; const led = [];
     surface(F, yFn, (a, b, c, d) => {
+      if (night) led.push(a, b, c, a, c, d);
       const col = Math.sin(a[0] / 37) * Math.cos(a[2] / 29) > 0.2 ? tB : tA; S.set(R.shell, 0.35, 0.55, 0.22);
       const ua = uvOf(a), ub = uvOf(b), uc = uvOf(c), ud = uvOf(d);
       S.quad(a, b, c, d, col, [ua[0], ua[1], ub[0], ub[1], uc[0], uc[1], ud[0], ud[1]]); S.quad(a, d, c, b, col, [ua[0], ua[1], ud[0], ud[1], uc[0], uc[1], ub[0], ub[1]]); nq++;
     });
     // the hem: a white steel edge beam all round
     const shellMesh = batchMesh(W, [S], 'yasGridshell'); shellMesh.castShadow = false; shellMesh.receiveShadow = false; sc.group.add(shellMesh); out.shellTris = S.count / 3;
+    // ---- at night the gridshell is a light show: ~5,000 LED nodes in the lattice washing slow waves of magenta, blue, purple and
+    // white over the skin (one additive mesh over the same surface, animated in the shader)
+    if (night && led.length) {
+      const pos = new Float32Array(led.length * 3); led.forEach((p, k) => { pos[k * 3] = p[0]; pos[k * 3 + 1] = p[1]; pos[k * 3 + 2] = p[2]; });
+      const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(pos, 3)); g.computeBoundingSphere();
+      const uni = { uT: { value: 0 } };
+      const mat = new THREE.ShaderMaterial({ uniforms: uni, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -4,
+        vertexShader: 'varying vec3 vP; void main() { vP = position; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
+        fragmentShader: ['uniform float uT; varying vec3 vP;',
+          'vec3 pal(float t) { t = fract(t); vec3 a = vec3(1.0, 0.12, 0.75), b = vec3(0.2, 0.35, 1.0), c = vec3(0.62, 0.25, 1.0), d = vec3(0.95, 0.95, 1.0);',
+          '  return t < 0.25 ? mix(a, b, t * 4.0) : t < 0.5 ? mix(b, c, t * 4.0 - 1.0) : t < 0.75 ? mix(c, d, t * 4.0 - 2.0) : mix(d, a, t * 4.0 - 3.0); }',
+          'void main() { vec2 q = vec2((vP.x + vP.z) / 4.2 + vP.y * 0.12, (vP.x - vP.z) / 4.2 - vP.y * 0.12); vec2 f = fract(q); vec2 e = min(f, 1.0 - f);',
+          '  float line = 1.0 - smoothstep(0.0, 0.07, min(e.x, e.y)); float node = 1.0 - smoothstep(0.0, 0.16, length(e));',
+          '  float wave = 0.55 + 0.45 * sin(vP.x * 0.035 + vP.y * 0.08 - uT * 0.9) * sin(vP.z * 0.03 + uT * 0.37);',
+          '  vec3 col = pal(vP.x * 0.0025 + vP.y * 0.006 + uT * 0.035);',
+          '  gl_FragColor = vec4(col * (line * 0.55 + node * 1.6 + 0.05) * wave, 1.0); }'].join('\n') });
+      mat.userData.nightEmissive = true;
+      const lm = new THREE.Mesh(g, mat); lm.name = 'yasShellLED'; lm.renderOrder = 4; sc.group.add(lm);
+      EI.Night.onFrame((dt, tt) => { uni.uT.value = tt; });
+      // the skin's glow lights the track and the marina under it
+      const hc = centroid(doms[0]); EI.Night.addFlood(hc[0], yBase + 30, hc[1], { power: 0.5, range: 110, color: [0.7, 0.45, 1.0] });
+      if (br) { const bc = centroid(br.p); EI.Night.addFlood(bc[0], yBase + 12, bc[1], { power: 0.35, range: 50, color: [0.85, 0.6, 1.0] }); }
+    }
     out.shell = { quads: nq, bridgeY };
   }
 
@@ -185,14 +212,15 @@ window.EI = window.EI || {};
     const c = centroid(P); let g0 = Infinity; for (let k = 0; k < P.length; k += 6) g0 = Math.min(g0, E.ground(P[k][0], P[k][1])); const yg = isFinite(g0) ? g0 : 0;
     // roof: low at the tips, a long rise to the middle, the central funnel dipping in
     const yFn = (x, z, din) => { const r = Math.hypot(x - c[0], z - c[1]); return yg + 5 + 41 * Math.pow(U.smoothstep(0, 150, din), 0.85) - 14 * (1 - U.smoothstep(18, 42, r)); };
-    const red = C(0xc4120e), redD = C(0x9e0d0b); B.set(R.roof, 0.28, 0.12);
+    const night = isNight(); const red = C(0xc4120e), redD = C(0x9e0d0b); B.set(R.roof, 0.28, 0.12, night ? 0.16 : 0);
     surface(F, yFn, (a, b, cc, d) => { const uv = (p) => [p[0] / 32, p[2] / 32]; const ua = uv(a), ub = uv(b), uc = uv(cc), ud = uv(d); B.quad(a, b, cc, d, a[1] < yg + 9 ? redD : red, [ua[0], ua[1], ub[0], ub[1], uc[0], uc[1], ud[0], ud[1]]); });
     // glazed walls under the roof edge
-    B.set('white', 0.15, 0.3); const dark = C(0x2a3540);
+    B.set('white', 0.15, 0.3, night ? 0.9 : 0); const dark = night ? C(0xffc98a) : C(0x2a3540);
     for (let i = 0; i < P.length; i++) { const a = P[i], b = P[(i + 1) % P.length]; const ya = yFn(a[0], a[1], 0), yb = yFn(b[0], b[1], 0); const A = [a[0], yg - 0.5, a[1]], Bq = [b[0], yg - 0.5, b[1]], Cq = [b[0], yb, b[1]], D = [a[0], ya, a[1]]; B.quad(A, Bq, Cq, D, dark); B.quad(A, D, Cq, Bq, dark); }
     // the shield, lying on the roof facing the circuit (south)
     const top = yFn(c[0], c[1] + 120, F.at(c[0], c[1] + 120)) + 0.6; const sx = c[0], sz = c[1] + 120, w = 34, h = 42;
-    B.set(R.shield, 0.4, 0.05, 0.1); B.quad([sx - w / 2, top, sz + h / 2], [sx + w / 2, top, sz + h / 2], [sx + w / 2, top + 6, sz - h / 2], [sx - w / 2, top + 6, sz - h / 2], C(0xffffff), [0, 0, 1, 0, 1, 1, 0, 1]);
+    B.set(R.shield, 0.4, 0.05, night ? 1.3 : 0.1);
+    if (night) { EI.Night.addFlood(sx, top + 30, sz, { power: 0.6, range: 160, color: [1.0, 0.35, 0.3] }); for (let k = 0; k < P.length; k += 12) EI.Night.addGlow(P[k][0], yFn(P[k][0], P[k][1], 0) + 0.5, P[k][1], 3.5, [1.0, 0.75, 0.5]); } B.quad([sx - w / 2, top, sz + h / 2], [sx + w / 2, top, sz + h / 2], [sx + w / 2, top + 6, sz - h / 2], [sx - w / 2, top + 6, sz - h / 2], C(0xffffff), [0, 0, 1, 0, 1, 1, 0, 1]);
     W.add(B, 'main'); out.ferrariTris = B.count / 3;
   }
 
@@ -217,7 +245,8 @@ window.EI = window.EI || {};
   function buildArena(E, W, R, out) {
     const b = E.t.data.scenery.buildings.find(q => q.n === 'Etihad Arena'); if (!b) return; const B = new (SKx().Batch)(); const p = b.p;
     let y0 = Infinity; for (const q of p) y0 = Math.min(y0, E.ground(q[0], q[1])); y0 -= 0.3; const h = 26; const c = centroid(p);
-    B.set(R.fins, 0.3, 0.6); prism(B, p, y0, y0 + h, C(0xffffff), 12, 13);
+    const night = isNight(); B.set(R.fins, 0.3, 0.6, night ? 0.7 : 0); prism(B, p, y0, y0 + h, night ? C(0xc9a8ff) : C(0xffffff), 12, 13);
+    if (night) { EI.Night.addFlood(centroid(p)[0], y0 + h + 10, centroid(p)[1], { power: 0.5, range: 120, color: [0.75, 0.55, 1.0] }); for (let k = 0; k < p.length; k += 2) EI.Night.addGlow(p[k][0], y0 + h + 1.2, p[k][1], 3, [0.8, 0.6, 1.0], { pulse: 0.3 }); }
     B.set('white', 0.45, 0.4); const rings = [[1.0, h + 1.2], [0.85, h + 5], [0.6, h + 8], [0.3, h + 9.5]];
     let prev = p.map(q => [q[0], y0 + h, q[1]]);
     for (const [k, y] of rings) { const cur = p.map(q => [c[0] + (q[0] - c[0]) * k, y0 + y, c[1] + (q[1] - c[1]) * k]); for (let i = 0; i < p.length; i++) { const j = (i + 1) % p.length; const A = prev[i], Bq = prev[j], Cq = cur[j], D = cur[i]; B.quad(A, Bq, Cq, D, C(0xdfe3e6)); B.quad(A, D, Cq, Bq, C(0xdfe3e6)); } prev = cur; }
@@ -317,9 +346,22 @@ window.EI = window.EI || {};
         const yaw = Math.atan2(-ln.nz, ln.nx) + (rng() - 0.5) * 0.03; const m = new THREE.Matrix4().makeRotationY(yaw).setPosition(cx, seaY, cz);
         const o = kind === 'super' ? K.superyacht(m, Lb, rng, Lb > 60) : kind === 'cruiser' ? K.cruiser(m, Lb, rng) : kind === 'sport' ? K.sport(m, Lb, rng) : K.sail(m, Lb, rng, kind === 'bigsail');
         mark(cx, cz, ln.nx, ln.nz, Lb, Bm); n++; if (kind === 'super') nSuper++; s += Bm + 0.7 + rng() * 0.9;
+        // at night: deck and saloon lights along the boat, an anchor light at the masthead, blue underwater lights on the big ones
+        if (isNight()) {
+          const ux = ln.nx, uz = ln.nz; const deck = kind === 'super' ? [2.6, 5.2, 7.6] : kind === 'cruiser' ? [2.2, 4.0] : [1.6];
+          for (const dy of deck) for (let a = -0.32; a <= 0.32; a += kind === 'super' ? 0.08 : 0.16) EI.Night.addGlow(cx + ux * a * Lb, seaY + dy, cz + uz * a * Lb, kind === 'super' ? 1.6 : 1.2, rng() < 0.75 ? [1.0, 0.85, 0.6] : [0.85, 0.9, 1.0]);
+          if (kind === 'sail' || kind === 'bigsail') EI.Night.addGlow(cx, seaY + Lb * 1.15, cz, 1.4, [1, 1, 1]);
+          if (kind === 'super') for (const sd of [-1, 1]) for (let a = -0.3; a <= 0.3; a += 0.15) EI.Night.addGlow(cx + ux * a * Lb - uz * sd * Bm * 0.55, seaY + 0.15, cz + uz * a * Lb + ux * sd * Bm * 0.55, 2.6, [0.2, 0.75, 1.0]);
+        }
         if (o) { const S = o.S || K.hullShape(o); const sy = (S.hd ? S.hd(0) : 1) + seaY; for (const sd of [-1, 1]) { const st = [cx - ln.nx * Lb / 2 + tx * sd * Bm * 0.4, sy, cz - ln.nz * Lb / 2 + tz * sd * Bm * 0.4]; const q = [sx + tx * sd * (Bm * 0.5 + 1.2) - ln.nx * 0.6, ln.y + 0.2, sz + tz * sd * (Bm * 0.5 + 1.2) - ln.nz * 0.6]; LN.rope(st, q, 0.35, ropeC, 5); } }
       }
     }
+    // promenade lamps along the quays round the marina: slim posts with a lantern, a warm pool of light each
+    { const postC = C(0x2b2f35); Q.set('white', 0.5, 0.4); let nl = 0;
+      for (const ln of lines) { if (ln.dh > 450) continue; for (let s = 6; s < ln.l - 3; s += 22) { const x = ln.a[0] + (ln.b[0] - ln.a[0]) * s / ln.l - ln.nx * 2.2, z = ln.a[1] + (ln.b[1] - ln.a[1]) * s / ln.l - ln.nz * 2.2; const yq = ln.y; const mm = new THREE.Matrix4().makeTranslation(x, yq, z);
+        Q.col(mm, 0, 0, 0, 4.2, 0.09, 0.06, 6, postC); Q.set('white', 0.4, 0, isNight() ? 2.5 : 0.3); Q.box(mm, 0.4, 0.5, 0.4, 0, 4.2, 0, C(0xffe2b0)); Q.set('white', 0.5, 0.4);
+        if (isNight()) { EI.Night.addGlow(x, yq + 4.45, z, 2.2, [1.0, 0.82, 0.55]); if (nl % 2 === 0) EI.Night.addFlood(x, yq + 4.4, z, { power: 0.08, range: 24, color: [1.0, 0.82, 0.58] }); } nl++; } }
+      out.promenadeLamps = nl; }
     W.add(N, 'yNear'); W.add(Fb, 'yFar'); W.add(LN, 'lines'); W.add(LF, 'lines'); W.add(Q, 'main');   // rigging and ropes share the coarse line cells
     const keep = E.seaY; E.seaY = seaY; ST.buildReflections(E, refl, []); E.seaY = keep;
     out.yachts = n; out.superyachts = nSuper; out.seaY = +seaY.toFixed(2);
@@ -329,17 +371,20 @@ window.EI = window.EI || {};
   Yas.build = function (E) {
     const T0 = performance.now(); const out = E.stats.yas = {};
     if (!SKx() || !SKx().Batch) return;
-    const sc = E.sc; const world = SKx().world(sc); const R = regions();
+    const sc = E.sc; const world = SKx().world(sc); const R = regions(); if (EI.EnvYasArch && EI.EnvYasArch.regions) EI.EnvYasArch.regions();
     // the landmarks' static geometry (hotel, tower, arena, quays, Ferrari World) is one mesh: a handful of buildings spread over
     // a kilometre would otherwise cost a draw call per 600 m world cell they touch; the yachts keep the world's near / far cells
     const statics = []; const W = { add: (b, layer) => { if (layer === 'main') { if (b && b.count) statics.push(b); } else world.add(b, layer); }, mat: (k) => world.mat(k) };
     const step = (k, fn) => { const t0 = performance.now(); try { fn(); } catch (e) { console.error('EnvYas ' + k, e); } out['ms_' + k] = Math.round(performance.now() - t0); };
     step('hotel', () => buildHotel(E, W, R, out));
     step('ferrari', () => buildFerrari(E, W, R, out));
-    step('tower', () => buildTower(E, W, R, out));
     step('arena', () => buildArena(E, W, R, out));
     step('marina', () => buildMarina(E, W, out));
-    step('flood', () => buildFloodlights(E, out));
+    // the circuit architecture after the reference photos: stand sails, pit building, paddock tents, control towers, the start
+    // bridge, the floodlight towers (js/env_yas_arch.js); the concert fan zone (js/env_yas_fan.js)
+    const Hh = { W, R, prism, cap, batchMesh, alphaRegion, centroid };
+    if (EI.EnvYasArch) step('arch', () => EI.EnvYasArch.build(E, Hh, out));
+    if (EI.EnvYasFan) step('fan', () => EI.EnvYasFan.build(E, Hh, out));
     // the street kit's world is otherwise built at the end of a street circuit's track build: do it here
     step('world', () => world.build());
     step('statics', () => { if (!statics.length) return; const m = batchMesh(world, statics, 'yasStatic'); m.castShadow = true; m.receiveShadow = true; m.customDepthMaterial = new THREE.MeshDepthMaterial({ depthPacking: THREE.RGBADepthPacking }); sc.group.add(m); out.staticTris = m.userData.tris; });

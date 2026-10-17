@@ -824,12 +824,13 @@ window.EI = window.EI || {};
       // animate people and props only when a camera is near the pit lane
       const cams = (EI.debug && EI.debug.cameras) || []; let near = false; const mid = V.boxes[5] || V.boxes[0];
       for (const c of cams) if (c && c.position.distanceTo(mid.O) < 650) near = true;
-      // street circuit: the crews, engineers and their props (a dozen instanced draws) are only drawn within ~450 m of the pit lane
-      if (L.track && L.track.data.street) { let dmin = Infinity; for (const c of cams) if (c) dmin = Math.min(dmin, c.position.distanceTo(mid.O)); const vis = dmin < 260, vis2 = dmin < 380;
+      // the crews, engineers and their props (a dozen instanced draws, ~100k triangles) are only drawn within a few hundred metres
+      // of the pit lane (street circuits: closer, the city hides them sooner)
+      { const street = !!(L.track && L.track.data.street); let dmin = Infinity; for (const c of cams) if (c) dmin = Math.min(dmin, c.position.distanceTo(mid.O)); const vis = dmin < (street ? 260 : 330), vis2 = dmin < (street ? 380 : 480);
         // the garage interiors, lane paint, screens and signs (small, many draws) also drop out beyond ~380 m; the lane and the garage shells stay
         if (V._crewVis !== vis || V._pitVis !== vis2) { V._crewVis = vis; V._pitVis = vis2; V.group.traverse(o => { if (o.isInstancedMesh && /^pit-/.test(o.name)) o.visible = vis; else if (o.isMesh && o.userData.pitFar) o.visible = vis2; }); } }
       // street circuit: no pose work at all while the crews are hidden (they are re-posed the frame they come back into range)
-      if ((L.track && L.track.data.street ? V._crewVis : near) || !V.posed) { animatePeople(race, dt); V.posed = true; }
+      if ((V._crewVis && near) || !V.posed) { animatePeople(race, dt); V.posed = true; }
       updateLamps();
       updateUI(race, dt);
     } catch (e) { if (!V.err) { V.err = true; console.error('Pit.frame', e); } }

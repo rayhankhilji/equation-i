@@ -356,7 +356,7 @@ window.EI = window.EI || {};
       let a0 = Infinity, a1 = -Infinity, b0 = Infinity, b1 = -Infinity; for (const q of poly) { const dx = q[0] - cx, dz = q[1] - cz; const a = dx * tx + dz * tz, b = dx * nx + dz * nz; a0 = Math.min(a0, a); a1 = Math.max(a1, a); b0 = Math.min(b0, b); b1 = Math.max(b1, b); }
       const len = a1 - a0, depth = Math.min(b1 - b0, 24); if (len < 10 || depth < 5) continue; const rows = U.clamp(Math.floor((depth - 1) / 0.82), 5, 22);
       const fx = cx + tx * (a0 + a1) / 2 + nx * b0, fz = cz + tz * (a0 + a1) / 2 + nz * b0;
-      blocks.push({ cx: fx, cz: fz, ax: tx, az: tz, nx, nz, len, rows, roof: true, seat: [0x24418f, 0x8c1d24, 0x2b3a55][Math.floor(Math.abs(cx) % 3)], y: E.ground(cx, cz) - 0.4, first: true, last: true, osm: true });
+      blocks.push({ cx: fx, cz: fz, ax: tx, az: tz, nx, nz, len, rows, roof: !E.data.sailRoofs, seat: [0x24418f, 0x8c1d24, 0x2b3a55][Math.floor(Math.abs(cx) % 3)], y: E.ground(cx, cz) - 0.4, first: true, last: true, osm: true });
     }
     // spectator colours (sRGB): everyday clothes, a lot of team merchandise
     const teams = EI.TEAMS || [{ primary: '#e10600', secondary: '#ffffff' }];
@@ -368,6 +368,7 @@ window.EI = window.EI || {};
     const SEATED = [[0, 25], [1, 12], [2, 10], [3, 12], [4, 8], [5, 7], [6, 4], [7, 4], [8, 13], [9, 5]], STANDING = [[10, 30], [11, 20], [12, 14], [13, 12], [14, 14], [15, 10]];
     const wpick = (r, list) => { let tot = 0; for (const [, w] of list) tot += w; let x = r() * tot; for (const [k, w] of list) { x -= w; if (x <= 0) return k; } return list[0][0]; };
     const rng = U.rng(777); let seats = 0, people = 0, bi = 0;
+    E.standBlocks = blocks;   // circuit dressing built afterwards (the Yas sail canopies) reads the stand frames
     for (const b of blocks) {
       bi++;
       const m = Env.frame(b.cx, b.y, b.cz, b.ax, b.az, b.nx, b.nz); const L = b.len, hl = L / 2, rows = b.rows;

@@ -640,3 +640,7 @@ body.split2 #pitui .pt { margin-top: 10px; }
 .vp.p2 .sp-keys .ctl-pl { background: var(--cyan); color: #03202a; }
 .vp.p1 .sp-keys .ctl-pl, .vp:not(.p2) .sp-keys .ctl-pl { background: var(--red); color: #fff; }
 .vp .sp-keys kbd { font-size: calc(11px * var(--u, 1)); }
+
+/* resolution setting in the pause card */
+.small-card .pause-res { margin-top: 6px; }
+.small-card .pause-res select { width: 100%; }

@@ -620,8 +620,13 @@ window.EI = window.EI || {};
       // street circuit: the escape road at the Nouvelle Chicane is painted solid red with white borders, Sainte Devote's in blue / red bands
       const WHITE_ = lin(0xe9e9e6);
       if (this.data.street) Object.assign(SCHEMES, { 'Nouvelle Chicane': [0, RED, RED], 'Sainte Dévote': [2, BLUE, WHITE_], 'La Rascasse': [2, RED, WHITE_] });
+      // circuits with a house colour for the run-off (Yas Marina's turquoise): the strip behind the kerbs in that colour, and every
+      // corner's painted run-off in bands of it and a deeper shade
+      const RC = this.data.runoffColors;
+      if (RC) { const A = lin(RC[0]), B = lin(RC[1]); for (const c of this.data.corners) if (c.t) SCHEMES[c.name] = [c.t % 3 === 0 ? 2 : c.t % 2, A, B]; }
+      const runFrag = RC ? RUNOFF_FRAG.replace('vec3(0.045, 0.2, 0.06)', (() => { const c = lin(RC[2] || RC[0]); return 'vec3(' + c.r.toFixed(4) + ', ' + c.g.toFixed(4) + ', ' + c.b.toFixed(4) + ')'; })()) : RUNOFF_FRAG;
       const aw0 = hw + kw + 2.0;
-      const rMat = shaderMat({ map: T.runoff.map, normalMap: T.runoff.normalMap, normalScale: new THREE.Vector2(0.7, 0.7), roughnessMap: T.runoff.roughnessMap, roughness: 1, metalness: 0, polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 2 }, 'runoff', common, VARY_RUN, RUNOFF_FRAG, RUNOFF_ROUGH, FLATTEN);
+      const rMat = shaderMat({ map: T.runoff.map, normalMap: T.runoff.normalMap, normalScale: new THREE.Vector2(0.7, 0.7), roughnessMap: T.runoff.roughnessMap, roughness: 1, metalness: 0, polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 2 }, 'runoff' + (RC ? '-' + RC.join('') : ''), common, VARY_RUN, runFrag, RUNOFF_ROUGH, FLATTEN);
       const gMat = shaderMat({ map: T.gravel.map, normalMap: T.gravel.normalMap, normalScale: new THREE.Vector2(1.25, 1.25), roughnessMap: T.gravel.roughnessMap, roughness: 1, metalness: 0, polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 3 }, 'gravel', common, VARY4, GRAVEL_FRAG, GRAVEL_ROUGH, '', GRAVEL_NORMAL);
       this.surfMats = { runoff: rMat, gravel: gMat };
       for (const side of [-1, 1]) {

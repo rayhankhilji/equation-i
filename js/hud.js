@@ -135,9 +135,9 @@ window.EI = window.EI || {};
         const tg = list[i]; const sc = s * (0.7 + 0.3 * Math.min(1, tg.alpha)); const w = (42 + String(tg.text).length * 8.7) * sc, h = 22 * sc; let y = tg.y;
         // split screen views are short: one step up at most, and a farther tag that still overlaps is dropped instead of being
         // stacked off into the sky, away from its car
-        const maxTries = split ? 1 : 4; let hit = null;
+        const maxTries = split ? 1 : 2; let hit = null;
         for (let tries = 0; tries <= maxTries; tries++) { hit = placed.find(p => Math.abs(p.x - tg.x) < (p.w + w) / 2 && Math.abs(p.y - y) < (p.h + h) / 2); if (!hit || tries === maxTries) break; y = hit.y - (hit.h + h) / 2 - 2; }
-        if (split && (hit || y < h * 1.5)) { ys[i] = null; continue; }
+        if (hit || y < h * 1.5) { ys[i] = null; continue; }   // still overlapping (or pushed off the top): the farther tag is dropped
         placed.push({ x: tg.x, y, w, h }); ys[i] = y;
       }
       r.tagEls.forEach((d, i) => {
