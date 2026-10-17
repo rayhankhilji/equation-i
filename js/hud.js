@@ -133,11 +133,15 @@ window.EI = window.EI || {};
       const ys = [];
       for (const i of order) {
         const tg = list[i]; const sc = s * (0.7 + 0.3 * Math.min(1, tg.alpha)); const w = (42 + String(tg.text).length * 8.7) * sc, h = 22 * sc; let y = tg.y;
-        for (let tries = 0; tries < 4; tries++) { const hit = placed.find(p => Math.abs(p.x - tg.x) < (p.w + w) / 2 && Math.abs(p.y - y) < (p.h + h) / 2); if (!hit) break; y = hit.y - (hit.h + h) / 2 - 2; }
+        // split screen views are short: one step up at most, and a farther tag that still overlaps is dropped instead of being
+        // stacked off into the sky, away from its car
+        const maxTries = split ? 1 : 4; let hit = null;
+        for (let tries = 0; tries <= maxTries; tries++) { hit = placed.find(p => Math.abs(p.x - tg.x) < (p.w + w) / 2 && Math.abs(p.y - y) < (p.h + h) / 2); if (!hit || tries === maxTries) break; y = hit.y - (hit.h + h) / 2 - 2; }
+        if (split && (hit || y < h * 1.5)) { ys[i] = null; continue; }
         placed.push({ x: tg.x, y, w, h }); ys[i] = y;
       }
       r.tagEls.forEach((d, i) => {
-        const tg = list[i]; if (!tg) { if (d.style.display !== 'none') d.style.display = 'none'; return; }
+        const tg = list[i]; if (!tg || ys[i] == null) { if (d.style.display !== 'none') d.style.display = 'none'; return; }
         d.style.display = 'flex'; d.style.left = tg.x.toFixed(1) + 'px'; d.style.top = ys[i].toFixed(1) + 'px'; d.style.opacity = tg.alpha; d.style.setProperty('--d', (0.7 + 0.3 * Math.min(1, tg.alpha)).toFixed(2));
         d.classList.toggle('stacked', ys[i] < tg.y - 1);
         setText(d.children[0], String(tg.pos)); d.children[1].style.background = tg.color; setText(d.children[2], tg.text);

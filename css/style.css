@@ -610,3 +610,33 @@ body.split2 #pitui .pt { margin-top: 10px; }
 #results-table tr.sp-p2 .sp-chip { background: var(--cyan); color: #03202a; }
 .vp.split .mapwrap { background: radial-gradient(circle at 50% 50%, rgba(10,13,19,0.86) 0%, rgba(8,10,15,0.8) 63%, rgba(8,10,15,0) 71%); }
 /* ----- end split screen ----- */
+
+/* ---- controls screen (menu button / H) */
+.ctl-btn { padding: 12px 18px; font-weight: 800; letter-spacing: 1.5px; font-size: 12px; white-space: nowrap; flex: none; }
+#controls { z-index: 40; }
+.ctl-card { width: min(980px, calc(100vw - 32px)); max-height: calc(100vh - 32px); overflow-y: auto; box-sizing: border-box; }
+.ctl-top { display: flex; align-items: center; justify-content: space-between; }
+.ctl-close { padding: 4px 14px; font-size: 22px; line-height: 1; }
+.ctl-card .subtitle { margin: 4px 0 16px; font-size: 13px; color: var(--muted); }
+.ctl-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+.ctl-col { background: rgba(255,255,255,0.035); border: 1px solid var(--line); border-radius: 6px; padding: 12px 14px 8px; }
+.ctl-col.p1 { border-top: 3px solid var(--red); }
+.ctl-col.p2 { border-top: 3px solid var(--cyan); }
+.ctl-col.pad { border-top: 3px solid #9aa3b2; }
+.ctl-h { display: flex; align-items: center; gap: 10px; font-weight: 900; font-size: 15px; letter-spacing: 1px; text-transform: uppercase; margin-bottom: 8px; }
+.ctl-pl { display: inline-flex; align-items: center; justify-content: center; min-width: 30px; height: 24px; border-radius: 4px; font-style: italic; background: #9aa3b2; color: #0b0d12; font-size: 13px; }
+.ctl-col.p1 .ctl-pl { background: var(--red); color: #fff; }
+.ctl-col.p2 .ctl-pl { background: var(--cyan); color: #03202a; }
+.ctl-row { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 6px 0; border-top: 1px solid rgba(255,255,255,0.06); font-size: 13px; color: #d7dde6; }
+.ctl-row span:last-child { white-space: nowrap; color: var(--muted); font-size: 12px; }
+.ctl-row kbd { font-size: 12px; padding: 2px 7px; margin-left: 3px; }
+.ctl-foot { display: flex; flex-wrap: wrap; gap: 8px 18px; margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line-2); font-size: 12px; color: var(--muted); }
+.ctl-foot .ctl-note { flex-basis: 100%; }
+@media (max-width: 760px) { .ctl-grid { grid-template-columns: 1fr; } }
+/* split screen: a key reminder in each view while the cars sit on the grid */
+.vp .sp-keys { position: absolute; left: 50%; transform: translate(-50%, -50%); top: 30%; display: flex; gap: 10px; align-items: center; padding: 6px 12px; border-radius: 6px; background: rgba(8,10,14,0.82); border: 1px solid rgba(255,255,255,0.14); font-size: calc(12px * var(--u, 1)); font-weight: 700; color: #e6ebf2; white-space: nowrap; pointer-events: none; opacity: 0; transition: opacity 0.4s; z-index: 3; }
+.vp .sp-keys.show { opacity: 1; }
+.vp .sp-keys .ctl-pl { height: 20px; min-width: 26px; font-size: 12px; }
+.vp.p2 .sp-keys .ctl-pl { background: var(--cyan); color: #03202a; }
+.vp.p1 .sp-keys .ctl-pl, .vp:not(.p2) .sp-keys .ctl-pl { background: var(--red); color: #fff; }
+.vp .sp-keys kbd { font-size: calc(11px * var(--u, 1)); }

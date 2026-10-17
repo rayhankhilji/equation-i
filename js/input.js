@@ -6,10 +6,10 @@ window.EI = window.EI || {};
   const hits = {};
   const MAPS = [
     { up: ['KeyW'], down: ['KeyS'], left: ['KeyA'], right: ['KeyD'], drs: ['ShiftLeft'], ers: ['ControlLeft', 'Space'], pit: ['KeyP'], soft: ['Digit1'], medium: ['Digit2'], hard: ['Digit3'] },
-    { up: ['ArrowUp'], down: ['ArrowDown'], left: ['ArrowLeft'], right: ['ArrowRight'], drs: ['ShiftRight'], ers: ['Enter', 'NumpadEnter'], pit: ['Backspace'], soft: ['Digit8'], medium: ['Digit9'], hard: ['Digit0'] },
+    { up: ['ArrowUp'], down: ['ArrowDown'], left: ['ArrowLeft'], right: ['ArrowRight'], drs: ['ShiftRight', 'Period'], ers: ['Enter', 'NumpadEnter', 'ControlRight'], pit: ['Backspace'], soft: ['Digit8'], medium: ['Digit9'], hard: ['Digit0'] },
   ];
   // keys whose browser default (scrolling, quick find, history back, activating a focused button) must not fire while racing
-  const GAME_KEYS = { ArrowUp: 1, ArrowDown: 1, ArrowLeft: 1, ArrowRight: 1, Space: 1, Slash: 1, Enter: 1, NumpadEnter: 1, Backspace: 1, Quote: 1 };
+  const GAME_KEYS = { ArrowUp: 1, ArrowDown: 1, ArrowLeft: 1, ArrowRight: 1, Space: 1, Slash: 1, Enter: 1, NumpadEnter: 1, Backspace: 1, Quote: 1, Period: 1 };
   const shown = (id) => { const el = document.getElementById(id); return !!el && !el.classList.contains('hidden'); };
   const racing = () => { const d = EI.debug; return !!(d && d.race) && !shown('menu') && !shown('pause') && !shown('results'); };
   const editing = () => { const a = document.activeElement; return !!a && (a.tagName === 'INPUT' || a.tagName === 'SELECT' || a.tagName === 'TEXTAREA'); };

@@ -23,15 +23,17 @@ on-screen buttons for one player.
 | --- | --- | --- | --- |
 | Throttle / brake (reverse when stopped) | W / S | ↑ / ↓ | RT / LT |
 | Steer | A / D | ← / → | Left stick |
-| DRS (only in a DRS zone when armed) | Left Shift | Right Shift | A |
-| ERS boost | Left Ctrl or Space | Enter | B / X |
+| DRS (only in a DRS zone when armed) | Left Shift | Right Shift or . | A |
+| ERS boost | Left Ctrl or Space | Enter or Right Ctrl | B / X |
 | Camera (chase / cockpit / TV) | C | / | Y |
 | Request a pit stop | P | Backspace | RB |
 | Choose tyres for the stop (soft / medium / hard) | 1 / 2 / 3 | 8 / 9 / 0 | |
 | Pause | Esc | | Start |
-| Mute / restart | M / R | | |
+| Mute / restart | M / R (split screen: restart from the pause menu) | | |
+| Controls screen (menu or pause) | H | | |
 
-In single player either key set drives the car.
+In single player either key set drives the car. The menu's CONTROLS button (or H) shows all of this in the game. In split
+screen each view shows its player's keys while the cars wait on the grid.
 
 ## What is in the box
 

@@ -82,14 +82,14 @@ window.EI = window.EI || {};
     for (const [a, b, c] of tri) { const A = [p[a][0], y, p[a][1]], Bq = [p[b][0], y, p[b][1]], Cq = [p[c][0], y, p[c][1]]; const uv = [A[0] / 8, A[2] / 8, Bq[0] / 8, Bq[2] / 8, Cq[0] / 8, Cq[2] / 8];
       const ny = (Bq[2] - A[2]) * (Cq[0] - A[0]) - (Bq[0] - A[0]) * (Cq[2] - A[2]); if ((ny > 0) === up) B.tri(A, Bq, Cq, col, uv); else B.tri(A, Cq, Bq, col, [uv[0], uv[1], uv[4], uv[5], uv[2], uv[3]]); }
   }
-  // a standalone mesh from a street-kit batch, drawn with the world's shared material (same program, own draw call)
-  function batchMesh(W, B, name, kind) {
-    const S = 18, f = B.f.subarray(0, B.n * S); const ib = new THREE.InterleavedBuffer(new Float32Array(f), S); const g = new THREE.BufferGeometry();
+  // a standalone mesh from street-kit batches, drawn with the world's shared material (same program, one draw call)
+  function batchMesh(W, list, name, kind) {
+    const S = 18; let n = 0; for (const B of list) n += B.n; const arr = new Float32Array(n * S); let o = 0; for (const B of list) { arr.set(B.f.subarray(0, B.n * S), o); o += B.n * S; }
+    const ib = new THREE.InterleavedBuffer(arr, S); const g = new THREE.BufferGeometry();
     g.setAttribute('position', new THREE.InterleavedBufferAttribute(ib, 3, 0)); g.setAttribute('normal', new THREE.InterleavedBufferAttribute(ib, 3, 3)); g.setAttribute('color', new THREE.InterleavedBufferAttribute(ib, 3, 6));
     g.setAttribute('uv', new THREE.InterleavedBufferAttribute(ib, 2, 9)); g.setAttribute('aRect', new THREE.InterleavedBufferAttribute(ib, 4, 11)); g.setAttribute('aRme', new THREE.InterleavedBufferAttribute(ib, 3, 15));
-    g.computeBoundingSphere(); g.computeBoundingBox(); const m = new THREE.Mesh(g, W.mat(kind || 'solid')); m.name = name; m.matrixAutoUpdate = false; return m;
+    g.computeBoundingSphere(); g.computeBoundingBox(); const m = new THREE.Mesh(g, W.mat(kind || 'solid')); m.name = name; m.matrixAutoUpdate = false; m.userData.tris = n / 3; return m;
   }
-
   // ---------------------------------------------------------------- textures (atlas regions)
   function regions() {
     const AT = SKx().Atlas;
@@ -173,7 +173,7 @@ window.EI = window.EI || {};
       S.quad(a, b, c, d, col, [ua[0], ua[1], ub[0], ub[1], uc[0], uc[1], ud[0], ud[1]]); S.quad(a, d, c, b, col, [ua[0], ua[1], ud[0], ud[1], uc[0], uc[1], ub[0], ub[1]]); nq++;
     });
     // the hem: a white steel edge beam all round
-    const shellMesh = batchMesh(W, S, 'yasGridshell'); shellMesh.castShadow = false; shellMesh.receiveShadow = false; sc.group.add(shellMesh); out.shellTris = S.count / 3;
+    const shellMesh = batchMesh(W, [S], 'yasGridshell'); shellMesh.castShadow = false; shellMesh.receiveShadow = false; sc.group.add(shellMesh); out.shellTris = S.count / 3;
     out.shell = { quads: nq, bridgeY };
   }
 
@@ -226,7 +226,7 @@ window.EI = window.EI || {};
 
   // ================================================================ floodlight towers round the circuit
   function buildFloodlights(E, out) {
-    const t = E.t, sc = E.sc, OCC = EI.Env.OCC; const spots = []; const L = t.length; const rng = U.rng(707);
+    const t = E.t, sc = E.sc, OCC = EI.Env.OCC; const spots = []; const L = t.length;
     const near = (x, z, r) => spots.some(s => Math.hypot(s[0] - x, s[2] - z) < r);
     for (let s = 20; s < L; s += 125) for (const side of [1, -1]) {
       for (const off of [14, 22, 30, 9]) {
@@ -235,36 +235,31 @@ window.EI = window.EI || {};
         if (E.occAt(x, z) & (OCC.BUILT | OCC.ROAD | OCC.WATER)) continue; if (E.isSea && E.isSea(x, z)) continue;
         const pr = t.project(x, z, null); if (pr.dist < Math.max(t.wallL[pr.i], t.wallR[pr.i]) + 6) continue; if (near(x, z, 60)) continue;
         // face the track
-        spots.push([x, E.ground(x, z), z, Math.atan2(-(t.nx[i] * side), -(t.nz[i] * side)), 32 + rng() * 6]); break;
+        spots.push([x, E.ground(x, z), z, Math.atan2(-(t.nx[i] * side), -(t.nz[i] * side))]); break;
       }
     }
     if (!spots.length) return;
-    // pylon (tapered lattice-ish column with a platform) and the lamp face, both instanced
-    const pg = [], add = (g) => pg.push(g);
-    const col = new THREE.CylinderGeometry(0.35, 0.7, 1, 6, 1); col.translate(0, 0.5, 0); add(col);
+    // the pylon (tapered column, the lamp bank's frame and platform tilted down at the track) and the lamp faces: two instanced meshes
+    const H = 34, tilt = new THREE.Matrix4().makeRotationX(0.32), top = new THREE.Matrix4().makeTranslation(0, H + 1.2, 0);
+    const col = new THREE.CylinderGeometry(0.32, 0.7, H, 6, 1); col.translate(0, H / 2, 0);
     const head = new THREE.BoxGeometry(6.2, 2.8, 0.45); head.translate(0, 0, 0.35); const plat = new THREE.BoxGeometry(6.8, 0.22, 1.5); plat.translate(0, -1.6, 0.3);
-    const pylon = EI.Env.merge([col]); const headG = EI.Env.merge([head, plat]);
-    const lamps = new THREE.PlaneGeometry(5.8, 2.4); lamps.translate(0, 0, 0.62);
+    for (const g of [head, plat]) { g.applyMatrix4(tilt); g.applyMatrix4(top); }
+    const pylon = EI.Env.merge([col, head, plat]);
+    const lamps = new THREE.PlaneGeometry(5.8, 2.4); lamps.translate(0, 0, 0.62); lamps.applyMatrix4(tilt); lamps.applyMatrix4(top);
     const mPy = new THREE.MeshStandardMaterial({ color: 0x9ea4aa, roughness: 0.5, metalness: 0.6 });
     // the lamp bank: rows of round reflectors in a dark frame, lit
     const [lc, lx] = EI.Env.canvas(128, 64); lx.fillStyle = '#1c1f23'; lx.fillRect(0, 0, 128, 64);
     for (let r = 0; r < 3; r++) for (let k = 0; k < 7; k++) { const cx = 10 + k * 18, cy = 11 + r * 21; const g = lx.createRadialGradient(cx, cy, 1, cx, cy, 8); g.addColorStop(0, '#ffffff'); g.addColorStop(0.5, '#fff1d0'); g.addColorStop(1, '#5a5040'); lx.fillStyle = g; lx.beginPath(); lx.arc(cx, cy, 7.5, 0, 6.283); lx.fill(); }
     const lt = new THREE.CanvasTexture(lc); lt.encoding = THREE.sRGBEncoding; lt.anisotropy = 4;
     const mLamp = new THREE.MeshBasicMaterial({ map: lt, color: new THREE.Color(1.0, 0.95, 0.85).multiplyScalar(1.6), toneMapped: false });
-    const n = spots.length; const iPy = new THREE.InstancedMesh(pylon, mPy, n), iHd = new THREE.InstancedMesh(headG, mPy, n), iL = new THREE.InstancedMesh(lamps, mLamp, n);
-    const m = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler(), p = new THREE.Vector3(), s = new THREE.Vector3();
-    spots.forEach((sp, k) => {
-      const [x, y, z, yaw, h] = sp; e.set(0, yaw, 0); q.setFromEuler(e);
-      m.compose(p.set(x, y - 0.2, z), q, s.set(1, h, 1)); iPy.setMatrixAt(k, m);
-      e.set(-0.32, yaw, 0, 'YXZ'); q.setFromEuler(e); m.compose(p.set(x, y + h + 1.2, z), q, s.set(1, 1, 1)); iHd.setMatrixAt(k, m); iL.setMatrixAt(k, m);
-    });
-    for (const im of [iPy, iHd, iL]) { im.instanceMatrix.needsUpdate = true; im.castShadow = false; im.receiveShadow = false; im.frustumCulled = true; }
-    // instanced meshes cull by their own bounds: give them the whole ring
-    const bb = new THREE.Box3(); for (const sp of spots) bb.expandByPoint(p.set(sp[0], sp[1], sp[2])); bb.max.y += 45; const bs = bb.getBoundingSphere(new THREE.Sphere());
-    for (const im of [iPy, iHd, iL]) { im.geometry.boundingSphere = bs.clone(); }
-    iPy.name = 'yasFloodPylons'; iHd.name = 'yasFloodHeads'; iL.name = 'yasFloodLamps';
-    // pylons and heads share a material: one mesh would do, but the column is scaled per tower and the head is not
-    sc.group.add(iPy); sc.group.add(iHd); sc.group.add(iL); out.floodlights = n;
+    const n = spots.length; const iPy = new THREE.InstancedMesh(pylon, mPy, n), iL = new THREE.InstancedMesh(lamps, mLamp, n);
+    const m = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler(), p = new THREE.Vector3(), s1 = new THREE.Vector3(1, 1, 1);
+    spots.forEach((sp, k) => { const [x, y, z, yaw] = sp; e.set(0, yaw, 0); q.setFromEuler(e); m.compose(p.set(x, y - 0.2, z), q, s1); iPy.setMatrixAt(k, m); iL.setMatrixAt(k, m); });
+    // instanced meshes cull by their geometry's bounds: give them the whole ring
+    const bb = new THREE.Box3(); for (const sp of spots) bb.expandByPoint(p.set(sp[0], sp[1], sp[2])); bb.max.y += H + 6; const bs = bb.getBoundingSphere(new THREE.Sphere());
+    for (const im of [iPy, iL]) { im.instanceMatrix.needsUpdate = true; im.castShadow = false; im.receiveShadow = false; im.geometry.boundingSphere = bs.clone(); }
+    iPy.name = 'yasFloodPylons'; iL.name = 'yasFloodLamps';
+    sc.group.add(iPy); sc.group.add(iL); out.floodlights = n;
   }
 
   // ================================================================ the marina: Gulf-blue water, quays and moored yachts
@@ -274,7 +269,7 @@ window.EI = window.EI || {};
     // water level: the environment's sea level when it has one, else just above the lowest shore (as the generic water did)
     const levels = polys.map(w => { let y = Infinity; for (const q of w) y = Math.min(y, E.ground(q[0], q[1])); return y + 0.25; });
     const generic = sc.group.getObjectByName('water'); if (generic) sc.group.remove(generic);
-    const mat = ST.waterMaterial(E); const uni = E._waterUni; mat.color = C(0x2a8a90); mat.envMapIntensity = 1.1;   // Gulf turquoise
+    const mat = ST.waterMaterial(E); const uni = E._waterUni; mat.color = C(0x1f6e76); mat.envMapIntensity = 1.1;   // Gulf turquoise
     const geos = []; polys.forEach((w, k) => {
       const wy = E.seaY != null ? E.seaY + 0.25 : levels[k];
       const shape = new THREE.Shape(); shape.moveTo(w[0][0], w[0][1]); for (let i = 1; i < w.length; i++) shape.lineTo(w[i][0], w[i][1]);
@@ -301,7 +296,7 @@ window.EI = window.EI || {};
     Q.set('white', 0.85, 0); const quayC = C(0xd8d4ca), copeC = C(0xf2f0ea);
     for (let i = 0; i < sea.length; i++) {
       const a = sea[i], b = sea[(i + 1) % sea.length]; const l = Math.hypot(b[0] - a[0], b[1] - a[1]); if (l < 0.5 || l > 400) continue;
-      const mx = (a[0] + b[0]) / 2, mz = (a[1] + b[1]) / 2; if (Math.hypot(mx - hotel[0], mz - hotel[1]) > 900) continue;
+      const mx = (a[0] + b[0]) / 2, mz = (a[1] + b[1]) / 2; if (Math.hypot(mx - hotel[0], mz - hotel[1]) > 650) continue;
       const ga = E.ground(a[0], a[1]), gb = E.ground(b[0], b[1]); if (Math.max(ga, gb) < seaY + 0.25) continue;
       const A = [a[0], seaY - 1, a[1]], Bq = [b[0], seaY - 1, b[1]], Cq = [b[0], gb + 0.12, b[1]], D = [a[0], ga + 0.12, a[1]];
       Q.quad(A, Bq, Cq, D, quayC); Q.quad(A, D, Cq, Bq, quayC);
@@ -325,7 +320,7 @@ window.EI = window.EI || {};
         if (o) { const S = o.S || K.hullShape(o); const sy = (S.hd ? S.hd(0) : 1) + seaY; for (const sd of [-1, 1]) { const st = [cx - ln.nx * Lb / 2 + tx * sd * Bm * 0.4, sy, cz - ln.nz * Lb / 2 + tz * sd * Bm * 0.4]; const q = [sx + tx * sd * (Bm * 0.5 + 1.2) - ln.nx * 0.6, ln.y + 0.2, sz + tz * sd * (Bm * 0.5 + 1.2) - ln.nz * 0.6]; LN.rope(st, q, 0.35, ropeC, 5); } }
       }
     }
-    W.add(N, 'yNear'); W.add(Fb, 'yFar'); W.add(LN, 'linesNear'); W.add(LF, 'lines'); W.add(Q, 'main');
+    W.add(N, 'yNear'); W.add(Fb, 'yFar'); W.add(LN, 'lines'); W.add(LF, 'lines'); W.add(Q, 'main');   // rigging and ropes share the coarse line cells
     const keep = E.seaY; E.seaY = seaY; ST.buildReflections(E, refl, []); E.seaY = keep;
     out.yachts = n; out.superyachts = nSuper; out.seaY = +seaY.toFixed(2);
   }
@@ -334,7 +329,10 @@ window.EI = window.EI || {};
   Yas.build = function (E) {
     const T0 = performance.now(); const out = E.stats.yas = {};
     if (!SKx() || !SKx().Batch) return;
-    const sc = E.sc; const W = SKx().world(sc); const R = regions();
+    const sc = E.sc; const world = SKx().world(sc); const R = regions();
+    // the landmarks' static geometry (hotel, tower, arena, quays, Ferrari World) is one mesh: a handful of buildings spread over
+    // a kilometre would otherwise cost a draw call per 600 m world cell they touch; the yachts keep the world's near / far cells
+    const statics = []; const W = { add: (b, layer) => { if (layer === 'main') { if (b && b.count) statics.push(b); } else world.add(b, layer); }, mat: (k) => world.mat(k) };
     const step = (k, fn) => { const t0 = performance.now(); try { fn(); } catch (e) { console.error('EnvYas ' + k, e); } out['ms_' + k] = Math.round(performance.now() - t0); };
     step('hotel', () => buildHotel(E, W, R, out));
     step('ferrari', () => buildFerrari(E, W, R, out));
@@ -343,9 +341,9 @@ window.EI = window.EI || {};
     step('marina', () => buildMarina(E, W, out));
     step('flood', () => buildFloodlights(E, out));
     // the street kit's world is otherwise built at the end of a street circuit's track build: do it here
-    step('world', () => W.build());
-    // hotel and tower cells cast shadows near the eye (the world's LOD manager toggles them); the gridshell does not
-    out.worldTris = W.stats.tris; out.worldMeshes = W.stats.meshes; out.ms = Math.round(performance.now() - T0);
+    step('world', () => world.build());
+    step('statics', () => { if (!statics.length) return; const m = batchMesh(world, statics, 'yasStatic'); m.castShadow = true; m.receiveShadow = true; m.customDepthMaterial = new THREE.MeshDepthMaterial({ depthPacking: THREE.RGBADepthPacking }); sc.group.add(m); out.staticTris = m.userData.tris; });
+    out.worldTris = world.stats.tris; out.worldMeshes = world.stats.meshes; out.ms = Math.round(performance.now() - T0);
   };
   // palms and other planting for EI.EnvVeg: [x, z, species name, width, height]
   Yas.trees = function (E) { return []; };

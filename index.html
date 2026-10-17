@@ -157,8 +157,9 @@
 
       <footer class="menu-actions">
         <button id="btn-start" class="primary">START RACE</button>
+        <button id="btn-controls" class="ctl-btn" title="Keyboard and gamepad controls (H)">CONTROLS</button>
         <div class="keys-hint">
-          <span><kbd>Esc</kbd>pause</span><span><kbd>M</kbd>mute</span><span><kbd>R</kbd>restart</span><span><kbd>C</kbd><kbd>/</kbd>camera: chase, cockpit, TV</span>
+          <span><kbd>H</kbd>controls</span><span><kbd>Esc</kbd>pause</span><span><kbd>M</kbd>mute</span><span><kbd>C</kbd><kbd>/</kbd>camera: chase, cockpit, TV</span>
         </div>
         <div class="partners" aria-label="Race partners">
           <span class="partners-label">Race partners</span>
@@ -166,6 +167,47 @@
           <a class="partner intake" href="https://www.intake.ink" target="_blank" rel="noopener" title="Intake: intake.ink"><span class="pchip intake"><img src="assets/brand/intake-icon.svg" alt="" width="16" height="16"><b>intake</b></span><span class="ptag">Win your degree <b>apprenticeship.</b></span></a>
         </div>
       </footer>
+    </div>
+  </div>
+
+  <!-- Controls -->
+  <div id="controls" class="overlay hidden" role="dialog" aria-label="Controls">
+    <div class="menu-card ctl-card">
+      <div class="ctl-top"><h1>Controls</h1><button id="btn-controls-close" class="ctl-close" aria-label="Close">&times;</button></div>
+      <div class="subtitle">One player can drive with either key set. In split screen, player 1 uses the left side of the keyboard and player 2 the right.</div>
+      <div class="ctl-grid">
+        <div class="ctl-col p1"><div class="ctl-h"><span class="ctl-pl">P1</span>Player 1</div>
+          <div class="ctl-row"><span>Throttle / brake</span><span><kbd>W</kbd><kbd>S</kbd></span></div>
+          <div class="ctl-row"><span>Steer</span><span><kbd>A</kbd><kbd>D</kbd></span></div>
+          <div class="ctl-row"><span>DRS (open in a zone)</span><span><kbd>L.Shift</kbd></span></div>
+          <div class="ctl-row"><span>ERS overtake boost</span><span><kbd>Space</kbd></span></div>
+          <div class="ctl-row"><span>Camera</span><span><kbd>C</kbd></span></div>
+          <div class="ctl-row"><span>Pit request</span><span><kbd>P</kbd></span></div>
+          <div class="ctl-row"><span>Tyres soft / med / hard</span><span><kbd>1</kbd><kbd>2</kbd><kbd>3</kbd></span></div>
+        </div>
+        <div class="ctl-col p2"><div class="ctl-h"><span class="ctl-pl">P2</span>Player 2</div>
+          <div class="ctl-row"><span>Throttle / brake</span><span><kbd>&#8593;</kbd><kbd>&#8595;</kbd></span></div>
+          <div class="ctl-row"><span>Steer</span><span><kbd>&#8592;</kbd><kbd>&#8594;</kbd></span></div>
+          <div class="ctl-row"><span>DRS (open in a zone)</span><span><kbd>R.Shift</kbd> or <kbd>.</kbd></span></div>
+          <div class="ctl-row"><span>ERS overtake boost</span><span><kbd>Enter</kbd> or <kbd>R.Ctrl</kbd></span></div>
+          <div class="ctl-row"><span>Camera</span><span><kbd>/</kbd></span></div>
+          <div class="ctl-row"><span>Pit request</span><span><kbd>Backspace</kbd></span></div>
+          <div class="ctl-row"><span>Tyres soft / med / hard</span><span><kbd>8</kbd><kbd>9</kbd><kbd>0</kbd></span></div>
+        </div>
+        <div class="ctl-col pad"><div class="ctl-h"><span class="ctl-pl">&#127918;</span>Gamepad</div>
+          <div class="ctl-row"><span>Throttle / brake</span><span><kbd>RT</kbd><kbd>LT</kbd></span></div>
+          <div class="ctl-row"><span>Steer</span><span><kbd>Left stick</kbd></span></div>
+          <div class="ctl-row"><span>DRS</span><span><kbd>A</kbd></span></div>
+          <div class="ctl-row"><span>ERS</span><span><kbd>B</kbd> / <kbd>X</kbd></span></div>
+          <div class="ctl-row"><span>Camera</span><span><kbd>Y</kbd></span></div>
+          <div class="ctl-row"><span>Pit request</span><span><kbd>RB</kbd></span></div>
+          <div class="ctl-row"><span>Pause</span><span><kbd>Start</kbd></span></div>
+        </div>
+      </div>
+      <div class="ctl-foot">
+        <span><kbd>Esc</kbd> pause</span><span><kbd>M</kbd> mute</span><span><kbd>R</kbd> restart (one player; in split screen from the pause menu)</span><span><kbd>H</kbd> this screen</span>
+        <span class="ctl-note">Two pads: the first connected is player 1. Some laptop keyboards can't register many keys at once, so a pad for one player helps.</span>
+      </div>
     </div>
   </div>
 

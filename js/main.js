@@ -98,7 +98,7 @@ window.EI = window.EI || {};
   const PX_BUDGET = { low: 1.6e6, medium: 3.2e6, high: 4.6e6 };
   function tierPixelRatio(q) { const cap = q === 'low' ? 1 : q === 'high' ? 1.5 : 1.25; return Math.max(0.6, Math.min(window.devicePixelRatio || 1, cap, Math.sqrt(PX_BUDGET[q] / Math.max(1, window.innerWidth * window.innerHeight)))); }
   function setQuality(q) {
-    quality = q; const pr = tierPixelRatio(q); renderer.setPixelRatio(pr); if (composer) composer.setPixelRatio(pr);
+    if (q !== quality) { resScale = 1; ftEma = 16.7; } quality = q; const pr = tierPixelRatio(q); renderer.setPixelRatio(pr); if (composer) composer.setPixelRatio(pr);
     const sm = q === 'low' ? 1024 : 2048; if (sun.shadow.mapSize.x !== sm) { sun.shadow.mapSize.set(sm, sm); if (sun.shadow.map) { sun.shadow.map.dispose(); sun.shadow.map = null; } }
     renderer.shadowMap.type = q === 'low' ? THREE.PCFShadowMap : THREE.PCFSoftShadowMap;
     // the shadow box: +-70 m (+-55 m on low, where the map is 1024); the cached static shadow is rebuilt for the new settings
@@ -128,11 +128,22 @@ window.EI = window.EI || {};
     $('btn-quit').addEventListener('click', () => { setPaused(false); endRace(); });
     $('btn-again').addEventListener('click', () => { $('results').classList.add('hidden'); startRace(race.cfg); });
     $('btn-menu').addEventListener('click', () => { $('results').classList.add('hidden'); endRace(); });
+    // controls screen: the menu button, H anywhere outside a text field, Esc / the close button / a click outside to close
+    const ctl = $('controls'); const showCtl = (on) => { if (ctl) ctl.classList.toggle('hidden', !on); };
+    if ($('btn-controls')) $('btn-controls').addEventListener('click', () => showCtl(true));
+    if ($('btn-controls-close')) $('btn-controls-close').addEventListener('click', () => showCtl(false));
+    if (ctl) ctl.addEventListener('click', e => { if (e.target === ctl) showCtl(false); });
+    window.addEventListener('keydown', e => {
+      const a = document.activeElement; if (a && (a.tagName === 'INPUT' || a.tagName === 'TEXTAREA')) return;
+      const open = ctl && !ctl.classList.contains('hidden');
+      if (e.code === 'KeyH' && (!race || paused)) { showCtl(!open); e.stopImmediatePropagation(); return; }
+      if (open && e.code === 'Escape') { showCtl(false); e.stopImmediatePropagation(); }
+    }, true);
     window.addEventListener('keydown', e => {
       if (!race) return;
       if (e.code === 'Escape' || e.code === 'KeyP') { if (!resultsShown) setPaused(!paused); }
       if (e.code === 'KeyM') { const m = EI.Audio.toggleMute(); EI.HUD.toast(m ? 'Sound muted' : 'Sound on'); }
-      if (e.code === 'KeyR' && !paused) startRace(race.cfg);
+      if (e.code === 'KeyR' && !paused && race.players.length === 1) startRace(race.cfg);   // split screen: restart from the pause menu (R sits next to player 1's keys)
       if (e.code === 'KeyC') cycleCam(0); if (e.code === 'Slash') cycleCam(1);
     });
   }
@@ -159,6 +170,13 @@ window.EI = window.EI || {};
     race = new EI.Race(track, cfg);
     for (const c of race.cars) scene.add(c.group);
     viewports = race.players.map((car, k) => EI.HUD.makeViewport(k, car, race.players.length));
+    // split screen: each view shows its player's keys while the cars wait on the grid (and for a few seconds after the start)
+    if (race.players.length > 1) viewports.forEach((vp, k) => {
+      const chip = document.createElement('div'); chip.className = 'sp-keys show';
+      chip.innerHTML = k === 0 ? '<span class="ctl-pl">P1</span><span><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> drive</span><span><kbd>L.Shift</kbd> DRS</span><span><kbd>Space</kbd> ERS</span><span><kbd>C</kbd> camera</span><span><kbd>P</kbd> pit</span>'
+        : '<span class="ctl-pl">P2</span><span><kbd>&#8593;</kbd><kbd>&#8592;</kbd><kbd>&#8595;</kbd><kbd>&#8594;</kbd> drive</span><span><kbd>R.Shift</kbd>/<kbd>.</kbd> DRS</span><span><kbd>Enter</kbd> ERS</span><span><kbd>/</kbd> camera</span><span><kbd>&#9003;</kbd> pit</span>';
+      vp.el.appendChild(chip); vp.keyChip = chip;
+    });
     cameras = race.players.map(() => new THREE.PerspectiveCamera(62, 1, 0.25, 6000)); camModes = race.players.map(() => 0);
     engines = race.players.map(() => EI.Audio.createEngine());
     $('menu').classList.add('hidden'); $('results').classList.add('hidden');
@@ -215,14 +233,26 @@ window.EI = window.EI || {};
   const SPLIT_GAP = 2, SPLIT_PR = { low: 0.8, medium: 1, high: 1.1 };
   let splitPref = (() => { try { const v = localStorage.getItem('ei-split'); return v === 'tb' || v === 'sbs' ? v : 'auto'; } catch (e) { return 'auto'; } })();
   let prBase = null, prSet = null, splitDirNow = null;
+  // dynamic resolution: when frames run long (a slow GPU, two views) the render resolution steps down so the game stays
+  // responsive - input is read once per frame, so a low frame rate feels like input lag - and climbs back once there is room
+  let resScale = 1, ftEma = 16.7, ftClock = 0, ftUp = 0;
+  function adaptResolution(rawMs, dt) {
+    if (!race || paused || rawMs > 250 || document.hidden) return;
+    ftEma += (rawMs - ftEma) * 0.06; ftClock += dt; if (ftClock < 1) return; ftClock = 0;
+    const minS = cameras.length > 1 ? 0.55 : 0.65; let next = resScale;
+    if (ftEma > 21.5 && resScale > minS) { next = Math.max(minS, resScale * 0.88); ftUp = 0; }
+    else if (ftEma < 17.8 && resScale < 1) { if (++ftUp >= 3) { next = Math.min(1, resScale * 1.07); ftUp = 0; } }
+    else ftUp = 0;
+    if (Math.abs(next - resScale) > 0.005) { resScale = next; onResize(); }
+  }
   function splitDir(w, h) { return splitPref === 'tb' || splitPref === 'sbs' ? splitPref : (w / h > 2.2 ? 'sbs' : 'tb'); }
   function onResize() {
     const w = window.innerWidth, h = window.innerHeight; const n = cameras.length;
     // two views: one pixel ratio for the whole canvas, capped per preset (the two views together cover the same pixels as one)
     const cur = renderer.getPixelRatio(); if (prSet == null || cur !== prSet) prBase = cur;
-    const want = n > 1 ? Math.min(prBase, SPLIT_PR[quality] || 1) : prBase; if (want !== cur) renderer.setPixelRatio(want); prSet = want;
+    const want = Math.max(0.45, (n > 1 ? Math.min(prBase, SPLIT_PR[quality] || 1) : prBase) * resScale); if (want !== cur) renderer.setPixelRatio(want); prSet = want;
     renderer.setSize(w, h);
-    const pr = renderer.getPixelRatio(); if (composer) { composer.setSize(w, h); fxaaPass.material.uniforms.resolution.value.set(1 / (w * pr), 1 / (h * pr)); }
+    const pr = renderer.getPixelRatio(); if (composer) { if (composer.setPixelRatio) composer.setPixelRatio(pr); composer.setSize(w, h); fxaaPass.material.uniforms.resolution.value.set(1 / (w * pr), 1 / (h * pr)); }
     const rects = layout(n, w, h);
     if (particles) particles.setViewportHeight(rects[0][3] * pr);
     splitDirNow = n > 1 ? splitDir(w, h) : null;
@@ -308,10 +338,10 @@ window.EI = window.EI || {};
     const hf = 2 * Math.atan(Math.tan(vfov * D2R / 2) * 16 / 9) + (extraH || 0) * D2R;
     return U.clamp(2 * Math.atan(Math.tan(hf / 2) / cam.aspect) / D2R, 22, 74);
   }
-  // chase rig: single player as before; stacked split views are short, so the camera sits further back and a little lower and
-  // aims further down the road: the car stays low in the frame with the road ahead in view
+  // chase rig: single player as before; stacked split views are short and wide: the camera stays close (the car fills a
+  // proper part of the frame, as in one player) and aims a little further down the road
   const RIG_1P = { d0: 5.7, dv: 0.011, h0: 2.05, hv: 0.004, look: 5.5, lookY: 0.6, hx: 0 };
-  const RIG_WIDE = { d0: 9.4, dv: 0.012, h0: 2.4, hv: 0.004, look: 8, lookY: 0.5, hx: 4 };
+  const RIG_WIDE = { d0: 6.3, dv: 0.010, h0: 1.95, hv: 0.0035, look: 6.5, lookY: 0.55, hx: 0 };
   // split screen: the longer chase rig could swing out past the barriers on tight street corners (Monaco) and look through the
   // debris-fence posts. Keep the camera 1.2 m inside the wall line of the nearest track point: pushed straight back in along the
   // track normal and lifted a little, the push applied at once and eased off over ~0.3 s so it never jitters.
@@ -404,19 +434,20 @@ window.EI = window.EI || {};
   }
   // name tags above nearby cars, projected into the viewport
   function updateTags(k, cam, vp) {
-    const car = race.players[k]; const list = []; const w = vp.w, h = vp.h;
+    const car = race.players[k]; const list = []; const w = vp.w, h = vp.h; const split = cameras.length > 1; const maxD = split ? 60 : 90;
     for (const o of race.cars) {
-      if (o === car) continue; const dx = o.x - car.x, dz = o.z - car.z; const d = Math.hypot(dx, dz); if (d > 90) continue;
+      if (o === car) continue; const dx = o.x - car.x, dz = o.z - car.z; const d = Math.hypot(dx, dz); if (d > maxD) continue;
       tmp3.set(o.x, o.y + 1.4, o.z); tmp3.project(cam); if (tmp3.z > 1 || Math.abs(tmp3.x) > 1.1 || Math.abs(tmp3.y) > 1.1 || (cameras.length > 1 && tmp3.y < -0.8)) continue;   // split: no tags cut off at the bottom edge
-      list.push({ x: (tmp3.x + 1) / 2 * w, y: (1 - tmp3.y) / 2 * h, pos: o.pos, color: o.team.primary, text: o.isPlayer ? o.name : o.driver.name.split(' ').pop().toUpperCase(), alpha: U.clamp(1.3 - d / 90, 0.2, 1) });
+      list.push({ x: (tmp3.x + 1) / 2 * w, y: (1 - tmp3.y) / 2 * h, pos: o.pos, color: o.team.primary, text: o.isPlayer ? o.name : o.driver.name.split(' ').pop().toUpperCase(), alpha: U.clamp(1.3 - d / maxD, 0.2, 1) });
     }
+    if (split && list.length > 3) { list.sort((a, b) => b.alpha - a.alpha); list.length = 3; }
     vp.updateTags(list);
   }
 
   // ------------------------------------------------------------------ main loop
   function loop(now) {
     requestAnimationFrame(loop); frameNo++;
-    now = performance.now(); let dt = U.clamp((now - lastT) / 1000, 0, MAX_FRAME); lastT = now;   // never negative: a rAF timestamp can precede a lastT stamped in an input handler
+    now = performance.now(); const rawMs = now - lastT; let dt = U.clamp(rawMs / 1000, 0, MAX_FRAME); lastT = now; adaptResolution(rawMs, dt);   // never negative: a rAF timestamp can precede a lastT stamped in an input handler
     if (!race) {
       if (!loaded) return;   // nothing to draw behind the loading screen: the car model loads and parses sooner
       menuCamera(now / 1000); scenery.update(dt, cameras[0].position.x, cameras[0].position.z);
@@ -442,6 +473,7 @@ window.EI = window.EI || {};
     const hudDue = hudT > 0.05 / race.players.length; const hudK = hudDue ? (hudTurn++) % race.players.length : -1;
     race.players.forEach((car, k) => { if (k === 0 && EI.debug.freeCam) { const f = EI.debug.freeCam; cameras[0].position.set(f.pos[0], f.pos[1], f.pos[2]); cameras[0].lookAt(f.look[0], f.look[1], f.look[2]); cameras[0].fov = f.fov || 50; cameras[0].updateProjectionMatrix(); } else placeCamera(cameras[k], car, k, false, dt); if (k === hudK) { viewports[k].update(race, 0.05); updateTags(k, cameras[k], viewports[k]); drawWheelScreen(car, race.deltaBest(car)); } if (engines[k]) { const idleBlip = !race.started ? (Math.sin(performance.now() * 0.004 + k) > 0.6 ? 0.5 : 0.08) : 0; EI.Audio.setEngine(engines[k], race.started ? car.rpm : 0.15 + idleBlip * 0.8, race.started ? car.throttle : idleBlip, paused ? 0 : (CAM_MODES[camModes[k]] === 'cockpit' ? 1.3 : 1), car.gear); } });
     if (hudDue) hudT = 0;
+    for (const vp of viewports) if (vp.keyChip) { const on = !race.started || race.time < 4; if (on !== vp.keyChipOn) { vp.keyChipOn = on; vp.keyChip.classList.toggle('show', on); } }
     if (race.over && !resultsShown && race.classified) { resultsShown = true; EI.HUD.showResults(race); if (race.players.length > 1) markResultPlayers(); }
     const split = cameras.length > 1;
     if (!split) {
@@ -569,6 +601,7 @@ window.EI = window.EI || {};
   }
   EI.debug = { get shake() { return shake; }, set shake(v) { shake = v; }, get introT() { return introT; }, set introT(v) { introT = v; }, get viewports() { return viewports; }, setQuality, snapCameras: () => race && race.players.forEach((car, k) => placeCamera(cameras[k], car, k, true, 0)), setCam: (k, m) => { camModes[k] = m; }, get race() { return race; }, get track() { return track; }, get scenery() { return scenery; }, get scene() { return scene; }, get cameras() { return cameras; }, renderer: () => renderer, startRace, endRace };
   EI.debug.shadowCacheState = SHC;
+  Object.defineProperty(EI.debug, 'resScale', { get: () => resScale });
   EI.debug.placeCam = (k, dt) => race && placeCamera(cameras[k], race.players[k], k, false, dt);   // test hook: one camera update
   window.addEventListener('DOMContentLoaded', () => { (EI.Ads ? EI.Ads.ready() : Promise.resolve()).then(() => setTimeout(init, 30)); });
 })();
