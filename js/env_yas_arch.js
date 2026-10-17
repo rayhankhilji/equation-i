@@ -110,7 +110,7 @@ window.EI = window.EI || {};
   // front edge, downlight glows and floods on the stand and the track
   const fabric = C(0xf6f5f1), fabricU = C(0xf1ead9), steel = C(0xc9ced3), warm = C(0xfff0d6);
   function sailRow(B, LN, m, x0, x1, zF, zB, yB, lift, Pk, aimW, lightPow) {
-    const L = x1 - x0, nm = Math.max(1, Math.round(L / 13)), w = L / nm; const eU = isNight() ? 0.32 : 0;
+    const L = x1 - x0, nm = Math.max(1, Math.round(L / 13)), w = L / nm; const eU = isNight() ? 0.2 : 0;
     const hf = (u, v) => { const du = Math.abs(u - 0.5) * 2; const pf = Math.max(0, 1 - Math.pow(du, 1.6)) * Math.max(0, 1 - Math.pow((v - 0.42) / 0.58, 2)); return yB + lift * Math.pow(1 - v, 1.3) + Pk * pf; };
     const cable = C(0xb8bec4); const mastTop = yB + Pk + 4.5, zM = zB + 0.8;
     for (let k = 0; k < nm; k++) {
@@ -134,9 +134,9 @@ window.EI = window.EI || {};
     for (const b of blocks) {
       const m = EI.Env.frame(b.cx, b.y, b.cz, b.ax, b.az, b.nx, b.nz); const hl = b.len / 2, rows = b.rows;
       const yTop = 1.4 + rows * 0.42, zBack = 0.4 + rows * 0.82;
-      sailRow(B, LN, m, -hl - 0.3, hl + 0.3, -4.2, zBack + 1.4, yTop + 3.4, 3.6, 3.0, [-b.nx, -b.nz], 0.32); n++;
+      sailRow(B, LN, m, -hl - 0.3, hl + 0.3, -4.2, zBack + 1.4, yTop + 3.4, 3.6, 3.0, [-b.nx, -b.nz], 0.16); n++;
       // a second, weaker flood back over the crowd
-      flood(xf(m, 0, yTop + 4, zBack * 0.5), { power: 0.1 * Math.max(1, b.len / 25), range: 40 });
+      flood(xf(m, 0, yTop + 4, zBack * 0.5), { power: 0.05 * Math.max(1, b.len / 25), range: 40 });
     }
     return n;
   }
@@ -187,10 +187,10 @@ window.EI = window.EI || {};
     for (let s = S0; s < S1; s += 40) {
       const s2 = Math.min(S1, s + 40); const f = lapFrame(t, t.sf + (s + s2) / 2, side);
       const m = EI.Env.frame(f.x, f.y, f.z, f.tx, f.tz, f.nx, f.nz);
-      sailRow(B, LN, m, -(s2 - s) / 2 - 0.2, (s2 - s) / 2 + 0.2, latC + 1, L1 + 2, 21.5, 5.5, 3.2, [-f.nx, -f.nz], 0.55);
+      sailRow(B, LN, m, -(s2 - s) / 2 - 0.2, (s2 - s) / 2 + 0.2, latC + 1, L1 + 2, 21.5, 5.5, 3.2, [-f.nx, -f.nz], 0.14);
     }
     // the pit lane itself under the canopy
-    for (let s = S0 + 10; s < S1; s += 22) flood(P(s, latC + 4, 24), { power: 0.4, aim: [-lapFrame(t, t.sf + s, side).nx, -lapFrame(t, t.sf + s, side).nz], spread: 1.2, range: 60 });
+    for (let s = S0 + 10; s < S1; s += 33) flood(P(s, latC + 4, 24), { power: 0.12, aim: [-lapFrame(t, t.sf + s, side).nx, -lapFrame(t, t.sf + s, side).nz], spread: 1.2, range: 60 });
     out.pit = { latC: +latC.toFixed(1), L0: +L0.toFixed(1), L1: +L1.toFixed(1) };
     return { latC, L0, L1, P };
   }

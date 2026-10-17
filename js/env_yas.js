@@ -1,5 +1,6 @@
 // Equation I - Yas Marina (Abu Dhabi) landmarks: the W hotel and its LED gridshell over the track, Ferrari World's red roof,
-// the marina and its yachts, the race control tower, the floodlight towers. Built for track data kind 'desert'.
+// the marina and its yachts, the Etihad Arena; the circuit architecture (stand sails, pit building, paddock, control towers,
+// floodlight towers) is in env_yas_arch.js and the fan zone in env_yas_fan.js. Built for track data kind 'desert'.
 // Static pieces go through the street kit's shared atlas / batched world (one material, a draw call per visible cell); the
 // gridshell is its own mesh (no shadow), the floodlights two instanced meshes.
 window.EI = window.EI || {};
@@ -200,6 +201,10 @@ window.EI = window.EI || {};
       // the skin's glow lights the track and the marina under it
       const hc = centroid(doms[0]); EI.Night.addFlood(hc[0], yBase + 30, hc[1], { power: 0.5, range: 110, color: [0.7, 0.45, 1.0] });
       if (br) { const bc = centroid(br.p); EI.Night.addFlood(bc[0], yBase + 12, bc[1], { power: 0.35, range: 50, color: [0.85, 0.6, 1.0] }); }
+      // the track through the hotel: banks of lights under the wings' soffits and the bridge (the floodlight towers keep clear of
+      // the building), every ~28 m through the hotel section
+      const hs = []; for (let s = 0; s < t.length; s += 4) { const i = t.idxAtS(s); for (const p of doms) if (polyDist(t.x[i], t.z[i], p) < 45) { hs.push(s); break; } }
+      let last = -1e9; for (const s of hs) if (s - last >= 28) { last = s; const i = t.idxAtS(s); EI.Night.addFlood(t.x[i], t.y[i] + 14, t.z[i], { power: 0.7, range: 60, color: [1.0, 0.95, 0.9] }); for (const sd of [-1, 1]) { const w = (sd < 0 ? t.wallL[i] : t.wallR[i]) + 1; EI.Night.addGlow(t.x[i] + t.nx[i] * sd * w, t.y[i] + 9, t.z[i] + t.nz[i] * sd * w, 2.2, [1, 0.95, 0.88]); } }
     }
     out.shell = { quads: nq, bridgeY };
   }
@@ -224,23 +229,6 @@ window.EI = window.EI || {};
     W.add(B, 'main'); out.ferrariTris = B.count / 3;
   }
 
-  // ================================================================ race control tower at Turn 1 and the pit building's glazed upper levels
-  function buildTower(E, W, R, out) {
-    const t = E.t; const tw = t.data.scenery.buildings.filter(b => b.n === 'Control Tower'); const B = new (SKx().Batch)();
-    for (const b of tw) {
-      const p = b.p; const c = centroid(p); let y0 = Infinity; for (const q of p) y0 = Math.min(y0, E.ground(q[0], q[1])); y0 -= 0.3;
-      const sc = (k) => p.map(q => [c[0] + (q[0] - c[0]) * k, c[1] + (q[1] - c[1]) * k]);
-      B.set(R.stone, 0.7, 0); prism(B, p, y0, y0 + 7, C(0xf4f1ea), 16, 8, C(0xcfcac0), 'white');
-      B.set('white', 0.6, 0.05); prism(B, sc(0.45), y0 + 7, y0 + 27, C(0xf2f2ef), 8, 8);
-      B.set(R.glass, 0.15, 0.2); const cab = sc(0.85), cab2 = sc(1.0); // control room leaning out
-      for (let i = 0; i < cab.length; i++) { const a = cab[i], bb = cab[(i + 1) % cab.length], A2 = cab2[i], B2 = cab2[(i + 1) % cab.length]; const [nx, nz] = outN(cab, a, bb); wallQuad(B, [a[0], y0 + 27, a[1]], [bb[0], y0 + 27, bb[1]], [B2[0], y0 + 34, B2[1]], [A2[0], y0 + 34, A2[1]], nx, nz, C(0xffffff), [0, 0, 1, 0, 1, 0.6, 0, 0.6]); }
-      B.set('white', 0.5, 0.1); cap(B, cab, y0 + 27, C(0xe8e8e4), false); prism(B, sc(1.06), y0 + 34, y0 + 35.2, C(0xf6f6f2), 8, 8, C(0xc9ccd0));
-      B.col(new THREE.Matrix4(), c[0], c[1], y0 + 35.2, y0 + 47, 0.25, 0.12, 6, C(0xd6d9dc), true);
-    }
-    W.add(B, 'main'); out.towerTris = B.count / 3;
-  }
-
-
   // ================================================================ Etihad Arena: silver fins round a glazed drum, a shallow dome
   function buildArena(E, W, R, out) {
     const b = E.t.data.scenery.buildings.find(q => q.n === 'Etihad Arena'); if (!b) return; const B = new (SKx().Batch)(); const p = b.p;
@@ -251,44 +239,6 @@ window.EI = window.EI || {};
     let prev = p.map(q => [q[0], y0 + h, q[1]]);
     for (const [k, y] of rings) { const cur = p.map(q => [c[0] + (q[0] - c[0]) * k, y0 + y, c[1] + (q[1] - c[1]) * k]); for (let i = 0; i < p.length; i++) { const j = (i + 1) % p.length; const A = prev[i], Bq = prev[j], Cq = cur[j], D = cur[i]; B.quad(A, Bq, Cq, D, C(0xdfe3e6)); B.quad(A, D, Cq, Bq, C(0xdfe3e6)); } prev = cur; }
     W.add(B, 'main'); out.arenaTris = B.count / 3;
-  }
-
-  // ================================================================ floodlight towers round the circuit
-  function buildFloodlights(E, out) {
-    const t = E.t, sc = E.sc, OCC = EI.Env.OCC; const spots = []; const L = t.length;
-    const near = (x, z, r) => spots.some(s => Math.hypot(s[0] - x, s[2] - z) < r);
-    for (let s = 20; s < L; s += 125) for (const side of [1, -1]) {
-      for (const off of [14, 22, 30, 9]) {
-        const i = t.idxAtS(s + (side > 0 ? 0 : 62)); const wall = side < 0 ? t.wallL[i] : t.wallR[i]; const d = wall + off;
-        const x = t.x[i] + t.nx[i] * side * d, z = t.z[i] + t.nz[i] * side * d;
-        if (E.occAt(x, z) & (OCC.BUILT | OCC.ROAD | OCC.WATER)) continue; if (E.isSea && E.isSea(x, z)) continue;
-        const pr = t.project(x, z, null); if (pr.dist < Math.max(t.wallL[pr.i], t.wallR[pr.i]) + 6) continue; if (near(x, z, 60)) continue;
-        // face the track
-        spots.push([x, E.ground(x, z), z, Math.atan2(-(t.nx[i] * side), -(t.nz[i] * side))]); break;
-      }
-    }
-    if (!spots.length) return;
-    // the pylon (tapered column, the lamp bank's frame and platform tilted down at the track) and the lamp faces: two instanced meshes
-    const H = 34, tilt = new THREE.Matrix4().makeRotationX(0.32), top = new THREE.Matrix4().makeTranslation(0, H + 1.2, 0);
-    const col = new THREE.CylinderGeometry(0.32, 0.7, H, 6, 1); col.translate(0, H / 2, 0);
-    const head = new THREE.BoxGeometry(6.2, 2.8, 0.45); head.translate(0, 0, 0.35); const plat = new THREE.BoxGeometry(6.8, 0.22, 1.5); plat.translate(0, -1.6, 0.3);
-    for (const g of [head, plat]) { g.applyMatrix4(tilt); g.applyMatrix4(top); }
-    const pylon = EI.Env.merge([col, head, plat]);
-    const lamps = new THREE.PlaneGeometry(5.8, 2.4); lamps.translate(0, 0, 0.62); lamps.applyMatrix4(tilt); lamps.applyMatrix4(top);
-    const mPy = new THREE.MeshStandardMaterial({ color: 0x9ea4aa, roughness: 0.5, metalness: 0.6 });
-    // the lamp bank: rows of round reflectors in a dark frame, lit
-    const [lc, lx] = EI.Env.canvas(128, 64); lx.fillStyle = '#1c1f23'; lx.fillRect(0, 0, 128, 64);
-    for (let r = 0; r < 3; r++) for (let k = 0; k < 7; k++) { const cx = 10 + k * 18, cy = 11 + r * 21; const g = lx.createRadialGradient(cx, cy, 1, cx, cy, 8); g.addColorStop(0, '#ffffff'); g.addColorStop(0.5, '#fff1d0'); g.addColorStop(1, '#5a5040'); lx.fillStyle = g; lx.beginPath(); lx.arc(cx, cy, 7.5, 0, 6.283); lx.fill(); }
-    const lt = new THREE.CanvasTexture(lc); lt.encoding = THREE.sRGBEncoding; lt.anisotropy = 4;
-    const mLamp = new THREE.MeshBasicMaterial({ map: lt, color: new THREE.Color(1.0, 0.95, 0.85).multiplyScalar(1.6), toneMapped: false });
-    const n = spots.length; const iPy = new THREE.InstancedMesh(pylon, mPy, n), iL = new THREE.InstancedMesh(lamps, mLamp, n);
-    const m = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler(), p = new THREE.Vector3(), s1 = new THREE.Vector3(1, 1, 1);
-    spots.forEach((sp, k) => { const [x, y, z, yaw] = sp; e.set(0, yaw, 0); q.setFromEuler(e); m.compose(p.set(x, y - 0.2, z), q, s1); iPy.setMatrixAt(k, m); iL.setMatrixAt(k, m); });
-    // instanced meshes cull by their geometry's bounds: give them the whole ring
-    const bb = new THREE.Box3(); for (const sp of spots) bb.expandByPoint(p.set(sp[0], sp[1], sp[2])); bb.max.y += H + 6; const bs = bb.getBoundingSphere(new THREE.Sphere());
-    for (const im of [iPy, iL]) { im.instanceMatrix.needsUpdate = true; im.castShadow = false; im.receiveShadow = false; im.geometry.boundingSphere = bs.clone(); }
-    iPy.name = 'yasFloodPylons'; iL.name = 'yasFloodLamps';
-    sc.group.add(iPy); sc.group.add(iL); out.floodlights = n;
   }
 
   // ================================================================ the marina: Gulf-blue water, quays and moored yachts

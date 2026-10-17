@@ -10,16 +10,17 @@ window.EI = window.EI || {};
   const isNight = () => !!(EI.Night && EI.Night.on);
   const xf = (m, x, y, z) => EI.Env.xf(m, x, y, z);
 
+  function polyD(x, z, p) { let d = Infinity; for (let i = 0; i < p.length; i += 2) d = Math.min(d, Math.hypot(p[i][0] - x, p[i][1] - z)); return d; }
   // ---------------------------------------------------------------- the site: a clear 140 x 100 m rectangle, as close as possible
   // to the hairpin (the North Grandstand) without touching the track, buildings, roads, water or car parks
   function findSite(E) {
     const t = E.t, OCC = EI.Env.OCC; let hp = null;
     for (const c of t.data.corners) if (/Hairpin/.test(c.name)) hp = t.idxAtS(c.s + 40);
     if (hp == null) hp = t.idxAtS(t.length * 0.25);
-    const ox = t.x[hp], oz = t.z[hp]; const mask = OCC.BUILT | OCC.ROAD | OCC.WATER | OCC.PARK; let best = null;
+    const FP = E.data.ferrari; const ox = t.x[hp], oz = t.z[hp]; const mask = OCC.BUILT | OCC.ROAD | OCC.WATER | OCC.PARK; let best = null;
     for (let r = 120; r <= 900; r += 30) for (let a = 0; a < 24; a++) {
       const ang = a / 24 * Math.PI * 2; const cx = ox + Math.cos(ang) * r, cz = oz + Math.sin(ang) * r;
-      if (E.isSea && E.isSea(cx, cz)) continue; if (E.fAt(cx, cz) < 70) continue;
+      if (E.isSea && E.isSea(cx, cz)) continue; if (E.fAt(cx, cz) < 70) continue; if (FP && (U.pointInPoly(cx, cz, FP) || polyD(cx, cz, FP) < 150)) continue;
       for (const yaw of [0, Math.PI / 4, Math.PI / 2, -Math.PI / 4]) {
         const ax = Math.cos(yaw), az = Math.sin(yaw);
         if (E.rectFree(cx, cz, ax, az, 70, 50, mask, 45) < 0.97) continue;
@@ -51,7 +52,7 @@ window.EI = window.EI || {};
     '#ifdef USE_INSTANCING_COLOR', 'c = instanceColor;', '#endif', 'vC = c;',
     '  vec4 p = vec4(position, 1.0);', '#ifdef USE_INSTANCING', 'p = instanceMatrix * p;', '#endif',
     '  gl_Position = projectionMatrix * modelViewMatrix * p; }'].join('\n');
-  const BEAM_F = 'varying float vL; varying vec3 vC; varying float vR; void main() { float a = pow(1.0 - clamp(vL, 0.0, 1.0), 1.6) * 0.3; gl_FragColor = vec4(vC * a, 1.0); }';
+  const BEAM_F = 'varying float vL; varying vec3 vC; varying float vR; void main() { float a = pow(1.0 - clamp(vL, 0.0, 1.0), 2.0) * 0.11; gl_FragColor = vec4(vC * a, 1.0); }';
 
   Fan.build = function (E, H, out) {
     const site = findSite(E); if (!site) { out.fan = 'no site'; return; }
@@ -97,7 +98,7 @@ window.EI = window.EI || {};
     const sm = new THREE.Mesh(sg, smat); sm.name = 'yasFanScreens'; sc.group.add(sm);
     // side screen supports
     // ---- moving-head beams from the roof truss
-    const NB = 12; const cone = new THREE.CylinderGeometry(0.0, 0.075, 1, 10, 1, true);   // apex at the lamp after the turn below cone.rotateX(-Math.PI / 2); cone.translate(0, 0, 0.5);
+    const NB = 12; const cone = new THREE.CylinderGeometry(0.0, 0.04, 1, 10, 1, true);   // apex at the lamp after the turn below cone.rotateX(-Math.PI / 2); cone.translate(0, 0, 0.5);
     const bmat = new THREE.ShaderMaterial({ vertexShader: BEAM_V, fragmentShader: BEAM_F, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide });
     bmat.userData.nightEmissive = true;
     const beams = new THREE.InstancedMesh(cone, bmat, NB); beams.name = 'yasFanBeams'; beams.frustumCulled = false;
@@ -138,6 +139,17 @@ window.EI = window.EI || {};
     crowd.instanceMatrix.needsUpdate = true; crowd.instanceColor.needsUpdate = true; crowd.castShadow = false; crowd.receiveShadow = false;
     crowd.geometry = crowd.geometry.clone(); crowd.geometry.boundingSphere = new THREE.Sphere(new THREE.Vector3(cx, y + 1, cz), 80);
     sc.group.add(crowd);
+    // far crowd: one 12-triangle block per person (same transforms and colours), and nothing beyond the fog; the switch rides the
+    // scenery's per-frame level-of-detail hook (the eye position), so the detailed crowd only draws within ~380 m
+    const blk = new THREE.BoxGeometry(0.42, 1.7, 0.3); blk.translate(0, 0.85, 0);
+    const farMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.85, metalness: 0 });
+    const far = new THREE.InstancedMesh(blk, farMat, spots.length); far.name = 'yasFanCrowdFar';
+    for (let k = 0; k < spots.length; k++) { crowd.getMatrixAt(k, M); far.setMatrixAt(k, M); }
+    far.instanceColor = crowd.instanceColor; far.instanceMatrix.needsUpdate = true; far.castShadow = false; far.receiveShadow = false;
+    far.geometry.boundingSphere = new THREE.Sphere(new THREE.Vector3(cx, y + 1, cz), 80); sc.group.add(far);
+    const NEAR = 380, FAR = 1200; crowd.visible = false; far.visible = false;
+    const lod = (x, z) => { const d = Math.hypot(x - cx, z - cz); crowd.visible = d < NEAR; far.visible = d >= NEAR && d < FAR; beams.visible = night && d < 2600; sm.visible = d < 2000; };
+    sc.nearFar = sc.nearFar || []; sc.nearFar.push({ far: { range() {}, update: lod }, near: { range() {}, update() {} } });
     // ---- lights: stage wash floods (coloured), truss lamps, house lights over the crowd
     if (night) {
       const N = EI.Night;

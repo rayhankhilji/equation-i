@@ -644,3 +644,5 @@ body.split2 #pitui .pt { margin-top: 10px; }
 /* resolution setting in the pause card */
 .small-card .pause-res { margin-top: 6px; }
 .small-card .pause-res select { width: 100%; }
+/* the main menu's footer: the CONTROLS button and screen replace the old one-line key hints (they wrapped into a tall column) */
+#menu .menu-actions > .keys-hint { display: none; }

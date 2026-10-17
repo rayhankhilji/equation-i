@@ -109,7 +109,7 @@ window.EI = window.EI || {};
   const PX_BUDGET = { low: 1.6e6, medium: 3.2e6, high: 4.6e6 };
   function tierPixelRatio(q) { const cap = q === 'low' ? 1 : q === 'high' ? 1.5 : 1.25; return Math.max(0.6, Math.min(window.devicePixelRatio || 1, cap, Math.sqrt(PX_BUDGET[q] / Math.max(1, window.innerWidth * window.innerHeight)))); }
   function setQuality(q) {
-    if (q !== quality) { autoLv = 0; ftEma = 16.7; lockUpUntil = 0; } quality = q; const pr = tierPixelRatio(q); renderer.setPixelRatio(pr);
+    if (q !== quality || !setQuality.done) { quality = q; autoLv = loadLv(); ftEma = 16.7; lockUpUntil = 0; setQuality.done = true; } quality = q; const pr = tierPixelRatio(q); renderer.setPixelRatio(pr);
     const sm = q === 'low' ? 1024 : 2048; if (sun.shadow.mapSize.x !== sm) { sun.shadow.mapSize.set(sm, sm); if (sun.shadow.map) { sun.shadow.map.dispose(); sun.shadow.map = null; } }
     // shadow filtering: PCF (9 taps) with a little blur radius on low / medium, the 16-tap soft PCF on high - near the same soft
     // edge for about half the shadow cost per pixel
@@ -262,6 +262,11 @@ window.EI = window.EI || {};
   let resPref = (() => { try { const v = localStorage.getItem('ei-res'); return v && RES_OPTS[v] != null ? v : 'auto'; } catch (e) { return 'auto'; } })();
   const LEVELS = [{ s: 1, msaa: true }, { s: 1, msaa: false }, { s: 0.9 }, { s: 0.82 }, { s: 0.75 }, { s: 0.68 }];
   let autoLv = 0, ftEma = 16.7, ftClock = 0, ftUp = 0, lockUpUntil = 0, lastUpAt = -1e9;
+  // the level Auto settled on is remembered per preset, so a slow machine starts the next race there instead of stuttering
+  // through the first seconds while it steps down again
+  const lvKey = () => 'ei-autolv-' + quality;
+  const loadLv = () => { try { const v = +localStorage.getItem(lvKey()); return v >= 0 && v < LEVELS.length ? v : 0; } catch (e) { return 0; } };
+  const saveLv = () => { try { localStorage.setItem(lvKey(), String(autoLv)); } catch (e) { } };
   // internal scale (of the canvas resolution) and whether the target is multisampled
   function viewState() {
     const lv = LEVELS[Math.min(autoLv, LEVELS.length - 1)];
@@ -275,10 +280,12 @@ window.EI = window.EI || {};
     if (!race || paused || rawMs > 250 || document.hidden || resPref !== 'auto') return;
     ftEma += (rawMs - ftEma) * 0.06; ftClock += dt; if (ftClock < 1) return; ftClock = 0;
     const now = performance.now(), maxLv = cameras.length > 1 ? 5 : 4; let lv = autoLv;
-    if (ftEma > 21.5 && lv < maxLv) { lv++; ftUp = 0; if (now - lastUpAt < 6000) lockUpUntil = now + 30000; }   // a step up that did not hold: stay down a while
-    else if (ftEma < 17.6 && lv > 0 && now > lockUpUntil) { if (++ftUp >= 4) { lv--; ftUp = 0; lastUpAt = now; } }
+    // on a 60 Hz screen frames come in 16.7 / 33.3 ms steps: an average over ~19 ms means about one frame in seven misses the
+    // refresh - noticeable as judder and input lag - so step down; step back up only when nearly every frame makes it
+    if (ftEma > 19 && lv < maxLv) { lv++; ftUp = 0; if (now - lastUpAt < 6000) lockUpUntil = now + 30000; }   // a step up that did not hold: stay down a while
+    else if (ftEma < 17.2 && lv > 0 && now > lockUpUntil) { if (++ftUp >= 4) { lv--; ftUp = 0; lastUpAt = now; } }
     else ftUp = 0;
-    if (lv !== autoLv) { autoLv = lv; onResize(); }
+    if (lv !== autoLv) { autoLv = lv; saveLv(); onResize(); }
   }
   const PIPE = { rt: null, maxSamples: 0, scene: null, cam: null, mat: null, w: 0, h: 0, sc: 1, msaa: false, open: false };
   function pipeInit() {
@@ -333,7 +340,7 @@ window.EI = window.EI || {};
     PIPE.mat.uniforms.tDiffuse.value = PIPE.rt.texture; PIPE.mat.uniforms.uTexel.value.set(1 / w, 1 / h);
     PIPE.mat.uniforms.uFxaa.value = st.msaa ? 0 : 1;
     // sharpening: none at native resolution with MSAA, a touch with FXAA (it softens), more the further the upscale
-    PIPE.mat.uniforms.uSharp.value = st.sc >= 0.999 ? (st.msaa ? 0 : 0.25) : U.clamp(0.35 + (1 - st.sc) * 1.6, 0, 1);
+    PIPE.mat.uniforms.uSharp.value = st.sc >= 0.999 ? (st.msaa ? 0 : 0.25) : U.clamp(0.35 + (1 - st.sc) * 1.2, 0, 1);
   }
   // draw one view into the offscreen target (rect in CSS pixels, null = the whole screen); the target is cleared on the first
   // view of the frame. Shadow maps, mirrors and the shadow cache render into their own targets and restore this one.
@@ -352,7 +359,7 @@ window.EI = window.EI || {};
     renderer.setRenderTarget(null); renderer.setScissorTest(false); renderer.setViewport(0, 0, window.innerWidth, window.innerHeight);
     renderer.render(PIPE.scene, PIPE.cam);
   }
-  function setRes(v) { if (RES_OPTS[v] == null) return; resPref = v; try { localStorage.setItem('ei-res', v); } catch (e) { } autoLv = 0; lockUpUntil = 0; ftEma = 16.7; if (renderer) onResize(); }
+  function setRes(v) { if (RES_OPTS[v] == null) return; resPref = v; try { localStorage.setItem('ei-res', v); } catch (e) { } autoLv = 0; saveLv(); lockUpUntil = 0; ftEma = 16.7; if (renderer) onResize(); }
   function splitDir(w, h) { return splitPref === 'tb' || splitPref === 'sbs' ? splitPref : (w / h > 2.2 ? 'sbs' : 'tb'); }
   function onResize() {
     const w = window.innerWidth, h = window.innerHeight; const n = cameras.length;
