@@ -298,10 +298,12 @@ window.EI = window.EI || {};
     // highest the ground may stand at (x, z): a terrain triangle that covers a road point has its corners within one cell diagonal
     // (17 m on the 12 m grid), so every vertex that close to a stretch's barrier stays under that stretch's road surface
     groundCap(x, z) {
-      // conservative: the lowest road level among the four distance-field cells round the point (no blending between stretches)
+      // conservative: the lowest road level among the four distance-field cells round the point (no blending between stretches),
+      // flat for the first 12 m beyond a stretch's barrier, then rising 1.5 m per metre: where a lower stretch runs beside a higher one
+      // (Portier below the Grand Hotel hairpin) the ground banks up between them instead of leaving the upper road over a pit
       let cap = Infinity; const R = 18; const fx = (x + DHALF) / DG, fz = (z + DHALF) / DG; if (fx < 0 || fz < 0 || fx >= DN - 1 || fz >= DN - 1) return cap;
-      const k0 = (fz | 0) * DN + (fx | 0);
-      for (const k of [k0, k0 + 1, k0 + DN, k0 + DN + 1]) { if (this.dF[k] < R + 8) cap = Math.min(cap, this.dY1[k]); if (this.dF2[k] < R + 8) cap = Math.min(cap, this.dY2[k]); }
+      const k0 = (fz | 0) * DN + (fx | 0); const up = (d) => Math.max(0, d - 12) * 1.5;
+      for (const k of [k0, k0 + 1, k0 + DN, k0 + DN + 1]) { if (this.dF[k] < R + 8) cap = Math.min(cap, this.dY1[k] + up(this.dF[k])); if (this.dF2[k] < R + 8) cap = Math.min(cap, this.dY2[k] + up(this.dF2[k])); }
       return cap - 0.35;
     }
     isSea(x, z) {
@@ -563,11 +565,13 @@ window.EI = window.EI || {};
     const pos = new Float32Array(W * W * 3), col = new Float32Array(W * W * 3), uv = new Float32Array(W * W * 2);
     const heights = new Float32Array((KIN * 2 + 1) * (KIN * 2 + 1)); const HW = KIN * 2 + 1;
     const tmp = new THREE.Color(), cell = {}; const inner = [Env.SPAL.city[0], Env.SPAL.city[1], Env.SPAL.city[2]];
-    // exact road cap for the vertices near the circuit: under every road sample within its barrier + one cell diagonal
+    // exact road cap for the vertices near the circuit: under every road sample within its barrier + one cell diagonal (nearly flat
+    // for 14 m past the barrier, so further samples down a slope don't drag the ground below the road beside them, then banking up
+    // 1.5:1 so a higher stretch beside a lower one keeps its ground; a 17 m triangle never lifts above the road inside the barrier)
     let roadCap = null;
     if (fine) {
       const t = this.t, HC = 32, hashT = new Map(); for (let j = 0; j < t.n; j++) { const key = Math.floor(t.x[j] / HC) + ',' + Math.floor(t.z[j] / HC); let l = hashT.get(key); if (!l) hashT.set(key, l = []); l.push(j); }
-      roadCap = (x, z) => { let cap = Infinity; const gx = Math.floor(x / HC), gz = Math.floor(z / HC); for (let a = -1; a <= 1; a++) for (let b = -1; b <= 1; b++) { const l = hashT.get((gx + a) + ',' + (gz + b)); if (!l) continue; for (const j of l) { const r = Math.max(t.wallL[j], t.wallR[j]) + GS * 1.5; const dx = x - t.x[j], dz = z - t.z[j]; if (dx * dx + dz * dz < r * r && t.y[j] < cap) cap = t.y[j]; } } return cap - 0.35; };
+      roadCap = (x, z) => { let cap = Infinity; const gx = Math.floor(x / HC), gz = Math.floor(z / HC); for (let a = -1; a <= 1; a++) for (let b = -1; b <= 1; b++) { const l = hashT.get((gx + a) + ',' + (gz + b)); if (!l) continue; for (const j of l) { const wj = Math.max(t.wallL[j], t.wallR[j]), r = wj + GS * 1.5; const dx = x - t.x[j], dz = z - t.z[j]; const d2 = dx * dx + dz * dz; if (d2 < r * r) { const e = Math.max(0, Math.sqrt(d2) - wj); const c = t.y[j] + (e < 14 ? e * 0.12 : 1.68 + (e - 14) * 1.5); if (c < cap) cap = c; } } } return cap - 0.35; };
     }
     for (let j = 0; j < W; j++) for (let i = 0; i < W; i++) {
       const x = gridPos(i - K, KIN, GS), z = gridPos(j - K, KIN, GS); const k = j * W + i;

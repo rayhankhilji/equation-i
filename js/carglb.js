@@ -1193,7 +1193,10 @@ window.EI = window.EI || {};
     const full = lo ? 1024 : 2048; let tex = texCache[liveryKey(car.team, car.num, code, full)];
     if (!tex) tex = composeLivery(car.team, car.num, code, lo && !CarGLB.syncLiveries ? 512 : full);
     const paint = paintMaterial(tex), lm = lodMaterial(tex, car, T), U = lm.userData.u;
-    if (tex.image.width < liverySize(car.team, full)) jobs.push({ car, code, size: full, apply: (t) => { paint.map = t; lm.map = t; } });
+    if (tex.image.width < liverySize(car.team, full)) {
+      jobs.push({ car, code, size: full, apply: (t) => { paint.map = t; lm.map = t; } });
+      posMap(Math.min(liverySize(car.team, full), 2048));   // rasterised now, at the race build, not in the first upgrade mid-race
+    }
     if (!shared._floor) shared._floor = carbonMaterial({ dark: 0x010102, light: 0x07080a, clearcoat: 0.18, env: 0.22, ckMask: 0 });
     const g = new THREE.Group(); const body = new THREE.Group(); g.add(body);
     const mk = (geo, mat, parent, name) => { const m = new THREE.Mesh(geo, mat); m.name = name; m.castShadow = false; m.receiveShadow = false; parent.add(m); return m; };

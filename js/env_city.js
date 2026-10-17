@@ -1473,7 +1473,7 @@ window.EI = window.EI || {};
     if (aw) for (let k = 0; k < best.length; k++) { const a = best[k], b = best[(k + 1) % best.length], A = aw[k], B = aw[(k + 1) % best.length]; const L = Math.hypot(b[0] - a[0], b[1] - a[1]); G.quad([B[0], yA - 0.7, B[1]], [A[0], yA - 0.7, A[1]], [a[0], yA, a[1]], [b[0], yA, b[1]], null, [0, 0, L / 3, 0, L / 3, 1, 0, 1], WHITE, cell('awn')); G.quad([b[0], yA, b[1]], [a[0], yA, a[1]], [A[0], yA - 0.7, A[1]], [B[0], yA - 0.7, B[1]], null, [0, 0, L / 3, 0, L / 3, 1, 0, 1], scaleC(WHITE, 0.55), cell('awn')); }
     G.sub = 0;
   }
-  City.extras = function (E, G) { pool(E, G); hairpin(E, G); casinoGarden(E, G); streetWalls(E, G); rocherCliffs(E, G); };
+  City.extras = function (E, G) { pool(E, G); hairpin(E, G); casinoGarden(E, G); streetWalls(E, G); rocherCliffs(E, G); dropWalls(E, G); };
 
   // ================================================================ pavements along the barriers (block paving, granite kerb) and retaining walls
   function pavements(E, G) {
@@ -1583,6 +1583,42 @@ window.EI = window.EI || {};
       const lawn = casinoLawn(E); if (lawn) { ctx.fillStyle = 'rgb(76,112,46)'; path(lawn); ctx.fill(); }
     };
   };
+
+  // ---- the circuit's own embankments: where the ground falls away just behind a barrier (the Grand Hotel hairpin approach runs 14 m
+  // beside Portier and 15 m above it), a stone wall carries the road edge down to the ground, so no stretch floats over a void
+  function dropWalls(E, G) {
+    const t = E.t, sc = E.sc, n = t.n; const TD = t.data.tunnel; const stC = cell('stone'), capC = cell('conc'), col = C(0xe2d7c4), capCol = C(0xd8d2c6); let walls = 0;
+    const water = (t.data.scenery.water || []).filter(w => w.length > 2); const wet = (x, z) => { if (E.isSea(x, z)) return true; for (const w of water) if (pip(x, z, w)) return true; return false; };
+    // where the verge runs out from the barrier it drapes down the slope itself (track.js); the walls go where it can't
+    const VW = t.streetVergeWidths ? t.streetVergeWidths() : null;
+    for (const side of [-1, 1]) {
+      let prev = null, u = 0;
+      for (let i = 0; i <= n; i++) {
+        const ii = i % n, s = t.s[ii]; let cur = null;
+        if (!(TD && s > TD.s0 - 8 && s < TD.s1 + 8) && !(VW && VW[side < 0 ? 0 : 1][ii] > 3)) {
+          const w = E.wallCap(ii, side) + 0.3, nx = t.nx[ii] * side, nz = t.nz[ii] * side, y = t.y[ii];
+          const at = (o) => [t.x[ii] + nx * (w + o), t.z[ii] + nz * (w + o)];
+          const [xa, za] = at(0.4), [xb, zb] = at(3);
+          if (!wet(xa, za) && !wet(xb, zb)) {
+            const g = Math.min(sc.gridHeight(xa, za), sc.gridHeight(xb, zb)); const drop = y - g;
+            if (drop > 1.4) { const [x, z] = at(0); cur = { x, z, top: y + 0.15, bot: Math.max(g - 0.6, y - 30), cx: x - nx * 0.4, cz: z - nz * 0.4, nn: [nx, 0, nz] }; }
+          }
+        }
+        if (prev && cur && Math.hypot(cur.x - prev.x, cur.z - prev.z) < 6) {
+          const dl = Math.hypot(cur.x - prev.x, cur.z - prev.z), u1 = u + dl / 2.6; G.at((prev.x + cur.x) / 2, (prev.z + cur.z) / 2, 'P', 0);
+          const a0 = [prev.x, prev.bot, prev.z], a1 = [cur.x, cur.bot, cur.z], b1 = [cur.x, cur.top, cur.z], b0 = [prev.x, prev.top, prev.z];
+          const uv = [u, 0, u1, 0, u1, (cur.top - cur.bot) / 2.6, u, (prev.top - prev.bot) / 2.6];
+          // the face looks away from the road (its winding follows the side); a flat coping on top behind the barrier
+          if (side > 0) G.quad(a0, a1, b1, b0, cur.nn, uv, col, stC); else G.quad(a1, a0, b0, b1, cur.nn, [uv[2], uv[3], uv[0], uv[1], uv[6], uv[7], uv[4], uv[5]], col, stC);
+          const c0 = [prev.cx, prev.top, prev.cz], c1 = [cur.cx, cur.top, cur.cz];
+          if (side > 0) G.quad(c0, c1, b1, b0, [0, 1, 0], [0, 0, 1, 0, 1, 0.1, 0, 0.1], capCol, capC); else G.quad(c1, c0, b0, b1, [0, 1, 0], [0, 0, 1, 0, 1, 0.1, 0, 0.1], capCol, capC);
+          u = u1; walls++;
+        }
+        prev = cur;
+      }
+    }
+    E.stats.dropWalls = walls;
+  }
 
   // ---- terraces: stone retaining walls along the hillside streets on their uphill side
   function streetWalls(E, G) {

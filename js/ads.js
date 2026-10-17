@@ -69,7 +69,9 @@
     return readyP;
   };
 
-  // image drawing with a box-filtered mip chain, so a 512 px mark stays clean when it is drawn 20 px tall on a hoarding
+  // image drawing with a box-filtered mip chain, so a 512 px mark stays clean when it is drawn 20 px tall on a hoarding. The levels
+  // are CPU canvases (willReadFrequently): the livery sheets are CPU canvases too, and drawing a GPU canvas into one forces a
+  // synchronous read back from the GPU - a long stall mid-race when a bot's full livery is composed
   const MIPS = new Map();
   function mipFor(im, px) {
     let lv = MIPS.get(im);
@@ -77,7 +79,7 @@
       lv = [im]; let cur = im, w = im.naturalWidth || im.width, h = im.naturalHeight || im.height;
       while (h > 20 && w > 20) {
         w = Math.max(1, Math.round(w / 2)); h = Math.max(1, Math.round(h / 2));
-        const c = document.createElement('canvas'); c.width = w; c.height = h; const x = c.getContext('2d'); x.imageSmoothingEnabled = true; x.imageSmoothingQuality = 'high'; x.drawImage(cur, 0, 0, w, h); lv.push(c); cur = c;
+        const c = document.createElement('canvas'); c.width = w; c.height = h; const x = c.getContext('2d', { willReadFrequently: true }); x.imageSmoothingEnabled = true; x.imageSmoothingQuality = 'high'; x.drawImage(cur, 0, 0, w, h); lv.push(c); cur = c;
       }
       MIPS.set(im, lv);
     }

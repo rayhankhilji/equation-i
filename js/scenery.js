@@ -104,8 +104,11 @@ window.EI = window.EI || {};
         const p = t.project(x, z, null, this._hp || (this._hp = {})); if (p.dist < Math.max(t.wallL[p.i], t.wallR[p.i]) + 1.5) v = t.y[p.i] - 0.03;
         // where the barrier width jumps between samples (escape roads), the nearest sample alone does not tell: any sample close by
         // that has (x, z) between its barriers puts the ground at its road level
-        const n = t.n; for (let k = p.i - 12; k <= p.i + 12; k++) { const j = (k % n + n) % n; const dx = x - t.x[j], dz = z - t.z[j]; if (Math.abs(dx * t.tx[j] + dz * t.tz[j]) > 1.1) continue; const la = dx * t.nx[j] + dz * t.nz[j]; if (la > -t.wallL[j] - 1.5 && la < t.wallR[j] + 1.5) v = Math.min(v, t.y[j] - 0.03); }
-        return Math.max(v, this.gridHeight(x, z));
+        let road = p.dist < Math.max(t.wallL[p.i], t.wallR[p.i]) + 1.5;
+        const n = t.n; for (let k = p.i - 12; k <= p.i + 12; k++) { const j = (k % n + n) % n; const dx = x - t.x[j], dz = z - t.z[j]; if (Math.abs(dx * t.tx[j] + dz * t.tz[j]) > 1.1) continue; const la = dx * t.nx[j] + dz * t.nz[j]; if (la > -t.wallL[j] - 1.5 && la < t.wallR[j] + 1.5) { v = Math.min(v, t.y[j] - 0.03); road = true; } }
+        // off the road the verge drapes over the terrain where it falls away (track.js): the surface is at most a little above the grid
+        const g = this.gridHeight(x, z); if (!road && this.heights) v = Math.min(v, g + 0.25);
+        return Math.max(v, g);
       }
       return this.gridHeight(x, z);
     }

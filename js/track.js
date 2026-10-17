@@ -666,9 +666,13 @@ window.EI = window.EI || {};
       // street circuits: the verge stops short of any other stretch of the lap within its 40 m (Beau Rivage runs ~10 m above the
       // harbour front, and a flat ribbon at its level would roof over the road below)
       const vw = this.data.street ? this.streetVergeWidths() : null;
-      const vergeOff = vw ? ((ii, c) => c ? this.wallR[ii] + vw[1][ii] : -(this.wallL[ii] + vw[0][ii])) : ((ii, c) => c ? this.wallR[ii] + 40 : -(this.wallL[ii] + 40));
-      const vGeo = this.strip(2, {
-        lat: vergeOff, uv: (ii, c, l, i) => [l / 3, i * ds / per(3)],
+      // street circuits on a terrain model: the ribbon runs out from the barriers in steps that follow the ground, so where the hill
+      // falls away (the descent from Mirabeau to the hairpin) the verge drapes down the slope instead of hanging flat at road level
+      const vsc = vw && this.scenery && this.scenery.heights && this.scenery.env && this.scenery.env.dem ? this.scenery : null; const VF = vsc ? [1, 0.6, 0.3, 0.1, 0] : [1], VK = VF.length * 2;
+      const vergeOff = vw ? ((ii, c) => c < VF.length ? -(this.wallL[ii] + vw[0][ii] * VF[c]) : this.wallR[ii] + vw[1][ii] * VF[VK - 1 - c]) : ((ii, c) => c ? this.wallR[ii] + 40 : -(this.wallL[ii] + 40));
+      const vY = vsc ? ((ii, c, l) => { const w = l < 0 ? this.wallL[ii] : this.wallR[ii]; if (Math.abs(l) < w + 0.5) return 0; const g = vsc.gridHeight(this.x[ii] + this.nx[ii] * l, this.z[ii] + this.nz[ii] * l) - this.y[ii] + 0.25; return Math.max(-40, Math.min(0, g)); }) : null;
+      const vGeo = this.strip(VK, {
+        lat: vergeOff, y: vY, uv: (ii, c, l, i) => [l / 3, i * ds / per(3)],
         attrs: {
           trk: [4, (ii, c, l, i) => [l, i * ds, this.wallL[ii] + 10, this.wallR[ii] + 10]],
           farL: [3, (ii) => farCol(ii, -1)], farR: [3, (ii) => farCol(ii, 1)],
@@ -827,6 +831,7 @@ window.EI = window.EI || {};
 
     // verge width per side [L, R]: out to 40 m, cut 2 m before the first point that belongs to another stretch of the lap
     streetVergeWidths() {
+      if (this._svw) return this._svw;
       const n = this.n, out = [new Float32Array(n), new Float32Array(n)], pr = {};
       for (const [k, side] of [[0, -1], [1, 1]]) {
         const wall = side < 0 ? this.wallL : this.wallR; const raw = new Float32Array(n);
@@ -839,7 +844,7 @@ window.EI = window.EI || {};
         const er = new Float32Array(n); for (let i = 0; i < n; i++) { let m = 40; for (let j = -4; j <= 4; j++) m = Math.min(m, raw[(i + j + n) % n]); er[i] = m; }
         out[k] = this.smooth(er, 3);
       }
-      return out;
+      return (this._svw = out);
     }
     // ---------------------------------------------------------------- street circuit (Monaco): barriers and street-level detail
     // per side zone arrays from the data: red / white block barriers, tyre walls, partner sleeves on the rails, pit-road openings,
