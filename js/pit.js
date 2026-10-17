@@ -626,6 +626,7 @@ window.EI = window.EI || {};
       if (!V && scene) {
         V = { lampPos: [] };
         const grp = buildVisuals(track, scene); buildPeople(grp); patchTrack(track);
+        if (track.data.street) grp.children.forEach((o, k) => { if (o.isMesh && !o.isInstancedMesh && k > 0 && !o.castShadow) o.userData.pitFar = true; });
         // same ambient balance as the rest of the scene (main.js damps the environment map on materials that exist at start-up)
         grp.traverse(o => { if (o.material && o.material.isMeshStandardMaterial) o.material.envMapIntensity = o.userData.keepEnv ? 1.0 : 0.3; });
         scene.add(grp); V.group = grp; V.t = 0;
@@ -824,8 +825,11 @@ window.EI = window.EI || {};
       const cams = (EI.debug && EI.debug.cameras) || []; let near = false; const mid = V.boxes[5] || V.boxes[0];
       for (const c of cams) if (c && c.position.distanceTo(mid.O) < 650) near = true;
       // street circuit: the crews, engineers and their props (a dozen instanced draws) are only drawn within ~450 m of the pit lane
-      if (L.track && L.track.data.street) { let vis = false; for (const c of cams) if (c && c.position.distanceTo(mid.O) < 450) vis = true; if (V._crewVis !== vis) { V._crewVis = vis; V.group.traverse(o => { if (o.isInstancedMesh && /^pit-/.test(o.name)) o.visible = vis; }); } }
-      if (near || !V.posed) { animatePeople(race, dt); V.posed = true; }
+      if (L.track && L.track.data.street) { let dmin = Infinity; for (const c of cams) if (c) dmin = Math.min(dmin, c.position.distanceTo(mid.O)); const vis = dmin < 260, vis2 = dmin < 380;
+        // the garage interiors, lane paint, screens and signs (small, many draws) also drop out beyond ~380 m; the lane and the garage shells stay
+        if (V._crewVis !== vis || V._pitVis !== vis2) { V._crewVis = vis; V._pitVis = vis2; V.group.traverse(o => { if (o.isInstancedMesh && /^pit-/.test(o.name)) o.visible = vis; else if (o.isMesh && o.userData.pitFar) o.visible = vis2; }); } }
+      // street circuit: no pose work at all while the crews are hidden (they are re-posed the frame they come back into range)
+      if ((L.track && L.track.data.street ? V._crewVis : near) || !V.posed) { animatePeople(race, dt); V.posed = true; }
       updateLamps();
       updateUI(race, dt);
     } catch (e) { if (!V.err) { V.err = true; console.error('Pit.frame', e); } }

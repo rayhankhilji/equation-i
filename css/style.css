@@ -332,7 +332,8 @@ button:hover { background: linear-gradient(180deg, rgba(255,255,255,0.16), rgba(
 button:active { transform: translateY(1px); }
 button.primary { background: linear-gradient(180deg, #ff2d1f, #d20500); border-color: #ff5a4a; box-shadow: 0 8px 26px rgba(225,6,0,0.45), inset 0 1px 0 rgba(255,255,255,0.3); color: #fff; }
 button.primary:hover { background: linear-gradient(180deg, #ff4536, #e40700); }
-#btn-start { font-size: 18px; padding: 15px 40px; letter-spacing: 4px; position: relative; overflow: hidden; }
+#btn-start { font-size: 18px; padding: 15px 40px; letter-spacing: 4px; position: relative; overflow: hidden; white-space: nowrap; flex: none; }
+#btn-again, #btn-menu, #btn-resume, #btn-restart, #btn-quit { white-space: nowrap; }
 #btn-start::after { content: ""; position: absolute; top: 0; bottom: 0; width: 40px; left: -60px; background: linear-gradient(90deg, transparent, rgba(255,255,255,0.35), transparent); transform: skewX(-20deg); animation: sheen 3.2s ease-in-out infinite; }
 @keyframes sheen { 0%, 60% { left: -60px; } 100% { left: 120%; } }
 
@@ -468,6 +469,10 @@ button.primary:hover { background: linear-gradient(180deg, #ff4536, #e40700); }
   .fd-row { grid-template-columns: 20px 96px 76px repeat(12, 30px); column-gap: 3px; }
   .fd-t em { font-size: 9px; }
 }
+/* the overlay itself scrolls on short screens (e.g. 1366x768 with two players), so neither card runs off the bottom */
+#pause { overflow-y: auto; }
+#pause .pause-wrap { box-sizing: border-box; padding: 16px 0; max-height: 100vh; }
+#pause .field-card { max-height: calc(100vh - 32px); }
 /* ----- end Field card ----- */
 
 /* ==========================================================================

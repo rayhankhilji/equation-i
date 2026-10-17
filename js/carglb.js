@@ -1216,8 +1216,7 @@ window.EI = window.EI || {};
     const glow = mk(T.glow, glowMat, g, 'car_glow'); glow.renderOrder = 2; glowMat.visible = false;
     let heat = 0, lastT = 0, ledOn = -1;
     const animate = (steerIn, helmetYaw) => {
-      // the steering wheel and gloves only show from the cockpit camera (from outside the halo and headrest hide them): 10 draw calls
-      if (cockpit) { const ck = !!car._cockpitT && performance.now() - car._cockpitT < 400; cockpit.steer.visible = ck; if (ck) cockpit.animate(steerIn); }
+      if (cockpit) cockpit.animate(steerIn);
       if (helmetYaw != null) U.uHelm.value = helmetYaw;
       const now = performance.now() * 0.001; const dt = Math.min(0.1, Math.max(0, now - (lastT || now))); lastT = now;
       // discs heat with brake pressure x speed, cool over ~1.5 s

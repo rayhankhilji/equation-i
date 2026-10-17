@@ -282,6 +282,7 @@ window.EI = window.EI || {};
     const kD = 1 - Math.exp(-dt * 4); cs.dist += (dist - cs.dist) * kD; cs.h += (height - cs.h) * kD;
     cs.lat += (U.clamp(car.yaw * 0.6, -0.4, 0.4) - cs.lat) * (1 - Math.exp(-dt * 1.4));                   // drift towards the inside of the turn
     cam.position.set(cx - cfx * cs.dist - clx * cs.lat * 0.6, cy + cs.h, cz - cfz * cs.dist - clz * cs.lat * 0.6);
+    if (cameras.length > 1) keepInsideBarriers(cam, cs, car, dt);
     const minY = track.y[car.trk.i] + 1.0; if (cam.position.y < minY) cam.position.y = minY;
     _look.set(cx + fx * C.look + lx * (cs.lat * 1.3 + jx * 4), cy + C.lookY + jy * 4, cz + fz * C.look + lz * (cs.lat * 1.3 + jz * 4));
     cam.up.set(0, 1, 0); cam.lookAt(_look);
@@ -301,6 +302,20 @@ window.EI = window.EI || {};
   // aims further down the road: the car stays low in the frame with the road ahead in view
   const RIG_1P = { d0: 5.7, dv: 0.011, h0: 2.05, hv: 0.004, look: 5.5, lookY: 0.6, hx: 0 };
   const RIG_WIDE = { d0: 9.4, dv: 0.012, h0: 2.4, hv: 0.004, look: 8, lookY: 0.5, hx: 4 };
+  // split screen: the longer chase rig could swing out past the barriers on tight street corners (Monaco) and look through the
+  // debris-fence posts. Keep the camera 1.2 m inside the wall line of the nearest track point: pushed straight back in along the
+  // track normal and lifted a little, the push applied at once and eased off over ~0.3 s so it never jitters.
+  function keepInsideBarriers(cam, cs, car, dt) {
+    const t = track; if (!t.wallL || !t.wallR || EI.debug.noCamClamp) return;
+    // project from the car's own track position (the camera is a few metres behind it): a remembered index goes stale after a
+    // hitch or a jump and can lock onto a neighbouring stretch of a street circuit, which would shove the camera into the city
+    const p = t.project(cam.position.x, cam.position.z, car.trk.i, cs.tp || (cs.tp = {}));
+    let di = Math.abs(p.i - car.trk.i); di = Math.min(di, t.n - di); if (di * t.ds > 40) { cs.push = 0; return; }
+    const lim = (p.lat < 0 ? t.wallL[p.i] : t.wallR[p.i]) - 1.2; const ex = U.clamp(Math.abs(p.lat) - lim, 0, 4);
+    const prev = cs.push || 0; cs.push = ex >= prev ? ex : prev + (ex - prev) * (1 - Math.exp(-dt * 3.5)); cs.pushSide = ex > 0 ? (p.lat < 0 ? -1 : 1) : (cs.pushSide || 1);
+    if (cs.push < 0.001) return;
+    const sg = cs.pushSide; cam.position.x -= t.nx[p.i] * sg * cs.push; cam.position.z -= t.nz[p.i] * sg * cs.push; cam.position.y += Math.min(cs.push * 0.35, 1.5);
+  }
   function chaseRig(cam) { return cameras.length > 1 && cam.aspect > 1.6 ? RIG_WIDE : RIG_1P; }
   // pre-race cinematic: a slow dolly down the grid, then an orbit around the player's car, then cut to the player camera
   let introT = 0, introLen = 8.2;
@@ -382,7 +397,7 @@ window.EI = window.EI || {};
     const car = race.players[k]; const list = []; const w = vp.w, h = vp.h;
     for (const o of race.cars) {
       if (o === car) continue; const dx = o.x - car.x, dz = o.z - car.z; const d = Math.hypot(dx, dz); if (d > 90) continue;
-      tmp3.set(o.x, o.y + 1.4, o.z); tmp3.project(cam); if (tmp3.z > 1 || Math.abs(tmp3.x) > 1.1 || Math.abs(tmp3.y) > 1.1) continue;
+      tmp3.set(o.x, o.y + 1.4, o.z); tmp3.project(cam); if (tmp3.z > 1 || Math.abs(tmp3.x) > 1.1 || Math.abs(tmp3.y) > 1.1 || (cameras.length > 1 && tmp3.y < -0.8)) continue;   // split: no tags cut off at the bottom edge
       list.push({ x: (tmp3.x + 1) / 2 * w, y: (1 - tmp3.y) / 2 * h, pos: o.pos, color: o.team.primary, text: o.isPlayer ? o.name : o.driver.name.split(' ').pop().toUpperCase(), alpha: U.clamp(1.3 - d / 90, 0.2, 1) });
     }
     vp.updateTags(list);
@@ -544,5 +559,6 @@ window.EI = window.EI || {};
   }
   EI.debug = { get shake() { return shake; }, set shake(v) { shake = v; }, get introT() { return introT; }, set introT(v) { introT = v; }, get viewports() { return viewports; }, setQuality, snapCameras: () => race && race.players.forEach((car, k) => placeCamera(cameras[k], car, k, true, 0)), setCam: (k, m) => { camModes[k] = m; }, get race() { return race; }, get track() { return track; }, get scenery() { return scenery; }, get scene() { return scene; }, get cameras() { return cameras; }, renderer: () => renderer, startRace, endRace };
   EI.debug.shadowCacheState = SHC;
+  EI.debug.placeCam = (k, dt) => race && placeCamera(cameras[k], race.players[k], k, false, dt);   // test hook: one camera update
   window.addEventListener('DOMContentLoaded', () => { (EI.Ads ? EI.Ads.ready() : Promise.resolve()).then(() => setTimeout(init, 30)); });
 })();

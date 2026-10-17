@@ -861,7 +861,7 @@ window.EI = window.EI || {};
     fontvieille: [['riviera', 0.8], ['modern', 1]], beausoleil: [['villa', 0.5], ['riviera', 0.92], ['belle', 1]], hill: [['riviera', 0.55], ['villa', 0.97], ['modern', 1]],
   };
   // style, storeys, colours and the facade programme for a footprint
-  function design(E, b, cx, cz, area) {
+  function design(E, b, cx, cz, area, minW) {
     const zone = zoneAt(E, cx, cz); const h1 = hash(cx * 3.1, cz * 2.7, 11), h2 = hash(cx * 1.7, cz * 4.3, 12), h3 = hash(cx * 5.3, cz * 1.9, 13), h5 = hash(cx * 2.9, cz * 3.3, 15), h6 = hash(cx * 4.1, cz * 2.2, 16);
     const kc = b.kc != null ? b.kc : (KC[b.k] || 0);
     const known = b.h > 0 && !(b.k && DEFAULT_H[b.k] === b.h) && !(b.h === 16 && !DEFAULT_H[b.k]);
@@ -889,7 +889,8 @@ window.EI = window.EI || {};
       if (zone === 'hill' || zone === 'beausoleil') { const g = E.groundAbs ? E.groundAbs(cx, cz) : 0; if (g > 180) f1 = Math.min(f1, 4); if (g > 260) f1 = Math.min(f1, 3); }
       f0 = Math.min(f0, f1); const nf = f0 + Math.floor(h3 * (f1 - f0 + 1)); H = S.gh + nf * S.fh;
     }
-    H = Math.min(H, Math.max(9, Math.sqrt(area) * 5.5));
+    H = Math.min(H, Math.max(9, Math.sqrt(area) * 5.5)); if (area < 90) H = Math.min(H, 3.5 + Math.sqrt(area) * 0.9);   // kiosks, pavilions, monuments stay low
+    if (minW && minW < 5) H = Math.min(H, Math.max(4, minW * 2.6));   // slivers (walls, arcades, passages) too
     const nf = Math.max(0, Math.round((H - S.gh) / S.fh)); H = S.gh + nf * S.fh;
     const tint = soften(C(pick(TINTS[style] || TINTS.plain, h2)), 0.3), acc = C(pick(ACCS[style] || ACCS.plain, h5));
     let roof = S.roof; if (b.roof === 1) roof = 'flat'; else if (b.roof === 2) roof = 'hip'; if (roof === 'mansard' && (area < 160 || nf < 3)) roof = 'flat'; if (roof === 'hip' && area > (zone === 'rocher' ? 2600 : 900)) roof = 'flat'; if (zone === 'rocher' && roof === 'flat' && area < 2600 && b.roof !== 1 && h6 < 0.8) roof = 'hip'; if (style === 'villa' && h3 < 0.35 && area > 200) roof = 'flat';
@@ -1318,7 +1319,9 @@ window.EI = window.EI || {};
     if (hdp) {
       const c = centroid(hdp); const D = forced('belle', 6, 0xf0e2c6, 'mansard', { hdp: true }); both(E, G, hdp, D, c);
       const i0 = t.idxAtS(790); const np = nearestOn(hdp, t.x[i0], t.z[i0]); let dx = c[0] - np[0], dz = c[1] - np[1]; const l = Math.hypot(dx, dz) || 1; const dcx = np[0] + dx / l * 9, dcz = np[1] + dz / l * 9;
-      for (const kind of ['D', 'P']) { const sg = kind === 'D' ? 16 : 8; G.at(dcx, dcz, kind, 0); G.lathe(dcx, dcz, [[8.6, D.yR], [8.6, D.yR + 3.4]], sg, D.tint, cell('be_top'), 1); G.lathe(dcx, dcz, domeProfile(8.6, 6.5, D.yR + 3.4, kind === 'D' ? 7 : 3), sg, C(0x7d8288), cell('zinc'), 1); G.lathe(dcx, dcz, [[1.2, D.yR + 9.8], [1.2, D.yR + 11.5], [0.05, D.yR + 13]], 8, C(0x9a9890), cell('zinc'), 1); }
+      // the rotunda only where its whole drum stands on the hotel's roof
+      let rr = 8.6; while (rr > 4 && ![0, 1, 2, 3, 4, 5, 6, 7].every(k => pip(dcx + Math.cos(k * 0.785) * rr, dcz + Math.sin(k * 0.785) * rr, hdp))) rr -= 0.8;
+      if (rr > 4) for (const kind of ['D', 'P']) { const sg = kind === 'D' ? 16 : 8; G.at(dcx, dcz, kind, 0); G.lathe(dcx, dcz, [[rr, D.yR], [rr, D.yR + 3.4]], sg, D.tint, cell('be_top'), 1); G.lathe(dcx, dcz, domeProfile(rr, rr * 0.75, D.yR + 3.4, kind === 'D' ? 7 : 3), sg, C(0x7d8288), cell('zinc'), 1); G.lathe(dcx, dcz, [[1.2, D.yR + 3.3 + rr * 0.75], [1.2, D.yR + 5 + rr * 0.75], [0.05, D.yR + 6.5 + rr * 0.75]], 8, C(0x9a9890), cell('zinc'), 1); }
     }
     // ---- the Cafe de Paris: two storeys of arcades and awnings, a roof terrace
     const cdp = add('cafeDeParis'); if (cdp) both(E, G, cdp, forced('belle', 1, 0xefe2c8, 'flat', { noBalc: true, shops: true }), centroid(cdp));
@@ -1713,7 +1716,7 @@ window.EI = window.EI || {};
       const c = centroid(ring); if (isClaimed(c[0], c[1])) return;
       const dc = E.dcAt(c[0], c[1]); let rad = 0; for (const q of ring) rad = Math.max(rad, Math.hypot(q[0] - c[0], q[1] - c[1]));
       if (dc < rad + 70) for (let i = 0; i < ring.length; i++) if (!segClear(E, ring[i], ring[(i + 1) % ring.length], 0.5)) { stats.skipped++; return; } const tier = farSet ? (dc < 470 ? 'mid' : null) : dc < 140 ? 'near' : 'mid';
-      const D = design(E, b, c[0], c[1], area);
+      const ob = obb(ring); const D = design(E, b, c[0], c[1], area, ob ? ob.hw * 2 : 0);
       if (tier) buildOne(E, G, ring, D, tier, c); buildOne(E, G, ring, D, 'proxy', c); stats[tier || 'proxyOnly']++;
       if (tier === 'near') nearList.push({ c, style: D.style, rv: D.rv, H: D.H, y: D.lv.yG });
     };
