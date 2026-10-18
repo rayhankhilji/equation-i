@@ -23,6 +23,12 @@ window.EI = window.EI || {};
     vm: 'vTrk = trk; vTrk2 = trk2; vColA = colA; vColB = colB;',
     f: 'varying vec4 vTrk; varying vec4 vTrk2; varying vec3 vColA; varying vec3 vColB;',
   };
+  // run-off with a house colour (Yas): one more per-row attribute for the painted straights (red / white band, dark brand band)
+  const VARY_RUN_RC = {
+    v: VARY_RUN.v + ' attribute vec4 trk3; varying vec4 vTrk3;',
+    vm: VARY_RUN.vm + ' vTrk3 = trk3;',
+    f: VARY_RUN.f + ' varying vec4 vTrk3; uniform sampler2D eiBrand;',
+  };
   const VARY_VERGE = {
     v: 'attribute vec4 trk; attribute vec3 farL; attribute vec3 farR; varying vec4 vTrk; varying vec3 vFarL; varying vec3 vFarR; varying vec3 vWp;',
     vm: 'vTrk = trk; vFarL = farL; vFarR = farR; vWp = (modelMatrix * vec4(transformed, 1.0)).xyz;',
@@ -253,6 +259,16 @@ window.EI = window.EI || {};
   }
 
   // ---------------------------------------------------------------- canvas textures for kerbs and paint
+  // painted run-off lettering for the straights: the partners' URLs in white on black (red channel = mask), tiled along the lap
+  let brandStripTex = null;
+  function brandStripTexture() {
+    if (brandStripTex) return brandStripTex;
+    const W = 1024, H = 128; const c = document.createElement('canvas'); c.width = W; c.height = H; const ctx = c.getContext('2d');
+    ctx.fillStyle = '#000'; ctx.fillRect(0, 0, W, H); ctx.fillStyle = '#fff'; ctx.textBaseline = 'middle'; ctx.textAlign = 'center';
+    ctx.font = '800 92px "Plus Jakarta Sans", Arial, sans-serif'; ctx.fillText('trylumi.co', W * 0.25, H * 0.53);
+    ctx.font = '800 86px "Unbounded", Arial, sans-serif'; ctx.fillText('intake.ink', W * 0.75, H * 0.55);
+    brandStripTex = canvasTex(c, true); return brandStripTex;
+  }
   function canvasTex(c, wrap) { const t = new THREE.CanvasTexture(c); if (wrap) t.wrapS = t.wrapT = THREE.RepeatWrapping; t.anisotropy = 8; return t; }
   // kerb: x = across (0 at the track edge), y = along; one tile = one red + one white block with slanted (sawtooth) joints
   function kerbTexture(style) {
@@ -383,6 +399,11 @@ window.EI = window.EI || {};
       out.s = U.mod(this.s[i] + out.along, this.length); out.dist = Math.abs(out.lat); return out;
     }
     idxAtS(s) { return U.mod(Math.round(s / this.ds), this.n); }
+    // which side of the lap the pit lane runs on (-1: negative lateral offsets, the "L" arrays; +1: "R")
+    pitSideSign() {
+      if (this._pitSide) return this._pitSide; const p = this.data.pit; if (!p || p.length < 3) return (this._pitSide = -1);
+      const m = p[Math.floor(p.length / 2)]; const pr = this.project(m[0], m[1], null, {}); return (this._pitSide = pr.lat < 0 ? -1 : 1);
+    }
     cornerNameAt(s) { let name = ''; for (const c of this.data.corners) if (s >= c.s - 40) name = c.name; return name || this.data.corners[this.data.corners.length - 1].name; }
     sectorAt(s) { return s < this.sectors[0] ? 0 : s < this.sectors[1] ? 1 : 2; }
     gridSlot(pos) {
@@ -412,6 +433,16 @@ window.EI = window.EI || {};
           if (onL) this.wallL[i] = Math.max(this.wallL[i], v); else this.wallR[i] = Math.max(this.wallR[i], v);
         }
         this.wallL = this.smooth(this.wallL, 4); this.wallR = this.smooth(this.wallR, 4);
+      }
+      // painted straights with the barriers close to the track (Yas Marina's pit straight: walls a few metres off the edge
+      // lines, as in the photos); eased in and out over 40 m
+      for (const P of this.data.straightPaint || []) if (P.wall) {
+        const L = this.length, span = U.mod(P.s1 - P.s0, L);
+        for (let i = 0; i < n; i++) {
+          const u = U.mod(this.s[i] - P.s0, L); const out = u <= span ? 0 : Math.min(u - span, L - u); const f = 1 - U.smoothstep(0, 40, out);
+          if (f <= 0) continue; const tgt = hw + P.wall;
+          this.wallL[i] = U.lerp(this.wallL[i], Math.min(this.wallL[i], tgt), f); this.wallR[i] = U.lerp(this.wallR[i], Math.min(this.wallR[i], tgt), f);
+        }
       }
       // inside of a corner: offsets beyond the local radius would fold the normals over each other
       this.kFold = this.smooth(this.k, 4);
@@ -635,10 +666,25 @@ window.EI = window.EI || {};
     rTqC = mix(rTqC, vec3(0.72, 0.72, 0.7), 1.0 - smoothstep(0.1, 0.1 + rAA, abs(rAl - rOuter + 0.55)));
     rCol = mix(rCol, mix(rTqC, rBase * 1.05, clamp(rWear * 0.5, 0.0, 0.6)), rTq);
     rGreen = max(rGreen, rTq);
+    // painted straight (vTrk3.x red / white flat-kerb band, vTrk3.y dark band with white partner lettering): no turquoise there,
+    // the asphalt apron runs dark grey to the wall
+    float rWS = clamp(vTrk3.x + vTrk3.y, 0.0, 1.0);
+    if (rWS > 0.001) {
+      float rE = rAl - eiHW; vec3 rDark = rBase * 0.66;
+      float rwIn = smoothstep(0.18 - rAA, 0.18 + rAA, rE) * (1.0 - smoothstep(1.7 - rAA, 1.7 + rAA, rE));
+      float rBlk = step(0.5, fract(rS / 4.0));
+      vec3 rRW = mix(vec3(0.56, 0.035, 0.045), vec3(0.74, 0.74, 0.72), rBlk) * (0.88 + 0.2 * rM1.g);
+      float brIn = smoothstep(0.35 - rAA, 0.35 + rAA, rE) * (1.0 - smoothstep(2.85 - rAA, 2.85 + rAA, rE));
+      float rTx = texture2D(eiBrand, vec2(rS / 36.0, clamp((rE - 0.35) / 2.5, 0.0, 1.0))).r * brIn;
+      vec3 rBR = mix(mix(rDark, vec3(0.04, 0.045, 0.05), brIn), vec3(0.78, 0.78, 0.76), rTx);
+      vec3 rSC = (mix(rDark, rRW, rwIn) * vTrk3.x + rBR * vTrk3.y) / max(vTrk3.x + vTrk3.y, 0.001);
+      rSC = mix(rSC, rSC * 0.6, rTyre * 0.4) * (1.0 - clamp(rWear * 0.25, 0.0, 0.3));
+      rCol = mix(rCol, rSC, rWS * rGon * step(0.0, rE));
+    }
 ` : '';
       const runFrag = RC ? RUNOFF_FRAG.replace('vec3(0.045, 0.2, 0.06)', v3(lin(RC[2] || RC[0]))).replace('    rCol = mix(rCol, rCol * 0.45, rTyre', RC_STRIPES + '    rCol = mix(rCol, rCol * 0.45, rTyre') : RUNOFF_FRAG;
       const aw0 = hw + kw + 2.0;
-      const rMat = shaderMat({ map: T.runoff.map, normalMap: T.runoff.normalMap, normalScale: new THREE.Vector2(0.7, 0.7), roughnessMap: T.runoff.roughnessMap, roughness: 1, metalness: 0, polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 2 }, 'runoff' + (RC ? '-' + RC.join('') : ''), common, VARY_RUN, runFrag, RC ? RUNOFF_ROUGH + '    roughnessFactor = mix(roughnessFactor, 0.9, rTq);\n' : RUNOFF_ROUGH, FLATTEN);
+      const rMat = shaderMat({ map: T.runoff.map, normalMap: T.runoff.normalMap, normalScale: new THREE.Vector2(0.7, 0.7), roughnessMap: T.runoff.roughnessMap, roughness: 1, metalness: 0, polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 2 }, 'runoff' + (RC ? '-' + RC.join('') + '-sp' : ''), RC ? Object.assign({}, common, { eiBrand: { value: brandStripTexture() } }) : common, RC ? VARY_RUN_RC : VARY_RUN, runFrag, RC ? RUNOFF_ROUGH + '    roughnessFactor = mix(roughnessFactor, 0.9, rTq);\n' : RUNOFF_ROUGH, FLATTEN);
       const gMat = shaderMat({ map: T.gravel.map, normalMap: T.gravel.normalMap, normalScale: new THREE.Vector2(1.25, 1.25), roughnessMap: T.gravel.roughnessMap, roughness: 1, metalness: 0, polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 3 }, 'gravel', common, VARY4, GRAVEL_FRAG, GRAVEL_ROUGH, '', GRAVEL_NORMAL);
       this.surfMats = { runoff: rMat, gravel: gMat };
       for (const side of [-1, 1]) {
@@ -652,6 +698,17 @@ window.EI = window.EI || {};
         for (let i = 0; i < n; i++) if (run[i]) { const nm = cornerAt(this.s[i]); const k = names.indexOf(nm); if (k >= 0) sch[i] = k; }
         const schC = Int8Array.from(sch); for (let i = 0; i < n; i++) if (sch[i] < 0) { for (const j of [1, -1, 2, -2]) { const q = sch[(i + j + n) % n]; if (q >= 0) { schC[i] = q; break; } } }
         const green = new Uint8Array(n); if (!this.data.street) for (let i = 0; i < n; i++) green[i] = kerbMask(i) || run[i] || RC ? 1 : 0;
+        // painted straights: per-row weights of the red / white band and the dark brand band on this side (pit side: red / white;
+        // the other side: the brand band, red / white for the first and last `ends` metres)
+        const wRW = new Float32Array(n), wBR = new Float32Array(n);
+        if (RC) for (const P of this.data.straightPaint || []) {
+          const L = this.length, span = U.mod(P.s1 - P.s0, L); const pitSide = this.pitSideSign ? this.pitSideSign() : -1; const onPit = side === pitSide;
+          for (let i = 0; i < n; i++) {
+            const u = U.mod(this.s[i] - P.s0, L); const out = u <= span ? 0 : Math.min(u - span, L - u); const f = 1 - U.smoothstep(0, 25, out); if (f <= 0) continue;
+            const style = onPit ? P.pit : P.far; const endF = Math.min(u, span - u); const rwEnd = !onPit && P.ends && u <= span ? 1 - U.smoothstep(P.ends - 15, P.ends, endF) : 0;
+            const br = style === 'brand' ? f * (1 - rwEnd) : 0; wBR[i] = Math.max(wBR[i], br); wRW[i] = Math.max(wRW[i], f - br);
+          }
+        }
         const geo = this.strip(2, {
           lat: (ii, c) => side * (c ? outer[ii] : hw - 0.05), uv: (ii, c, l, i) => [l / 4, i * ds / per(4)],
           attrs: {
@@ -659,6 +716,7 @@ window.EI = window.EI || {};
             trk2: [4, (ii) => [green[ii], grav[ii] ? hw + kw + 6.9 : 99, aw0, outer[ii]]],
             colA: [3, (ii) => { const c = schC[ii] >= 0 ? SCHEMES[names[schC[ii]]][1] : BLUE; return [c.r, c.g, c.b]; }],
             colB: [3, (ii) => { const c = schC[ii] >= 0 ? SCHEMES[names[schC[ii]]][2] : BLUE; return [c.r, c.g, c.b]; }],
+            ...(RC ? { trk3: [4, (ii) => [wRW[ii], wBR[ii], 0, 0]] } : {}),
           },
         });
         const rm = new THREE.Mesh(geo, rMat); rm.receiveShadow = true; rm.name = 'runoff'; rm.position.y = -0.008; g.add(rm);

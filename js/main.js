@@ -46,13 +46,13 @@ window.EI = window.EI || {};
     // physically based sky, with the sun light aligned to it and a PMREM environment for reflections / ambient
     // per-circuit light: Silverstone keeps its English afternoon; Monaco gets a high late-May sun from over the sea (so the
     // city facades facing the harbour are lit), a clearer sky, sea haze on the horizon and warm stone bounce light
-    const LOOKS = { monaco: { elev: 52, azim: 338, turb: 1.9, ray: 1.5, mie: 0.003, horizon: 0xbcd3ea, fog: [550, 2400], fogLow: [320, 1400], hemi: [0xa8cdf2, 0x8a7a66, 0.42], sun: [0xfff3e0, 2.65] },
+    const LOOKS = { monaco: { elev: 52, azim: 338, turb: 1.9, ray: 1.5, mie: 0.003, horizon: 0xbcd3ea, sky: [0.66, 0.4], fog: [550, 2400], fogLow: [320, 1400], hemi: [0xa8cdf2, 0x8a7a66, 0.42], sun: [0xfff3e0, 2.65] },
       // Yas Marina: the race starts at sunset - the sun low over the Gulf in the west-south-west, warm haze, long shadows
       // Yas Marina: a night race under floodlights (js/night.js: night sky, the light map, glows); the 'sun' is dim moonlight from
       // high up so the cars keep their contact shadows
       abudhabi: { night: true, elev: 70, azim: 200, west: [-0.7, 0, 0.7], horizon: 0x1c150e, fog: [800, 3400], fogLow: [480, 1900], hemi: [0x2c3a5a, 0x221a12, 0.42], sun: [0xc8d2ff, 0.2], nightTrack: { core: 0.6, halo: 0.2 }, nightAir: [1.0, 0.84, 0.62, 0.05],
         grade: { sat: 1.22, con: 1.12, warm: [1.02, 1.0, 0.985] } } };
-    const LK = Object.assign({ elev: 42, azim: 205, turb: 2.5, ray: 2.0, mie: 0.004, horizon: 0xa9c4e4, fog: [600, 2600], fogLow: [350, 1500], hemi: [0x9fc4ee, 0x3f5a2e, 0.35], sun: [0xfff1dd, 2.4] }, LOOKS[trackId] || {}); EI.look = LK;
+    const LK = Object.assign({ elev: 38, azim: 212, turb: 2.5, ray: 2.0, mie: 0.004, horizon: 0xa9c4e4, sky: [0.6, 0.45], fog: [600, 2600], fogLow: [350, 1500], hemi: [0x9fc4ee, 0x3f5a2e, 0.35], sun: [0xfff1dd, 2.4] }, LOOKS[trackId] || {}); EI.look = LK;
     // a per-circuit grade replaces the default one (the night race: less saturation boost, a little more contrast, so the floodlit
     // turquoise and the purple LED wash read vivid without turning neon)
     if (LK.grade) { const G = LK.grade, wm = G.warm || [1.03, 1.0, 0.97]; THREE.ShaderChunk.tonemapping_fragment = '#if defined( TONE_MAPPING )\n gl_FragColor.rgb = toneMapping( gl_FragColor.rgb );\n#endif\n' +
@@ -62,6 +62,14 @@ window.EI = window.EI || {};
     skyMesh = new THREE.Sky(); skyMesh.scale.setScalar(5500); const su = skyMesh.material.uniforms; su.turbidity.value = LK.turb; su.rayleigh.value = LK.ray; su.mieCoefficient.value = LK.mie; su.mieDirectionalG.value = LK.mieG || 0.85;
     // the sky may put its sun lower than the light's (a sunset glow without shadows stretched across the whole circuit)
     const skySun = LK.skyElev != null ? new THREE.Vector3().setFromSphericalCoords(1, THREE.MathUtils.degToRad(90 - LK.skyElev), theta) : sunDir; su.sunPosition.value.copy(skySun); scene.add(skyMesh);
+    // the scattering sky comes out bright enough that ACES flattens it to near-white: a gain per circuit (LOOKS sky: [gain,
+    // zenith deepening]) keeps a clear blue overhead fading to a paler, hazier horizon - only on screen (the environment map
+    // that lights and reflects the scene keeps the full sky)
+    { const SG = LK.sky || [0.62, 0.35]; su.uSkyGain = { value: SG[0] }; su.uSkyDeep = { value: SG[1] };
+      skyMesh.material.onBeforeCompile = (sh) => { sh.uniforms.uSkyGain = su.uSkyGain; sh.uniforms.uSkyDeep = su.uSkyDeep;
+        sh.fragmentShader = sh.fragmentShader.replace('void main() {', 'uniform float uSkyGain; uniform float uSkyDeep;\nvoid main() {')
+          .replace('gl_FragColor = vec4( retColor, 1.0 );', 'float zk = smoothstep(0.02, 0.75, direction.y); retColor *= uSkyGain * mix(vec3(1.0), vec3(0.78, 0.9, 1.08), zk * uSkyDeep); gl_FragColor = vec4( retColor, 1.0 );'); };
+      skyMesh.material.customProgramCacheKey = () => 'ei-sky-gain'; }
     if (nightLook) { scene.remove(skyMesh); skyMesh = EI.Night.makeSky(nightWest); scene.add(skyMesh); }
     const t0 = performance.now(); const pm = new THREE.PMREMGenerator(renderer); pm.compileEquirectangularShader();
     const skyScene = new THREE.Scene(); const sky2 = new THREE.Sky(); sky2.scale.setScalar(5500); sky2.material.uniforms.turbidity.value = LK.turb; sky2.material.uniforms.rayleigh.value = LK.ray; if (LK.skyElev != null) { sky2.material.uniforms.mieCoefficient.value = LK.mie; sky2.material.uniforms.mieDirectionalG.value = LK.mieG || 0.85; } sky2.material.uniforms.sunPosition.value.copy(skySun); skyScene.add(sky2);
@@ -303,10 +311,10 @@ window.EI = window.EI || {};
   function pipeInit() {
     PIPE.maxSamples = renderer.capabilities.isWebGL2 ? Math.min(4, renderer.capabilities.maxSamples || 0) : 0;
     PIPE.mat = new THREE.ShaderMaterial({
-      uniforms: { tDiffuse: { value: null }, uTexel: { value: new THREE.Vector2(1, 1) }, uFxaa: { value: 0 }, uSharp: { value: 0 }, uBloom: { value: 0 } },
+      uniforms: { tDiffuse: { value: null }, uTexel: { value: new THREE.Vector2(1, 1) }, uFxaa: { value: 0 }, uSharp: { value: 0 }, uBloom: { value: 0 }, uBT: { value: new THREE.Vector3(0.8, 0.55, 0.42) }, uVig: { value: 0.22 }, uAsp: { value: 1.78 } },
       vertexShader: 'varying vec2 vUv; void main() { vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }',
       fragmentShader: [
-        'varying vec2 vUv; uniform sampler2D tDiffuse; uniform vec2 uTexel; uniform float uFxaa; uniform float uSharp; uniform float uBloom;',
+        'varying vec2 vUv; uniform sampler2D tDiffuse; uniform vec2 uTexel; uniform float uFxaa; uniform float uSharp; uniform float uBloom; uniform vec3 uBT; uniform float uVig; uniform float uAsp;',
         'vec3 tx(vec2 o) { return texture2D(tDiffuse, vUv + o * uTexel).rgb; }',
         'float lu(vec3 c) { return dot(c, vec3(0.299, 0.587, 0.114)); }',
         'void main() {',
@@ -335,9 +343,11 @@ window.EI = window.EI || {};
         // and lit glass for three texture reads
         '  if (uBloom > 0.0) {',
         '    vec3 b1 = texture2D(tDiffuse, vUv, 2.5).rgb, b2 = texture2D(tDiffuse, vUv, 4.0).rgb, b3 = texture2D(tDiffuse, vUv, 5.5).rgb;',
-        '    vec3 g = max(b1 - 0.8, 0.0) * 0.7 + max(b2 - 0.55, 0.0) * 0.55 + max(b3 - 0.42, 0.0) * 0.5;',
+        '    vec3 g = max(b1 - uBT.x, 0.0) * 0.7 + max(b2 - uBT.y, 0.0) * 0.55 + max(b3 - uBT.z, 0.0) * 0.5;',
         '    c = 1.0 - (1.0 - c) * (1.0 - clamp(g * uBloom, 0.0, 1.0));',
         '  }',
+        // lens vignette: the corners fall off a little (frames the car, a camera-lens feel), aspect-corrected, ~3 ALU ops
+        '  vec2 vq = (vUv - 0.5) * vec2(uAsp, 1.0) / max(uAsp, 1.0); c *= 1.0 - uVig * smoothstep(0.32, 0.9, dot(vq, vq) * 2.2);',
         '  gl_FragColor = vec4(c, 1.0);',
         '}'].join('\n'),
       depthTest: false, depthWrite: false, toneMapped: false,
@@ -352,8 +362,12 @@ window.EI = window.EI || {};
     const w = Math.max(2, Math.round(window.innerWidth * pr * st.sc)), h = Math.max(2, Math.round(window.innerHeight * pr * st.sc));
     // glow from the target's mip chain: night circuits on Low / Medium (WebGL2, a target without MSAA: the mips are made after
     // each view is drawn)
-    const bloom = !!(EI.Night && EI.Night.on) && quality !== 'high' && !st.msaa && renderer.capabilities.isWebGL2;
-    PIPE.mat.uniforms.uBloom.value = bloom ? 1 : 0;
+    // day circuits get a gentle high-threshold glare too (sun glints off cars, glass and white paint): LOOKS bloom [strength,
+    // thresholds x3]; the night threshold catches every lamp
+    const night = !!(EI.Night && EI.Night.on), BL = (EI.look && EI.look.bloom) || (night ? [1, 0.8, 0.55, 0.42] : [0.55, 0.93, 0.84, 0.76]);
+    const bloom = quality !== 'high' && !st.msaa && renderer.capabilities.isWebGL2 && BL[0] > 0;
+    PIPE.mat.uniforms.uBloom.value = bloom ? BL[0] : 0; PIPE.mat.uniforms.uBT.value.set(BL[1], BL[2], BL[3]);
+    PIPE.mat.uniforms.uVig.value = (EI.look && EI.look.vignette != null) ? EI.look.vignette : 0.22; PIPE.mat.uniforms.uAsp.value = window.innerWidth / Math.max(1, window.innerHeight);
     PIPE.sc = st.sc; if (PIPE.rt && PIPE.w === w && PIPE.h === h && PIPE.msaa === st.msaa && PIPE.bloom === bloom) return;
     if (PIPE.rt) PIPE.rt.dispose();
     const opts = { minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter, format: THREE.RGBAFormat, encoding: THREE.sRGBEncoding, depthBuffer: true, stencilBuffer: false };
