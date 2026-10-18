@@ -1014,7 +1014,7 @@ window.EI = window.EI || {};
         for (let j = 0; j < 2; j++) { const cx = w / 4 + j * w / 2; if (txt === 'lumi' && EI.Ads) EI.Ads.lockupCentered(x, 'lumi', cx, h * 0.5, h * 0.62, w * 0.4, '#ffffff', true);
           else { x.fillStyle = '#ffffff'; x.font = '800 ' + Math.round(h * 0.5) + 'px "Plus Jakarta Sans", "Titillium Web", Arial, sans-serif'; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText(txt, cx, h * 0.54, w * 0.42); } }
         weather(x, w, h, 61 + k, 160); }, (x, w, h) => { x.fillStyle = 'rgb(120,120,120)'; x.fillRect(0, 0, w, 3); x.fillRect(0, h - 3, w, 3); }, null, 'u'));
-      const chain = AT.region('chain', 64, 64, (x, w, h) => { x.clearRect(0, 0, w, h); x.strokeStyle = 'rgba(204,208,212,1)'; x.lineWidth = 1.2; for (let k = -64; k <= 128; k += 8) { x.beginPath(); x.moveTo(k, 0); x.lineTo(k + 64, 64); x.stroke(); x.beginPath(); x.moveTo(k, 64); x.lineTo(k + 64, 0); x.stroke(); } }, null, (x, w, h) => { x.fillStyle = 'rgb(110,110,110)'; x.fillRect(0, 0, w, h); }, 'uv');
+      const chain = AT.region('chain', 64, 64, (x, w, h) => { x.clearRect(0, 0, w, h); x.strokeStyle = 'rgba(204,208,212,0.9)'; x.lineWidth = 1.0; for (let k = -64; k <= 128; k += 8) { x.beginPath(); x.moveTo(k, 0); x.lineTo(k + 64, 64); x.stroke(); x.beginPath(); x.moveTo(k, 64); x.lineTo(k + 64, 0); x.stroke(); } }, null, (x, w, h) => { x.fillStyle = 'rgb(110,110,110)'; x.fillRect(0, 0, w, h); }, 'uv');
       const tec = AT.region('tecpro', 128, 96, (x, w, h) => { x.fillStyle = '#ffffff'; x.fillRect(0, 0, w, h); x.fillStyle = 'rgba(0,0,0,0.1)'; x.fillRect(0, 0, w, 4); x.fillRect(0, h - 4, w, 4); x.fillStyle = '#1a1b1e'; x.fillRect(0, h * 0.2, w, h * 0.09); x.fillRect(0, h * 0.68, w, h * 0.09); x.fillStyle = 'rgba(255,255,255,0.9)'; x.font = '900 18px Arial Black, Arial'; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillStyle = 'rgba(30,30,30,0.85)'; x.fillText('SAFETY', w / 2, h * 0.49); weather(x, w, h, 71, 300); },
         (x, w, h) => { x.fillStyle = 'rgb(150,150,150)'; x.fillRect(0, h * 0.2, w, h * 0.09); x.fillRect(0, h * 0.68, w, h * 0.09); const g2 = x.createLinearGradient(0, 0, 0, 10); g2.addColorStop(0, 'rgb(90,90,90)'); g2.addColorStop(1, 'rgb(128,128,128)'); x.fillStyle = g2; x.fillRect(0, 0, w, 10); }, (x, w, h) => { x.fillStyle = 'rgb(160,160,160)'; x.fillRect(0, 0, w, h); }, 'none');
       const belt = AT.region('belt', 256, 64, (x, w, h) => { x.fillStyle = '#1b1c1e'; x.fillRect(0, 0, w, h); const r = U.rng(9); for (let i = 0; i < 400; i++) { x.fillStyle = 'rgba(255,255,255,' + (0.02 + r() * 0.05) + ')'; x.fillRect(r() * w, r() * h, 1 + r() * 3, 1); } x.fillStyle = '#5b5e62'; for (let k = 8; k < w; k += 32) for (const yy of [8, h - 8]) { x.beginPath(); x.arc(k, yy, 2.6, 0, 6.283); x.fill(); } },
@@ -1090,6 +1090,11 @@ window.EI = window.EI || {};
           sinceGate += 4; if (sinceGate > 110 && i % 3 === 0) { sinceGate = 0; const m = EI.Env.frame(a[0], a[1], a[2], this.tx[i], this.tz[i], this.nx[i] * side, this.nz[i] * side);
             Rd.set('white', 0.5, 0.5); Rd.box(m, 0.12, 2.3, 0.12, -0.6, 0, 0.02, gateC); Rd.box(m, 0.12, 2.3, 0.12, 1.6, 0, 0.02, gateC); Rd.box(m, 2.32, 0.12, 0.12, 0.5, 2.3, 0.02, gateC); Rd.box(m, 2.2, 0.06, 0.06, 0.5, 1.15, 0.02, lin(0x7d8389)); Rd.beam(m, [-0.55, 0.1, 0.02], [1.55, 2.2, 0.02], 0.05, lin(0x7d8389)); }
         }
+        // ---- partner boards hung on the debris fence above the block barriers at the corners: 4 m x 1 m panels, a plain grey back
+        { let a = null, kb = side > 0 ? 0 : 2; for (let i = 0; i <= n; i++) { const ii = i % n; if (!z.tec[ii] || !fenceOn(ii)) { a = null; continue; } const p = P(ii, fl(ii) - 0.05, 1.45); if (!a) { a = [ii, p]; continue; } if (Math.hypot(p[0] - a[1][0], p[2] - a[1][2]) < 4.1) continue;
+          const ia = a[0], A0 = a[1], B0 = p, B1 = P(ii, fl(ii) - 0.05, 2.45), A1 = P(ia, fl(ia) - 0.05, 2.45); Rd.set(sleeves[kb++ % sleeves.length], 0.5, 0);
+          if (side > 0) Rd.quad(A0, B0, B1, A1, white, [0, 0, 0.5, 0, 0.5, 1, 0, 1]); else Rd.quad(A0, A1, B1, B0, white, [0.5, 0, 0.5, 1, 0, 1, 0, 0]);
+          Rd.set('white', 0.6, 0.2); if (side > 0) Rd.quad(B0, A0, A1, B1, lin(0x6d7276)); else Rd.quad(A0, B0, B1, A1, lin(0x6d7276)); a = [ii, p]; } }
         // ---- pit road openings: orange foam end blocks and red / white marker poles
         for (let i = 0; i < n; i++) { const j = (i + 1) % n; if (railOn(i) === railOn(j)) continue; const k = railOn(i) ? i : j; const c = P(k, base(k) - 0.3, 0); const m = EI.Env.frame(c[0], c[1], c[2], this.tx[k], this.tz[k], this.nx[k], this.nz[k]); Rd.set('white', 0.7, 0); Rd.box(m, 1.2, 1.15, 0.6, 0, 0, 0, orange); Rd.box(m, 1.22, 0.1, 0.62, 0, 0.75, 0, dark); const q = P(k, base(k) + 0.6, 0); for (let h = 0; h < 1.6; h += 0.4) Rd.beam(I4, [q[0], q[1] + h, q[2]], [q[0], q[1] + h + 0.4, q[2]], 0.09, h % 0.8 < 0.2 ? red : white); }
         // ---- TecPro blocks (red / white, two straps, chamfered top), stepped at 0.25 m along the lap so the modules close up
@@ -1142,7 +1147,7 @@ window.EI = window.EI || {};
       // the lane only shows where it leaves the racing surface (no pit asphalt painted over the track itself)
       const vis = F.map(f => Math.min(f.dL, f.dR) > hw - 0.3);
       const idx2 = []; for (let i = 0; i < n; i++) if (vis[i] || vis[i + 1]) { const a = i * 2; idx2.push(a, a + 2, a + 1, a + 1, a + 2, a + 3); } geo.setIndex(idx2);
-      const m = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ map: T.asphalt.map, normalMap: T.asphalt.normalMap, roughnessMap: T.asphalt.roughnessMap, color: 0xdedcd8, roughness: 1, metalness: 0, polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 1 }));
+      const m = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ map: T.asphalt.map, normalMap: T.asphalt.normalMap, roughnessMap: T.asphalt.roughnessMap, color: this.data.street ? 0xe0a08c : 0xdedcd8, roughness: 1, metalness: 0, polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 1 }));
       m.receiveShadow = true; m.name = 'pitLane'; g.add(m);
       // markings in one batch: lane edge lines, dashed centre, pit entry / exit lines (thicker, on the track-side edge while the lane runs beside the track),
       // and the speed-limit lines with painted "PIT" / "80"
@@ -1172,7 +1177,8 @@ window.EI = window.EI || {};
         if (dir > 0) { quad(tb, 0.65, 2.3, -2.6, 2.6, [0, 0.5, 1, 1]); quad(tb, 2.6, 4.0, -2.0, 2.0, [0, 0, 1, 0.5]); }
         else { quad(tb, -3.8, -2.15, -2.6, 2.6, [0, 0.5, 1, 1]); quad(tb, -1.85, -0.45, -2.0, 2.0, [0, 0, 1, 0.5]); }
       }
-      const white = U.srgb(solidTexture('#ecebe6'));
+      // street circuits (Monaco: pit1 / pitlane_a): a red-brown lane with yellow lines
+      const white = U.srgb(solidTexture(this.data.street ? '#f2c41c' : '#ecebe6'));
       const mk = Track.batchMesh(b, new THREE.MeshStandardMaterial({ map: white, roughness: 0.6, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -4 })); mk.name = 'pitMarkings'; g.add(mk);
       if (tb.idx.length) { const tx = U.srgb(pitTextTexture()); const mt = Track.batchMesh(tb, new THREE.MeshStandardMaterial({ map: tx, transparent: true, depthWrite: false, roughness: 0.6, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -4 })); mt.name = 'pitText'; g.add(mt); }
       this.pitCurve = curve;

@@ -385,6 +385,11 @@ window.EI = window.EI || {};
       for (let s = s0; s < s1; s += 1.0) { const i = t.idxAtS(s); const b = wall[i] - 0.5; if (b - a < 1.2) continue; quad(P, [pt(s, sd * a), pt(s + 1.02, sd * a), pt(s + 1.02, sd * (a + 0.15)), pt(s, sd * (a + 0.15))], yellow); quad(P, [pt(s, sd * (b - 0.15)), pt(s + 1.02, sd * (b - 0.15)), pt(s + 1.02, sd * b), pt(s, sd * b)], yellow); }
       for (let s = s0; s < s1 - 2; s += 2.6) { const i = t.idxAtS(s); const b = wall[i] - 0.65; const w = b - a - 0.3; if (w < 1) continue; const steps = Math.ceil(w / 0.6); for (let k = 0; k < steps; k++) { const l0 = a + 0.15 + k * w / steps, l1 = a + 0.15 + (k + 1) * w / steps; const ds0 = (l0 - a) * 0.9, ds1 = (l1 - a) * 0.9; if (s + ds1 + 0.45 > s1) break; quad(P, [pt(s + ds0, sd * l0), pt(s + ds0 + 0.45, sd * l0), pt(s + ds1 + 0.45, sd * l1), pt(s + ds1, sd * l1)], yellow); } }
     }
+    // green painted stripes on the outside of a bend, slanted with the traffic (Massenet, massenet_a): [s0, s1, side]
+    for (const [s0, s1, spec] of D.street.green || []) {
+      const sd = K.sideOf(spec, s0, s1); const wall = sd < 0 ? t.wallL : t.wallR; const a = hw + t.kerbWidth + 0.25; const g = C(0x34a874);
+      for (let s = s0; s < s1 - 3; s += 3.2) { const b = Math.min(a + 2.6, wall[t.idxAtS(s)] - 0.45); if (b - a < 0.8) continue; const q = [pt(s, sd * a), pt(s + 0.7, sd * a), pt(s + 2.2, sd * b), pt(s + 1.5, sd * b)]; quad(P, sd > 0 ? q : q.reverse(), g); }
+    }
     // drain grates along both gutters every ~18 m, manholes on the road every ~45 m (not in the tunnel's gutter-less stretch)
     const rng = U.rng(4545); const L = t.length;
     for (let s = 5; s < L; s += 16 + rng() * 6) for (const sd of [-1, 1]) { if (rng() < 0.3) continue; const lat = sd * (hw + 0.55); quad(G, [pt(s - 0.4, lat - 0.25, 0.016), pt(s + 0.4, lat - 0.25, 0.016), pt(s + 0.4, lat + 0.25, 0.016), pt(s - 0.4, lat + 0.25, 0.016)], C(0xffffff), [[0, 0], [1, 0], [1, 1], [0, 1]]); }

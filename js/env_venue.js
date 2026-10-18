@@ -322,6 +322,25 @@ window.EI = window.EI || {};
     ctx.fillStyle = 'rgba(40,56,44,1)'; ctx.fillRect(0, 0, 64, 3); ctx.fillRect(0, 61, 64, 3);
     return Env.cutout(c, { repeat: true });
   }
+  // galvanised tube-and-clamp scaffolding (the temporary stands' exposed backs and stair towers): one 512 px tile = 8 x 8 m,
+  // standards every 2 m, ledgers every 2 m, zig-zag facade bracing in every other bay column, transoms / boards at the top lift
+  function scaffoldTexture() {
+    const [c, ctx] = Env.canvas(512, 512); ctx.clearRect(0, 0, 512, 512);
+    const tube = (x0, y0, x1, y1, w, col) => { ctx.strokeStyle = col; ctx.lineWidth = w; ctx.lineCap = 'butt'; for (const ox of [-512, 0, 512]) for (const oy of [-512, 0, 512]) { ctx.beginPath(); ctx.moveTo(x0 + ox, y0 + oy); ctx.lineTo(x1 + ox, y1 + oy); ctx.stroke(); } };
+    // braces behind (darker, they sit in the inner face), ledgers, then the standards in front
+    for (let bx = 0; bx < 4; bx += 2) for (let ly = 0; ly < 4; ly++) { const x0 = 64 + bx * 128, y0 = 64 + ly * 128; tube(ly % 2 ? x0 : x0 + 128, y0, ly % 2 ? x0 + 128 : x0, y0 + 128, 6, '#8d949b'); }
+    for (let k = 0; k < 4; k++) { const y = 64 + k * 128; tube(0, y, 512, y, 7, '#a9b0b6'); tube(0, y - 2, 512, y - 2, 2, '#d4d9dd'); }
+    for (let k = 0; k < 4; k++) { const x = 64 + k * 128; tube(x, 0, x, 512, 8, '#b4bbc1'); tube(x - 1, 0, x - 1, 512, 2.5, '#e3e7ea'); tube(x + 3, 0, x + 3, 512, 2, '#7d848b'); }
+    ctx.fillStyle = '#5e656c'; for (let i = 0; i < 4; i++) for (let j = 0; j < 4; j++) ctx.fillRect(64 + i * 128 - 6, 64 + j * 128 - 6, 12, 10);   // couplers
+    return Env.cutout(c, { repeat: true, aniso: 8 });
+  }
+  // stand name boards (white on navy, like 'ABBEY' / 'CLUB' on the scaffold backs): 2 x 16 slots of 512 x 64
+  function nameTexture(names) {
+    const [c, ctx] = Env.canvas(1024, 1024); ctx.fillStyle = '#14213d'; ctx.fillRect(0, 0, 1024, 1024);
+    names.forEach((n, k) => { const x = (k % 2) * 512, y = Math.floor(k / 2) * 64; ctx.fillStyle = '#14213d'; ctx.fillRect(x, y, 512, 64); ctx.fillStyle = '#c8102e'; ctx.fillRect(x, y + 58, 512, 6);
+      ctx.fillStyle = '#ffffff'; ctx.font = '800 40px "Titillium Web", Arial, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(n.toUpperCase(), x + 256, y + 30, 480); });
+    return Env.tex(c, false, 8);
+  }
 
   // ================================================================ build
   V.build = function (E) {
@@ -356,7 +375,7 @@ window.EI = window.EI || {};
       let a0 = Infinity, a1 = -Infinity, b0 = Infinity, b1 = -Infinity; for (const q of poly) { const dx = q[0] - cx, dz = q[1] - cz; const a = dx * tx + dz * tz, b = dx * nx + dz * nz; a0 = Math.min(a0, a); a1 = Math.max(a1, a); b0 = Math.min(b0, b); b1 = Math.max(b1, b); }
       const len = a1 - a0, depth = Math.min(b1 - b0, 24); if (len < 10 || depth < 5) continue; const rows = U.clamp(Math.floor((depth - 1) / 0.82), 5, 22);
       const fx = cx + tx * (a0 + a1) / 2 + nx * b0, fz = cz + tz * (a0 + a1) / 2 + nz * b0;
-      blocks.push({ cx: fx, cz: fz, ax: tx, az: tz, nx, nz, len, rows, roof: !E.data.sailRoofs, seat: [0x24418f, 0x8c1d24, 0x2b3a55][Math.floor(Math.abs(cx) % 3)], y: E.ground(cx, cz) - 0.4, first: true, last: true, osm: true });
+      blocks.push({ cx: fx, cz: fz, ax: tx, az: tz, nx, nz, len, rows, roof: !E.data.sailRoofs, seat: [0x24418f, 0x8c1d24, 0x2b3a55][Math.floor(Math.abs(cx) % 3)], y: E.ground(cx, cz) - 0.4, first: true, last: true, osm: true, name: st.n });
     }
     // spectator colours (sRGB): everyday clothes, a lot of team merchandise
     const teams = EI.TEAMS || [{ primary: '#e10600', secondary: '#ffffff' }];
@@ -369,6 +388,16 @@ window.EI = window.EI || {};
     const wpick = (r, list) => { let tot = 0; for (const [, w] of list) tot += w; let x = r() * tot; for (const [k, w] of list) { x -= w; if (x <= 0) return k; } return list[0][0]; };
     const rng = U.rng(777); let seats = 0, people = 0, bi = 0;
     E.standBlocks = blocks;   // circuit dressing built afterwards (the Yas sail canopies) reads the stand frames
+    // permanent-venue (non-street, non-desert) stands are temporary scaffold structures like Silverstone's: open galvanised
+    // tube-and-clamp frames behind and under the decks (alpha-cut texture, one mesh), scaffold stair towers, a navy name board
+    const galv = !street && E.data.kind !== 'desert';
+    const SC = new Env.Builder(), NM = new Env.Builder(), names = [], W1 = C(0xffffff);
+    const nameSlot = (n) => { if (!n) return -1; let k = names.indexOf(n); if (k < 0 && names.length < 32) { names.push(n); k = names.length - 1; } return k; };
+    const cornerName = (s) => { let best = null, bd = 1e9; for (const c of t.data.corners || []) { let d = Math.abs(U.mod(s - c.s, t.length)); d = Math.min(d, t.length - d); if (d < bd) { bd = d; best = c.name; } } return best; };
+    // scaffold quad in a block frame, uv in metres / 8 (one texture tile) from the given (u, v) metre coordinates per corner
+    const scq = (m, a, b, c, d, ua, ub, uc, ud) => SC.quad(Env.xf(m, a[0], a[1], a[2]), Env.xf(m, b[0], b[1], b[2]), Env.xf(m, c[0], c[1], c[2]), Env.xf(m, d[0], d[1], d[2]), W1, [ua[0] / 8, ua[1] / 8, ub[0] / 8, ub[1] / 8, uc[0] / 8, uc[1] / 8, ud[0] / 8, ud[1] / 8]);
+    const scBox = (m, w, h, d, x, z) => { const hw = w / 2, hd = d / 2; const c4 = [[x - hw, z - hd], [x + hw, z - hd], [x + hw, z + hd], [x - hw, z + hd]]; let u = 0;
+      for (let k = 0; k < 4; k++) { const p = c4[k], q = c4[(k + 1) % 4]; const l = Math.hypot(q[0] - p[0], q[1] - p[1]); scq(m, [p[0], 0, p[1]], [q[0], 0, q[1]], [q[0], h, q[1]], [p[0], h, p[1]], [u, 0], [u + l, 0], [u + l, h], [u, h]); u += l; } };
     for (const b of blocks) {
       bi++;
       const m = Env.frame(b.cx, b.y, b.cz, b.ax, b.az, b.nx, b.nz); const L = b.len, hl = L / 2, rows = b.rows;
@@ -416,15 +445,27 @@ window.EI = window.EI || {};
       for (const a of aisles) { MD.beam(m, [a, y0 + rise + 0.95, z0 + 0.3], [a, y0 + rows * rise + 0.95, z0 + rows * tread - 0.3], 0.05, steel); for (let r = 1; r < rows; r += 4) MD.beam(m, [a, y0 + (r + 1) * rise, z0 + r * tread + 0.4], [a, y0 + (r + 1) * rise + 0.95, z0 + r * tread + 0.4], 0.045, steelDark); }
       const yTop = y0 + rows * rise, zBack = z0 + rows * tread;
       // back wall (both faces), rail band, underside and end panels
-      B.quad(P(hl, yTop + 1.2, zBack), P(-hl, yTop + 1.2, zBack), P(-hl, 0, zBack), P(hl, 0, zBack), clad);
+      if (!galv) B.quad(P(hl, yTop + 1.2, zBack), P(-hl, yTop + 1.2, zBack), P(-hl, 0, zBack), P(hl, 0, zBack), clad);
+      else {
+        // navy rear fascia over the top row only; below it the open scaffold: the outer frame, frames 2.5 m / 5 m in (parallax through
+        // the bays), the end frames under the deck; the steel deck soffit shows through
+        B.quad(P(hl, yTop + 1.2, zBack), P(-hl, yTop + 1.2, zBack), P(-hl, yTop - 0.3, zBack), P(hl, yTop - 0.3, zBack), C(0x1c2740));
+        const u0 = Math.floor(rng() * 4) * 2;
+        for (const dz of [0, 2.5, 5]) { const z = zBack - dz; if (dz && z < z0 + 2.5) continue; const hz = dz ? y0 + (z - z0) / tread * rise - 0.15 : yTop - 0.3;
+          scq(m, [-hl, 0, z], [hl, 0, z], [hl, hz, z], [-hl, hz, z], [u0 - hl, 0], [u0 + hl, 0], [u0 + hl, hz], [u0 - hl, hz]); }
+        for (const sx of [-hl + 0.05, hl - 0.05]) scq(m, [sx, 0, 0.35], [sx, 0, zBack], [sx, yTop - 0.3, zBack], [sx, y0, 0.35], [0.35, 0], [zBack, 0], [zBack, yTop - 0.3], [0.35, y0]);
+        const nk = L >= 14 ? nameSlot(b.name || cornerName(b.s != null ? b.s : t.project(b.cx, b.cz, null, pr).s)) : -1;
+        if (nk >= 0) { const bw = Math.min(9, L - 4), yb = yTop - 0.15, zz = zBack + 0.06, u0n = (nk % 2) * 0.5, v1 = 1 - Math.floor(nk / 2) * 64 / 1024, v0 = v1 - 64 / 1024;
+          NM.quad(P(-bw / 2, yb, zz), P(bw / 2, yb, zz), P(bw / 2, yb + 1.15, zz), P(-bw / 2, yb + 1.15, zz), W1, [u0n + 0.004, v0, u0n + 0.496, v0, u0n + 0.496, v1, u0n + 0.004, v1]); }
+      }
       B.quad(P(-hl, yTop + 1.2, zBack - 0.02), P(hl, yTop + 1.2, zBack - 0.02), P(hl, yTop, zBack - 0.02), P(-hl, yTop, zBack - 0.02), concDark);
       B.quad(P(-hl, yTop + 0.9, zBack + 0.02), P(hl, yTop + 0.9, zBack + 0.02), P(hl, yTop + 1.25, zBack + 0.02), P(-hl, yTop + 1.25, zBack + 0.02), red);
-      B.quad(P(hl, y0, z0), P(hl, yTop, zBack), P(-hl, yTop, zBack), P(-hl, y0, z0), concDark);
-      for (const sx of [-hl, hl]) { const f = sx < 0 ? 1 : -1; const a1 = P(sx, 0, 0), a2 = P(sx, y0, 0), a3 = P(sx, yTop + 1.2, zBack), a4 = P(sx, 0, zBack); if (f > 0) { B.quad(a4, a3, a2, a1, conc); } else B.quad(a1, a2, a3, a4, conc); }
+      B.quad(P(hl, y0, z0), P(hl, yTop, zBack), P(-hl, yTop, zBack), P(-hl, y0, z0), galv ? C(0x565c63) : concDark);
+      if (!galv) for (const sx of [-hl, hl]) { const f = sx < 0 ? 1 : -1; const a1 = P(sx, 0, 0), a2 = P(sx, y0, 0), a3 = P(sx, yTop + 1.2, zBack), a4 = P(sx, 0, zBack); if (f > 0) { B.quad(a4, a3, a2, a1, conc); } else B.quad(a1, a2, a3, a4, conc); }
       // sponsor boards along the top of the back wall, facing the track over the crowd
       if (L > 8) strip(yTop + 0.15, 1.0, zBack - 0.06);
       // vertical ribs on the back cladding
-      for (let a = -hl + 3; a < hl - 1; a += 6) M.box(m, 0.25, yTop + 1.2, 0.25, a, 0, zBack + 0.14, steel);
+      if (!galv) for (let a = -hl + 3; a < hl - 1; a += 6) M.box(m, 0.25, yTop + 1.2, 0.25, a, 0, zBack + 0.14, steel);
       // roof: cantilevered slab on rear columns with back stays, an under-roof lattice girder along the front edge,
       // purlins and a row of lights - all visible from the track
       if (b.roof) {
@@ -445,9 +486,16 @@ window.EI = window.EI || {};
       }
       // stair towers at the ends of each run, rear stair towers along long runs
       for (const [flag, sx] of [[b.first, -hl - 1.9], [b.last, hl + 1.9]]) {
-        if (!flag) continue; B.box(m, 3.4, yTop + 2.4, 4.0, sx, 0, zBack - 2.0, C(0xb5b8bd));
+        if (!flag) continue;
+        if (galv) {
+          // open scaffold tower: the frame, a stair flight per lift switching back and forth (both faces), a handrail on each
+          scBox(m, 3.4, yTop + 2.4, 4.0, sx, zBack - 2.0); const flt = C(0x7f858c);
+          let k = 0; for (let y = 0; y < yTop + 0.5; y += 2.2, k++) { const xa = sx + (k % 2 ? 0.1 : -1.5), xb = xa + 1.4, za = zBack - 2 + (k % 2 ? 1.5 : -1.5), zb = zBack - 2 - (k % 2 ? 1.5 : -1.5), y2 = Math.min(yTop + 2.4, y + 2.2);
+            const q = [P(xa, y, za), P(xb, y, za), P(xb, y2, zb), P(xa, y2, zb)]; B.quad(q[0], q[1], q[2], q[3], flt); B.quad(q[3], q[2], q[1], q[0], flt);
+            MD.beam(m, [k % 2 ? xb : xa, y + 1.0, za], [k % 2 ? xb : xa, y2 + 1.0, zb], 0.05, steel); }
+        } else B.box(m, 3.4, yTop + 2.4, 4.0, sx, 0, zBack - 2.0, C(0xb5b8bd));
         for (let y = 2.2; y < yTop + 1; y += 2.2) B.box(m, 3.6, 0.2, 4.2, sx, y, zBack - 2.0, C(0x8e9196));
-        B.box(m, 1.2, 2.1, 0.1, sx, 0, zBack + 0.02, dark); B.box(m, 3.6, 0.3, 4.2, sx, yTop + 2.4, zBack - 2.0, white);
+        if (!galv) B.box(m, 1.2, 2.1, 0.1, sx, 0, zBack + 0.02, dark); B.box(m, 3.6, 0.3, 4.2, sx, yTop + 2.4, zBack - 2.0, white);
       }
       if (!b.first && !b.last && rows >= 10 && bi % 3 === 0 && L > 12) {
         const tz = zBack + 2.0, tw = 3.0; const H2 = yTop + 0.6;
@@ -575,12 +623,42 @@ window.EI = window.EI || {};
         H.box(m, L + 2, 0.3, D + 3, 0, 6.4, -1, C(0xf7f8f8), { bottom: true }); for (const sx of [-L / 2, L / 2]) H.box(m, 0.25, 6.4, 0.25, sx, 0, -D / 2 - 2.2, steel);
       }
     }
-    // ---- BRDC clubhouse: two storeys of glass under a deep white roof, a corner tower
+    // ---- BRDC clubhouse (after the photos): a dark glazed ground floor, a teal-glass first floor behind a deep white balcony slab with
+    // a glass balustrade, a set-back top floor with a terrace, all under a row of white peaked tensile canopies (the wavy roof), a
+    // corner sign tower with the name board and a flag mast flying a union flag. +z points away from the track, x along it.
     if (E.brdc) {
-      const b = E.brdc; const y = E.ground(b.cx, b.cz) - 0.05; const m = Env.frame(b.cx, y, b.cz, b.tx, b.tz, b.nx, b.nz);
-      H.box(m, 64, 4.2, 22, 0, 0, 0, C(0x34404f)); H.box(m, 64.1, 2.6, 22.1, 0, 0.8, 0, glass); H.box(m, 62, 4.0, 20, 0, 4.2, 0.6, white); H.box(m, 62.1, 2.4, 20.1, 0, 5.0, 0.6, glass);
-      H.box(m, 70, 0.5, 30, 0, 8.2, -1.5, white, { bottom: true }); H.box(m, 70.1, 0.9, 0.3, 0, 7.9, -16.5, C(0x0b3d2e));
-      H.box(m, 8, 13, 8, 30, 0, 6, white); H.box(m, 8.1, 3, 8.1, 30, 9, 6, glass); for (const sx of [-34, -12, 12, 34]) H.box(m, 0.4, 8.2, 0.4, sx, 0, -16, steel);
+      const b = E.brdc; const y = E.ground(b.cx, b.cz) - 0.05; const m = Env.frame(b.cx, y, b.cz, b.tx, b.tz, b.nx, b.nz); const P = (x, yy, z) => Env.xf(m, x, yy, z);
+      const teal = C(0x4f7d84), tealD = C(0x34555c), balu = C(0x9cc2c6), memb = C(0xf7f8f8), membU = C(0xd9dcdd), Wl = 64, hw = Wl / 2;
+      const quad2 = (a, b2, c, d, col, colB) => { H.quad(a, b2, c, d, col); H.quad(d, c, b2, a, colB || col); };
+      H.box(m, Wl, 4.0, 22, 0, 0, 0, C(0x2f3a44)); H.box(m, Wl + 0.1, 2.9, 22.1, 0, 0.5, 0, tealD);
+      H.box(m, Wl + 2, 0.5, 25.5, 0, 4.0, -1.6, white, { bottom: true });                        // balcony slab, 2.6 m out over the front
+      H.box(m, Wl - 1, 3.4, 21, 0, 4.5, 0, teal); H.box(m, Wl - 0.9, 0.5, 21.1, 0, 7.4, 0, white);
+      H.box(m, Wl + 2, 0.5, 25.5, 0, 7.9, -1.6, white, { bottom: true });                        // second slab = terrace floor
+      H.box(m, Wl - 8, 3.2, 16, 0, 8.4, 2.5, teal); H.box(m, Wl - 7.9, 0.4, 16.1, 0, 11.2, 2.5, white);
+      for (const yb of [4.5, 8.4]) { quad2(P(-hw - 1, yb, -14.3), P(hw + 1, yb, -14.3), P(hw + 1, yb + 1.1, -14.3), P(-hw - 1, yb + 1.1, -14.3), balu); MD.beam(m, [-hw - 1, yb + 1.12, -14.3], [hw + 1, yb + 1.12, -14.3], 0.07, white);
+        for (const sx of [-hw - 1, hw + 1]) quad2(P(sx, yb, 11), P(sx, yb, -14.3), P(sx, yb + 1.1, -14.3), P(sx, yb + 1.1, 11), balu); }
+      for (let x = -hw + 2; x < hw; x += 3) { H.box(m, 0.14, 3.4, 0.14, x, 4.5, -10.55, white); H.box(m, 0.14, 2.9, 0.14, x, 0.5, -11.08, C(0xc9ced2)); if (Math.abs(x) < hw - 5) H.box(m, 0.14, 3.2, 0.14, x, 8.4, -5.55, white); }
+      // the canopy: eight peaked membranes in a row, each rising to a crown at the mast line, the front edge scalloped between masts
+      const nM = 8, mw = (Wl + 4) / nM, x0 = -(Wl + 4) / 2, zf = -15.2, zr = 9.5, NX = 6, NZ = 4;
+      const cy = (x, z) => { const u = ((x - x0) / mw) % 1, w = Math.abs(u - 0.5) * 2; const vz = (z - zf) / (zr - zf); const crown = 1 - Math.pow(1 - w, 1.6);
+        return 12.4 + 2.6 * crown * (1 - 0.35 * vz) + 0.9 * Math.sin(Math.PI * vz) * (1 - crown * 0.6) - 1.2 * (1 - crown) * (1 - Math.sin(Math.PI * vz)); };
+      for (let k = 0; k < nM; k++) for (let i = 0; i < NX; i++) for (let j = 0; j < NZ; j++) {
+        const xa = x0 + (k + i / NX) * mw, xb = x0 + (k + (i + 1) / NX) * mw - (i === NX - 1 ? 0.001 : 0), za = zf + (zr - zf) * j / NZ, zb = zf + (zr - zf) * (j + 1) / NZ;
+        const q = [P(xa, cy(xa, za), za), P(xb, cy(xb, za), za), P(xb, cy(xb, zb), zb), P(xa, cy(xa, zb), zb)]; H.quad(q[3], q[2], q[1], q[0], memb); H.quad(q[0], q[1], q[2], q[3], membU);
+      }
+      for (let k = 0; k <= nM; k++) { const x = x0 + k * mw; for (const z of [zf + 0.4, zr - 0.4]) MD.beam(m, [x, z < 0 ? 8.4 : 11.6, z], [x, cy(x - 0.001, z) + 0.6, z], 0.22, white); }
+      // sign tower at the Woodcote end with the name board facing the track, flag mast on the roof
+      H.box(m, 3.2, 16.5, 3.2, hw - 3, 0, -10, white); const nk = nameSlot('BRDC');
+      if (nk >= 0) { const u0n = (nk % 2) * 0.5, v1 = 1 - Math.floor(nk / 2) * 64 / 1024, v0 = v1 - 64 / 1024; NM.quad(P(hw - 3 + 1.55, 14.2, -11.62), P(hw - 3 - 1.55, 14.2, -11.62), P(hw - 3 - 1.55, 16.0, -11.62), P(hw - 3 + 1.55, 16.0, -11.62), W1, [u0n + 0.33, v0, u0n + 0.67, v0, u0n + 0.67, v1, u0n + 0.33, v1]); }
+      const fx = hw - 3, fh = 24; MD.beam(m, [fx, 16.5, -10], [fx, fh, -10], 0.16, white);
+      { // union flag (simplified): blue field, white and red saltire, white and red cross; both faces
+        const fw = 3.6, fhh = 1.8, fy = fh - 0.2 - fhh, fz = -10, fx0 = fx + 0.1; const F = (x, yy) => P(fx0 + x, fy + yy, fz);
+        const rect = (xa, ya, xb, yb, col, dz) => { const a = Env.xf(m, fx0 + xa, fy + ya, fz + dz), b2 = Env.xf(m, fx0 + xb, fy + ya, fz + dz), c = Env.xf(m, fx0 + xb, fy + yb, fz + dz), d = Env.xf(m, fx0 + xa, fy + yb, fz + dz); quad2(a, b2, c, d, col); };
+        const band = (xa, ya, xb, yb, wd, col, dz) => { const dx = xb - xa, dy = yb - ya, l = Math.hypot(dx, dy), ox = -dy / l * wd / 2, oy = dx / l * wd / 2;
+          quad2(Env.xf(m, fx0 + xa - ox, fy + ya - oy, fz + dz), Env.xf(m, fx0 + xb - ox, fy + yb - oy, fz + dz), Env.xf(m, fx0 + xb + ox, fy + yb + oy, fz + dz), Env.xf(m, fx0 + xa + ox, fy + ya + oy, fz + dz), col); };
+        void F; rect(0, 0, fw, fhh, C(0x012169), 0); band(0, 0, fw, fhh, 0.36, white, 0.01); band(0, fhh, fw, 0, 0.36, white, 0.01); band(0, 0, fw, fhh, 0.12, red, 0.02); band(0, fhh, fw, 0, 0.12, red, 0.02);
+        rect(0, fhh / 2 - 0.3, fw, fhh / 2 + 0.3, white, 0.03); rect(fw / 2 - 0.3, 0, fw / 2 + 0.3, fhh, white, 0.03); rect(0, fhh / 2 - 0.18, fw, fhh / 2 + 0.18, red, 0.04); rect(fw / 2 - 0.18, 0, fw / 2 + 0.18, fhh, red, 0.04);
+      }
     }
     // ---- industrial sheds: pale cladding, shallow pitched roofs, loading doors, an office front, parked trailers
     for (const s of E.sheds) {
@@ -614,6 +692,16 @@ window.EI = window.EI || {};
     if (D.count) ST.add(D.geometry(), 0.55, 0.25, 'clutter');
     // sponsor boards (top half of the atlas) and fan banners (bottom half) share one textured mesh
     for (const [m, ax, bw, k, tilt] of banners) { const g = new THREE.PlaneGeometry(bw, 1.15, 4, 1); g.rotateY(Math.PI); const uv = g.attributes.uv, pp = g.attributes.position; for (let v = 0; v < uv.count; v++) { uv.setXY(v, (k + 0.02 + uv.getX(v) * 0.96) / 8, 0.02 + uv.getY(v) * 0.46); pp.setZ(v, pp.getZ(v) - 0.05 - Math.sin(uv.getX(v) * 8 * Math.PI) * 0.02); } g.rotateZ(tilt); g.translate(ax, 0.2 + 0.575 + 0.05, -0.08); g.applyMatrix4(m); fronts.push(g); }
+    if (SC.count) {
+      // alpha-cut scaffold: alpha sharpened per pixel and lifted with the mip level so the thin tubes keep their coverage far away
+      const sm = new THREE.MeshStandardMaterial({ map: scaffoldTexture(), vertexColors: true, alphaTest: 0.5, roughness: 0.42, metalness: 0.55, side: THREE.DoubleSide });
+      sm.onBeforeCompile = (sh) => { sh.fragmentShader = sh.fragmentShader.replace('#include <alphatest_fragment>', [
+        '#ifdef USE_MAP', 'vec2 tdx = dFdx(vUv * 512.0), tdy = dFdy(vUv * 512.0); float tlod = max(0.0, 0.5 * log2(max(dot(tdx, tdx), dot(tdy, tdy))));', 'diffuseColor.a = min(1.0, diffuseColor.a * (1.0 + 0.45 * tlod));', '#endif',
+        'diffuseColor.a = clamp((diffuseColor.a - 0.5) / max(fwidth(diffuseColor.a), 0.0001) + 0.5, 0.0, 1.0);', 'if (diffuseColor.a < 0.5) discard;'].join('\n')); };
+      sm.extensions = { derivatives: true }; sm.customProgramCacheKey = () => 'venue-scaffold';
+      const smesh = new THREE.Mesh(SC.geometry(), sm); smesh.name = 'standScaffold'; sc.group.add(smesh); stats.scaffoldTris = SC.count / 3;
+    }
+    if (NM.count) { const nmesh = new THREE.Mesh(NM.geometry(), new THREE.MeshStandardMaterial({ map: nameTexture(names), roughness: 0.6, metalness: 0.05 })); nmesh.name = 'standNames'; sc.group.add(nmesh); }
     if (fronts.length) { const fm = new THREE.Mesh(Env.merge(fronts), new THREE.MeshStandardMaterial({ map: sponsorTexture(), roughness: 0.55, side: THREE.DoubleSide })); fm.name = 'standBoards'; sc.group.add(fm); }
     V.crowd(E, crowd.finalize(), carpet); V.flags(E, flags);
     V.roads(E); V.fence(E); V.cars(E); V.camps(E);

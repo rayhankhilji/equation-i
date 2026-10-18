@@ -873,6 +873,10 @@ window.EI = window.EI || {};
     if (style === 'modern' && !(known && H > 40) && zone !== 'larvotto') style = 'riviera';
     if (known && H > 30 && (style === 'old' || style === 'villa')) style = 'riviera';
     if (!known && area < 110 && style !== 'church') style = zone === 'rocher' ? 'old' : (h2 < 0.6 ? 'villa' : 'old');
+    // Boulevard Albert I (the start straight, Rascasse exit to Ste Devote): sand-coloured apartment blocks with blue awnings
+    const T = E.t, pa = T.project(cx, cz, null, E._dpr || (E._dpr = {}));
+    const albert = T.data.id === 'monaco' && kc !== 5 && kc !== 7 && area > 150 && pa.dist < 75 && (pa.s > T.length - 330 || pa.s < 165);
+    if (albert) style = 'riviera';
     const S = STY[style];
     if (!known) {
       let f0, f1;
@@ -892,7 +896,7 @@ window.EI = window.EI || {};
     H = Math.min(H, Math.max(9, Math.sqrt(area) * 5.5)); if (area < 90) H = Math.min(H, 3.5 + Math.sqrt(area) * 0.9);   // kiosks, pavilions, monuments stay low
     if (minW && minW < 5) H = Math.min(H, Math.max(4, minW * 2.6));   // slivers (walls, arcades, passages) too
     const nf = Math.max(0, Math.round((H - S.gh) / S.fh)); H = S.gh + nf * S.fh;
-    const tint = soften(C(pick(TINTS[style] || TINTS.plain, h2)), 0.3), acc = C(pick(ACCS[style] || ACCS.plain, h5));
+    const tint = albert ? C(pick([0xead3a2, 0xe5cb96, 0xefdcb4, 0xe2c48f, 0xf1e2c0], h2)) : soften(C(pick(TINTS[style] || TINTS.plain, h2)), 0.3), acc = C(pick(ACCS[style] || ACCS.plain, h5));
     let roof = S.roof; if (b.roof === 1) roof = 'flat'; else if (b.roof === 2) roof = 'hip'; if (roof === 'mansard' && (area < 160 || nf < 3)) roof = 'flat'; if (roof === 'hip' && area > (zone === 'rocher' ? 2600 : 900)) roof = 'flat'; if (zone === 'rocher' && roof === 'flat' && area < 2600 && b.roof !== 1 && h6 < 0.8) roof = 'hip'; if (style === 'villa' && h3 < 0.35 && area > 200) roof = 'flat';
     if (style === 'riviera' && nf <= 4 && area < 500 && h6 < 0.35) roof = 'hip';
     const roofTint = roof === 'flat' ? C(pick(FLATT, h3)) : roof === 'mansard' ? C(0x8e969c) : soften(C(pick(ROOFT, h3)), 0.22);
@@ -905,10 +909,11 @@ window.EI = window.EI || {};
       if (zone === 'larvotto' || zone === 'fontvieille') { if (h6 > 0.6) rv = 'mod'; }
       rail = Math.floor(h3 * 4) % 4; if (rv === 'mod') rail = 2;
     }
-    const awnP = style === 'riviera' && rv !== 'mod' ? (h5 < 0.35 ? 0.55 : h5 < 0.6 ? 0.18 : 0) : 0;
+    if (albert) { roof = 'flat'; if (rv === 'mod' || rv === 'rv60') rv = 'punched'; }
+    const awnP = albert ? 0.85 : style === 'riviera' && rv !== 'mod' ? (h5 < 0.35 ? 0.55 : h5 < 0.6 ? 0.18 : 0) : 0;
     // towers step back for their top floors (a penthouse ring with a terrace), the tallest get a crown
     let sb = null; if ((style === 'riviera' || style === 'modern') && nf >= 9 && area > 260 && h1 * 7 % 1 < 0.6) sb = { n: 1 + (h2 * 5 % 1 < 0.4 ? 1 : 0), d: 2.2 + h3 * 1.6 };
-    return { zone, style, S, nf, H, tint, acc, roof, roofTint, rv, rail, awnP, sb, seed: Math.floor(h1 * 997), shops: zone !== 'hill' && zone !== 'beausoleil' && style !== 'villa' && style !== 'old' };
+    return { zone, style, S, nf, H, tint, acc, roof, roofTint, rv, rail, awnP, albert, sb, seed: Math.floor(h1 * 997), shops: zone !== 'hill' && zone !== 'beausoleil' && style !== 'villa' && style !== 'old' };
   }
 
   // ================================================================ placement tests against the circuit
@@ -1008,6 +1013,7 @@ window.EI = window.EI || {};
       if (D.style === 'riviera' && (D.rv === 'mod' || D.rv === 'loggia' || D.rv === 'rv60' || D.rv === 'punched' && D.nf > 3)) slabBands(E, G, ring, D, L, D.rv === 'mod' ? 0.6 : 0.3);
       if (D.style === 'belle' && D.nf > 2 && !D.noBalc) pianoBalcony(E, G, seg, D, L);
       shopCanopies(E, G, seg, D, L);
+      if (D.albert) windowAwnings(E, G, seg, D, L);
     }
     if (S.cornice && !proxy) cornices(E, G, seg, D, L);
     roofOf(E, G, ring, D, mode, L);
@@ -1058,18 +1064,41 @@ window.EI = window.EI || {};
   }
   // canvas awnings over some balcony bays (accent stripes): a sloping sheet and its valance
   function awningsOn(E, G, segs, D, yTopA, out, k, all) {
-    if (!D.awnP) return; const cl = cell('awn'); G.sub = 1; const drop = 0.75;
+    if (!D.awnP) return; const cl = cell('awn'); G.sub = D.albert ? 0 : 1; const drop = 0.75; const col = D.albert ? AWN_BLUE : WHITE, acc = G.acc; if (D.albert) G.acc = WHITE;
     for (const s of segs) {
       if (!(all || s.long) || !s.balc) continue; const nb = Math.max(1, Math.round(s.L / D.S.bw)); const bw = s.L / nb;
       for (let j = 0; j < nb; j++) {
         if (hash(s.u + j * 7, k * 13 + D.seed, 77) > D.awnP) continue; const a0 = j * bw + 0.15, a1 = (j + 1) * bw - 0.15;
         const P = (al, o) => [s.P0[0] + s.d[0] * al + s.n[0] * o, s.P0[1] + s.d[1] * al + s.n[2] * o];
         const w0 = P(a0, 0.02), w1 = P(a1, 0.02), e0 = P(a0, out), e1 = P(a1, out); const yB = yTopA - drop;
-        G.quad([w1[0], yTopA, w1[1]], [w0[0], yTopA, w0[1]], [e0[0], yB, e0[1]], [e1[0], yB, e1[1]], null, [0, 0, 1, 0, 1, 1, 0, 1], WHITE, cl);
-        G.quad([e1[0], yB - 0.28, e1[1]], [e0[0], yB - 0.28, e0[1]], [e0[0], yB, e0[1]], [e1[0], yB, e1[1]], s.n, [0, 0, 1, 0, 1, 0.12, 0, 0.12], WHITE, cl);
+        G.quad([w1[0], yTopA, w1[1]], [w0[0], yTopA, w0[1]], [e0[0], yB, e0[1]], [e1[0], yB, e1[1]], null, [0, 0, 1, 0, 1, 1, 0, 1], col, cl);
+        if (D.albert) G.quad([w1[0], yTopA, w1[1]], [w0[0], yTopA, w0[1]], [e0[0], yB, e0[1]], [e1[0], yB, e1[1]], [0, -1, 0], [0, 0, 1, 0, 1, 1, 0, 1], scaleC(col, 0.62), cl);
+        G.quad([e1[0], yB - 0.28, e1[1]], [e0[0], yB - 0.28, e0[1]], [e0[0], yB, e0[1]], [e1[0], yB, e1[1]], s.n, [0, 0, 1, 0, 1, 0.12, 0, 0.12], col, cl);
       }
     }
-    G.sub = 0;
+    G.sub = 0; G.acc = acc;
+  }
+  // Boulevard Albert I: a blue drop-arm awning over most windows of the plain faces (core geometry: Low draws them too)
+  const AWN_BLUE = C(0x2a7ad8);
+  function windowAwnings(E, G, seg, D, L) {
+    const S = D.S, cl = cell('awn'), nfMain = D.nf - L.nsb, out = 0.85, drop = 0.7, vh = 0.26; const acc = G.acc; G.acc = WHITE; G.sub = 0;
+    const under = scaleC(AWN_BLUE, 0.62);
+    for (const s of seg) {
+      if (s.balc || !(s.street || s.long) || s.L < 3) continue; const bw = s.L / s.nb;
+      const up = [s.n[0] * drop, out, s.n[2] * drop]; const ul = Math.hypot(up[0], up[1], up[2]); up[0] /= ul; up[1] /= ul; up[2] /= ul;
+      for (let k = 0; k < nfMain; k++) {
+        const yT = L.yG + S.gh + k * S.fh + 2.62, yB = yT - drop;
+        for (let j = 0; j < s.nb; j++) {
+          if (hash(s.u + j * 3, k * 7 + D.seed, 53) > 0.8) continue;
+          const P = (al, o) => [s.P0[0] + s.d[0] * al + s.n[0] * o, s.P0[1] + s.d[1] * al + s.n[2] * o];
+          const a0 = (j + 0.12) * bw, a1 = (j + 0.88) * bw; const w0 = P(a0, 0.03), w1 = P(a1, 0.03), e0 = P(a0, out), e1 = P(a1, out);
+          G.quad([w1[0], yT, w1[1]], [w0[0], yT, w0[1]], [e0[0], yB, e0[1]], [e1[0], yB, e1[1]], up, [0, 0, 1, 0, 1, 1, 0, 1], AWN_BLUE, cl);
+          G.quad([w1[0], yT, w1[1]], [w0[0], yT, w0[1]], [e0[0], yB, e0[1]], [e1[0], yB, e1[1]], [-up[0], -up[1], -up[2]], [0, 0, 1, 0, 1, 1, 0, 1], under, cl);
+          G.quad([e1[0], yB - vh, e1[1]], [e0[0], yB - vh, e0[1]], [e0[0], yB, e0[1]], [e1[0], yB, e1[1]], s.n, [0, 0, 1, 0, 1, 0.12, 0, 0.12], AWN_BLUE, cl);
+        }
+      }
+    }
+    G.acc = acc;
   }
   // late-modern blocks: thin projecting slab edges at every floor (the glass balconies are painted)
   function slabBands(E, G, ring, D, L, out) {

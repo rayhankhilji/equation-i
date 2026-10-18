@@ -514,7 +514,8 @@ window.EI = window.EI || {};
         const run = side < 0 ? t.runoffL[i] : t.runoffR[i], grav = side < 0 ? t.gravelL[i] : t.gravelR[i];
         const wall = E.wallCap(i, side); const inner0 = hw + kw + 2.6; const runEnd = run ? Math.min(hw + kw + (grav ? 7 : 14), wall - 0.4) + 0.8 : inner0; const lim = grav ? wall + 1 : runEnd;
         // inside the barrier (grass between run-off and wall), then outside the fence out to ~30 m
-        const spans = [[Math.max(inner0, lim), wall - 0.7], [wall + 2.8, wall + 30]];
+        // desert (Yas): paint / turquoise run-off reaches the walls, so no tufts inside the barrier
+        const spans = desert ? [[wall + 2.8, wall + 30]] : [[Math.max(inner0, lim), wall - 0.7], [wall + 2.8, wall + 30]];
         for (const [a, b] of spans) {
           if (b - a < 0.8) continue; const n = Math.round((b - a) * t.ds * 0.42);
           for (let k = 0; k < n; k++) {
