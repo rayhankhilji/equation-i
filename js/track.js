@@ -597,7 +597,8 @@ window.EI = window.EI || {};
       const per = (p) => L / Math.max(1, Math.round(L / p));                  // tile periods that divide the lap: no seam at s = 0
       const sp = new THREE.Vector4(1 / per(48), 1 / per(14), 1 / per(26), 1 / per(64));
       const common = { eiAux: { value: T.aux }, eiSP: { value: sp }, eiHW: { value: hw }, eiKW: { value: kw } };
-      const kk = this.smooth(this.k, 6); const kerbMask = i => Math.abs(kk[i]) > 1 / 420;
+      // no kerbs inside a tunnel (Monaco's sweeps through it on plain white edge lines)
+      const TN = this.data.tunnel; const kk = this.smooth(this.k, 6); const kerbMask = i => Math.abs(kk[i]) > 1 / 420 && !(TN && this.s[i] > TN.s0 + 10 && this.s[i] < TN.s1 - 10);
       this.kerbMask = kerbMask;
 
       // ------------------------------------------------ asphalt (single strip; all detail is per-pixel from lateral offset / lap distance)
@@ -943,7 +944,7 @@ window.EI = window.EI || {};
       const sideOf = (spec, a, b) => { if (spec === 1 || spec === -1) return spec; let sum = 0; for (let s = a; s <= b; s += 2) sum += kk[this.idxAtS(s)]; const out = sum > 0 ? -1 : 1; return spec === 'out' ? out : -out; };
       const Z = {}; for (const side of [-1, 1]) Z[side] = { tec: new Uint8Array(n), tyre: new Uint8Array(n), cover: new Int8Array(n).fill(-1), gap: new Uint8Array(n), island: new Uint8Array(n), back: new Float32Array(n) };
       const mark = (list, key, val) => (list || []).forEach((r, k) => { const sd = sideOf(r[2], r[0], r[1]); const A = Z[sd][key]; for (let i = 0; i < n; i++) if (inR(this.s[i], r[0], r[1])) A[i] = typeof val === 'function' ? val(k) : val; });
-      mark(ST.tecpro, 'tec', 1); mark(ST.tyres, 'tyre', 1); mark(ST.covers, 'cover', (k) => k % 8);
+      mark(ST.tecpro, 'tec', 1); mark(ST.tyres, 'tyre', 1); mark(ST.covers, 'cover', (k) => ST.covers[k][3] != null ? ST.covers[k][3] : k % 4);
       // the hairpin's planted island replaces the inside rail
       const isl = EI.StreetKit && EI.StreetKit.hairpin ? EI.StreetKit.hairpin(this) : null;
       if (isl) for (let i = 0; i < n; i++) if (inR(this.s[i], isl.s0, isl.s1)) Z[isl.side].island[i] = 1;
@@ -1007,7 +1008,12 @@ window.EI = window.EI || {};
         for (let p = 0; p < 2; p++) for (let b = 0; b < 3; b++) for (const dy of [-11, 11]) { const cx = (0.155 + b * 0.31 + 0.1) / 1.15 * w * 0.86 + 6, cy = p * h / 2 + h / 4 + dy; const gr = x.createRadialGradient(cx, cy, 0, cx, cy, 4.5); gr.addColorStop(0, 'rgb(230,230,230)'); gr.addColorStop(1, 'rgba(128,128,128,0)'); x.fillStyle = gr; x.fillRect(cx - 5, cy - 5, 10, 10); }
         x.fillStyle = 'rgb(150,150,150)'; x.fillRect(0, h / 4 - 16, w, 32); x.fillStyle = 'rgb(110,110,110)'; x.fillRect(0, h / 4 - 17, w, 1.5); x.fillRect(0, h / 4 + 16, w, 1.5);
       }, (x, w, h) => { const r = U.rng(3); for (let i = 0; i < 700; i++) { const v = 100 + r() * 70 | 0; x.fillStyle = 'rgb(' + v + ',' + v + ',' + v + ')'; x.fillRect(r() * w, r() * h, 2 + r() * 6, 3 + r() * 20); } }, 'v');
-      const sleeves = SKx.sleeves();
+      // partner sleeves (8 m repeat): single strong colours with white lettering, as the real ones (street.covers [s0, s1, side, design])
+      const SLV = [['#4a2a4c', 'lumi'], ['#1f5f9e', 'intake.ink'], ['#141416', 'trylumi.co'], ['#d8343a', 'Ask Lumi.']];
+      const sleeves = SLV.map(([bg, txt], k) => AT.region('armSleeve' + k, 512, 64, (x, w, h) => { x.fillStyle = bg; x.fillRect(0, 0, w, h); x.fillStyle = 'rgba(255,255,255,0.10)'; x.fillRect(0, 2, w, 2); x.fillStyle = 'rgba(0,0,0,0.22)'; x.fillRect(0, h - 4, w, 4);
+        for (let j = 0; j < 2; j++) { const cx = w / 4 + j * w / 2; if (txt === 'lumi' && EI.Ads) EI.Ads.lockupCentered(x, 'lumi', cx, h * 0.5, h * 0.62, w * 0.4, '#ffffff', true);
+          else { x.fillStyle = '#ffffff'; x.font = '800 ' + Math.round(h * 0.5) + 'px "Plus Jakarta Sans", "Titillium Web", Arial, sans-serif'; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText(txt, cx, h * 0.54, w * 0.42); } }
+        weather(x, w, h, 61 + k, 160); }, (x, w, h) => { x.fillStyle = 'rgb(120,120,120)'; x.fillRect(0, 0, w, 3); x.fillRect(0, h - 3, w, 3); }, null, 'u'));
       const chain = AT.region('chain', 64, 64, (x, w, h) => { x.clearRect(0, 0, w, h); x.strokeStyle = 'rgba(204,208,212,1)'; x.lineWidth = 1.2; for (let k = -64; k <= 128; k += 8) { x.beginPath(); x.moveTo(k, 0); x.lineTo(k + 64, 64); x.stroke(); x.beginPath(); x.moveTo(k, 64); x.lineTo(k + 64, 0); x.stroke(); } }, null, (x, w, h) => { x.fillStyle = 'rgb(110,110,110)'; x.fillRect(0, 0, w, h); }, 'uv');
       const tec = AT.region('tecpro', 128, 96, (x, w, h) => { x.fillStyle = '#ffffff'; x.fillRect(0, 0, w, h); x.fillStyle = 'rgba(0,0,0,0.1)'; x.fillRect(0, 0, w, 4); x.fillRect(0, h - 4, w, 4); x.fillStyle = '#1a1b1e'; x.fillRect(0, h * 0.2, w, h * 0.09); x.fillRect(0, h * 0.68, w, h * 0.09); x.fillStyle = 'rgba(255,255,255,0.9)'; x.font = '900 18px Arial Black, Arial'; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillStyle = 'rgba(30,30,30,0.85)'; x.fillText('SAFETY', w / 2, h * 0.49); weather(x, w, h, 71, 300); },
         (x, w, h) => { x.fillStyle = 'rgb(150,150,150)'; x.fillRect(0, h * 0.2, w, h * 0.09); x.fillRect(0, h * 0.68, w, h * 0.09); const g2 = x.createLinearGradient(0, 0, 0, 10); g2.addColorStop(0, 'rgb(90,90,90)'); g2.addColorStop(1, 'rgb(128,128,128)'); x.fillStyle = g2; x.fillRect(0, 0, w, 10); }, (x, w, h) => { x.fillStyle = 'rgb(160,160,160)'; x.fillRect(0, 0, w, h); }, 'none');
@@ -1059,15 +1065,16 @@ window.EI = window.EI || {};
           // sleeves where the data lists them: boards read left to right from the road
           for (let k = 1; k < run.length; k++) { const ia = run[k - 1], ib = run[k]; if (z.cover[ia] < 0 || z.cover[ib] < 0) continue; const kk = z.cover[ia];
             const a = P(ia, base(ia) - 0.068, 0.12), b = P(ib, base(ib) - 0.068, 0.12), c = P(ib, base(ib) - 0.068, 1.0), d = P(ia, base(ia) - 0.068, 1.0); const u0 = side * arc[k - 1] / 8, u1 = side * arc[k] / 8;
-            Rm.set(sleeves[kk % 8], 0.55, 0.0); if (side > 0) Rm.quad(a, b, c, d, white, [u0, 0, u1, 0, u1, 1, u0, 1]); else Rm.quad(a, d, c, b, white, [u0, 0, u0, 1, u1, 1, u1, 0]); }
+            Rm.set(sleeves[kk % sleeves.length], 0.5, 0.0); if (side > 0) Rm.quad(a, b, c, d, white, [u0, 0, u1, 0, u1, 1, u0, 1]); else Rm.quad(a, d, c, b, white, [u0, 0, u0, 1, u1, 1, u1, 0]); }
         }
         // ---- debris fence: chain-link to 3.5 m behind the rail, the catch section leaning 0.75 m over the road; posts every ~4 m
-        const fl = (ii) => base(ii) + 0.34; let fprev = null, last = null, prevPost = null, sinceGate = 60;
+        // wire tone: dark enough that the mesh reads as galvanised wire against the sky and the facades, not as a frosted sheet
+        const fC = lin(0x7a8085); const fl = (ii) => base(ii) + 0.34; let fprev = null, last = null, prevPost = null, sinceGate = 60;
         const fRuns = []; let fc = null; for (let i = 0; i <= n; i++) { const ii = i % n; if (!fenceOn(ii)) { if (fc && fc.length > 1) fRuns.push(fc); fc = null; continue; } if (!fc) fc = []; if (i % 2 === 0 || !fenceOn((ii + 1) % n)) fc.push(ii); } if (fc && fc.length > 1) fRuns.push(fc);
         for (const run of fRuns) {
           let acc = 0; fprev = null;
           for (let k = 0; k < run.length; k++) { const ii = run[k]; const lo = P(ii, fl(ii), 0), up = P(ii, fl(ii), 3.5), arm = P(ii, fl(ii) - 0.75, 4.35);
-            if (fprev) { acc += Math.hypot(lo[0] - fprev.lo[0], lo[2] - fprev.lo[2]); const v0 = fprev.acc / 0.5, v1 = acc / 0.5; Fn.set(chain, 0.55, 0.3); Fn.quad(fprev.lo, lo, up, fprev.up, lin(0xa3a9ae), [0, v0, 0, v1, 7, v1, 7, v0]); Fn.quad(fprev.up, up, arm, fprev.arm, lin(0xa3a9ae), [0, v0, 0, v1, 2.3, v1, 2.3, v0]); }
+            if (fprev) { acc += Math.hypot(lo[0] - fprev.lo[0], lo[2] - fprev.lo[2]); const v0 = fprev.acc / 0.5, v1 = acc / 0.5; Fn.set(chain, 0.55, 0.3); Fn.quad(fprev.lo, lo, up, fprev.up, fC, [0, v0, 0, v1, 7, v1, 7, v0]); Fn.quad(fprev.up, up, arm, fprev.arm, fC, [0, v0, 0, v1, 2.3, v1, 2.3, v0]); }
             fprev = { lo, up, arm, acc }; }
         }
         for (let i = 0; i < n; i++) {

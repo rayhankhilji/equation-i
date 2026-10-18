@@ -1485,7 +1485,8 @@ window.EI = window.EI || {};
     const water = (t.data.scenery.water || []).filter(w => w.length > 2);
     const inWater = (x, z) => { if (E.isSea(x, z)) return true; for (const w of water) if (pip(x, z, w)) return true; return false; };
     const paveC = cell('pave'), kerbC = cell('kerb'), stoneC = cell('stone');
-    const pc = C(0xe4dcd6), kc = C(0xd8d6d2), sc0 = C(0xcfc4b2);
+    // terracotta block paving from Ste Devote up through the town to Portier (beaurivage1, hairpin_entry), warm grey stone on the harbour side
+    const pcT = C(0xe0a48c), pcG = C(0xd8d0c6), kc = C(0xe8e6e2), sc0 = C(0xcfc4b2); const terra = (s) => t.data.street && s > 130 && s < 1440;
     let walls = 0; const RT = (t.data.street && t.data.street.retaining) || []; const retain = (s) => RT.some(r => s > r[0] - 10 && s < r[1] + 10); const TER = ((t.data.street && t.data.street.terraces) || []).concat(t.data.street && t.data.street.ycm ? [t.data.street.ycm] : []);
     for (const side of [-1, 1]) {
       let prev = null, u = 0;
@@ -1517,7 +1518,7 @@ window.EI = window.EI || {};
           const q = (a0, a1, b0, b1, uv, col, cl) => { if (side > 0) G.quad(a0, b0, b1, a1, [0, 1, 0], [uv[0], uv[1], uv[2], uv[3], uv[4], uv[5], uv[6], uv[7]], col, cl); else G.quad(a1, b1, b0, a0, [0, 1, 0], [uv[6], uv[7], uv[4], uv[5], uv[2], uv[3], uv[0], uv[1]], col, cl); };
           // granite kerb strip, then the block paving
           q([prev.x0, prev.y, prev.z0], [prev.xk, prev.y, prev.zk], [cur.x0, cur.y, cur.z0], [cur.xk, cur.y, cur.zk], [u, 0, u, 0.15, u1, 0.15, u1, 0], kc, kerbC);
-          q([prev.xk, prev.y, prev.zk], [prev.x1, prev.y, prev.z1], [cur.xk, cur.y, cur.zk], [cur.x1, cur.y, cur.z1], [u, 0, u, (Wd - KW) / 2.4, u1, (Wd - KW) / 2.4, u1, 0], pc, paveC);
+          q([prev.xk, prev.y, prev.zk], [prev.x1, prev.y, prev.z1], [cur.xk, cur.y, cur.zk], [cur.x1, cur.y, cur.z1], [u, 0, u, (Wd - KW) / 2.4, u1, (Wd - KW) / 2.4, u1, 0], terra(s) ? pcT : pcG, paveC);
           // kerb face down to the road surface (behind the barrier)
           const nn = [-t.nx[ii] * side, 0, -t.nz[ii] * side];
           if (side > 0) G.quad([prev.x0, prev.yr, prev.z0], [cur.x0, cur.yr, cur.z0], [cur.x0, cur.y, cur.z0], [prev.x0, prev.y, prev.z0], nn, [u, 0, u1, 0, u1, 0.07, u, 0.07], kc, kerbC);
