@@ -261,7 +261,7 @@ window.EI = window.EI || {};
       // ---- the blade roof: an aerofoil section extruded along the frontage, overhanging the pit lane; it lifts and sweeps forward into a
       // point beyond the prow. Leading edge (track side) higher and thinner, upper surface pale grey, the underside white with downlights.
       // the roofline's second crest: the blade kinks up to a sharp ridge about a third of the way along and back down (the 'wing')
-      const kink = (x) => 5.2 * Math.max(0, 1 - Math.abs(x + 110) / 74);
+      const kink = (x) => 8.0 * Math.max(0, 1 - Math.abs(x + 110) / 66);
       const prof = (x) => { const p = prow(x), kk = kink(x); const rise = 3.0 * p + kk; const over = 9 + 7 * p + kk * 0.5; const zle = z0 - over, zte = back(x) + 1.0 - 6 * p;
         return { zle, zte, yle: yt + 2.6 + rise + 1.2 * p, yte: yt + 0.9 + rise * 0.6 - kk * 0.25, thick: 1.6 - 0.6 * p }; };
       const rx = []; for (let x = L0 - 6; x <= L1 + 34.01; x += 4) rx.push(x);
@@ -289,7 +289,7 @@ window.EI = window.EI || {};
       }
       // ---- the paddock-side service core and stair towers (dark glass slots) every ~90 m
       for (let x = L0 + 40; x < L1 - 40; x += 90) { B.box(m, 8, yt + 1.5, 6, X(x), 0, zB + 2.5, offW); G.box(m, 1.4, yt - 2, 0.1, X(x), 2, zB - 0.5 + 0.05 + 2.5 + 3.0, glassD); }
-      if (this.statics) { this.statics.add(B.geometry(), 0.55, 0.08, 'main'); this.statics.add(G.geometry(), 0.16, 0.4, 'main'); this.statics.add(F.geometry(), 0.5, 0.3, 'clutter'); }
+      if (this.statics) { this.statics.add(B.geometry(), 0.55, 0.08, 'main'); this.statics.add(G.geometry(), 0.3, 0.12, 'main'); this.statics.add(F.geometry(), 0.5, 0.3, 'clutter'); }
       // ---- the name along the blade's leading edge, facing the track (one small textured mesh)
       {
         const text = 'SILVERSTONE  ·  HOME OF BRITISH MOTOR RACING  ·  ';

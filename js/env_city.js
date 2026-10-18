@@ -853,7 +853,7 @@ window.EI = window.EI || {};
   function zoneAt(E, x, z) {
     const Z = E.cityZones; if (Math.hypot(x - Z.casino[0], z - Z.casino[1]) < 230) return 'casino';
     if (E.plateaus && E.plateaus[0] && pip(x, z, E.plateaus[0].p)) return 'rocher';
-    if (x > 640 && z < -560 || x > 780) return 'larvotto';
+    if (x > 780 && z < -560 || x > 860) return 'larvotto';   // (Mirabeau / Portier, x 640-780, is still Monte-Carlo masonry)
     if (x < -250 && z > 380) return 'fontvieille';
     if (Math.hypot(x - Z.devote[0], z - Z.devote[1]) < 190) return 'devote';
     if (z < -860) return 'beausoleil';
