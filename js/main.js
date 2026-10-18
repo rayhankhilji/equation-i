@@ -97,7 +97,9 @@ window.EI = window.EI || {};
     cameras = [new THREE.PerspectiveCamera(60, 1, 0.3, 6000)]; onResize(); requestAnimationFrame(loop);
   }
   let this_sunDir = null, loaded = false;
-  let quality = 'medium';
+  // graphics preset: Low (the fastest, the default) unless the player picked another one before (remembered)
+  const savedQ = (() => { try { const v = localStorage.getItem('ei-quality'); return v === 'low' || v === 'medium' || v === 'high' ? v : 'low'; } catch (e) { return 'low'; } })();
+  let quality = savedQ; EI.quality = savedQ;
   // one view of the frame: the High preset's post chain (bloom, FXAA, speed blur; single view only) renders straight to the
   // canvas, everything else goes through the render pipeline's offscreen target (rect in CSS pixels, null = full screen)
   function renderView(cam, usePost, rect) {
@@ -136,7 +138,8 @@ window.EI = window.EI || {};
     };
     ['p1-team', 'p2-team', 'p1-name', 'p2-name', 'opt-laps', 'opt-bots', 'opt-players'].forEach(id => $(id).addEventListener('input', refresh)); refresh();
     const sp = $('opt-split'); if (sp) { sp.value = splitPref; sp.addEventListener('change', () => { splitPref = sp.value; try { localStorage.setItem('ei-split', splitPref); } catch (e) { } onResize(); }); }
-    $('btn-start').addEventListener('click', () => { EI.Audio.resume(); setQuality($('opt-quality').value); startRace(readConfig()); });
+    if ($('opt-quality')) { $('opt-quality').value = savedQ; $('opt-quality').addEventListener('change', () => { try { localStorage.setItem('ei-quality', $('opt-quality').value); } catch (e) { } }); }
+    $('btn-start').addEventListener('click', () => { EI.Audio.resume(); setQuality($('opt-quality').value); try { localStorage.setItem('ei-quality', $('opt-quality').value); } catch (e) { } startRace(readConfig()); });
     // resolution: the menu and the pause card share one saved setting
     const resSel = [$('opt-res'), $('pause-res')].filter(Boolean);
     resSel.forEach(sel => { sel.value = resPref; sel.addEventListener('change', () => { setRes(sel.value); resSel.forEach(o => { o.value = sel.value; }); }); });
