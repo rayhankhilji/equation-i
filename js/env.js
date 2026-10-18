@@ -811,29 +811,80 @@ window.EI = window.EI || {};
   };
   // desert ground colour (sRGB, muted like the rest - the frame grade adds the warmth): pale wind-rippled sand, darker compacted
   // patches and tyre-worn tracks, the landscaped circuit surrounds a touch paler; wet sand at the shore, the seabed under the water
-  const DPAL = { sand: [168, 146, 110], sandDark: [138, 116, 84], pale: [186, 168, 134], wet: [118, 104, 82], seabed: [92, 118, 108] };
+  const DPAL = { sand: [168, 146, 110], sandDark: [138, 116, 84], pale: [186, 168, 134], wet: [118, 104, 82], seabed: [92, 118, 108],
+    lawnA: [44, 56, 30], lawnB: [52, 64, 35], pave: [150, 147, 140], paveDark: [118, 116, 110], asphalt: [62, 63, 66], scrub: [120, 112, 84] };
   Env.DPAL = DPAL;
+  // Yas Island at the circuit (from the satellite views): irrigated lawns inside the barriers and round the venue - all of the
+  // infield, a band outside the lap - pale concrete aprons behind the barriers, paved hardstanding for the paddocks and compounds,
+  // dry scrubby ground beyond the landscaping, and the sand of the undeveloped plots further out
   Ctx.prototype.desertRGB = function (x, z, out, fpre) {
     out = out || [0, 0, 0];
     if (this.isSea(x, z)) { const c = DPAL.seabed; out[0] = c[0]; out[1] = c[1]; out[2] = c[2]; return out; }
     const f = fpre != null ? fpre : this.fAt(x, z);
-    const n1 = U.fbm(x / 140 + 2.3, z / 140 + 7.7, 3), n2 = U.noise2(x / 19 + 4.4, z / 19 + 1.9), rip = Math.sin((x * 0.82 + z * 0.57) * 0.9 + U.noise2(x / 30, z / 30) * 6);
-    const dk = U.smoothstep(0.45, 0.75, n1) * 0.55, pl = U.smoothstep(0.62, 0.9, 1 - n1) * 0.3 + (1 - U.smoothstep(40, 200, f)) * 0.35;
+    const n1 = U.fbm(x / 140 + 2.3, z / 140 + 7.7, 3), n2 = U.noise2(x / 19 + 4.4, z / 19 + 1.9), n3 = U.fbm(x / 70 + 9.1, z / 60 + 3.3, 2);
+    const inside = f < 900 && this.inside(x, z);
+    const reach = inside ? 560 : 55 + 50 * U.fbm(x / 210 + 1.7, z / 210 + 5.2, 2);
+    const set = (c, k) => { out[0] = c[0] * k; out[1] = c[1] * k; out[2] = c[2] * k; };
+    const mix = (c, t) => { out[0] += (c[0] - out[0]) * t; out[1] += (c[1] - out[1]) * t; out[2] += (c[2] - out[2]) * t; };
+    if (f < reach) {
+      if (f >= 0 && f < 3.4) { set(DPAL.pave, 0.94 + n2 * 0.08); return out; }               // concrete apron behind the barriers
+      // mown lawn: stripes along the circuit, a slow tonal drift
+      const dc = this.dcAt(x, z); const st = (Math.floor(dc / 8) & 1) ? 1.05 : 0.95; const tone = 0.9 + n1 * 0.18 + n2 * 0.05;
+      const c = DPAL.lawnA, d = DPAL.lawnB; const u = U.smoothstep(0.35, 0.65, n1);
+      out[0] = (c[0] + (d[0] - c[0]) * u) * st * tone; out[1] = (c[1] + (d[1] - c[1]) * u) * st * tone; out[2] = (c[2] + (d[2] - c[2]) * u) * st * tone;
+      // paved hardstanding patches away from the track (paddocks, compounds, plazas)
+      if (f > 40) { const hp = U.smoothstep(0.6, 0.66, n3); if (hp > 0) { const keep = out.slice(); set(DPAL.paveDark, 0.95 + n2 * 0.08); for (let q = 0; q < 3; q++) out[q] = keep[q] + (out[q] - keep[q]) * hp; } }
+      // the lawn's edge fades into the dry ground (not a hard line)
+      const e = U.smoothstep(reach - 25, reach, f); if (e > 0) mix(DPAL.scrub, e * 0.85);
+      return out;
+    }
+    const rip = Math.sin((x * 0.82 + z * 0.57) * 0.9 + U.noise2(x / 30, z / 30) * 6);
+    const dk = U.smoothstep(0.45, 0.75, n1) * 0.55, pl = U.smoothstep(0.62, 0.9, 1 - n1) * 0.3;
     const k = 0.95 + n2 * 0.08 + rip * 0.015;
     for (let q = 0; q < 3; q++) { let v = DPAL.sand[q] + (DPAL.sandDark[q] - DPAL.sand[q]) * dk; v += (DPAL.pale[q] - v) * pl; out[q] = v * k; }
+    // dry, compacted scrubland next to the developed areas, then open sand
+    const sc = 1 - U.smoothstep(reach, reach + 260, f); if (sc > 0) mix(DPAL.scrub, sc * 0.7);
+    if (f > reach && f < reach + 500) { const hp = U.smoothstep(0.62, 0.68, n3) * (1 - U.smoothstep(reach + 200, reach + 500, f)); if (hp > 0) mix(DPAL.paveDark, hp * 0.9); }
     // shore: a band of darker damp sand along the water's edge
     if (this.isSea(x + 6, z) || this.isSea(x - 6, z) || this.isSea(x, z + 6) || this.isSea(x, z - 6)) for (let q = 0; q < 3; q++) out[q] = out[q] * 0.55 + DPAL.wet[q] * 0.45;
     return out;
   };
-  // painted overlays for the desert field map: the irrigated lawns, open sand, car parks
+  // painted overlays for the desert field map (under the venue's own paint): pavements along the roads, the irrigated lawns from
+  // the map, open sand plots, car parks
   Ctx.prototype.desertPaint = function () {
     const E = this, D = this.data;
     return (ctx, path) => {
       const fillAll = (list, col) => { ctx.fillStyle = col; for (const p of list || []) { if (p.length < 3) continue; path(p); ctx.fill(); } };
-      fillAll(D.sand, 'rgb(182,160,122)');
-      fillAll(D.lawns, 'rgb(66,82,40)');
-      ctx.strokeStyle = 'rgba(40,52,24,0.55)'; ctx.lineWidth = 1.2; for (const p of D.lawns || []) { if (p.length < 3) continue; path(p); ctx.stroke(); }
-      fillAll(D.parking, 'rgb(78,78,80)');
+      fillAll((D.sand || []).filter(p => E.fAt(p[0][0], p[0][1]) > 120), 'rgb(176,154,116)');
+      fillAll(D.lawns, 'rgb(48,60,32)');
+      ctx.strokeStyle = 'rgba(30,44,20,0.5)'; ctx.lineWidth = 1.0; for (const p of D.lawns || []) { if (p.length < 3) continue; path(p); ctx.stroke(); }
+      // pale concrete pavements both sides of every road (the venue paint lays the carriageway on top)
+      ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.strokeStyle = 'rgb(146,143,136)';
+      for (const r of E.roads || []) { if (r.w < 5) continue; ctx.lineWidth = r.w + 7; ctx.beginPath(); r.line.forEach((p, i) => i ? ctx.lineTo(p[0], p[1]) : ctx.moveTo(p[0], p[1])); ctx.stroke(); }
+      E._desertParking(ctx, path, D.parking || []);
+    };
+  };
+  // car parks: dark asphalt with white bay lines in rows along the polygon's longest side
+  Ctx.prototype._desertParking = function (ctx, path, list) {
+    for (const p of list) {
+      if (p.length < 3) continue; let best = 0, ang = 0;
+      for (let i = 0; i < p.length; i++) { const a = p[i], b = p[(i + 1) % p.length]; const L = Math.hypot(b[0] - a[0], b[1] - a[1]); if (L > best) { best = L; ang = Math.atan2(b[1] - a[1], b[0] - a[0]); } }
+      ctx.save(); path(p); ctx.fillStyle = 'rgb(58,59,62)'; ctx.fill(); ctx.clip();
+      const bb = U.polyBounds(p), cx = (bb.x0 + bb.x1) / 2, cz = (bb.z0 + bb.z1) / 2, R = Math.hypot(bb.x1 - bb.x0, bb.z1 - bb.z0) / 2 + 4;
+      ctx.translate(cx, cz); ctx.rotate(ang); ctx.strokeStyle = 'rgba(214,214,206,0.75)'; ctx.lineWidth = 0.18; ctx.beginPath();
+      // double rows of 5 m bays either side of 7 m aisles (a 17 m module), 2.6 m wide
+      for (let v = -R; v < R; v += 17) { for (const row of [v, v + 10]) { ctx.moveTo(-R, row); ctx.lineTo(R, row); for (let u = -R; u < R; u += 2.6) { ctx.moveTo(u, row); ctx.lineTo(u, row + (row === v ? 5 : -5)); } } }
+      ctx.stroke(); ctx.restore();
+      ctx.strokeStyle = 'rgba(160,156,148,0.9)'; ctx.lineWidth = 0.8; path(p); ctx.stroke();
+    }
+  };
+  // painted over the venue's own paint for the desert: its generic car parks (grass fields on an English estate) become paved
+  // ones with bays, and the trampled aprons round the hospitality units become paving
+  Ctx.prototype.desertPaintTop = function () {
+    const E = this;
+    return (ctx, path) => {
+      for (const pk of E.parks || []) { const ax = pk.ax, az = pk.az, hl = pk.hl + 3, hd = pk.hd + 3; const poly = [[pk.cx - ax * hl + az * hd, pk.cz - az * hl - ax * hd], [pk.cx + ax * hl + az * hd, pk.cz + az * hl - ax * hd], [pk.cx + ax * hl - az * hd, pk.cz + az * hl + ax * hd], [pk.cx - ax * hl - az * hd, pk.cz - az * hl + ax * hd]]; E._desertParking(ctx, path, [poly]); }
+      ctx.fillStyle = 'rgb(138,135,128)'; for (const h of E.hosp || []) { ctx.save(); ctx.translate(h.cx, h.cz); ctx.rotate(Math.atan2(h.tz, h.tx)); ctx.fillRect(-h.L / 2 - 5, -h.D / 2 - 5, h.L + 10, h.D + 10); ctx.restore(); }
     };
   };
   // street circuit ground colour (sRGB): built-up city, Mediterranean scrub (garrigue), umbrella-pine woods and the grey limestone
@@ -890,7 +941,7 @@ window.EI = window.EI || {};
     if (desert) {
       // the desert colour per 9 m pixel over the whole map (sand tones, shore, seabed), smoothed up to full size
       const BN = 512; const [bc, bctx] = Env.canvas(BN, BN); const bi = bctx.createImageData(BN, BN); const col = [0, 0, 0];
-      for (let j = 0; j < BN; j++) for (let i = 0; i < BN; i++) { const x = -H + (i + 0.5) * 2 * H / BN, z = -H + (j + 0.5) * 2 * H / BN; this.desertRGB(x, z, col, 5000); const o = (j * BN + i) * 4; bi.data[o] = col[0]; bi.data[o + 1] = col[1]; bi.data[o + 2] = col[2]; bi.data[o + 3] = 255; }
+      for (let j = 0; j < BN; j++) for (let i = 0; i < BN; i++) { const x = -H + (i + 0.5) * 2 * H / BN, z = -H + (j + 0.5) * 2 * H / BN; this.desertRGB(x, z, col); const o = (j * BN + i) * 4; bi.data[o] = col[0]; bi.data[o + 1] = col[1]; bi.data[o + 2] = col[2]; bi.data[o + 3] = 255; }
       bctx.putImageData(bi, 0, 0); ctx.imageSmoothingEnabled = true; ctx.drawImage(bc, 0, 0, S, S);
     }
     if (street && this.dem) {

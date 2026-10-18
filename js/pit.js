@@ -413,7 +413,7 @@ window.EI = window.EI || {};
   }
   function buildFigureMeshes(count, group) {
     // street circuit: lighter heads (the crews are seen from the stands and the grid, a few hundred figures in one draw per part)
-    const SPH = L.track && L.track.data.street ? 'sphL' : 'sph';
+    const SPH = (L.track && L.track.data.street) || EI.quality === 'low' ? 'sphL' : 'sph';   // low-poly heads on street circuits and on Low
     const mk = (fn) => { const gb = new GB(); fn(gb); return gb.geometry(); };
     const I = new THREE.Matrix4();
     const S = (x, y, z, sx, sy, sz) => new THREE.Matrix4().makeTranslation(x, y, z).multiply(new THREE.Matrix4().makeScale(sx, sy, sz));

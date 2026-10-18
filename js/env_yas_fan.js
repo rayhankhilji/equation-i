@@ -75,7 +75,11 @@ window.EI = window.EI || {};
     B.set('white', 0.8, 0); B.box(m, 17, 0.5, 38, SX, TH + 1.1, 0, black);
     // speaker hangs and the front-of-house tower
     for (const sz of [-15, 15]) B.box(m, 2.2, 6.5, 2.2, SX - 8.5, 6.5, sz, black);
-    B.box(m, 6, 4.5, 6, -10, 0, 0, black, { top: C(0x2a2d33) }); B.box(m, 6.6, 0.4, 6.6, -10, 4.5, 0, white);
+    // front-of-house tower: an open scaffold deck with the mixing desks under a small roof (not a black box)
+    for (const [fx, fz] of [[-13, -3], [-7, -3], [-13, 3], [-7, 3]]) B.beam(m, [fx, 0, fz], [fx, 5.6, fz], 0.12, truss);
+    for (const fz of [-3, 3]) for (let hh = 0.4; hh < 5; hh += 1.6) B.beam(m, [-13, hh, fz], [-7, hh + 1.4, fz], 0.05, truss);
+    B.box(m, 6.6, 0.25, 6.6, -10, 2.2, 0, C(0x2a2d33)); B.box(m, 4.2, 1.0, 1.4, -10, 2.45, 1.2, black); B.box(m, 7.0, 0.3, 7.0, -10, 5.6, 0, white);
+    B.set('white', 0.5, 0, night ? 2.0 : 0); B.box(m, 4.0, 0.06, 1.2, -10, 3.47, 1.2, C(0x8fd8ff)); B.set('white', 0.6, 0.05);
     // crowd barrier in front of the stage
     B.set('white', 0.5, 0.3); for (let z = -18; z < 18; z += 2) B.box(m, 0.3, 1.2, 2.0, SX - 10, 0, z + 1, C(0xa9adb2));
     // fan zone stalls along the far side: counters with lit signage and white awnings
@@ -91,7 +95,7 @@ window.EI = window.EI || {};
     // ---- LED wall and side screens (one mesh, one animated material)
     const geos = [];
     const scr = (x, yb, z0, z1, h) => { const g = new THREE.PlaneGeometry(z1 - z0, h); g.rotateY(-Math.PI / 2); g.translate(x, yb + h / 2, (z0 + z1) / 2); return g; };
-    geos.push(scr(SX + 6.8, 2.6, -14, 14, 11.8), scr(SX - 8.2, 7, -27, -19, 5.4), scr(SX - 8.2, 7, 19, 27, 5.4));
+    geos.push(scr(SX + 6.8, 2.6, -14, 14, 11.8), scr(SX - 8.2, 7, -27, -19, 5.4), scr(SX - 8.2, 7, 19, 27, 5.4), scr(SX - 6.6, 1.8, -17.2, -15.6, 13.5), scr(SX - 6.6, 1.8, 15.6, 17.2, 13.5));
     const sg = EI.Env.merge(geos); sg.applyMatrix4(m);
     const uni = { uT: { value: 0 } };
     const smat = new THREE.ShaderMaterial({ uniforms: uni, vertexShader: LED_V, fragmentShader: LED_F, side: THREE.DoubleSide }); smat.userData.nightEmissive = true;
@@ -155,7 +159,23 @@ window.EI = window.EI || {};
       const N = EI.Night;
       for (let k = 0; k < 6; k++) { const z = -15 + k * 6; const p = xf(m, SX - 8, TH, z); N.addFlood(p[0], p[1], p[2], { power: 0.35, aim: fwd, spread: 1.0, range: 70, color: k % 2 ? [0.9, 0.3, 1.0] : [0.35, 0.8, 1.0] }); N.addGlow(p[0], p[1] - 0.3, p[2], 2.6, k % 2 ? [1, 0.4, 1] : [0.4, 0.85, 1], { pulse: 0.8 + k * 0.1 }); }
       for (const [x, z] of [[20, -20], [20, 20], [-25, 0]]) { const p = xf(m, x, 18, z); N.addFlood(p[0], p[1], p[2], { power: 0.25, range: 50 }); }
-      N.onFrame((dt, t) => { uni.uT.value = t; setBeams(t); });
+      // par cans along the front truss and the roof edge, pulsing in the show colours
+      for (let k = 0; k < 18; k++) { const z = -17 + k * 2; const p = xf(m, SX - 7.6, TH - 0.6, z); N.addGlow(p[0], p[1], p[2], 1.3, k % 3 === 0 ? [1.0, 0.2, 0.8] : k % 3 === 1 ? [0.2, 0.7, 1.0] : [1.0, 0.95, 0.85], { pulse: 0.8 + (k % 4) * 0.35 }); }
+      // lasers: fans of green / cyan beams from two emitters over the crowd, swept every frame (one line mesh)
+      const NL = 14, lpos = new Float32Array(NL * 2 * 2 * 3), lcol = new Float32Array(NL * 2 * 2 * 3);
+      const em = [xf(m, SX - 7.2, TH - 1.2, -9), xf(m, SX - 7.2, TH - 1.2, 9)];
+      for (let e = 0; e < 2; e++) for (let k = 0; k < NL; k++) { const o = ((e * NL + k) * 2) * 3; const c = e ? [0.1, 1.0, 0.35] : [0.15, 0.85, 1.0]; lcol.set(c, o); lcol.set([c[0] * 0.05, c[1] * 0.05, c[2] * 0.05], o + 3); }
+      const lg = new THREE.BufferGeometry(); lg.setAttribute('position', new THREE.BufferAttribute(lpos, 3)); lg.setAttribute('color', new THREE.BufferAttribute(lcol, 3));
+      const lmat = new THREE.LineBasicMaterial({ vertexColors: true, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending }); lmat.userData.nightEmissive = true;
+      const lasers = new THREE.LineSegments(lg, lmat); lasers.name = 'yasFanLasers'; lasers.frustumCulled = false; sc.group.add(lasers);
+      const setLasers = (t) => {
+        const on = Math.sin(t * 0.45) > -0.2; lasers.visible = on && beams.visible; if (!lasers.visible) return;
+        for (let e = 0; e < 2; e++) for (let k = 0; k < NL; k++) { const o = ((e * NL + k) * 2) * 3; const a = (k / (NL - 1) - 0.5) * 1.6 + Math.sin(t * 1.3 + e * 2) * 0.35; const el = 0.05 + 0.18 * Math.sin(t * 0.9 + k * 0.4 + e);
+          const hx = fwd[0] * Math.cos(a) - fwd[1] * Math.sin(a), hz = fwd[1] * Math.cos(a) + fwd[0] * Math.sin(a); const L = 140;
+          lpos[o] = em[e][0]; lpos[o + 1] = em[e][1]; lpos[o + 2] = em[e][2]; lpos[o + 3] = em[e][0] + hx * L; lpos[o + 4] = em[e][1] + el * L; lpos[o + 5] = em[e][2] + hz * L; }
+        lg.attributes.position.needsUpdate = true;
+      };
+      N.onFrame((dt, t) => { uni.uT.value = t; setBeams(t); setLasers(t); });
     } else uni.uT.value = 3.0;
     out.fan = { site: [Math.round(cx), Math.round(cz)], crowd: spots.length };
   };

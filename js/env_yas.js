@@ -11,6 +11,7 @@ window.EI = window.EI || {};
   const isDesert = (t) => ((EI.ENVDATA && EI.ENVDATA[t.data.id]) || {}).kind === 'desert';
   const isNight = () => !!(EI.Night && EI.Night.on);
   // night variants of the facade textures live with the architecture module's regions
+  const TX = () => EI.EnvYasTex.regions();
   const NR = () => { const AT = EI.StreetKit.Atlas; return { glassN: AT.R.yasGlassN || AT.R.yasGlass }; };
   // footprints modelled here instead of by the scenery's generic box buildings (they still reserve their ground for the venue
   // layout and the trackside infrastructure: only the box-building pass skips them)
@@ -19,7 +20,10 @@ window.EI = window.EI || {};
     const orig = EI.Scenery.prototype.buildBuildings;
     EI.Scenery.prototype.buildBuildings = function () {
       const sc = this.track.data.scenery; if (!isDesert(this.track)) return orig.call(this);
-      const all = sc.buildings; const tr = this.track; sc.buildings = all.filter(b => !OWN(b, tr));
+      // the generic footprints are built by js/env_yas_city.js into the landmarks' static mesh (Gulf facades, lit at night);
+      // the scenery pass here only reserves the pit complex
+      const all = sc.buildings; const tr = this.track; this._yasGeneric = EI.EnvYasCity ? all.filter(b => !OWN(b, tr)) : [];
+      sc.buildings = EI.EnvYasCity ? [] : all.filter(b => !OWN(b, tr));
       try { return orig.call(this); } finally { sc.buildings = all; }
     };
   }
@@ -112,9 +116,9 @@ window.EI = window.EI || {};
     }, null, (x, w, h) => { x.fillStyle = 'rgb(150,150,150)'; x.fillRect(0, 0, w, h); x.fillStyle = 'rgb(50,50,50)'; x.fillRect(0, h - 40, w, 40); });
     // gridshell: steel diamond lattice (opaque) round glass panels that are cut out close up and read as a silvery veil far off
     const shell = alphaRegion('yasShell', 128, 128, (x, w, h) => {
-      x.fillStyle = 'rgba(205,215,228,0.45)'; x.fillRect(0, 0, w, h);
-      x.strokeStyle = '#ffffff'; x.lineWidth = 9; x.strokeRect(0, 0, w, h); x.lineWidth = 3; x.beginPath(); x.moveTo(0, h / 2); x.lineTo(w, h / 2); x.stroke();
-      x.fillStyle = '#ffffff'; for (const [cx, cy] of [[0, 0], [w, 0], [0, h], [w, h], [w / 2, h / 2]]) { x.beginPath(); x.arc(cx, cy, 7, 0, 6.283); x.fill(); }
+      x.fillStyle = 'rgba(205,215,228,0.3)'; x.fillRect(0, 0, w, h);
+      x.strokeStyle = '#aeb6bf'; x.lineWidth = 4; x.strokeRect(0, 0, w, h);
+      x.fillStyle = '#ffffff'; for (const [cx, cy] of [[0, 0], [w, 0], [0, h], [w, h]]) { x.beginPath(); x.arc(cx, cy, 5, 0, 6.283); x.fill(); }
     });
     // Ferrari World roof: lacquered panels with fine seams
     const roof = AT.region('yasRoof', 128, 128, (x, w, h) => { x.fillStyle = '#ffffff'; x.fillRect(0, 0, w, h); x.fillStyle = 'rgba(0,0,0,0.12)'; for (let k = 0; k < w; k += 32) { x.fillRect(k, 0, 2, h); x.fillRect(0, k, w, 2); } },
@@ -144,13 +148,13 @@ window.EI = window.EI || {};
       if (p.h <= 12) { B.set(R.stone, 0.75, 0); prism(B, p.p, y0, y0 + p.h, white, 16, 8, C(0xd6d2c8), 'white'); continue; }
       wings.push({ p: p.p, h: p.h, y0 });
       B.set(R.stone, 0.75, 0, night ? 0.25 : 0); prism(B, p.p, y0, y0 + 9, white, 16, 8);
-      B.set(night ? NR().glassN : R.glass, 0.25, 0.1, night ? 0.75 : 0); prism(B, p.p, y0 + 9, y0 + p.h, glassTint, 9, 13.2, roofC, 'white');
+      B.set(TX().curtain, 0.16, 0.45, night ? 0.75 : 0); prism(B, p.p, y0 + 9, y0 + p.h, glassTint, 9.6, 13.2, roofC, 'white');
     }
     // the bridge across the track (9 m clear), glazed sides, white soffit
     const br = H.bridge; let bridgeY = null;
     if (br && br.p.length >= 3) {
       const y0 = ground(br.p) + 0.3 + br.h0, y1 = ground(br.p) + 0.3 + br.h; bridgeY = [y0, y1];
-      B.set(R.glass, 0.25, 0.1); prism(B, br.p, y0 + 1.2, y1, glassTint, 9, 13.2, roofC, 'white');
+      B.set(TX().curtain, 0.16, 0.45, isNight() ? 1.15 : 0); prism(B, br.p, y0 + 1.2, y1, glassTint, 9.6, 13.2, roofC, 'white');
       B.set('white', 0.7, 0); prism(B, br.p, y0, y0 + 1.2, white); cap(B, br.p, y0, white, false);
     }
     W.add(B, 'main'); out.hotelTris = B.count / 3;
@@ -173,7 +177,7 @@ window.EI = window.EI || {};
     let nq = 0; const led = [];
     surface(F, yFn, (a, b, c, d) => {
       if (night) led.push(a, b, c, a, c, d);
-      const col = Math.sin(a[0] / 37) * Math.cos(a[2] / 29) > 0.2 ? tB : tA; S.set(R.shell, 0.35, 0.55, 0.22);
+      const col = Math.sin(a[0] / 37) * Math.cos(a[2] / 29) > 0.2 ? tB : tA; S.set(R.shell, 0.35, 0.55, night ? 0.04 : 0.22);
       const ua = uvOf(a), ub = uvOf(b), uc = uvOf(c), ud = uvOf(d);
       S.quad(a, b, c, d, col, [ua[0], ua[1], ub[0], ub[1], uc[0], uc[1], ud[0], ud[1]]); S.quad(a, d, c, b, col, [ua[0], ua[1], ud[0], ud[1], uc[0], uc[1], ub[0], ub[1]]); nq++;
     });
@@ -194,7 +198,7 @@ window.EI = window.EI || {};
           '  float line = 1.0 - smoothstep(0.0, 0.07, min(e.x, e.y)); float node = 1.0 - smoothstep(0.0, 0.16, length(e));',
           '  float wave = 0.55 + 0.45 * sin(vP.x * 0.035 + vP.y * 0.08 - uT * 0.9) * sin(vP.z * 0.03 + uT * 0.37);',
           '  vec3 col = pal(vP.x * 0.0025 + vP.y * 0.006 + uT * 0.035);',
-          '  gl_FragColor = vec4(col * (line * 0.55 + node * 1.6 + 0.05) * wave, 1.0); }'].join('\n') });
+          '  gl_FragColor = vec4(col * (0.2 + line * 0.06 + node * 0.55) * wave, 1.0); }'].join('\n') });
       mat.userData.nightEmissive = true;
       const lm = new THREE.Mesh(g, mat); lm.name = 'yasShellLED'; lm.renderOrder = 4; sc.group.add(lm);
       EI.Night.onFrame((dt, tt) => { uni.uT.value = tt; });
@@ -335,6 +339,7 @@ window.EI = window.EI || {};
     const Hh = { W, R, prism, cap, batchMesh, alphaRegion, centroid };
     if (EI.EnvYasArch) step('arch', () => EI.EnvYasArch.build(E, Hh, out));
     if (EI.EnvYasFan) step('fan', () => EI.EnvYasFan.build(E, Hh, out));
+    if (EI.EnvYasCity) step('city', () => EI.EnvYasCity.build(E, Hh, out));
     // the street kit's world is otherwise built at the end of a street circuit's track build: do it here
     step('world', () => world.build());
     step('statics', () => { if (!statics.length) return; const m = batchMesh(world, statics, 'yasStatic'); m.castShadow = true; m.receiveShadow = true; m.customDepthMaterial = new THREE.MeshDepthMaterial({ depthPacking: THREE.RGBADepthPacking }); sc.group.add(m); out.staticTris = m.userData.tris; });

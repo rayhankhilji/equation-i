@@ -345,8 +345,14 @@ window.EI = window.EI || {};
       }
     }
     // round the circuit: palm avenues just outside the perimeter fence line and behind the barriers on the long straights
-    const t = E.t; for (let s = 0; s < t.length; s += 13 + rng() * 6) for (const sd of [-1, 1]) {
-      const i = t.idxAtS(s); const d = E.wallCap(i, sd) + 9 + rng() * 5 + (rng() < 0.35 ? 22 : 0); palm(t.x[i] + t.nx[i] * sd * d, t.z[i] + t.nz[i] * sd * d);
+    // (landscaped, not scattered: each ~240 m stretch and side either has an avenue at one set-back, 12 m apart, or nothing;
+    // a second row behind where the stretch is wide open)
+    const t = E.t; const SEG = 240;
+    for (let s0 = 0; s0 < t.length; s0 += SEG) for (const sd of [-1, 1]) {
+      const h = Env.hash2(Math.round(s0), sd + 3, 41); if (h < 0.3) continue; const off = 10 + Math.floor(h * 3) * 3, two = h > 0.82;
+      for (let s = s0 + 6; s < Math.min(t.length, s0 + SEG); s += 12) {
+        const i = t.idxAtS(s); for (const extra of two ? [0, 9] : [0]) { const d = E.wallCap(i, sd) + off + extra; const sj = extra ? s + 6 : s; const j = t.idxAtS(sj); palm(t.x[j] + t.nx[j] * sd * d, t.z[j] + t.nz[j] * sd * d, 1.05); }
+      }
     }
     for (const row of D.treeRows || []) for (let i = 0; i + 1 < row.length; i++) {
       const a = row[i], b = row[i + 1]; const L = Math.hypot(b[0] - a[0], b[1] - a[1]);
@@ -515,7 +521,11 @@ window.EI = window.EI || {};
             const d = a + Math.pow(rng(), 1.4) * (b - a); const along = (rng() - 0.5) * t.ds; const x = t.x[i] + t.nx[i] * side * d + t.tx[i] * along, z = t.z[i] + t.nz[i] * side * d + t.tz[i] * along;
             if (d > wall && (E.occAt(x, z) & (OCC.ROAD | OCC.BUILT | OCC.WATER | OCC.PARK))) continue;
             if (street && !(E.occAt(x, z) & OCC.WOOD)) continue;
-            if (desert) { E.mapColor(x, z, col); if (col.g < col.r * 1.08) continue; }   // desert: tufts on the irrigated lawns only
+            if (desert) {   // desert: tufts on the irrigated lawns only, never on the painted / asphalt run-off
+              const ro = side < 0 ? t.runoffOuterL : t.runoffOuterR; if (ro && d < ro[i] + 1.2) continue;
+              if (d < wall) { const rr = side < 0 ? t.runoffL : t.runoffR; let near = false; for (let j = -7; j <= 7 && !near; j++) near = !!rr[(i + j + t.n) % t.n]; if (near && d < hw + kw + 17) continue; }
+              E.mapColor(x, z, col); if (col.g < col.r * 1.08) continue;
+            }
             if (d > wall && E.fsAt(x, z) < 2.0) continue; // another part of the track
             push(x, t.y[i] - 0.03, z, 0.6 + rng() * 0.7);
           }

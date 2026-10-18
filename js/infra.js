@@ -127,6 +127,8 @@ window.EI = window.EI || {};
       sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nattribute vec2 tileOff;').replace('#include <uv_vertex>', '#include <uv_vertex>\n#ifdef USE_UV\n\tvUv = vUv * vec2(0.25, 0.5) + tileOff;\n#endif');
     };
     mat.customProgramCacheKey = () => 'hoarding';
+    // night races: the boards are LED panels, lit from within
+    if (EI.Night && EI.Night.on) { mat.emissive = new THREE.Color(1, 1, 1); mat.emissiveMap = atlas; mat.emissiveIntensity = 0.95; }
     const inst = new THREE.InstancedMesh(geo, mat, spots.length);
     const tiles = new Float32Array(spots.length * 2);
     const leg = (x) => { const g = new THREE.CylinderGeometry(0.07, 0.07, 2.05, 4, 1, true); g.rotateY(Math.PI / 4); g.translate(x, 1.025, -0.1); g.userData.color = C(0x2a2d31); return g; };
@@ -172,7 +174,7 @@ window.EI = window.EI || {};
       cx.reserve(p.s, side, 6); n++;
     });
     cx.static(geos, 0.5, 0.4, 'main', 'billboardPosts');
-    if (panels.length && !cx.textured(panels, atlas, 'billboards', 1024, 512, 0.5)) { const bm = new THREE.Mesh(merge(panels), new THREE.MeshStandardMaterial({ map: atlas, roughness: 0.5 })); bm.castShadow = true; bm.receiveShadow = true; cx.add(bm, 'billboards'); }
+    if (panels.length && !cx.textured(panels, atlas, 'billboards', 1024, 512, 0.5)) { const bm = new THREE.Mesh(merge(panels), new THREE.MeshStandardMaterial(Object.assign({ map: atlas, roughness: 0.5 }, EI.Night && EI.Night.on ? { emissive: 0xffffff, emissiveMap: atlas, emissiveIntensity: 0.9 } : {}))); bm.castShadow = true; bm.receiveShadow = true; cx.add(bm, 'billboards'); }
     cx.stats.billboards = n;
   }
 

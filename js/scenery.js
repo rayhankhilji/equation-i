@@ -29,7 +29,7 @@ window.EI = window.EI || {};
       Venue.layout(E); E.allWoods = this.track.data.scenery.woods.concat(E.data.woods || []); lap('layout');
       const City = E.data.kind === 'street' && E.dem ? EI.EnvCity : null;
       const desert = E.data.kind === 'desert';
-      E.paintFieldMap(City ? [City.paintBase(E), Venue.paint(E), City.paint(E)] : desert ? [E.desertPaint(), Venue.paint(E)] : [Venue.paint(E)]); lap('fieldMap');
+      E.paintFieldMap(City ? [City.paintBase(E), Venue.paint(E), City.paint(E)] : desert ? [E.desertPaint(), Venue.paint(E), E.desertPaintTop()] : [Venue.paint(E)]); lap('fieldMap');
       E.buildTerrain(); E.buildVerge(); lap('terrain');
       this.buildSky(); lap('sky');
       this.buildBuildings(); lap('buildings');

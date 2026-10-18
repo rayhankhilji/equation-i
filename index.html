@@ -114,6 +114,12 @@
                 <option value="50">50% (fastest)</option>
               </select>
             </label>
+            <label class="field"><span class="fl">Display</span>
+              <select id="opt-sync" title="Low latency draws each frame straight to the screen (least input delay; some systems may show tearing). VSync waits for the screen refresh (no tearing, a frame more delay). Applies when the page reloads.">
+                <option value="low" selected>Low latency</option>
+                <option value="vsync">VSync (no tearing)</option>
+              </select>
+            </label>
           </div>
         </section>
 
@@ -306,7 +312,9 @@
 <script src="js/env_street.js"></script>
 <script src="js/street_kit.js"></script>
 <script src="js/night.js"></script>
+<script src="js/env_yas_tex.js"></script>
 <script src="js/env_yas.js"></script>
+<script src="js/env_yas_city.js"></script>
 <script src="js/env_yas_arch.js"></script>
 <script src="js/env_yas_fan.js"></script>
 <script src="js/env_veg.js"></script>

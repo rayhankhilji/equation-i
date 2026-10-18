@@ -33,7 +33,7 @@ window.EI = window.EI || {};
     // no MSAA on the canvas itself: the 3D view renders into an offscreen target (MSAA there when the budget allows, FXAA
     // otherwise) and is resolved onto the canvas in one pass (see the render pipeline below). desynchronized: a low-latency
     // canvas where the browser supports it (one frame less between the draw and the screen)
-    renderer = new THREE.WebGLRenderer({ canvas, antialias: false, powerPreference: 'high-performance', desynchronized: true });
+    renderer = new THREE.WebGLRenderer({ canvas, antialias: false, powerPreference: 'high-performance', desynchronized: syncPref !== 'vsync' });
     // shader status queries stall until the GPU has compiled each program; skipped unless ?shaderdebug is in the URL
     renderer.debug.checkShaderErrors = /[?&]shaderdebug/.test(location.search); renderer.info.autoReset = false;
     renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5)); renderer.setSize(window.innerWidth, window.innerHeight);
@@ -50,7 +50,7 @@ window.EI = window.EI || {};
       // Yas Marina: the race starts at sunset - the sun low over the Gulf in the west-south-west, warm haze, long shadows
       // Yas Marina: a night race under floodlights (js/night.js: night sky, the light map, glows); the 'sun' is dim moonlight from
       // high up so the cars keep their contact shadows
-      abudhabi: { night: true, elev: 70, azim: 200, west: [-0.92, 0, 0.38], horizon: 0x141a2b, fog: [700, 3200], fogLow: [420, 1800], hemi: [0x2c3a5c, 0x14110d, 0.32], sun: [0xaebcff, 0.26] } };
+      abudhabi: { night: true, elev: 70, azim: 200, west: [-0.7, 0, 0.7], horizon: 0x1c150e, fog: [800, 3400], fogLow: [480, 1900], hemi: [0x26324e, 0x16120d, 0.3], sun: [0xc8d2ff, 0.22], nightTrack: { core: 1.55, halo: 0.34 } } };
     const LK = Object.assign({ elev: 42, azim: 205, turb: 2.5, ray: 2.0, mie: 0.004, horizon: 0xa9c4e4, fog: [600, 2600], fogLow: [350, 1500], hemi: [0x9fc4ee, 0x3f5a2e, 0.35], sun: [0xfff1dd, 2.4] }, LOOKS[trackId] || {}); EI.look = LK;
     const nightLook = !!(LK.night && EI.Night); if (nightLook) EI.Night.on = true; const nightWest = new THREE.Vector3(...(LK.west || [-1, 0, 0]));
     const sunDir = new THREE.Vector3(); const elev = LK.elev, azim = LK.azim; const phi = THREE.MathUtils.degToRad(90 - elev), theta = THREE.MathUtils.degToRad(azim); sunDir.setFromSphericalCoords(1, phi, theta);
@@ -97,6 +97,9 @@ window.EI = window.EI || {};
     cameras = [new THREE.PerspectiveCamera(60, 1, 0.3, 6000)]; onResize(); requestAnimationFrame(loop);
   }
   let this_sunDir = null, loaded = false;
+  // display: 'low' = a desynchronized (low-latency) canvas, 'vsync' = the browser's normal vsynced path (no tearing). The
+  // context attribute is fixed when the renderer is made, so a change applies on the next page load.
+  const syncPref = (() => { try { return localStorage.getItem('ei-sync') === 'vsync' ? 'vsync' : 'low'; } catch (e) { return 'low'; } })();
   // graphics preset: Low (the fastest, the default) unless the player picked another one before (remembered)
   const savedQ = (() => { try { const v = localStorage.getItem('ei-quality'); return v === 'low' || v === 'medium' || v === 'high' ? v : 'low'; } catch (e) { return 'low'; } })();
   let quality = savedQ; EI.quality = savedQ;
@@ -140,6 +143,7 @@ window.EI = window.EI || {};
     const sp = $('opt-split'); if (sp) { sp.value = splitPref; sp.addEventListener('change', () => { splitPref = sp.value; try { localStorage.setItem('ei-split', splitPref); } catch (e) { } onResize(); }); }
     if ($('opt-quality')) { $('opt-quality').value = savedQ; $('opt-quality').addEventListener('change', () => { try { localStorage.setItem('ei-quality', $('opt-quality').value); } catch (e) { } }); }
     $('btn-start').addEventListener('click', () => { EI.Audio.resume(); setQuality($('opt-quality').value); try { localStorage.setItem('ei-quality', $('opt-quality').value); } catch (e) { } startRace(readConfig()); });
+    const syncSel = $('opt-sync'); if (syncSel) { syncSel.value = syncPref; syncSel.addEventListener('change', () => { try { localStorage.setItem('ei-sync', syncSel.value); } catch (e) { } if (syncSel.value !== syncPref && !race) location.reload(); }); }
     // resolution: the menu and the pause card share one saved setting
     const resSel = [$('opt-res'), $('pause-res')].filter(Boolean);
     resSel.forEach(sel => { sel.value = resPref; sel.addEventListener('change', () => { setRes(sel.value); resSel.forEach(o => { o.value = sel.value; }); }); });
@@ -285,8 +289,8 @@ window.EI = window.EI || {};
     const now = performance.now(), maxLv = cameras.length > 1 ? 5 : 4; let lv = autoLv;
     // on a 60 Hz screen frames come in 16.7 / 33.3 ms steps: an average over ~19 ms means about one frame in seven misses the
     // refresh - noticeable as judder and input lag - so step down; step back up only when nearly every frame makes it
-    if (ftEma > 19 && lv < maxLv) { lv++; ftUp = 0; if (now - lastUpAt < 6000) lockUpUntil = now + 30000; }   // a step up that did not hold: stay down a while
-    else if (ftEma < 17.2 && lv > 0 && now > lockUpUntil) { if (++ftUp >= 4) { lv--; ftUp = 0; lastUpAt = now; } }
+    if ((ftEma > 19 || gpuQ > 1.6) && lv < maxLv) { lv++; ftUp = 0; if (now - lastUpAt < 6000) lockUpUntil = now + 30000; }   // a step up that did not hold: stay down a while
+    else if (ftEma < 17.2 && gpuQ < 0.9 && lv > 0 && now > lockUpUntil) { if (++ftUp >= 4) { lv--; ftUp = 0; lastUpAt = now; } }
     else ftUp = 0;
     if (lv !== autoLv) { autoLv = lv; saveLv(); onResize(); }
   }
@@ -294,10 +298,10 @@ window.EI = window.EI || {};
   function pipeInit() {
     PIPE.maxSamples = renderer.capabilities.isWebGL2 ? Math.min(4, renderer.capabilities.maxSamples || 0) : 0;
     PIPE.mat = new THREE.ShaderMaterial({
-      uniforms: { tDiffuse: { value: null }, uTexel: { value: new THREE.Vector2(1, 1) }, uFxaa: { value: 0 }, uSharp: { value: 0 } },
+      uniforms: { tDiffuse: { value: null }, uTexel: { value: new THREE.Vector2(1, 1) }, uFxaa: { value: 0 }, uSharp: { value: 0 }, uBloom: { value: 0 } },
       vertexShader: 'varying vec2 vUv; void main() { vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }',
       fragmentShader: [
-        'varying vec2 vUv; uniform sampler2D tDiffuse; uniform vec2 uTexel; uniform float uFxaa; uniform float uSharp;',
+        'varying vec2 vUv; uniform sampler2D tDiffuse; uniform vec2 uTexel; uniform float uFxaa; uniform float uSharp; uniform float uBloom;',
         'vec3 tx(vec2 o) { return texture2D(tDiffuse, vUv + o * uTexel).rgb; }',
         'float lu(vec3 c) { return dot(c, vec3(0.299, 0.587, 0.114)); }',
         'void main() {',
@@ -321,6 +325,14 @@ window.EI = window.EI || {};
         '    vec3 wt = -amp * mix(0.125, 0.2, uSharp);',
         '    c = clamp((c + (n + s + e + w) * wt) / (1.0 + 4.0 * wt), 0.0, 1.0);',
         '  }',
+        // cheap glow (Low / Medium at night; High has its bloom chain): three blurred levels of the frame's own mip chain, each
+        // above a threshold that drops with the blur (a small bright lamp averages down) - a soft halo round floodlights, LEDs
+        // and lit glass for three texture reads
+        '  if (uBloom > 0.0) {',
+        '    vec3 b1 = texture2D(tDiffuse, vUv, 2.5).rgb, b2 = texture2D(tDiffuse, vUv, 4.0).rgb, b3 = texture2D(tDiffuse, vUv, 5.5).rgb;',
+        '    vec3 g = max(b1 - 0.8, 0.0) * 0.7 + max(b2 - 0.55, 0.0) * 0.55 + max(b3 - 0.42, 0.0) * 0.5;',
+        '    c = 1.0 - (1.0 - c) * (1.0 - clamp(g * uBloom, 0.0, 1.0));',
+        '  }',
         '  gl_FragColor = vec4(c, 1.0);',
         '}'].join('\n'),
       depthTest: false, depthWrite: false, toneMapped: false,
@@ -333,13 +345,17 @@ window.EI = window.EI || {};
     if (!PIPE.mat) pipeInit();
     const st = viewState(); const pr = renderer.getPixelRatio();
     const w = Math.max(2, Math.round(window.innerWidth * pr * st.sc)), h = Math.max(2, Math.round(window.innerHeight * pr * st.sc));
-    PIPE.sc = st.sc; if (PIPE.rt && PIPE.w === w && PIPE.h === h && PIPE.msaa === st.msaa) return;
+    // glow from the target's mip chain: night circuits on Low / Medium (WebGL2, a target without MSAA: the mips are made after
+    // each view is drawn)
+    const bloom = !!(EI.Night && EI.Night.on) && quality !== 'high' && !st.msaa && renderer.capabilities.isWebGL2;
+    PIPE.mat.uniforms.uBloom.value = bloom ? 1 : 0;
+    PIPE.sc = st.sc; if (PIPE.rt && PIPE.w === w && PIPE.h === h && PIPE.msaa === st.msaa && PIPE.bloom === bloom) return;
     if (PIPE.rt) PIPE.rt.dispose();
     const opts = { minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter, format: THREE.RGBAFormat, encoding: THREE.sRGBEncoding, depthBuffer: true, stencilBuffer: false };
     PIPE.rt = st.msaa ? new THREE.WebGLMultisampleRenderTarget(w, h, opts) : new THREE.WebGLRenderTarget(w, h, opts);
     if (st.msaa) PIPE.rt.samples = PIPE.maxSamples;
-    PIPE.rt.texture.encoding = THREE.sRGBEncoding; PIPE.rt.texture.generateMipmaps = false;
-    PIPE.w = w; PIPE.h = h; PIPE.msaa = st.msaa;
+    PIPE.rt.texture.encoding = THREE.sRGBEncoding; PIPE.rt.texture.generateMipmaps = bloom; if (bloom) PIPE.rt.texture.minFilter = THREE.LinearMipmapLinearFilter;
+    PIPE.w = w; PIPE.h = h; PIPE.msaa = st.msaa; PIPE.bloom = bloom;
     PIPE.mat.uniforms.tDiffuse.value = PIPE.rt.texture; PIPE.mat.uniforms.uTexel.value.set(1 / w, 1 / h);
     PIPE.mat.uniforms.uFxaa.value = st.msaa ? 0 : 1;
     // sharpening: none at native resolution with MSAA, a touch with FXAA (it softens), more the further the upscale
@@ -565,6 +581,7 @@ window.EI = window.EI || {};
   // ------------------------------------------------------------------ main loop
   function loop(now) {
     requestAnimationFrame(loop); frameNo++; if (renderer) renderer.info.reset();   // info counts the whole frame (views, shadows, mirrors, resolve)
+    const gl2 = renderer && renderer.capabilities.isWebGL2 ? renderer.getContext() : null; if (race) pollFences(gl2);
     now = performance.now(); const rawMs = now - lastT; let dt = U.clamp(rawMs / 1000, 0, MAX_FRAME); lastT = now; adaptResolution(rawMs, dt);   // never negative: a rAF timestamp can precede a lastT stamped in an input handler
     if (!race) {
       if (!loaded) return;   // nothing to draw behind the loading screen: the car model loads and parses sooner
@@ -583,7 +600,7 @@ window.EI = window.EI || {};
     // fixed 120 Hz steps; up to 12 per frame (100 ms) so the race keeps real time down to 10 fps instead of slowing down
     acc += dt; let steps = 0; while (acc >= DT && steps < MAX_STEPS) { for (const c of race.cars) c.savePose(); for (const ap of autopilots) if (ap && race.started) ap.ai.coolDown(); race.update(DT, inputs); acc -= DT; steps++; } if (steps === MAX_STEPS) acc = Math.min(acc, DT);
     if (EI.Pit) EI.Pit.frame(race, dt);
-    const alpha = U.clamp(acc / DT, 0, 1); for (const c of race.cars) c.blend(alpha);
+    const alpha = U.clamp(acc / DT, 0, 1); for (const c of race.cars) presentCar(c, alpha);
     updateCarLod();
     const wasIntro = introT < 6.7; introT += dt; if (wasIntro && introT >= 6.7 && race.players.length === 1) { placeCamera(cameras[0], race.players[0], 0, true, 0); shake = 0.25; }
     if (!race.started && race.phase === 'grid' && introT >= introLen) { race.startLights(); $('lights').classList.remove('hidden'); EI.HUD.setLights(0); race.players.forEach((car, k) => placeCamera(cameras[k], car, k, true, 0)); }
@@ -626,9 +643,28 @@ window.EI = window.EI || {};
       const cockpit = CAM_MODES[camModes[k]] === 'cockpit'; if (cockpit) car.helmet.visible = false;
       renderView(cam, !split, split ? r : null); if (cockpit) car.helmet.visible = true;
     });
-    pipeResolve();
+    pipeResolve(); pushFence(gl2);
   }
   const MAX_FRAME = 0.1, MAX_STEPS = 12;
+  // Cars are drawn where the last physics step is heading, a fraction of a step ahead (extrapolated from the last two steps),
+  // instead of blended between the last two steps: the same smooth motion at any refresh rate, one 120 Hz step (8.3 ms) less
+  // between a key press and the screen. A jump of more than 5 m between steps (a reset, the pit lane) is drawn as it is.
+  function presentCar(c, a) {
+    if (c._px == null) { c.blend(1); return; }
+    const dx = c.x - c._px, dz = c.z - c._pz; if (dx * dx + dz * dz > 25) { c.blend(1); return; }
+    c.vx = c.x + dx * a; c.vy = c.y + (c.y - c._py) * a; c.vz = c.z + dz * a; c.vh = c.heading + U.wrapAngle(c.heading - c._ph) * a;
+  }
+  // GPU frames in flight (WebGL2 fences): when the GPU falls behind, the browser queues finished frames and every queued frame
+  // adds a refresh of input lag without the frame interval showing it. A fence after each frame; the number still pending at
+  // the start of the next frame feeds the Auto resolution, which steps down before the queue grows.
+  const FENCES = []; let gpuQ = 0;
+  function pollFences(gl) {
+    if (!gl || !gl.fenceSync) return; let pending = 0;
+    for (let i = FENCES.length - 1; i >= 0; i--) { const f = FENCES[i]; if (gl.getSyncParameter(f, gl.SYNC_STATUS) === gl.SIGNALED) { gl.deleteSync(f); FENCES.splice(i, 1); } else pending++; }
+    gpuQ += (pending - gpuQ) * 0.1;
+    while (FENCES.length > 4) gl.deleteSync(FENCES.shift());
+  }
+  function pushFence(gl) { if (gl && gl.fenceSync) { const f = gl.fenceSync(gl.SYNC_GPU_COMMANDS_COMPLETE, 0); if (f) FENCES.push(f); } }
   let frameNo = 0, hudTurn = 0, splitShadow = null, sharedEye = null, autopilots = [], shakeP = [0, 0];
   // the sun's shadow box follows (x, z) in steps of ~10 m snapped in light space (whole shadow-map texels), so static shadows never
   // swim and the cached static shadow (below) stays valid until the box moves
@@ -721,6 +757,7 @@ window.EI = window.EI || {};
   }
   EI.debug = { get shake() { return shake; }, set shake(v) { shake = v; }, get introT() { return introT; }, set introT(v) { introT = v; }, get viewports() { return viewports; }, setQuality, snapCameras: () => race && race.players.forEach((car, k) => placeCamera(cameras[k], car, k, true, 0)), setCam: (k, m) => { camModes[k] = m; }, get race() { return race; }, get track() { return track; }, get scenery() { return scenery; }, get scene() { return scene; }, get cameras() { return cameras; }, renderer: () => renderer, startRace, endRace };
   EI.debug.shadowCacheState = SHC;
+  Object.defineProperty(EI.debug, 'pipe', { get: () => ({ sc: PIPE.sc, msaa: PIPE.msaa, bloom: !!PIPE.bloom, autoLv, gpuQ: +gpuQ.toFixed(2), sync: syncPref }) });
   Object.defineProperty(EI.debug, 'resScale', { get: () => PIPE.sc });
   EI.debug.pipe = PIPE; EI.debug.viewState = () => viewState(); EI.debug.setRes = setRes; EI.debug.setAutoLevel = (lv) => { autoLv = lv; onResize(); };
   EI.debug.placeCam = (k, dt) => race && placeCamera(cameras[k], race.players[k], k, false, dt);   // test hook: one camera update

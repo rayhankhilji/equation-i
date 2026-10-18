@@ -108,25 +108,60 @@ window.EI = window.EI || {};
   // a row of peaked sail modules over a local strip [x0, x1] x [zF, zB]: the front edge lifted towards the track, each module pulled
   // up into a peak, the seams low; masts behind the seams with stay cables to the peaks; at night a lit fascia strip under the
   // front edge, downlight glows and floods on the stand and the track
-  const fabric = C(0xf6f5f1), fabricU = C(0xf1ead9), steel = C(0xc9ced3), warm = C(0xfff0d6);
+  const fabric = C(0xffffff), fabricU = C(0xfffaf0), steel = C(0xc9ced3), warm = C(0xfff0d6);
+  // A row of tensile canopy modules over a local strip [x0, x1] x [zF, zB] (zF towards the track). Each module is a white PTFE
+  // membrane pulled up into a cone peak by a ring hung from a mast behind, its four corners held by the front cantilever arms (high,
+  // towards the track) and the back beam; free edges scallop inwards between the corners and the valleys between modules dip, so
+  // the silhouette reads as the row of peaked tents in the photos. Underneath: raking steel truss arms from the masts to the front
+  // corners, a lit edge strip. At night the underside glows (downlights wash the fabric) and floods light the stand and the track.
   function sailRow(B, LN, m, x0, x1, zF, zB, yB, lift, Pk, aimW, lightPow) {
-    const L = x1 - x0, nm = Math.max(1, Math.round(L / 13)), w = L / nm; const eU = isNight() ? 0.2 : 0;
-    const hf = (u, v) => { const du = Math.abs(u - 0.5) * 2; const pf = Math.max(0, 1 - Math.pow(du, 1.6)) * Math.max(0, 1 - Math.pow((v - 0.42) / 0.58, 2)); return yB + lift * Math.pow(1 - v, 1.3) + Pk * pf; };
-    const cable = C(0xb8bec4); const mastTop = yB + Pk + 4.5, zM = zB + 0.8;
+    const T = EI.EnvYasTex.regions(); const night = isNight();
+    const L = x1 - x0, nm = Math.max(1, Math.round(L / 14)), w = L / nm, D = zB - zF;
+    const yF = yB + lift, scal = Math.min(D * 0.14, w * 0.18), sagY = 0.9, valley = 0.55;
+    const NU = 10, NV = 7; const cable = C(0xaab1b8);
+    const zM = zB + 1.2, mastTop = yB + Pk + 6.0;
     for (let k = 0; k < nm; k++) {
-      const a0 = x0 + k * w, a1 = a0 + w; membrane(B, m, a0, a1, zF, zB, hf, 8, 6, fabric, fabricU, eU);
-      const peak = xf(m, (a0 + a1) / 2, hf(0.5, 0.42), zF + (zB - zF) * 0.42);
-      for (const xm of [a0, a1]) LN.seg(xf(m, xm, mastTop, zM), peak, cable);
-      // light at the module's front edge
-      const fy = hf(0, 0) - 0.4; const fp = xf(m, (a0 + a1) / 2, fy, zF + 1.2);
-      if (lightPow) { flood(fp, { power: lightPow, aim: aimW, spread: 1.15, range: 55 }); }
-      for (let q = 0.25; q < 1; q += 0.25) glow(xf(m, a0 + w * q, fy - 0.2, zF + 1.0), 1.5, [1.0, 0.92, 0.78]);
+      const a0 = x0 + k * w, a1 = a0 + w;
+      const pt = (u, v) => {
+        const e4 = 4 * u * (1 - u);
+        // plan: the front and back edges pulled in between the corners
+        const zFe = zF + scal * e4, zBe = zB - scal * 0.6 * e4; const z = zFe + (zBe - zFe) * v;
+        let y = yF + (yB - yF) * Math.pow(v, 0.9);
+        y -= sagY * e4 * (1 - v) * (1 - v);                     // front edge sags between the arms
+        y -= valley * (1 - e4) * 4 * v * (1 - v);               // valleys along the module seams
+        const du = (u - 0.5) / 0.5, dv = (v - 0.45) / 0.55; const d = Math.min(1, Math.sqrt(du * du * 0.9 + dv * dv));
+        y += Pk * Math.pow(1 - d, 1.9);                         // the cone up to the peak ring
+        return EI.Env.xf(m, a0 + w * u, y, z);
+      };
+      const G = []; for (let j = 0; j <= NV; j++) for (let i = 0; i <= NU; i++) G.push(pt(i / NU, j / NV));
+      const at = (i, j) => G[j * (NU + 1) + i];
+      for (let j = 0; j < NV; j++) for (let i = 0; i < NU; i++) {
+        const A = at(i, j), Bq = at(i + 1, j), Cq = at(i + 1, j + 1), Dq = at(i, j + 1);
+        const uv = [i / NU * w / 10, j / NV * D / 10, (i + 1) / NU * w / 10, j / NV * D / 10, (i + 1) / NU * w / 10, (j + 1) / NV * D / 10, i / NU * w / 10, (j + 1) / NV * D / 10];
+        // top face (up) and underside: the street kit quad keeps the winding given, so emit both orders
+        const ny = (Bq[2] - A[2]) * (Dq[0] - A[0]) - (Bq[0] - A[0]) * (Dq[2] - A[2]);
+        B.set(T.fabric, 0.55, 0, 0);
+        if (ny > 0) B.quad(A, Bq, Cq, Dq, fabric, uv); else B.quad(A, Dq, Cq, Bq, fabric, [uv[0], uv[1], uv[6], uv[7], uv[4], uv[5], uv[2], uv[3]]);
+        B.set(T.fabric, 0.75, 0, night ? 0.62 : 0);
+        if (ny > 0) B.quad(A, Dq, Cq, Bq, fabricU, [uv[0], uv[1], uv[6], uv[7], uv[4], uv[5], uv[2], uv[3]]); else B.quad(A, Bq, Cq, Dq, fabricU, uv);
+      }
+      // peak ring, cables from the masts behind to the ring and to the front corners, the front edge cable
+      const peak = pt(0.5, 0.45); B.set('white', 0.4, 0.6, 0); B.col(new THREE.Matrix4().makeTranslation(peak[0], peak[1] - 0.2, peak[2]), 0, 0, 0, 0.45, 0.55, 0.45, 8, steel, true);
+      const mA = EI.Env.xf(m, a0, mastTop, zM), mB = EI.Env.xf(m, a1, mastTop, zM);
+      LN.seg(mA, peak, cable); LN.seg(mB, peak, cable); LN.seg(mA, pt(0, 0), cable); if (k === nm - 1) LN.seg(mB, pt(1, 0), cable);
+      for (let i = 0; i < NU; i++) LN.seg(pt(i / NU, 0), pt((i + 1) / NU, 0), steel);
+      // raking truss arm under the seam, from the mast foot line to the front corner
+      const bot = EI.Env.xf(m, a0, yB - 1.2, zB - 0.5), tip = pt(0, 0); B.set('white', 0.45, 0.55, 0); B.beam(new THREE.Matrix4(), bot, [tip[0], tip[1] - 0.25, tip[2]], 0.32, steel);
+      const mid = [(bot[0] + tip[0]) / 2, (bot[1] + tip[1]) / 2 - 1.1, (bot[2] + tip[2]) / 2]; B.beam(new THREE.Matrix4(), bot, mid, 0.18, steel); B.beam(new THREE.Matrix4(), mid, [tip[0], tip[1] - 0.25, tip[2]], 0.18, steel);
+      // lights: downlights along the front of the module (glow sprites) and a flood on the stand / track below
+      const fy = pt(0.5, 0.06)[1] - 0.5; const fp = EI.Env.xf(m, (a0 + a1) / 2, fy, zF + scal + 1.2);
+      if (lightPow) flood(fp, { power: lightPow, aim: aimW, spread: 1.15, range: 55 });
+      for (const q of [0.2, 0.5, 0.8]) { const g = pt(q, 0.08); glow([g[0], g[1] - 0.35, g[2]], 1.3, [1.0, 0.94, 0.82]); }
     }
-    // masts behind every seam
-    B.set('white', 0.45, 0.4, 0); for (let k = 0; k <= nm; k++) B.col(m, x0 + k * w, zM, 0, mastTop, 0.32, 0.2, 8, steel, true);
-    // the lit fascia strip under the front edge
-    const fy = yB + lift - 0.55; B.set('white', 0.4, 0, isNight() ? 2.4 : 0.0); B.box(m, L, 0.2, 0.45, (x0 + x1) / 2, fy, zF + 0.5, isNight() ? warm : C(0xdfe3e6));
+    if (k0Final(B, m, x1, zB, zM, mastTop, nm, w, x0, steel)) { /* masts written */ }
   }
+  // masts behind every seam (tapered steel tubes with a cap)
+  function k0Final(B, m, x1, zB, zM, mastTop, nm, w, x0, steel) { B.set('white', 0.45, 0.55, 0); for (let k = 0; k <= nm; k++) B.col(m, x0 + k * w, zM, 0, mastTop, 0.42, 0.22, 10, steel, true); return true; }
 
   // ---------------------------------------------------------------- grandstand canopies (every stand block the venue built)
   function standSails(E, B, LN) {
@@ -135,6 +170,13 @@ window.EI = window.EI || {};
       const m = EI.Env.frame(b.cx, b.y, b.cz, b.ax, b.az, b.nx, b.nz); const hl = b.len / 2, rows = b.rows;
       const yTop = 1.4 + rows * 0.42, zBack = 0.4 + rows * 0.82;
       sailRow(B, LN, m, -hl - 0.3, hl + 0.3, -4.2, zBack + 1.4, yTop + 3.4, 3.6, 3.0, [-b.nx, -b.nz], 0.16); n++;
+      // the back of the stand: pale composite cladding over a lit concourse of kiosks and fans (instead of the bare dark wall)
+      const TX = EI.EnvYasTex.regions(), zc = zBack + 0.07, yC = 3.6, yT = yTop + 1.2;
+      const Q = (x, y, z) => xf(m, x, y, z);
+      B.set(TX.clad, 0.6, 0.15, 0); B.quad(Q(-hl, yC, zc), Q(hl, yC, zc), Q(hl, yT, zc), Q(-hl, yT, zc), C(0xffffff), [0, 0, b.len / 12, 0, b.len / 12, (yT - yC) / 6, 0, (yT - yC) / 6]);
+      B.set(TX.concourse, 0.7, 0, isNight() ? 1.05 : 0); B.quad(Q(-hl, 0, zc), Q(hl, 0, zc), Q(hl, yC, zc), Q(-hl, yC, zc), C(0xffffff), [0, 0, b.len / 12, 0, b.len / 12, 1, 0, 1]);
+      B.set('white', 0.5, 0.4, isNight() ? 1.6 : 0); B.box(m, b.len, 0.14, 0.18, 0, yC - 0.1, zc + 0.12, isNight() ? C(0x7fd6ff) : C(0xdfe5ea));
+      if (isNight()) { for (let a = -hl + 4; a < hl; a += 9) glow(Q(a, 2.6, zc + 1.2), 2.2, [1.0, 0.85, 0.6]); flood(Q(0, 6, zc + 6), { power: 0.06 * Math.max(1, b.len / 30), range: 30, color: [1.0, 0.86, 0.66] }); }
       // a second, weaker flood back over the crowd
       flood(xf(m, 0, yTop + 4, zBack * 0.5), { power: 0.05 * Math.max(1, b.len / 25), range: 40 });
     }
@@ -156,15 +198,19 @@ window.EI = window.EI || {};
     const P = (s, lat, y) => { const f = lapFrame(t, t.sf + s, side); return [f.x + f.nx * lat, f.y - 0.05 + y, f.z + f.nz * lat]; };
     const night = isNight();
     const stone = C(0xf0ece4), white = C(0xf4f4f1), slab = C(0xe9e9e6), warmL = C(0xffe9c8);
-    const glassR = night ? Rr.glassN : R.glass; const gE = night ? 0.85 : 0;
+    const TX = EI.EnvYasTex.regions();
     // facades per segment
     for (let s = S0; s < S1; s += ST) {
       const s2 = Math.min(S1, s + ST); const u0 = (s - S0) / 8, u1 = (s2 - S0) / 8;
       // track side: podium (stone with the dark glass ground floor band), three glazed decks
       B.set(R.stone, 0.75, 0); wq(B, P(s, L0, 0), P(s2, L0, 0), P(s2, L0, 5.2), P(s, L0, 5.2), u0, u1, 0, 5.2 / 5.2);
-      B.set(glassR, 0.2, 0.1, gE); wq(B, P(s, L0 + 1.5, 5.2), P(s2, L0 + 1.5, 5.2), P(s2, L0 + 1.5, 19.6), P(s, L0 + 1.5, 19.6), (s - S0) / 9, (s2 - S0) / 9, 5.2 / 13.2, 19.6 / 13.2);
+      B.set(TX.hosp, 0.12, 0.35, night ? 1.15 : 0); wq(B, P(s, L0 + 1.5, 5.2), P(s2, L0 + 1.5, 5.2), P(s2, L0 + 1.5, 19.6), P(s, L0 + 1.5, 19.6), (s - S0) / 12, (s2 - S0) / 12, 0, 1);
       // marina side
-      B.set(glassR, 0.2, 0.1, gE); wq(B, P(s2, L1, 5.2), P(s, L1, 5.2), P(s, L1, 19.6), P(s2, L1, 19.6), (s - S0) / 9, (s2 - S0) / 9, 5.2 / 13.2, 19.6 / 13.2);
+      B.set(TX.hosp, 0.12, 0.35, night ? 1.0 : 0); wq(B, P(s2, L1, 5.2), P(s, L1, 5.2), P(s, L1, 19.6), P(s2, L1, 19.6), (s - S0) / 12, (s2 - S0) / 12, 0, 1);
+      // slim white fins up the glass every 6 m, the partners' LED band along the roof edge facing the track
+      for (let f = s; f < s2 - 0.5; f += 6) { B.set('white', 0.6, 0.1, 0); boxQ(B, P, f, f + 0.35, L0 + 1.0, L0 + 1.9, 5.2, 19.6, white); }
+      B.set(TX.led, 0.4, 0, night ? 1.3 : 0.15); wq(B, P(s, L0 - 3.05, 20.15), P(s2, L0 - 3.05, 20.15), P(s2, L0 - 3.05, 21.6), P(s, L0 - 3.05, 21.6), (s - S0) / 22.4, (s2 - S0) / 22.4, 0, 1);
+      B.set('white', 0.6, 0.1, 0); boxQ(B, P, s, s2, L0 - 3.0, L0 - 2.6, 20.1, 21.6, C(0x20252b));
       B.set(R.stone, 0.75, 0); wq(B, P(s2, L1, 0), P(s, L1, 0), P(s, L1, 5.2), P(s2, L1, 5.2), u0, u1, 0, 1);
       // balconies: slabs reaching 3 m towards the track, a glass balustrade, a lit ceiling strip under each
       for (const y of [5.2, 10.0, 14.8]) {

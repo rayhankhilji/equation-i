@@ -22,7 +22,7 @@ window.EI = window.EI || {};
   Night.onFrame = function (fn) { Night.frameFns.push(fn); };
 
   // shared uniforms (one object, referenced by every patched material). The light map is read with a soft roll-off
-  // (e / (1 + 0.32 e)): overlapping pools such as the pit straight's compress, a single pool barely changes
+  // (e / (1 + 0.14 e)): overlapping pools such as the pit straight's compress, a single pool barely changes
   const UNI = {
     uNMap: { value: null }, uNDir: { value: null }, uNBox: { value: new THREE.Vector4(0, 0, 1, 1) }, uNTop: { value: 60 },
     uNBasic: { value: new THREE.Vector3(0.16, 0.18, 0.24) }, uNTime: { value: 0 },
@@ -37,12 +37,13 @@ window.EI = window.EI || {};
     'float hash(vec3 p) { p = fract(p * 0.3183099 + 0.1); p *= 17.0; return fract(p.x * p.y * p.z * (p.x + p.y + p.z)); }',
     'void main() {',
     '  vec3 d = normalize(vDir); float h = d.y;',
-    '  vec3 zen = vec3(0.006, 0.008, 0.018), mid = vec3(0.016, 0.020, 0.040), hor = vec3(0.075, 0.062, 0.080);',
-    '  vec3 c = mix(hor, mid, smoothstep(0.0, 0.18, h)); c = mix(c, zen, smoothstep(0.15, 0.7, h));',
+    '  vec3 zen = vec3(0.0035, 0.007, 0.020), mid = vec3(0.009, 0.016, 0.038), hor = vec3(0.034, 0.036, 0.046);',
+    '  vec3 c = mix(hor, mid, smoothstep(0.0, 0.14, h)); c = mix(c, zen, smoothstep(0.12, 0.65, h));',
     '  float w = max(dot(normalize(vec3(d.x, 0.0, d.z)), uWest), 0.0);',
-    '  c += vec3(0.16, 0.06, 0.04) * pow(w, 3.0) * exp(-max(h, 0.0) * 16.0);',          // the last of the dusk in the west
-    '  c += vec3(0.20, 0.11, 0.05) * exp(-abs(h) * 22.0) * 0.7;',                        // the city glow on the horizon
-    '  if (h < 0.0) c = mix(c, vec3(0.05, 0.05, 0.07), smoothstep(0.0, -0.08, h));',
+    // sodium haze over the city: everywhere low on the horizon, strongest towards Abu Dhabi itself (uWest)
+    '  float band = exp(-max(h, 0.0) * 20.0) * (0.55 + 0.45 * pow(w, 2.0)) + 0.35 * pow(w, 4.0) * exp(-max(h, 0.0) * 7.0);',
+    '  c += vec3(0.105, 0.066, 0.030) * band;',
+    '  if (h < 0.0) c = mix(c, vec3(0.052, 0.040, 0.030), smoothstep(0.0, -0.06, h));',
     '  vec3 q = floor(d * 420.0); float s = hash(q); float st = step(0.9992, s) * smoothstep(0.08, 0.4, h) * (0.4 + 0.6 * hash(q + 7.0));',
     '  c += vec3(0.85, 0.9, 1.0) * st * 0.4;',
     '  gl_FragColor = vec4(c, 1.0);',
@@ -61,7 +62,7 @@ window.EI = window.EI || {};
     const lamp = new THREE.MeshBasicMaterial({ color: new THREE.Color(9, 8.6, 7.6) }), warm = new THREE.MeshBasicMaterial({ color: new THREE.Color(5, 3.2, 1.6) });
     const g = new THREE.BoxGeometry(14, 6, 2);
     for (let k = 0; k < 44; k++) { const a = k / 44 * Math.PI * 2 + (k % 3) * 0.05; const r = 300 + (k % 5) * 40; const m = new THREE.Mesh(g, k % 4 === 3 ? warm : lamp); m.position.set(Math.cos(a) * r, 40 + (k % 4) * 18, Math.sin(a) * r); m.lookAt(0, 0, 0); s.add(m); }
-    const ground = new THREE.Mesh(new THREE.PlaneGeometry(4000, 4000), new THREE.MeshBasicMaterial({ color: new THREE.Color(0.05, 0.05, 0.06) })); ground.rotation.x = -Math.PI / 2; ground.position.y = -20; s.add(ground);
+    const ground = new THREE.Mesh(new THREE.PlaneGeometry(4000, 4000), new THREE.MeshBasicMaterial({ color: new THREE.Color(0.11, 0.10, 0.09) })); ground.rotation.x = -Math.PI / 2; ground.position.y = -20; s.add(ground);
     const pm = new THREE.PMREMGenerator(renderer); const tex = pm.fromScene(s, 0.03).texture; pm.dispose(); return tex;
   };
 
@@ -76,7 +77,7 @@ window.EI = window.EI || {};
 
   // ---------------------------------------------------------------- the light map: irradiance (rgb, sqrt-encoded) and the mean
   // horizontal direction towards the lights (rg) with how one-sided it is (b), over the whole venue
-  const MAPN = 1024, EMAX = 9, K = 2400;
+  const MAPN = 1024, EMAX = 9, K = 1800;
   function bake(t, ground) {
     let x0 = Infinity, x1 = -Infinity, z0 = Infinity, z1 = -Infinity;
     for (let i = 0; i < t.n; i++) { x0 = Math.min(x0, t.x[i]); x1 = Math.max(x1, t.x[i]); z0 = Math.min(z0, t.z[i]); z1 = Math.max(z1, t.z[i]); }
@@ -101,6 +102,28 @@ window.EI = window.EI || {};
         }
       }
     }
+    // broadcast lighting: the racing surface, the run-off and the verges inside the barriers are lit to a near-daylight level all
+    // round the lap (the real circuit is lit for television, with no dark gaps between towers); outside the barriers the level
+    // falls off over ~30 m (fences, front rows of the stands) and a faint spill carries ~150 m (service roads, lawns, the backs
+    // of the stands). The spill comes from the track's side, so faces turned towards the circuit catch it.
+    if (Night.track) {
+      const TC = Night.track.core, TH = Night.track.halo, TCOL = Night.track.color, RR = 160;
+      const DT = new Float32Array(N * N).fill(1e9), GX = new Float32Array(N * N), GZ = new Float32Array(N * N);
+      for (let i = 0; i < t.n; i += 2) {
+        const w = Math.max(t.wallL[i], t.wallR[i]); const R = w + RR; const cxw = t.x[i], czw = t.z[i];
+        const i0 = Math.max(0, Math.floor((cxw - R - ox) / px)), i1 = Math.min(N - 1, Math.ceil((cxw + R - ox) / px));
+        const j0 = Math.max(0, Math.floor((czw - R - oz) / px)), j1 = Math.min(N - 1, Math.ceil((czw + R - oz) / px));
+        for (let j = j0; j <= j1; j++) { const dz = oz + (j + 0.5) * px - czw;
+          for (let ii = i0; ii <= i1; ii++) { const dx = ox + (ii + 0.5) * px - cxw; const dd = Math.sqrt(dx * dx + dz * dz); if (dd > R) continue; const d = dd - w; const k = j * N + ii; if (d < DT[k]) { DT[k] = d; GX[k] = dd > 0.5 ? -dx / dd : 0; GZ[k] = dd > 0.5 ? -dz / dd : 0; } }
+        }
+      }
+      for (let k = 0; k < N * N; k++) {
+        const d = DT[k]; if (d > RR) continue;
+        const core = TC * (1 - U.smoothstep(0.5, 30, d)), halo = TH * (1 - U.smoothstep(8, RR, d)); const E = core + halo;
+        R[k] += E * TCOL[0]; G[k] += E * TCOL[1]; B[k] += E * TCOL[2];
+        const hz = halo * 0.9 + core * 0.35 * U.smoothstep(0, 12, d); DX[k] += GX[k] * hz; DZ[k] += GZ[k] * hz;
+      }
+    }
     const a = new Uint8Array(N * N * 4), b = new Uint8Array(N * N * 4);
     for (let k = 0; k < N * N; k++) {
       a[k * 4] = Math.round(Math.sqrt(Math.min(1, R[k] / EMAX)) * 255); a[k * 4 + 1] = Math.round(Math.sqrt(Math.min(1, G[k] / EMAX)) * 255); a[k * 4 + 2] = Math.round(Math.sqrt(Math.min(1, B[k] / EMAX)) * 255); a[k * 4 + 3] = 255;
@@ -117,7 +140,7 @@ window.EI = window.EI || {};
   const VERT = 'vec4 nwp = vec4(transformed, 1.0);\n#ifdef USE_INSTANCING\nnwp = instanceMatrix * nwp;\n#endif\nvNW = (modelMatrix * nwp).xyz;\n';
   const FDECL = 'varying vec3 vNW; uniform sampler2D uNMap; uniform sampler2D uNDir; uniform vec4 uNBox; uniform float uNTop; uniform vec3 uNBasic;\n' +
     'vec3 nightE(out vec3 Lw) { vec2 uv = (vNW.xz - uNBox.xy) * uNBox.z; Lw = vec3(0.0, 1.0, 0.0); if (uv.x <= 0.0 || uv.y <= 0.0 || uv.x >= 1.0 || uv.y >= 1.0) return vec3(0.0);\n' +
-    '  vec3 e = texture2D(uNMap, uv).rgb; e = e * e * uNBox.w; e = e / (1.0 + e * 0.32); vec3 dd = texture2D(uNDir, uv).rgb; vec2 dh = (dd.xy * 2.0 - 1.0) * dd.z;\n' +
+    '  vec3 e = texture2D(uNMap, uv).rgb; e = e * e * uNBox.w; e = e / (1.0 + e * 0.14); vec3 dd = texture2D(uNDir, uv).rgb; vec2 dh = (dd.xy * 2.0 - 1.0) * dd.z;\n' +
     '  Lw = normalize(vec3(dh.x * 0.9, 1.0, dh.y * 0.9)); return e * (1.0 - smoothstep(uNTop, uNTop + 50.0, vNW.y)); }\n';
   const LIT = '{ vec3 nLw; vec3 nE = nightE(nLw); IncidentLight nl; nl.color = nE; nl.direction = normalize((viewMatrix * vec4(nLw, 0.0)).xyz); nl.visible = true; RE_Direct(nl, geometry, material, reflectedLight); }\n';
   const patched = new WeakSet();
@@ -167,8 +190,11 @@ window.EI = window.EI || {};
   Night.frame = function (dt, t) { UNI.uNTime.value = t; for (const fn of Night.frameFns) fn(dt, t); };
 
   // ---------------------------------------------------------------- after the scenery and the track are built
+  // broadcast lighting along the circuit (see bake): core level on the racing surface, spill level, colour. Set from the look.
+  Night.track = { core: 2.3, halo: 0.42, color: [1.0, 0.95, 0.87] };
   Night.build = function (scene, track, scenery) {
     if (!Night.on || Night.built) return; Night.built = true;
+    const L = EI.look && EI.look.nightTrack; if (L) Object.assign(Night.track, L);
     if (Night.floods.length < 20) autoFloods(track);
     const ground = scenery && scenery.height ? (x, z) => scenery.height(x, z) : null;
     bake(track, ground); buildGlows(scene);
