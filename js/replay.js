@@ -288,26 +288,27 @@ window.EI = window.EI || {};
 
     // ---- the reel: the best moments, one per kept window, in race order
     reel(maxN) {
-      maxN = maxN || 8; const best = new Map();
-      for (const e of this.events) { if (e.dead || !e.slot || e.slot.n < 2 * HZ) continue; const b = best.get(e.slot); if (!b || e.score > b.score) best.set(e.slot, e); }
-      const cand = Array.from(best.values()).sort((a, b) => b.score - a.score); const pick = [];
-      const must = cand.filter(e => e.type === 'start' || e.type === 'finish');
-      for (const e of must) pick.push(e);
+      maxN = maxN || 8; const cand = [];
+      for (const e of this.events) { if (e.dead || !e.slot || e.slot.n < 2 * HZ) continue; const c = clipFor(e, this); if (c) cand.push(c); }
+      cand.sort((a, b) => b.ev.score - a.ev.score);
+      // one clip per stretch of footage: a clip may not repeat more than ~40 % of one already in the reel
+      const clash = (c, pick) => { for (const q of pick) { const o = Math.min(c.c1, q.c1) - Math.max(c.c0, q.c0); if (o > 0.4 * Math.min(c.c1 - c.c0, q.c1 - q.c0)) return true; } return false; };
+      const pick = [];
+      for (const c of cand) if ((c.type === 'start' || c.type === 'finish') && !clash(c, pick)) pick.push(c);
       // variety: a pair (or a type) already in the reel counts for less the next time
       const pairK = (e) => (e.b >= 0 ? Math.min(e.a, e.b) * 64 + Math.max(e.a, e.b) : e.a * 64 + 63);
       while (pick.length < maxN) {
         let bi = null, bs = -1;
-        for (const e of cand) {
-          if (pick.indexOf(e) >= 0) continue; let s = e.score;
-          let inc = 0; for (const q of pick) { if (pairK(q) === pairK(e)) s *= 0.6; if (q.type === e.type && e.type !== 'pass') s *= 0.75; if (INCIDENT[q.type]) inc++; }
+        for (const c of cand) {
+          const e = c.ev; if (pick.indexOf(c) >= 0 || clash(c, pick)) continue; let s = e.score;
+          let inc = 0; for (const q of pick) { if (pairK(q.ev) === pairK(e)) s *= 0.6; if (q.type === e.type && e.type !== 'pass') s *= 0.75; if (INCIDENT[q.type]) inc++; }
           if (INCIDENT[e.type] && inc >= 3) continue;   // at most three incidents: the reel is about the racing
-          if (s > bs) { bs = s; bi = e; }
+          if (s > bs) { bs = s; bi = c; }
         }
         if (!bi || bs < 8 || (bs < 16 && pick.length >= 5)) break; pick.push(bi);
       }
-      const clips = []; for (const e of pick) { const c = clipFor(e, this); if (c) clips.push(c); }
       const rank = (c) => (c.type === 'finish' ? 2 : c.type === 'pfinish' ? 1 : 0);   // race order, the flag last
-      clips.sort((a, b) => (rank(a) - rank(b)) || (a.c0 - b.c0)); return clips;
+      pick.sort((a, b) => (rank(a) - rank(b)) || (a.c0 - b.c0)); return pick;
     }
     stats() {
       let used = 0; for (const s of this.slots) if (s.used) used++;
