@@ -40,8 +40,11 @@ window.EI = window.EI || {};
     renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFShadowMap;   // medium (the default); setQuality switches
     renderer.outputEncoding = THREE.sRGBEncoding; renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.05;
     // colour grade baked into every shader: vivid saturation, a little contrast and a warm lift
-    THREE.ShaderChunk.tonemapping_fragment = '#if defined( TONE_MAPPING )\n gl_FragColor.rgb = toneMapping( gl_FragColor.rgb );\n#endif\n' +
-      '{ vec3 c = gl_FragColor.rgb; float l = dot(c, vec3(0.2126, 0.7152, 0.0722)); c = mix(vec3(l), c, 1.45); c = (c - 0.5) * 1.08 + 0.5; c *= vec3(1.03, 1.0, 0.97); gl_FragColor.rgb = clamp(c, 0.0, 1.0); }\n';
+    // (the contrast pivots in a gamma-2 space: around 0.5 in linear it clipped everything darker than ~sRGB 55 to pure black -
+    // crushed shade, and the night sky's whole navy gradient came out as a black void)
+    const gradeChunk = (sat, con, warm) => '#if defined( TONE_MAPPING )\n gl_FragColor.rgb = toneMapping( gl_FragColor.rgb );\n#endif\n' +
+      '{ vec3 c = gl_FragColor.rgb; float l = dot(c, vec3(0.2126, 0.7152, 0.0722)); c = max(mix(vec3(l), c, ' + sat.toFixed(3) + '), 0.0); c = sqrt(c); c = max((c - 0.5) * ' + con.toFixed(3) + ' + 0.5, 0.0); c *= c; c *= vec3(' + warm.map(v => v.toFixed(3)).join(', ') + '); gl_FragColor.rgb = clamp(c, 0.0, 1.0); }\n';
+    THREE.ShaderChunk.tonemapping_fragment = gradeChunk(1.45, 1.08, [1.03, 1.0, 0.97]);
     scene = new THREE.Scene();
     // physically based sky, with the sun light aligned to it and a PMREM environment for reflections / ambient
     // per-circuit light: Silverstone keeps its English afternoon; Monaco gets a high late-May sun from over the sea (so the
@@ -58,8 +61,7 @@ window.EI = window.EI || {};
     const LK = Object.assign({ elev: 38, azim: 212, turb: 2.5, ray: 2.0, mie: 0.004, horizon: 0xa9c4e4, sky: [0.6, 0.45], fog: [600, 2600], fogLow: [350, 1500], hemi: [0x9fc4ee, 0x3f5a2e, 0.35], sun: [0xfff1dd, 2.4] }, LOOKS[trackId] || {}); EI.look = LK;
     // a per-circuit grade replaces the default one (the night race: less saturation boost, a little more contrast, so the floodlit
     // turquoise and the purple LED wash read vivid without turning neon)
-    if (LK.grade) { const G = LK.grade, wm = G.warm || [1.03, 1.0, 0.97]; THREE.ShaderChunk.tonemapping_fragment = '#if defined( TONE_MAPPING )\n gl_FragColor.rgb = toneMapping( gl_FragColor.rgb );\n#endif\n' +
-      '{ vec3 c = gl_FragColor.rgb; float l = dot(c, vec3(0.2126, 0.7152, 0.0722)); c = mix(vec3(l), c, ' + G.sat.toFixed(3) + '); c = (c - 0.5) * ' + G.con.toFixed(3) + ' + 0.5; c *= vec3(' + wm.map(v => v.toFixed(3)).join(', ') + '); gl_FragColor.rgb = clamp(c, 0.0, 1.0); }\n'; }
+    if (LK.grade) { const G = LK.grade; THREE.ShaderChunk.tonemapping_fragment = gradeChunk(G.sat, G.con, G.warm || [1.03, 1.0, 0.97]); }
     const nightLook = !!(LK.night && EI.Night); if (nightLook) EI.Night.on = true; const nightWest = new THREE.Vector3(...(LK.west || [-1, 0, 0]));
     const sunDir = new THREE.Vector3(); const elev = LK.elev, azim = LK.azim; const phi = THREE.MathUtils.degToRad(90 - elev), theta = THREE.MathUtils.degToRad(azim); sunDir.setFromSphericalCoords(1, phi, theta);
     skyMesh = new THREE.Sky(); skyMesh.scale.setScalar(5500); const su = skyMesh.material.uniforms; su.turbidity.value = LK.turb; su.rayleigh.value = LK.ray; su.mieCoefficient.value = LK.mie; su.mieDirectionalG.value = LK.mieG || 0.85;

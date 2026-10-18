@@ -239,6 +239,132 @@ window.EI = window.EI || {};
     return n;
   }
 
+  // quad wound to face world direction w (the world material is single sided)
+  function qW(B, a, b, c, d, col, uv, w) {
+    const ux = b[0] - a[0], uy = b[1] - a[1], uz = b[2] - a[2], vx = c[0] - a[0], vy = c[1] - a[1], vz = c[2] - a[2];
+    if ((uy * vz - uz * vy) * w[0] + (uz * vx - ux * vz) * w[1] + (ux * vy - uy * vx) * w[2] >= 0) B.quad(a, b, c, d, col, uv);
+    else B.quad(a, d, c, b, col, uv ? [uv[0], uv[1], uv[6], uv[7], uv[4], uv[5], uv[2], uv[3]] : null);
+  }
+  // the venue's stair tower at a stand end (3.4 x 4 m box at local (x, z), yTop + 2.4 tall) wrapped in the pale panel cladding,
+  // a lit glazed stair slot on the outer face, a dark door at the foot; out = the local x side facing away from the stand
+  function cladTower(B, m, x, z, yTop, out) {
+    const TX = EI.EnvYasTex.regions(), night = isNight(); const h = yTop + 2.3, hw = 1.9, hd = 2.2;
+    B.set(TX.clad, 0.6, 0.15, 0); B.box(m, hw * 2, h, hd * 2, x, 0, z, C(0xffffff), { tile: 6 });
+    const o = xf(m, 0, 0, 0), ex = xf(m, out, 0, 0); const w = [ex[0] - o[0], 0, ex[2] - o[2]]; const X = x + out * (hw + 0.04);
+    B.set('white', 0.15, 0.3, night ? 1.3 : 0); qW(B, xf(m, X, 1.0, z - 0.6), xf(m, X, 1.0, z + 0.6), xf(m, X, h - 1.0, z + 0.6), xf(m, X, h - 1.0, z - 0.6), night ? C(0xffe2b4) : C(0x5d7385), null, w);
+    B.set('white', 0.5, 0.3, 0); qW(B, xf(m, X + out * 0.01, 0, z - 0.7), xf(m, X + out * 0.01, 0, z + 0.7), xf(m, X + out * 0.01, 0.9, z + 0.7), xf(m, X + out * 0.01, 0.9, z - 0.7), C(0x2a2f36), null, w);
+    if (night) glow(xf(m, X + out * 0.8, h * 0.5, z), 1.8, [1.0, 0.86, 0.62]);
+  }
+  // a UAE flag on a slim pole from base up h metres, flying along world direction d
+  function uaeFlag(B, base, h, d) {
+    const top = [base[0], base[1] + h, base[2]]; B.set('white', 0.4, 0.5, 0); B.beam(I4, base, top, 0.12, C(0xe8e8ea), 6);
+    const ph = base[0] * 0.37 + base[2] * 0.11; const F = (u, v) => [top[0] + d[0] * (0.1 + u * 2.7) - d[2] * 0.3 * Math.sin(u * 2.4 + ph), top[1] - 0.15 - v * 1.35 + 0.1 * Math.sin(u * 3 + ph), top[2] + d[2] * (0.1 + u * 2.7) + d[0] * 0.3 * Math.sin(u * 2.4 + ph)];
+    const band = (u0, u1, v0, v1, col) => { const A = F(u0, v0), Bq = F(u1, v0), Cq = F(u1, v1), D = F(u0, v1); B.quad(A, Bq, Cq, D, col); B.quad(A, D, Cq, Bq, col); };
+    B.set('white', 0.7, 0, isNight() ? 0.25 : 0); band(0, 0.25, 0, 1, C(0xc8102e)); band(0.25, 1, 0, 1 / 3, C(0x00843d)); band(0.25, 1, 1 / 3, 2 / 3, C(0xf4f4f4)); band(0.25, 1, 2 / 3, 1, C(0x111111));
+  }
+  const I4 = new THREE.Matrix4();
+
+  // ---------------------------------------------------------------- the North Grandstand (u5): the horseshoe of tiers round the
+  // hairpin (the venue built them as chords, northLayout) closed into one stand, one continuous white tent roof over it all: a row
+  // of tall cone peaks with capped rings, valley cables down every seam, the front edge scalloped between the cantilever tips
+  // facing the track, steel truss arms under each seam from the columns along the back, UAE flags on the tips; the back clad in
+  // pale panels over a lit concourse. Stations along the front line carry the outward normals; everything is laid out in
+  // (a = arc length along the front, y up, z out from the front) and mapped through them, so it follows the curve.
+  function northStand(E, B, LN, out) {
+    const NS = E.north; if (!NS || !NS.blocks.length) return 0;
+    const F = NS.F, K = NS.K, y0 = NS.y, rows = NS.rows, night = isNight(), TX = EI.EnvYasTex.regions();
+    const rise = 0.42, tread = 0.82, yT0 = 1.4, z0 = 0.4, yTop = yT0 + rows * rise, zBack = NS.zBack;
+    // stations: front points, cumulative arc length, outward normals (mean of the chords either side)
+    const A = [0]; for (let k = 1; k <= K; k++) A.push(A[k - 1] + Math.hypot(F[k][0] - F[k - 1][0], F[k][1] - F[k - 1][1]));
+    const Nn = []; for (let k = 0; k <= K; k++) { const a = NS.nrm[Math.max(0, k - 1)], b = NS.nrm[Math.min(K - 1, k)]; const x = a[0] + b[0], z = a[1] + b[1], l = Math.hypot(x, z) || 1; Nn.push([x / l, z / l]); }
+    const Lt = A[K];
+    const map = (a, y, z) => {
+      let k = 0; if (a >= Lt) k = K - 1; else if (a > 0) { let lo = 0, hi = K - 1; while (lo < hi) { const md = (lo + hi + 1) >> 1; if (A[md] <= a) lo = md; else hi = md - 1; } k = lo; }
+      const f = (a - A[k]) / (A[k + 1] - A[k]); let nx = U.lerp(Nn[k][0], Nn[k + 1][0], f), nz = U.lerp(Nn[k][1], Nn[k + 1][1], f); const l = Math.hypot(nx, nz) || 1; nx /= l; nz /= l;
+      return [U.lerp(F[k][0], F[k + 1][0], f) + nx * z, y0 + y, U.lerp(F[k][1], F[k + 1][1], f) + nz * z];
+    };
+    const nAt = (a) => { const p = map(a, 0, 0), q = map(a, 0, 1); return [q[0] - p[0], 0, q[2] - p[2]]; };
+    // ---- wedges between the chords: treads, risers, front wall and parapet (an aisle every other joint)
+    const byIdx = {}; for (const b of NS.blocks) byIdx[b.north] = b;
+    const seat = C(NS.blocks[0].seat), seatL = C(NS.blocks[0].seat).multiplyScalar(0.85), seatD = C(NS.blocks[0].seat).multiplyScalar(0.55);
+    const concD = C(0xa9aaa6), concR = C(0x8a8b88), conc = C(0xd6d7d3), up = [0, 1, 0];
+    const endP = (b, J) => { const m = EI.Env.frame(b.cx, b.y, b.cz, b.ax, b.az, b.nx, b.nz), hl = b.len / 2; const p = xf(m, hl, 0, 0), q = xf(m, -hl, 0, 0); const sx = Math.hypot(p[0] - J[0], p[2] - J[1]) < Math.hypot(q[0] - J[0], q[2] - J[1]) ? hl : -hl; return (y, z) => xf(m, sx, y, z); };
+    B.set('white', 0.8, 0, 0);
+    for (let k = 1; k < K; k++) {
+      const bi = byIdx[k - 1], bj = byIdx[k]; if (!bi || !bj) continue; const Pi = endP(bi, F[k]), Pj = endP(bj, F[k]); const aisle = k % 2 === 0;
+      const tw = [-(bi.nx + bj.nx), 0, -(bi.nz + bj.nz)];
+      qW(B, Pi(0, 0), Pj(0, 0), Pj(yT0, 0), Pi(yT0, 0), conc, null, tw);
+      for (let r = 0; r < rows; r++) {
+        const y = yT0 + r * rise, za = z0 + r * tread, zb = za + tread;
+        qW(B, Pi(y + rise, za), Pj(y + rise, za), Pj(y + rise, zb), Pi(y + rise, zb), aisle ? concD : (r % 2 ? seat : seatL), null, up);
+        qW(B, Pi(y, za), Pj(y, za), Pj(y + rise, za), Pi(y + rise, za), aisle ? concR : seatD, null, tw);
+      }
+      qW(B, Pi(yTop, zBack - 0.02), Pj(yTop, zBack - 0.02), Pj(yTop + 1.2, zBack - 0.02), Pi(yTop + 1.2, zBack - 0.02), concD, null, tw);
+    }
+    // ---- the back: pale panels over a lit concourse, an LED line between, columns carrying the roof
+    const zc = zBack + 0.12, yC = 3.6;
+    for (let k = 0; k < K; k++) {
+      const a0 = A[k], a1 = A[k + 1]; const w = nAt((a0 + a1) / 2);
+      B.set(TX.clad, 0.6, 0.15, 0); qW(B, map(a0, yC, zc), map(a1, yC, zc), map(a1, yTop + 1.2, zc), map(a0, yTop + 1.2, zc), C(0xffffff), [a0 / 12, 0, a1 / 12, 0, a1 / 12, (yTop + 1.2 - yC) / 6, a0 / 12, (yTop + 1.2 - yC) / 6], w);
+      B.set(TX.concourse, 0.7, 0, night ? 1.05 : 0); qW(B, map(a0, 0, zc), map(a1, 0, zc), map(a1, yC, zc), map(a0, yC, zc), C(0xffffff), [a0 / 12, 0, a1 / 12, 0, a1 / 12, 1, a0 / 12, 1], w);
+      B.set('white', 0.5, 0.4, night ? 1.6 : 0); qW(B, map(a0, yC - 0.12, zc + 0.05), map(a1, yC - 0.12, zc + 0.05), map(a1, yC + 0.06, zc + 0.05), map(a0, yC + 0.06, zc + 0.05), night ? C(0x7fd6ff) : C(0xdfe5ea), null, w);
+    }
+    if (night) for (let a = 4; a < Lt; a += 10) glow(map(a, 2.6, zc + 1.2), 2.2, [1.0, 0.85, 0.6]);
+    for (let a = 10; a < Lt; a += 40) { flood(map(a, 6, zc + 6), { power: 0.08, range: 30, color: [1.0, 0.86, 0.66] }); flood(map(a, yTop + 4, zBack * 0.5), { power: 0.08, range: 40 }); }
+    // stair towers at the two ends (the venue's boxes, clad)
+    for (const b of [byIdx[0], byIdx[K - 1]]) { if (!b) continue; const m = EI.Env.frame(b.cx, b.y, b.cz, b.ax, b.az, b.nx, b.nz), hl = b.len / 2; if (b.first) cladTower(B, m, -hl - 1.9, zBack - 2.0, yTop, -1); if (b.last) cladTower(B, m, hl + 1.9, zBack - 2.0, yTop, 1); }
+    // ---- the roof
+    const zF = -4.6, zB = zBack + 1.6, yB = yTop + 2.8, yF = yB + 4.2, Pk = 5.6, sagY = 1.3, valley = 0.8;
+    const nm = Math.max(1, Math.round(Lt / 15)), w = Lt / nm, D = zB - zF, scal = Math.min(D * 0.14, w * 0.2);
+    const NU = 12, NV = 8, cable = C(0xaab1b8), white = C(0xf6f6f3);
+    const pt = (a0, u, v) => {
+      const e4 = 4 * u * (1 - u);
+      const zFe = zF + scal * e4, zBe = zB - scal * 0.5 * e4, z = zFe + (zBe - zFe) * v;
+      let y = yF + (yB - yF) * Math.pow(v, 0.9);
+      y -= sagY * e4 * (1 - v) * (1 - v);
+      y -= valley * (1 - e4) * 4 * v * (1 - v);
+      const du = (u - 0.5) / 0.5, dv = (v - 0.45) / 0.55; const d = Math.min(1, Math.sqrt(du * du * 0.9 + dv * dv));
+      y += Pk * Math.pow(1 - d, 1.9);
+      return map(a0 + w * u, y, z);
+    };
+    for (let k = 0; k < nm; k++) {
+      const a0 = k * w; const G = []; for (let j = 0; j <= NV; j++) for (let i = 0; i <= NU; i++) G.push(pt(a0, i / NU, j / NV));
+      const at = (i, j) => G[j * (NU + 1) + i];
+      for (let j = 0; j < NV; j++) for (let i = 0; i < NU; i++) {
+        const Aq = at(i, j), Bq = at(i + 1, j), Cq = at(i + 1, j + 1), Dq = at(i, j + 1);
+        const uv = [i / NU * w / 10, j / NV * D / 10, (i + 1) / NU * w / 10, j / NV * D / 10, (i + 1) / NU * w / 10, (j + 1) / NV * D / 10, i / NU * w / 10, (j + 1) / NV * D / 10];
+        B.set(TX.fabric, 0.55, 0, 0); qW(B, Aq, Bq, Cq, Dq, fabric, uv, up);
+        B.set(TX.fabric, 0.75, 0, night ? 0.62 : 0); qW(B, Aq, Bq, Cq, Dq, fabricU, uv, [0, -1, 0]);
+      }
+      // the peak: a steel ring with a white cap
+      const pk = pt(a0, 0.5, 0.45); const mP = new THREE.Matrix4().makeTranslation(pk[0], pk[1], pk[2]);
+      B.set('white', 0.4, 0.6, 0); B.col(mP, 0, 0, -0.25, 0.25, 0.62, 0.62, 10, steel, false); B.set('white', 0.5, 0.1, 0); B.col(mP, 0, 0, 0.25, 1.0, 0.56, 0.05, 10, white, true);
+      // cables: the front edge, peak to the corners
+      for (let i = 0; i < NU; i++) LN.seg(pt(a0, i / NU, 0), pt(a0, (i + 1) / NU, 0), steel);
+      for (const [u, v] of [[0, 0], [1, 0], [0, 1], [1, 1]]) LN.seg(pk, pt(a0, u, v), cable);
+      // lights under the front edge: downlights and a flood on the stand / track
+      const fp = map(a0 + w / 2, pt(a0, 0.5, 0.06)[1] - y0 - 0.5, zF + scal + 1.2); flood(fp, { power: 0.16, aim: (() => { const n = nAt(a0 + w / 2); return [-n[0], -n[2]]; })(), spread: 1.15, range: 55 });
+      for (const q of [0.2, 0.5, 0.8]) { const g = pt(a0, q, 0.08); glow([g[0], g[1] - 0.35, g[2]], 1.3, [1.0, 0.94, 0.82]); }
+    }
+    // seams: valley cable, the truss arm under it (top chord along the seam, a straight bottom chord, zig-zag diagonals), the back
+    // column; a flag on every third front tip
+    for (let k = 0; k <= nm; k++) {
+      const a = k * w; const seam = []; for (let j = 0; j <= NV; j++) seam.push(pt(a, 0, j / NV));
+      for (let j = 0; j < NV; j++) LN.seg(seam[j], seam[j + 1], cable);
+      const colTop = map(a, yB - 0.8, zB - 1.2), colLow = map(a, yB - 3.4, zB - 1.2), tip = seam[0];
+      B.set('white', 0.45, 0.55, 0); B.beam(I4, map(a, 0, zB - 1.2), colTop, 0.62, steel, 8);
+      const tc = seam.map(p => [p[0], p[1] - 0.35, p[2]]);
+      for (let j = 0; j < NV; j++) B.beam(I4, tc[j], tc[j + 1], 0.3, steel);
+      B.beam(I4, colTop, tc[NV], 0.3, steel);
+      const bc = (f) => [U.lerp(colLow[0], tip[0], f), U.lerp(colLow[1], tip[1] - 0.4, f), U.lerp(colLow[2], tip[2], f)];
+      B.beam(I4, colLow, bc(1), 0.24, steel);
+      for (let j = 1; j < NV; j++) { const f = 1 - j / NV; B.beam(I4, bc(f), tc[j], 0.12, steel); }
+      if (k % 3 === 1) { const n = nAt(a); const tg = [-n[2], 0, n[0]]; uaeFlag(B, [tip[0], tip[1] - 0.2, tip[2]], 7.5, tg); }
+    }
+    out.northRoof = { modules: nm, length: Math.round(Lt), chords: NS.blocks.length };
+    return nm;
+  }
+
   // ---------------------------------------------------------------- the pit building: closed garages either side of the pit.js
   // garages, three glazed hospitality decks with balconies and lit ceilings, the sail canopy reaching out over the pit lane
   function lapFrame(t, s, side) {
@@ -467,6 +593,7 @@ window.EI = window.EI || {};
     const SK = SKx(); const B = new SK.Batch(), LN = new SK.Lines(); const Rr = regions(); const R = H.R;
     const step = (k, fn) => { const t0 = performance.now(); try { fn(); } catch (e) { console.error('EnvYasArch ' + k, e); } out['ms_arch_' + k] = Math.round(performance.now() - t0); };
     step('sails', () => { out.standSails = standSails(E, B, LN); });
+    step('north', () => northStand(E, B, LN, out));
     let pit = null; step('pit', () => { pit = pitBuilding(E, B, LN, R, Rr, out); });
     step('paddock', () => paddock(E, B, LN, R, Rr, H, out));
     step('towers', () => towers(E, B, R, Rr, pit, out));

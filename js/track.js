@@ -21,7 +21,7 @@ window.EI = window.EI || {};
   const VARY_RUN = {
     v: 'attribute vec4 trk; attribute vec4 trk2; attribute vec3 colA; attribute vec3 colB; varying vec4 vTrk; varying vec4 vTrk2; varying vec3 vColA; varying vec3 vColB;',
     vm: 'vTrk = trk; vTrk2 = trk2; vColA = colA; vColB = colB;',
-    f: 'varying vec4 vTrk; varying vec4 vTrk2; varying vec3 vColA; varying vec3 vColB;',
+    f: 'varying vec4 vTrk; varying vec4 vTrk2; varying vec3 vColA; varying vec3 vColB; uniform vec3 eiGT;',
   };
   // run-off with a house colour (Yas): one more per-row attribute for the painted straights (red / white band, dark brand band)
   const VARY_RUN_RC = {
@@ -130,19 +130,21 @@ window.EI = window.EI || {};
     float rGw = fwidth(vTrk2.x); float rGon = smoothstep(0.5 - rGw, 0.5 + rGw, vTrk2.x);
     float rPw = fwidth(vTrk.z); float rPon = smoothstep(0.44 - rPw, 0.44 + rPw, vTrk.z);
     float rGreen = rGon * eiBox(rAl, eiHW + eiKW - 0.05, aw0, rAA);
-    vec3 rGreenC = vec3(0.045, 0.2, 0.06) * (0.85 + 0.3 * rM2.r);
+    vec3 rGreenC = vec3(0.1, 0.25, 0.085) * (0.85 + 0.3 * rM2.r);
     float rWear = smoothstep(0.5, 0.85, rM2.r) * 0.55 + rCr * 0.5;
     vec4 rTy = texture2D(eiAux, vec2((rAl * 0.9 - rS * 0.22) * 0.09, rS * eiSP.w * 0.5));
     float rTyre = smoothstep(0.62, 0.8, rTy.g) * (1.0 - smoothstep(aw0, aw0 + 9.0, rAl));
     rCol = mix(rCol, rGreenC * (1.0 - 0.25 * rWear), rGreen);
     float pat = vTrk.w; float useB = 0.0; float wl = 0.0; float P = 5.0; float q = 0.0;
-    if (pat < 0.5) { useB = smoothstep(aw0 + 3.2 - rAA, aw0 + 3.2 + rAA, rAl); wl = 1.0 - smoothstep(0.09, 0.09 + rAA, abs(rAl - aw0 - 3.2)); }
+    float rTop = pat > 2.5 ? aw0 + 3.2 : rOuter - 0.35;
+    if (pat > 2.5) { useB = 0.0; }
+    else if (pat < 0.5) { useB = smoothstep(aw0 + 3.2 - rAA, aw0 + 3.2 + rAA, rAl); wl = 1.0 - smoothstep(0.09, 0.09 + rAA, abs(rAl - aw0 - 3.2)); }
     else { if (pat < 1.5) { P = 6.0; q = (rS * 0.7071 + rAl * 0.7071) / P; } else { P = 12.0; q = rS / P; }
       float qa = max(fwidth(q) * P, 0.002); float qf = fract(q * 2.0); float bd = min(qf, 1.0 - qf) * P * 0.5;
       useB = step(0.5, fract(q)); wl = 1.0 - smoothstep(0.08, 0.08 + qa, bd); }
-    float rIn = smoothstep(aw0 - rAA, aw0 + rAA, rAl) * (1.0 - smoothstep(rOuter - 0.35 - rAA, rOuter - 0.35 + rAA, rAl));
+    float rIn = smoothstep(aw0 - rAA, aw0 + rAA, rAl) * (1.0 - smoothstep(rTop - rAA, rTop + rAA, rAl));
     float rMask = rPon * rIn;
-    float rEdgeW = (1.0 - smoothstep(0.08, 0.08 + rAA, abs(rAl - aw0 - 0.1))) + (1.0 - smoothstep(0.1, 0.1 + rAA, abs(rAl - rOuter + 0.5)));
+    float rEdgeW = (1.0 - smoothstep(0.08, 0.08 + rAA, abs(rAl - aw0 - 0.1))) + (1.0 - smoothstep(0.1, 0.1 + rAA, abs(rAl - rTop + 0.15)));
     float rEnd = 1.0 - smoothstep(0.06, 0.12, abs(vTrk.z - 0.5) * 2.0);
     wl = clamp(wl + rEdgeW + rEnd * step(aw0, rAl), 0.0, 1.0);
     vec3 rPaint = mix(vColA, vColB, useB) * (0.88 + 0.22 * rM1.g);
@@ -152,9 +154,9 @@ window.EI = window.EI || {};
     rCol = mix(rCol, rCol * 0.45, rTyre * 0.55 * rPon);
     vec4 rSp = texture2D(eiAux, vec2(rLat * 0.55, rS * eiSP.y * 6.0));
     float rSpill = (1.0 - smoothstep(0.0, 1.6, rGS - rAl)) * step(rAl, rGS + 0.2) * step(0.3, rSp.b);
-    rCol = mix(rCol, vec3(0.30, 0.27, 0.225) * (0.8 + 0.4 * rSp.r), rSpill * 0.85);
+    rCol = mix(rCol, vec3(0.30, 0.27, 0.225) * eiGT * (0.8 + 0.4 * rSp.r), rSpill * 0.85);
     float rDust = smoothstep(rOuter - 1.6, rOuter, rAl) * (1.0 - rMask) * 0.35;
-    rCol = mix(rCol, vec3(0.25, 0.21, 0.15), rDust);
+    rCol = mix(rCol, vec3(0.25, 0.21, 0.15) * eiGT, rDust);
     diffuseColor.rgb = rCol;
   `;
   const RUNOFF_ROUGH = `
@@ -685,7 +687,7 @@ window.EI = window.EI || {};
       rCol = mix(rCol, rSC, vTrk3.x * rGon * step(0.0, rE));
     }
 ` : '';
-      const runFrag = RC ? RUNOFF_FRAG.replace('vec3(0.045, 0.2, 0.06)', v3(lin(RC[2] || RC[0]))).replace('    rCol = mix(rCol, rCol * 0.45, rTyre', RC_STRIPES + '    rCol = mix(rCol, rCol * 0.45, rTyre') : RUNOFF_FRAG;
+      const runFrag = RC ? RUNOFF_FRAG.replace('vec3(0.1, 0.25, 0.085)', v3(lin(RC[2] || RC[0]))).replace('    rCol = mix(rCol, rCol * 0.45, rTyre', RC_STRIPES + '    rCol = mix(rCol, rCol * 0.45, rTyre') : RUNOFF_FRAG;
       const aw0 = hw + kw + 2.0;
       const rMat = shaderMat({ map: T.runoff.map, normalMap: T.runoff.normalMap, normalScale: new THREE.Vector2(0.7, 0.7), roughnessMap: T.runoff.roughnessMap, roughness: 1, metalness: 0, polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 2 }, 'runoff' + (RC ? '-' + RC.join('') + '-sp' : ''), RC ? Object.assign({}, common, { eiBrand: { value: brandStripTexture() } }) : common, RC ? VARY_RUN_RC : VARY_RUN, runFrag, RC ? RUNOFF_ROUGH + '    roughnessFactor = mix(roughnessFactor, 0.9, rTq);\n' : RUNOFF_ROUGH, FLATTEN);
       const gMat = shaderMat({ map: T.gravel.map, normalMap: T.gravel.normalMap, normalScale: new THREE.Vector2(1.25, 1.25), roughnessMap: T.gravel.roughnessMap, roughness: 1, metalness: 0, polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 3 }, 'gravel', common, VARY4, GRAVEL_FRAG, GRAVEL_ROUGH, '', GRAVEL_NORMAL);

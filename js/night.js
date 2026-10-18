@@ -47,14 +47,15 @@ window.EI = window.EI || {};
     'void main() {',
     '  vec3 d = normalize(vDir); float h = d.y;',
     // near-black navy overhead easing to a hazy blue-grey low down: the floodlit air over the venue lifts the whole lower sky
-    '  vec3 zen = vec3(0.004, 0.0065, 0.017), mid = vec3(0.012, 0.019, 0.040), hor = vec3(0.052, 0.050, 0.054);',
-    '  vec3 c = mix(hor, mid, smoothstep(0.0, 0.22, h)); c = mix(c, zen, smoothstep(0.18, 0.85, h));',
+    '  vec3 zen = vec3(0.012, 0.018, 0.048), mid = vec3(0.024, 0.034, 0.072), hor = vec3(0.07, 0.068, 0.076);',
+    '  vec3 c = mix(hor, mid, smoothstep(0.0, 0.25, h)); c = mix(c, zen, smoothstep(0.2, 0.9, h));',
     // the light-pollution dome: warm sodium haze all round the horizon (Yas Island, the motorways), strongest over Abu Dhabi
     '  float w = max(dot(normalize(vec3(d.x, 0.0, d.z)), uWest), 0.0); float hp = max(h, 0.0);',
-    '  float dome = exp(-hp * 11.0) * (0.45 + 0.55 * pow(w, 1.6)) + 0.45 * pow(w, 3.0) * exp(-hp * 4.5);',
-    '  c += vec3(0.17, 0.10, 0.038) * dome;',
-    // a faint cool veil over the floodlit venue itself (light scattered up from ~100 towers)
-    '  c += vec3(0.018, 0.022, 0.030) * exp(-hp * 3.0);',
+    '  float dome = exp(-hp * 14.0) * (0.4 + 0.6 * pow(w, 1.6)) + 0.25 * pow(w, 3.0) * exp(-hp * 6.0);',
+    '  c += vec3(0.105, 0.072, 0.040) * dome;',
+    // the venue glow: light scattered up from ~100 floodlight towers by the humid Gulf air - a pale blue-grey veil, highest
+    // round the horizon, so roofs, poles and stands read as silhouettes against it instead of a black void
+    '  c += vec3(0.040, 0.046, 0.060) * exp(-hp * 2.6) + vec3(0.010, 0.012, 0.018) * exp(-hp * 0.8);',
     '  if (h < 0.0) c = mix(c, vec3(0.045, 0.036, 0.028), smoothstep(0.0, -0.05, h));',
     // stars: only the brightest, only high overhead - the floodlights wash the rest out
     '  vec3 q = floor(d * 380.0); float s = hash(q); float st = step(0.9993, s) * smoothstep(0.42, 0.85, h) * (0.3 + 0.7 * hash(q + 7.0));',
@@ -76,7 +77,7 @@ window.EI = window.EI || {};
     const g = new THREE.BoxGeometry(14, 6, 2);
     for (let k = 0; k < 72; k++) { const a = k / 72 * Math.PI * 2 + (k % 3) * 0.04; const r = 260 + (k % 5) * 45; const m = new THREE.Mesh(g, k % 5 === 4 ? warm : lamp); m.position.set(Math.cos(a) * r, 34 + (k % 4) * 16, Math.sin(a) * r); m.lookAt(0, 0, 0); s.add(m); }
     // the hotel's LED skin and the city's sodium band, so paint and glass pick up colour, not only white points
-    const led = new THREE.Mesh(new THREE.BoxGeometry(220, 60, 4), new THREE.MeshBasicMaterial({ color: new THREE.Color(1.6, 0.5, 2.6) })); led.position.set(-320, 70, 160); led.lookAt(0, 0, 0); s.add(led);
+    const led = new THREE.Mesh(new THREE.BoxGeometry(220, 60, 4), new THREE.MeshBasicMaterial({ color: new THREE.Color(0.9, 0.4, 1.3) })); led.position.set(-320, 70, 160); led.lookAt(0, 0, 0); s.add(led);
     const band = new THREE.Mesh(new THREE.CylinderGeometry(800, 800, 30, 32, 1, true), new THREE.MeshBasicMaterial({ color: new THREE.Color(0.55, 0.34, 0.16), side: THREE.BackSide })); band.position.y = 6; s.add(band);
     const ground = new THREE.Mesh(new THREE.PlaneGeometry(4000, 4000), new THREE.MeshBasicMaterial({ color: new THREE.Color(0.11, 0.10, 0.09) })); ground.rotation.x = -Math.PI / 2; ground.position.y = -20; s.add(ground);
     const pm = new THREE.PMREMGenerator(renderer); const tex = pm.fromScene(s, 0.03).texture; pm.dispose(); return tex;
@@ -167,10 +168,10 @@ window.EI = window.EI || {};
     '    acc += uNSpC[i] * k; dir += dv / max(d, 1.0) * k * dot(uNSpC[i], vec3(0.333)); }\n' +
     '  Ls = length(dir) > 1e-4 ? normalize(dir) : vec3(0.0, 1.0, 0.0); nHaze += acc * 0.6; return acc; }\n';
   const LIT = '{ vec3 nLw; vec3 nE = nightE(nLw); IncidentLight nl; nl.color = nE; nl.direction = normalize((viewMatrix * vec4(nLw, 0.0)).xyz); nl.visible = true; RE_Direct(nl, geometry, material, reflectedLight);\n' +
-    '  vec3 nLs; vec3 nS = nightSpill(nLs); if (dot(nS, vec3(1.0)) > 0.002) { nl.color = nS; nl.direction = normalize((viewMatrix * vec4(nLs, 0.0)).xyz); RE_Direct(nl, geometry, material, reflectedLight); reflectedLight.indirectDiffuse += nS * 0.18 * material.diffuseColor; } }\n';
+    '  vec3 nLs; vec3 nS = nightSpill(nLs); if (dot(nS, vec3(1.0)) > 0.002) { nl.color = nS; nl.direction = normalize((viewMatrix * vec4(nLs, 0.0)).xyz); reflectedLight.directDiffuse += nS * saturate(dot(geometry.normal, nl.direction)) * material.diffuseColor; reflectedLight.indirectDiffuse += nS * 0.18 * material.diffuseColor; } }\n';
   // racing surfaces at night: smoother, so the floodlights streak across the asphalt and the painted run-off (u2 / u3)
   const GLOSS = '#if defined( STANDARD ) && defined( NIGHT_GLOSS )\n{ vec3 nWN = inverseTransformDirection(normal, viewMatrix); float up = smoothstep(0.75, 0.95, nWN.y);\n' +
-    '  material.specularRoughness = mix(material.specularRoughness, max(0.16, material.specularRoughness * 0.5), up * float(NIGHT_GLOSS)); }\n#endif\n';
+    '  material.specularRoughness = mix(material.specularRoughness, max(0.34, material.specularRoughness * 0.7), up * float(NIGHT_GLOSS)); }\n#endif\n';
   // the floodlit air: everything picks up a faint warm haze with distance, more where the air itself is lit
   const FOG = '#ifdef USE_FOG\n  float nFogF = smoothstep(fogNear, fogFar, fogDepth); float nAir = (1.0 - exp(-fogDepth * 0.0022)) * uNAir.w;\n' +
     '  gl_FragColor.rgb += uNAir.rgb * nAir * (0.35 + min(dot(nHaze, vec3(0.333)), 2.5));\n' +
@@ -256,7 +257,7 @@ window.EI = window.EI || {};
     Night.spills.slice(0, 4).forEach((sp, i) => UNI.uNSp.value[i].set(sp.x, sp.y, sp.z, sp.r));
     const air = EI.look && EI.look.nightAir; if (air) UNI.uNAir.value.set(air[0], air[1], air[2], air[3]);
     // the racing surfaces turn smoother at night (specular streaks under the floods)
-    if (track.group) track.group.traverse(o => { if (!o.material || Array.isArray(o.material)) return; const k = { asphalt: 0.75, runoff: 0.6, kerb: 0.5, pitLane: 0.6, paint: 0.5 }[o.name]; if (k) o.material.userData.nightGloss = k; });
+    if (track.group) track.group.traverse(o => { if (!o.material || Array.isArray(o.material)) return; const k = { asphalt: 0.55, runoff: 0.45, kerb: 0.4, pitLane: 0.45, paint: 0.4 }[o.name]; if (k) o.material.userData.nightGloss = k; });
     if (scenery) { if (scenery.clouds) scenery.clouds.visible = false; if (scenery.clouds2) scenery.clouds2.visible = false; }   // a clear desert night
     Night.patchScene(scene);
   };
