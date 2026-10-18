@@ -84,10 +84,12 @@ window.EI = window.EI || {};
     const towerG = AT.region('yasTowerGlass', 128, 64, (x, w, h) => { const night = isNight(); x.fillStyle = night ? '#203a66' : '#14203a'; x.fillRect(0, 0, w, h); x.fillStyle = night ? 'rgba(170,210,255,0.55)' : 'rgba(150,180,220,0.25)'; for (let i = 0; i < w; i += 16) x.fillRect(i, 0, 2, h); x.fillStyle = night ? '#9fd0ff' : '#33507a'; x.fillRect(0, h * 0.42, w, 3); });
     // the bridge's sign panel: our partners, white on dark navy
     const sign = AT.region('yasBridgeSign', 512, 64, (x, w, h) => {
-      x.fillStyle = '#121a2a'; x.fillRect(0, 0, w, h); const A = EI.Ads;
+      x.fillStyle = '#0b0c0f'; x.fillRect(0, 0, w, h); const A = EI.Ads;
+      // chequered flag ends
+      for (const x0 of [0, w - 40]) for (let i = 0; i < 5; i++) for (let j = 0; j < 8; j++) if ((i + j) % 2) { x.fillStyle = '#f2f2f0'; x.fillRect(x0 + i * 8, j * 8, 8, 8); }
       x.save(); x.fillStyle = '#ffffff'; x.font = '800 34px "Plus Jakarta Sans", Arial, sans-serif'; x.textBaseline = 'middle'; x.textAlign = 'center';
       x.fillText('trylumi.co', w * 0.25, h / 2 + 2); x.fillText('intake.ink', w * 0.75, h / 2 + 2); x.fillStyle = 'rgba(255,255,255,0.35)'; x.fillRect(w / 2 - 1, 10, 2, h - 20); x.restore();
-      if (A && A.lumiMark) try { A.lumiMark(x, 14, 12, 40); } catch (e) { }
+      if (A && A.lumiMark) try { A.lumiMark(x, 52, 12, 40, null, true); } catch (e) { }
     });
     RG = { glassN, marina, shutter, towerG, sign }; return RG;
   }
@@ -313,73 +315,96 @@ window.EI = window.EI || {};
   // ---------------------------------------------------------------- the white tube bridge over the pit straight (the start lights
   // hang from it), a glazed officials' pod on the pit side, the partners' panel facing the grid
   function bridge(E, B, R, Rr, out) {
-    const t = E.t, side = pitSideOf(t); const f = lapFrame(t, t.sf + 6, 1); const night = isNight();
-    const wl = t.wallL[f.i] + 4.5, wr = t.wallR[f.i] + 4.5; const y = f.y;
+    // the start gantry (u4): a black box beam over the grid on black columns, a taller sign panel in the middle with our partners
+    // in white between chequered ends, a strip of LED downlights along its underside (the start lights hang below it, track.js)
+    const t = E.t; const f = lapFrame(t, t.sf + 6, 1); const night = isNight();
+    const wl = t.wallL[f.i] + 2.5, wr = t.wallR[f.i] + 2.5; const y = f.y;
     const P = (lat, h, a) => [f.x + f.nx * lat + f.tx * (a || 0), y + h, f.z + f.nz * lat + f.tz * (a || 0)];
-    const m = new THREE.Matrix4().makeTranslation(0, 0, 0); const white = C(0xf5f5f2);
-    // deck: a rounded white box beam (two tubes and a skin)
-    for (const [a, h] of [[-1.1, 9.6], [1.1, 9.6], [0, 11.6]]) { B.set('white', 0.45, 0.05); B.beam(m, P(-wl, h, a), P(wr, h, a), 1.4, white, 10); }
-    B.set('white', 0.5, 0.05); for (const a of [-1.1, 1.1]) B.quad(P(-wl, 9.0, a * 1.35), P(wr, 9.0, a * 1.35), P(wr, 12.2, a * 1.35), P(-wl, 12.2, a * 1.35), white), B.quad(P(-wl, 9.0, a * 1.35), P(-wl, 12.2, a * 1.35), P(wr, 12.2, a * 1.35), P(wr, 9.0, a * 1.35), white);
-    // the panel facing the grid
-    B.set(Rr.sign, 0.5, 0, night ? 1.2 : 0.2); const s0 = -1.1 * 1.35 - 0.05; B.quad(P(-wl + 2, 9.3, s0), P(-wl + 2, 11.9, s0), P(wr - 2, 11.9, s0), P(wr - 2, 9.3, s0), C(0xffffff), [0, 0, 0, 1, 1, 1, 1, 0]);
-    // pillars and the pod on the pit side
-    for (const lat of [-wl - 1, wr + 1]) { B.set('white', 0.5, 0.05); B.col(new THREE.Matrix4().makeTranslation(...P(lat, 0, 0)), 0, 0, 0, 12.4, 1.2, 0.9, 12, white, true); }
-    const pl = side < 0 ? -wl - 4 : wr + 4; const pc = P(pl, 0, 0); const pm = EI.Env.frame(pc[0], y, pc[2], f.tx, f.tz, f.nx, f.nz);
-    B.set('white', 0.5, 0.05); B.box(pm, 7, 1.0, 7, 0, 12.2, 0, white);
-    B.set(night ? Rr.glassN : R.glass, 0.15, 0.2, night ? 0.7 : 0); B.box(pm, 6.6, 4.2, 6.6, 0, 13.2, 0, C(0xffffff));
-    B.set('white', 0.5, 0.05); B.box(pm, 7.6, 0.6, 7.6, 0, 17.4, 0, white);
-    if (night) { for (let lat = -wl + 3; lat < wr - 2; lat += 4) glow(P(lat, 8.9, 0), 1.2, [1, 0.95, 0.85]); }
+    const black = C(0x15161a), trim = C(0x2c2f35);
+    // an axis-aligned box in (lat, h, a): six faces wound outward (the world material is single sided)
+    const boxL = (l0, l1, h0, h1, a0, a1, col, faces) => {
+      const c = (l, h, a) => P(l, h, a); const mid = P((l0 + l1) / 2, (h0 + h1) / 2, (a0 + a1) / 2);
+      const F = { top: [c(l0, h1, a0), c(l1, h1, a0), c(l1, h1, a1), c(l0, h1, a1)], bot: [c(l0, h0, a0), c(l0, h0, a1), c(l1, h0, a1), c(l1, h0, a0)],
+        front: [c(l0, h0, a0), c(l1, h0, a0), c(l1, h1, a0), c(l0, h1, a0)], back: [c(l0, h0, a1), c(l0, h1, a1), c(l1, h1, a1), c(l1, h0, a1)],
+        left: [c(l0, h0, a0), c(l0, h1, a0), c(l0, h1, a1), c(l0, h0, a1)], right: [c(l1, h0, a0), c(l1, h0, a1), c(l1, h1, a1), c(l1, h1, a0)] };
+      for (const k of faces || Object.keys(F)) { let [A, Bq, Cq, D] = F[k]; const ux = Bq[0] - A[0], uy = Bq[1] - A[1], uz = Bq[2] - A[2], vx = D[0] - A[0], vy = D[1] - A[1], vz = D[2] - A[2];
+        const nx = uy * vz - uz * vy, ny = uz * vx - ux * vz, nz = ux * vy - uy * vx; const ox = (A[0] + Cq[0]) / 2 - mid[0], oy = (A[1] + Cq[1]) / 2 - mid[1], oz = (A[2] + Cq[2]) / 2 - mid[2];
+        if (nx * ox + ny * oy + nz * oz < 0) B.quad(A, D, Cq, Bq, col); else B.quad(A, Bq, Cq, D, col); }
+    };
+    B.set('white', 0.55, 0.3); boxL(-wl - 0.6, wr + 0.6, 8.9, 10.9, -0.9, 0.9, black);
+    // the sign on both faces of the beam (repeated) and of the raised panel
+    const signQ = (l0, l1, h0, h1, a, rep, flip) => { const A = P(l0, h0, a), Bq = P(l1, h0, a), Cq = P(l1, h1, a), D = P(l0, h1, a); const uv = flip ? [rep, 0, 0, 0, 0, 1, rep, 1] : [0, 0, rep, 0, rep, 1, 0, 1];
+      const ux = Bq[0] - A[0], uz = Bq[2] - A[2], vy = D[1] - A[1]; const nz = ux * vy, nx = -uz * vy; const fx = f.tx * a, fz = f.tz * a; if (nx * fx + nz * fz >= 0) B.quad(A, Bq, Cq, D, C(0xffffff), uv); else B.quad(A, D, Cq, Bq, C(0xffffff), [uv[0], uv[1], uv[6], uv[7], uv[4], uv[5], uv[2], uv[3]]); };
+    B.set(Rr.sign, 0.5, 0.1, night ? 0.9 : 0.15); const span = wl + wr; const rep = Math.max(1, Math.round(span / 16));
+    for (const a of [-0.92, 0.92]) signQ(-wl + 0.2, wr - 0.2, 9.15, 10.65, a, rep, a > 0);
+    B.set('white', 0.55, 0.3); boxL(-9.5, 9.5, 10.9, 15.2, -0.55, 0.55, black, ['top', 'left', 'right', 'front', 'back']);
+    B.set(Rr.sign, 0.5, 0.1, night ? 1.0 : 0.2); for (const a of [-0.57, 0.57]) signQ(-9.2, 9.2, 11.15, 14.95, a, 1, a > 0);
+    // trim lines and columns
+    B.set('white', 0.5, 0.4); for (const a of [-0.92, 0.92]) { boxL(-wl - 0.6, wr + 0.6, 10.9, 11.05, a - 0.04, a + 0.04, trim); boxL(-wl - 0.6, wr + 0.6, 8.75, 8.9, a - 0.04, a + 0.04, trim); }
+    for (const lat of [-wl - 0.6, wr + 0.6]) boxL(lat - 0.7, lat + 0.7, -0.5, 8.9, -0.7, 0.7, black, ['left', 'right', 'front', 'back']);
+    // LED downlights under the beam
+    B.set('white', 0.3, 0, night ? 2.2 : 0.4); for (let lat = -wl + 1.5; lat < wr - 1; lat += 2.5) boxL(lat - 0.25, lat + 0.25, 8.8, 8.9, -0.2, 0.2, C(0xfff6e8), ['bot']);
+    if (night) for (let lat = -wl + 3; lat < wr - 2; lat += 5) glow(P(lat, 8.6, 0), 1.4, [1, 0.96, 0.9]);
     out.bridge = true;
   }
 
-  // ---------------------------------------------------------------- floodlight towers every ~60 m round the lap: slim tapered
-  // poles 30-35 m tall with a lamp bank tilted at the track (two instanced meshes); each bank is a flood in the light map
+  // ---------------------------------------------------------------- floodlight poles (u1-u3): slim white poles 30-35 m tall,
+  // the head a tree-like cluster of small lamps on short arms aimed at the track, a red aviation light on top. Every ~48 m
+  // a side, ~34 m along the marina and the hotel. Three instanced meshes (poles, head frames, lamps + aviation lights with
+  // vertex colours); each head is a flood in the light map and a glow
   function floodlights(E, out) {
     const t = E.t, sc = E.sc, OCC = EI.Env.OCC; const spots = []; const L = t.length; const pr = {};
     const near = (x, z, r) => spots.some(s => Math.hypot(s[0] - x, s[2] - z) < r);
-    for (const side of [1, -1]) for (let s = side > 0 ? 8 : 39; s < L; s += 62) {
-      for (const off of [7, 11, 16, 23, 32]) {
+    const H = E.data.hotel; const hp0 = H && H.parts && H.parts.length ? H.parts[0].p[0] : null;
+    // dense where the track runs by the water or the hotel
+    const dense = (s) => { const i = t.idxAtS(s); for (const side of [1, -1]) for (const o of [25, 45, 70]) { const x = t.x[i] + t.nx[i] * side * o, z = t.z[i] + t.nz[i] * side * o; if (E.isSea && E.isSea(x, z)) return true; } return !!(hp0 && Math.hypot(t.x[i] - hp0[0], t.z[i] - hp0[1]) < 260); };
+    for (const side of [1, -1]) { let s = side > 0 ? 8 : 29; while (s < L) {
+      const dn = dense(s); const step = dn ? 34 : 48;
+      for (const off of [3.6, 5, 8, 12, 17, 24, 32]) {
         const i = t.idxAtS(s); const wall = E.wallCap ? E.wallCap(i, side) : (side < 0 ? t.wallL[i] : t.wallR[i]); const d = wall + off;
         const x = t.x[i] + t.nx[i] * side * d, z = t.z[i] + t.nz[i] * side * d;
         if (E.occAt(x, z) & (OCC.BUILT | OCC.ROAD | OCC.WATER)) continue; if (E.isSea && E.isSea(x, z)) continue;
-        t.project(x, z, null, pr); if (pr.dist < Math.max(t.wallL[pr.i], t.wallR[pr.i]) + 4) continue; if (near(x, z, 38)) continue;
-        // aim at the nearest centreline point
+        t.project(x, z, null, pr); if (pr.dist < Math.max(t.wallL[pr.i], t.wallR[pr.i]) + 4) continue; if (near(x, z, step * 0.62)) continue;
         let ax = t.x[pr.i] - x, az = t.z[pr.i] - z; const al = Math.hypot(ax, az) || 1; ax /= al; az /= al;
-        spots.push([x, E.ground(x, z), z, Math.atan2(ax, az), 30 + ((s * 7) % 5), ax, az]); break;
+        spots.push([x, E.ground(x, z), z, Math.atan2(ax, az), 30 + ((s * 7) % 6), ax, az, step]); break;
       }
-    }
+      s += step; } }
     if (!spots.length) return;
-    const tilt = new THREE.Matrix4().makeRotationX(0.36);
-    const col = new THREE.CylinderGeometry(0.26, 0.62, 1, 7, 1); col.translate(0, 0.5, 0);
-    const head = new THREE.BoxGeometry(6.4, 2.9, 0.5); head.translate(0, 0, 0.32); const plat = new THREE.BoxGeometry(7.0, 0.22, 1.6); plat.translate(0, -1.7, 0.3);
-    const rail = new THREE.BoxGeometry(7.0, 0.06, 0.06); rail.translate(0, -0.7, 1.05);
-    for (const g of [head, plat, rail]) g.applyMatrix4(tilt);
-    const lamps = new THREE.PlaneGeometry(6.0, 2.5); lamps.translate(0, 0, 0.58); lamps.applyMatrix4(tilt);
-    const mPy = new THREE.MeshStandardMaterial({ color: 0xa8aeb4, roughness: 0.45, metalness: 0.6 });
-    const [lc, lx] = EI.Env.canvas(128, 64); lx.fillStyle = '#1c1f23'; lx.fillRect(0, 0, 128, 64);
-    for (let r = 0; r < 3; r++) for (let k = 0; k < 7; k++) { const cx = 10 + k * 18, cy = 11 + r * 21; const g = lx.createRadialGradient(cx, cy, 1, cx, cy, 8); g.addColorStop(0, '#ffffff'); g.addColorStop(0.5, '#fff6e4'); g.addColorStop(1, '#6a604c'); lx.fillStyle = g; lx.beginPath(); lx.arc(cx, cy, 7.5, 0, 6.283); lx.fill(); }
-    const lt = new THREE.CanvasTexture(lc); lt.encoding = THREE.sRGBEncoding; lt.anisotropy = 4;
-    const lampK = isNight() ? 2.4 : 1.2;
-    const mLamp = new THREE.MeshBasicMaterial({ map: lt, color: new THREE.Color(1.0, 0.96, 0.88).multiplyScalar(lampK), toneMapped: false }); mLamp.userData.nightEmissive = true;
-    // pole and head per instance: the head sits on top of a pole of the instance's height (pole geometry scaled in y)
-    const n = spots.length; const poleG = col, headG = EI.Env.merge([head, plat, rail]);
-    const iPole = new THREE.InstancedMesh(poleG, mPy, n), iHead = new THREE.InstancedMesh(headG, mPy, n), iL = new THREE.InstancedMesh(lamps, mLamp, n);
+    const night = isNight();
+    // the head: a short mast, three tiers of arms fanning towards the track, a lamp on every arm end (5 + 4 + 3 lamps)
+    const tilt = new THREE.Matrix4().makeRotationX(0.32); const frame = [], lampG = [], cols = [];
+    const mast = new THREE.CylinderGeometry(0.12, 0.16, 5.2, 6, 1); mast.translate(0, 0.4, 0); frame.push(mast);
+    const lampW = new THREE.Color(1.0, 0.97, 0.9), red = new THREE.Color(1.0, 0.06, 0.03);
+    const pushLamp = (g, c) => { const n = g.attributes.position.count; const ca = new Float32Array(n * 3); for (let k = 0; k < n; k++) { ca[k * 3] = c.r; ca[k * 3 + 1] = c.g; ca[k * 3 + 2] = c.b; } g.setAttribute('color', new THREE.BufferAttribute(ca, 3)); lampG.push(g); };
+    [[5, 2.2, 1.0], [4, 1.0, 0.9], [3, -0.2, 0.75]].forEach(([nl, y, sp]) => {
+      for (let k = 0; k < nl; k++) {
+        const a = (k - (nl - 1) / 2) * 0.42 * sp, r = 1.15 + 0.25 * Math.abs(k - (nl - 1) / 2); const lx = Math.sin(a) * r, lz = Math.cos(a) * r;
+        const arm = new THREE.BoxGeometry(0.08, 0.08, r); arm.translate(0, 0, r / 2); arm.applyMatrix4(new THREE.Matrix4().makeRotationY(a)); arm.translate(0, y, 0); frame.push(arm);
+        const box = new THREE.BoxGeometry(0.5, 0.42, 0.26); box.applyMatrix4(tilt); box.applyMatrix4(new THREE.Matrix4().makeRotationY(a)); box.translate(lx, y, lz); frame.push(box);
+        const face = new THREE.PlaneGeometry(0.44, 0.36); face.translate(0, 0, 0.14); face.applyMatrix4(tilt); face.applyMatrix4(new THREE.Matrix4().makeRotationY(a)); face.translate(lx, y, lz); pushLamp(face, lampW);
+      }
+    });
+    const av = new THREE.SphereGeometry(0.2, 6, 4); av.translate(0, 3.15, 0); pushLamp(av, red);
+    const headG = EI.Env.merge(frame), lampsG = EI.Env.merge(lampG);
+    const col = new THREE.CylinderGeometry(0.17, 0.36, 1, 8, 1); col.translate(0, 0.5, 0);
+    const mPy = new THREE.MeshStandardMaterial({ color: 0xeceef0, roughness: 0.5, metalness: 0.25 });
+    const lampK = night ? 3.2 : 1.1;
+    const mLamp = new THREE.MeshBasicMaterial({ vertexColors: true, color: new THREE.Color(lampK, lampK, lampK), toneMapped: false }); mLamp.userData.nightEmissive = true;
+    const n = spots.length;
+    const iPole = new THREE.InstancedMesh(col, mPy, n), iHead = new THREE.InstancedMesh(headG, mPy, n), iL = new THREE.InstancedMesh(lampsG, mLamp, n);
     const m = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler(), p = new THREE.Vector3(), s1 = new THREE.Vector3(1, 1, 1), sp = new THREE.Vector3();
     spots.forEach((S, k) => {
-      const [x, y, z, yaw, H, ax, az] = S; e.set(0, yaw, 0); q.setFromEuler(e);
-      m.compose(p.set(x, y - 0.2, z), q, sp.set(1, H, 1)); iPole.setMatrixAt(k, m);
-      m.compose(p.set(x, y + H + 1.0, z), q, s1); iHead.setMatrixAt(k, m); iL.setMatrixAt(k, m);
-      const hp = [x + ax * 0.5, y + H + 1.0, z + az * 0.5];
-      flood(hp, { power: 0.95, aim: [ax, az], spread: 1.0, range: 120 });
-      glow(hp, 7.5, [1.0, 0.97, 0.9]);
-      // the lamp bank reads as a strip of bright points from the track
-      for (const o of [-2.2, 0, 2.2]) glow([hp[0] + Math.cos(yaw) * o, hp[1] - 0.2, hp[2] - Math.sin(yaw) * o], 2.4, [1.0, 1.0, 0.96]);
+      const [x, y, z, yaw, Hh, ax, az, step] = S; e.set(0, yaw, 0); q.setFromEuler(e);
+      m.compose(p.set(x, y - 0.2, z), q, sp.set(1, Hh, 1)); iPole.setMatrixAt(k, m);
+      m.compose(p.set(x, y + Hh, z), q, s1); iHead.setMatrixAt(k, m); iL.setMatrixAt(k, m);
+      const hp = [x + ax * 1.2, y + Hh + 1.0, z + az * 1.2];
+      flood(hp, { power: 0.95 * step / 62, aim: [ax, az], spread: 1.0, range: 120 });
+      glow(hp, 8.5, [1.0, 0.97, 0.9]); glow([x, y + Hh + 3.15, z], 1.6, [1.0, 0.12, 0.06], { pulse: 0.5 });
     });
     const bb = new THREE.Box3(); for (const S of spots) bb.expandByPoint(p.set(S[0], S[1], S[2])); bb.max.y += 42; const bs = bb.getBoundingSphere(new THREE.Sphere());
     for (const im of [iPole, iHead, iL]) { im.instanceMatrix.needsUpdate = true; im.castShadow = false; im.receiveShadow = false; im.geometry = im.geometry.clone(); im.geometry.boundingSphere = bs.clone(); }
-    // pole and head share a material: one mesh would be nicer, but their per-instance transforms differ (height-scaled pole)
     iPole.name = 'yasFloodPoles'; iHead.name = 'yasFloodHeads'; iL.name = 'yasFloodLamps';
-    sc.group.add(iPole); sc.group.add(iHead); sc.group.add(iL); out.floodlights = n;
+    sc.group.add(iPole); sc.group.add(iHead); sc.group.add(iL); out.floodlights = n; out.floodTris = n * (16 + (headG.attributes.position.count + lampsG.attributes.position.count) / 3);
   }
 
   // ---------------------------------------------------------------- entry point (from EI.EnvYas.build, before the world is built)

@@ -11,21 +11,30 @@
 //   EI.Night.addGlow(x, y, z, size, color, opts) an additive glow sprite (a lamp head, an LED point, a lit window cluster):
 //                                                size in metres, color [r, g, b] 0..1 (sRGB-ish); opts.pulse (Hz) for a slow pulse
 //   EI.Night.onFrame(fn)                         fn(dt, timeSeconds) called once per frame while racing (animated LED facades...)
+//   EI.Night.addColorSpill(x, y, z, r, colorFn)  a coloured light volume (an LED facade washing its surroundings): radius r (m),
+//                                                colorFn(t) -> [r, g, b] linear (evaluated per frame); up to 4 (the W hotel's
+//                                                gridshell gets three automatically when none are registered)
 //   material.userData.nightEmissive = true       keeps an unlit (MeshBasic) material at full brightness (screens, LEDs, signs)
+//   material.userData.nightGloss = k             (0..1) racing surfaces: smoother at night so the floods streak across them
 window.EI = window.EI || {};
 (function () {
   const U = EI.U;
   const Night = { on: false, floods: [], glows: [], frameFns: [], built: false };
-  Night.reset = function () { Night.floods = []; Night.glows = []; Night.frameFns = []; Night.built = false; };
+  Night.reset = function () { Night.floods = []; Night.glows = []; Night.frameFns = []; Night.spills = []; Night.built = false; };
   Night.addFlood = function (x, y, z, opts) { opts = opts || {}; Night.floods.push({ x, y, z, power: opts.power != null ? opts.power : 1, color: opts.color || [1.0, 0.94, 0.84], aim: opts.aim || null, spread: opts.spread || 1.0, range: opts.range || 110 }); };
   Night.addGlow = function (x, y, z, size, color, opts) { Night.glows.push({ x, y, z, size, color: color || [1, 0.95, 0.85], pulse: (opts && opts.pulse) || 0 }); };
   Night.onFrame = function (fn) { Night.frameFns.push(fn); };
+  Night.spills = [];
+  Night.addColorSpill = function (x, y, z, r, colorFn) { Night.spills.push({ x, y, z, r, fn: colorFn }); };
 
   // shared uniforms (one object, referenced by every patched material). The light map is read with a soft roll-off
   // (e / (1 + 0.14 e)): overlapping pools such as the pit straight's compress, a single pool barely changes
   const UNI = {
     uNMap: { value: null }, uNDir: { value: null }, uNBox: { value: new THREE.Vector4(0, 0, 1, 1) }, uNTop: { value: 60 },
     uNBasic: { value: new THREE.Vector3(0.16, 0.18, 0.24) }, uNTime: { value: 0 },
+    // coloured light volumes (xyz centre, w radius) and their current colours; the floodlit air (haze colour, strength)
+    uNSp: { value: [0, 1, 2, 3].map(() => new THREE.Vector4(0, -1e5, 0, 1)) }, uNSpC: { value: [0, 1, 2, 3].map(() => new THREE.Vector3()) },
+    uNAir: { value: new THREE.Vector4(1.0, 0.86, 0.66, 0.05) },
   };
   Night.uniforms = UNI;
 
@@ -37,15 +46,19 @@ window.EI = window.EI || {};
     'float hash(vec3 p) { p = fract(p * 0.3183099 + 0.1); p *= 17.0; return fract(p.x * p.y * p.z * (p.x + p.y + p.z)); }',
     'void main() {',
     '  vec3 d = normalize(vDir); float h = d.y;',
-    '  vec3 zen = vec3(0.0035, 0.007, 0.020), mid = vec3(0.009, 0.016, 0.038), hor = vec3(0.034, 0.036, 0.046);',
-    '  vec3 c = mix(hor, mid, smoothstep(0.0, 0.14, h)); c = mix(c, zen, smoothstep(0.12, 0.65, h));',
-    '  float w = max(dot(normalize(vec3(d.x, 0.0, d.z)), uWest), 0.0);',
-    // sodium haze over the city: everywhere low on the horizon, strongest towards Abu Dhabi itself (uWest)
-    '  float band = exp(-max(h, 0.0) * 20.0) * (0.55 + 0.45 * pow(w, 2.0)) + 0.35 * pow(w, 4.0) * exp(-max(h, 0.0) * 7.0);',
-    '  c += vec3(0.105, 0.066, 0.030) * band;',
-    '  if (h < 0.0) c = mix(c, vec3(0.052, 0.040, 0.030), smoothstep(0.0, -0.06, h));',
-    '  vec3 q = floor(d * 420.0); float s = hash(q); float st = step(0.9992, s) * smoothstep(0.08, 0.4, h) * (0.4 + 0.6 * hash(q + 7.0));',
-    '  c += vec3(0.85, 0.9, 1.0) * st * 0.4;',
+    // near-black navy overhead easing to a hazy blue-grey low down: the floodlit air over the venue lifts the whole lower sky
+    '  vec3 zen = vec3(0.004, 0.0065, 0.017), mid = vec3(0.012, 0.019, 0.040), hor = vec3(0.052, 0.050, 0.054);',
+    '  vec3 c = mix(hor, mid, smoothstep(0.0, 0.22, h)); c = mix(c, zen, smoothstep(0.18, 0.85, h));',
+    // the light-pollution dome: warm sodium haze all round the horizon (Yas Island, the motorways), strongest over Abu Dhabi
+    '  float w = max(dot(normalize(vec3(d.x, 0.0, d.z)), uWest), 0.0); float hp = max(h, 0.0);',
+    '  float dome = exp(-hp * 11.0) * (0.45 + 0.55 * pow(w, 1.6)) + 0.45 * pow(w, 3.0) * exp(-hp * 4.5);',
+    '  c += vec3(0.17, 0.10, 0.038) * dome;',
+    // a faint cool veil over the floodlit venue itself (light scattered up from ~100 towers)
+    '  c += vec3(0.018, 0.022, 0.030) * exp(-hp * 3.0);',
+    '  if (h < 0.0) c = mix(c, vec3(0.045, 0.036, 0.028), smoothstep(0.0, -0.05, h));',
+    // stars: only the brightest, only high overhead - the floodlights wash the rest out
+    '  vec3 q = floor(d * 380.0); float s = hash(q); float st = step(0.9993, s) * smoothstep(0.42, 0.85, h) * (0.3 + 0.7 * hash(q + 7.0));',
+    '  c += vec3(0.8, 0.85, 1.0) * st * 0.22;',
     '  gl_FragColor = vec4(c, 1.0);',
     '#include <tonemapping_fragment>',
     '#include <encodings_fragment>',
@@ -59,9 +72,12 @@ window.EI = window.EI || {};
   // water pick up streaks of light instead of a black mirror)
   Night.makeEnv = function (renderer, westDir) {
     const s = new THREE.Scene(); const sky = Night.makeSky(westDir); sky.scale.setScalar(900); s.add(sky);
-    const lamp = new THREE.MeshBasicMaterial({ color: new THREE.Color(9, 8.6, 7.6) }), warm = new THREE.MeshBasicMaterial({ color: new THREE.Color(5, 3.2, 1.6) });
+    const lamp = new THREE.MeshBasicMaterial({ color: new THREE.Color(14, 13.3, 12) }), warm = new THREE.MeshBasicMaterial({ color: new THREE.Color(5, 3.2, 1.6) });
     const g = new THREE.BoxGeometry(14, 6, 2);
-    for (let k = 0; k < 44; k++) { const a = k / 44 * Math.PI * 2 + (k % 3) * 0.05; const r = 300 + (k % 5) * 40; const m = new THREE.Mesh(g, k % 4 === 3 ? warm : lamp); m.position.set(Math.cos(a) * r, 40 + (k % 4) * 18, Math.sin(a) * r); m.lookAt(0, 0, 0); s.add(m); }
+    for (let k = 0; k < 72; k++) { const a = k / 72 * Math.PI * 2 + (k % 3) * 0.04; const r = 260 + (k % 5) * 45; const m = new THREE.Mesh(g, k % 5 === 4 ? warm : lamp); m.position.set(Math.cos(a) * r, 34 + (k % 4) * 16, Math.sin(a) * r); m.lookAt(0, 0, 0); s.add(m); }
+    // the hotel's LED skin and the city's sodium band, so paint and glass pick up colour, not only white points
+    const led = new THREE.Mesh(new THREE.BoxGeometry(220, 60, 4), new THREE.MeshBasicMaterial({ color: new THREE.Color(1.6, 0.5, 2.6) })); led.position.set(-320, 70, 160); led.lookAt(0, 0, 0); s.add(led);
+    const band = new THREE.Mesh(new THREE.CylinderGeometry(800, 800, 30, 32, 1, true), new THREE.MeshBasicMaterial({ color: new THREE.Color(0.55, 0.34, 0.16), side: THREE.BackSide })); band.position.y = 6; s.add(band);
     const ground = new THREE.Mesh(new THREE.PlaneGeometry(4000, 4000), new THREE.MeshBasicMaterial({ color: new THREE.Color(0.11, 0.10, 0.09) })); ground.rotation.x = -Math.PI / 2; ground.position.y = -20; s.add(ground);
     const pm = new THREE.PMREMGenerator(renderer); const tex = pm.fromScene(s, 0.03).texture; pm.dispose(); return tex;
   };
@@ -77,7 +93,7 @@ window.EI = window.EI || {};
 
   // ---------------------------------------------------------------- the light map: irradiance (rgb, sqrt-encoded) and the mean
   // horizontal direction towards the lights (rg) with how one-sided it is (b), over the whole venue
-  const MAPN = 1024, EMAX = 9, K = 1800;
+  const MAPN = 1024, EMAX = 9, K = 1300;
   function bake(t, ground) {
     let x0 = Infinity, x1 = -Infinity, z0 = Infinity, z1 = -Infinity;
     for (let i = 0; i < t.n; i++) { x0 = Math.min(x0, t.x[i]); x1 = Math.max(x1, t.x[i]); z0 = Math.min(z0, t.z[i]); z1 = Math.max(z1, t.z[i]); }
@@ -139,16 +155,32 @@ window.EI = window.EI || {};
   // material's own lighting model (diffuse + specular for standard / physical / phong; a plain scale for unlit materials)
   const VERT = 'vec4 nwp = vec4(transformed, 1.0);\n#ifdef USE_INSTANCING\nnwp = instanceMatrix * nwp;\n#endif\nvNW = (modelMatrix * nwp).xyz;\n';
   const FDECL = 'varying vec3 vNW; uniform sampler2D uNMap; uniform sampler2D uNDir; uniform vec4 uNBox; uniform float uNTop; uniform vec3 uNBasic;\n' +
+    'uniform vec4 uNSp[4]; uniform vec3 uNSpC[4]; uniform vec4 uNAir; vec3 nHaze = vec3(0.0);\n' +
     'vec3 nightE(out vec3 Lw) { vec2 uv = (vNW.xz - uNBox.xy) * uNBox.z; Lw = vec3(0.0, 1.0, 0.0); if (uv.x <= 0.0 || uv.y <= 0.0 || uv.x >= 1.0 || uv.y >= 1.0) return vec3(0.0);\n' +
     '  vec3 e = texture2D(uNMap, uv).rgb; e = e * e * uNBox.w; e = e / (1.0 + e * 0.14); vec3 dd = texture2D(uNDir, uv).rgb; vec2 dh = (dd.xy * 2.0 - 1.0) * dd.z;\n' +
-    '  Lw = normalize(vec3(dh.x * 0.9, 1.0, dh.y * 0.9)); return e * (1.0 - smoothstep(uNTop, uNTop + 50.0, vNW.y)); }\n';
-  const LIT = '{ vec3 nLw; vec3 nE = nightE(nLw); IncidentLight nl; nl.color = nE; nl.direction = normalize((viewMatrix * vec4(nLw, 0.0)).xyz); nl.visible = true; RE_Direct(nl, geometry, material, reflectedLight); }\n';
+    '  e *= 1.0 - smoothstep(uNTop, uNTop + 50.0, vNW.y); nHaze = e;\n' +
+    '  Lw = normalize(vec3(dh.x * 0.9, 1.0, dh.y * 0.9)); return e; }\n' +
+    // coloured volumes: falloff to the radius, the light coming from the volume's centre; hollow in the middle (the emitter's own
+    // building is lit by its LEDs, not by its spill)
+    'vec3 nightSpill(out vec3 Ls) { vec3 acc = vec3(0.0); vec3 dir = vec3(0.0);\n' +
+    '  for (int i = 0; i < 4; i++) { vec3 dv = uNSp[i].xyz - vNW; float d = length(dv); float k = 1.0 - clamp(d / uNSp[i].w, 0.0, 1.0); k = pow(k, 1.6) * smoothstep(0.0, uNSp[i].w * 0.3, d);\n' +
+    '    acc += uNSpC[i] * k; dir += dv / max(d, 1.0) * k * dot(uNSpC[i], vec3(0.333)); }\n' +
+    '  Ls = length(dir) > 1e-4 ? normalize(dir) : vec3(0.0, 1.0, 0.0); nHaze += acc * 0.6; return acc; }\n';
+  const LIT = '{ vec3 nLw; vec3 nE = nightE(nLw); IncidentLight nl; nl.color = nE; nl.direction = normalize((viewMatrix * vec4(nLw, 0.0)).xyz); nl.visible = true; RE_Direct(nl, geometry, material, reflectedLight);\n' +
+    '  vec3 nLs; vec3 nS = nightSpill(nLs); if (dot(nS, vec3(1.0)) > 0.002) { nl.color = nS; nl.direction = normalize((viewMatrix * vec4(nLs, 0.0)).xyz); RE_Direct(nl, geometry, material, reflectedLight); reflectedLight.indirectDiffuse += nS * 0.18 * material.diffuseColor; } }\n';
+  // racing surfaces at night: smoother, so the floodlights streak across the asphalt and the painted run-off (u2 / u3)
+  const GLOSS = '#if defined( STANDARD ) && defined( NIGHT_GLOSS )\n{ vec3 nWN = inverseTransformDirection(normal, viewMatrix); float up = smoothstep(0.75, 0.95, nWN.y);\n' +
+    '  material.specularRoughness = mix(material.specularRoughness, max(0.16, material.specularRoughness * 0.5), up * float(NIGHT_GLOSS)); }\n#endif\n';
+  // the floodlit air: everything picks up a faint warm haze with distance, more where the air itself is lit
+  const FOG = '#ifdef USE_FOG\n  float nFogF = smoothstep(fogNear, fogFar, fogDepth); float nAir = (1.0 - exp(-fogDepth * 0.0022)) * uNAir.w;\n' +
+    '  gl_FragColor.rgb += uNAir.rgb * nAir * (0.35 + min(dot(nHaze, vec3(0.333)), 2.5));\n' +
+    '  gl_FragColor.rgb = mix(gl_FragColor.rgb, fogColor + uNAir.rgb * uNAir.w * 0.6, nFogF);\n#endif\n';
   const patched = new WeakSet();
   function patchMaterial(m) {
     if (!m || patched.has(m)) return; patched.add(m);
     const lit = m.isMeshStandardMaterial || m.isMeshPhongMaterial, basic = m.isMeshBasicMaterial && !(m.userData && m.userData.nightEmissive) && m.blending === THREE.NormalBlending;
     if (!lit && !basic) return;
-    const prev = m.onBeforeCompile, prevKey = m.customProgramCacheKey;
+    const prev = m.onBeforeCompile, prevKey = m.customProgramCacheKey; const gloss = lit && m.userData && m.userData.nightGloss ? +m.userData.nightGloss : 0;
     m.onBeforeCompile = function (sh, r) {
       if (prev) prev.call(this, sh, r);
       if (sh.vertexShader.indexOf('#include <project_vertex>') < 0) return;
@@ -157,11 +189,13 @@ window.EI = window.EI || {};
       Object.assign(sh.uniforms, UNI);
       sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nvarying vec3 vNW;').replace('#include <project_vertex>', '#include <project_vertex>\n' + VERT);
       sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\n' + FDECL);
-      if (lit) sh.fragmentShader = sh.fragmentShader.replace('#include <lights_fragment_begin>', '#include <lights_fragment_begin>\n' + LIT);
-      else sh.fragmentShader = sh.fragmentShader.replace('#include <envmap_fragment>', '{ vec3 nLw; vec3 nE = nightE(nLw); outgoingLight *= uNBasic + nE * 0.55; }\n#include <envmap_fragment>');
+      if (gloss) sh.fragmentShader = '#define NIGHT_GLOSS ' + gloss.toFixed(2) + '\n' + sh.fragmentShader;
+      if (lit) sh.fragmentShader = sh.fragmentShader.replace('#include <lights_fragment_begin>', GLOSS + '#include <lights_fragment_begin>\n' + LIT);
+      else sh.fragmentShader = sh.fragmentShader.replace('#include <envmap_fragment>', '{ vec3 nLw; vec3 nE = nightE(nLw); vec3 nLs; vec3 nS = nightSpill(nLs); outgoingLight *= uNBasic + (nE + nS) * 0.55; }\n#include <envmap_fragment>');
+      if (sh.fragmentShader.indexOf('#include <fog_fragment>') >= 0) sh.fragmentShader = sh.fragmentShader.replace('#include <fog_fragment>', FOG);
     };
     const pk = prev ? prev.toString() : '';
-    m.customProgramCacheKey = function () { return (prevKey ? prevKey.call(this) : '') + pk.length + pk.slice(0, 80) + '|night'; };
+    m.customProgramCacheKey = function () { return (prevKey ? prevKey.call(this) : '') + pk.length + pk.slice(0, 80) + '|night2' + gloss; };
     m.needsUpdate = true;
   }
   Night.patchScene = function (root) {
@@ -169,12 +203,17 @@ window.EI = window.EI || {};
   };
 
   // ---------------------------------------------------------------- glow sprites: one Points cloud, additive, sized in metres
-  const GV = ['attribute float gsize; attribute vec3 gcol; attribute float gpulse; uniform float uScale; uniform float uNTime; varying vec3 vC; varying float vF;',
+  const GV = ['attribute float gsize; attribute vec3 gcol; attribute float gpulse; uniform float uScale; uniform float uNTime; varying vec3 vC; varying float vF; varying float vStar;',
     'void main() { vec4 mv = modelViewMatrix * vec4(position, 1.0); float d = -mv.z; float p = gpulse > 0.0 ? 0.75 + 0.25 * sin(uNTime * gpulse * 6.2832 + position.x * 0.37) : 1.0;',
-    '  gl_PointSize = clamp(gsize * uScale / max(d, 1.0), 1.5, 220.0); vC = gcol * p * clamp(gsize * uScale / max(d, 1.0) / 2.0, 0.35, 1.0); vF = 1.0 - smoothstep(1600.0, 3200.0, d);',
+    // the sprite is 3x the light's size: the core sits in the middle, the rest is halo; far lamps keep a few pixels of halo
+    '  float px = gsize * uScale / max(d, 1.0); gl_PointSize = clamp(px * 3.0, 3.0, 360.0);',
+    '  vC = gcol * p * clamp(px / 2.0, 0.4, 1.0); vF = 1.0 - smoothstep(1800.0, 3400.0, d); vStar = gsize >= 3.5 ? clamp(px / 6.0, 0.25, 1.0) : 0.0;',
     '  gl_Position = projectionMatrix * mv; }'].join('\n');
-  const GF = ['varying vec3 vC; varying float vF;',
-    'void main() { vec2 q = gl_PointCoord * 2.0 - 1.0; float r2 = dot(q, q); if (r2 > 1.0) discard; float a = exp(-r2 * 5.0) + 0.55 * exp(-r2 * 40.0); gl_FragColor = vec4(vC * a * vF, 1.0); }'].join('\n');
+  const GF = ['varying vec3 vC; varying float vF; varying float vStar;',
+    'void main() { vec2 q = gl_PointCoord * 2.0 - 1.0; float r2 = dot(q, q); if (r2 > 1.0) discard;',
+    '  float core = exp(-r2 * 50.0) * 1.2 + exp(-r2 * 300.0) * 1.6; float halo = (exp(-r2 * 9.0) * 0.45 + exp(-r2 * 2.5) * 0.22) * (1.0 - r2);',
+    '  float star = (exp(-abs(q.y) * 90.0) + exp(-abs(q.x) * 90.0)) * exp(-r2 * 2.0) * 0.45 * vStar;',
+    '  gl_FragColor = vec4(vC * (core + halo + star) * vF, 1.0); }'].join('\n');
   let glowMat = null;
   function buildGlows(scene) {
     const n = Night.glows.length; if (!n) return;
@@ -187,7 +226,23 @@ window.EI = window.EI || {};
     // sprites are sized in pixels: the scale follows whatever viewport / render target this view is drawn into
     const vp = new THREE.Vector4(); pts.onBeforeRender = (r, s, cam) => { r.getCurrentViewport(vp); glowMat.uniforms.uScale.value = vp.w / 2 / Math.tan((cam.fov || 60) * Math.PI / 360); };
   }
-  Night.frame = function (dt, t) { UNI.uNTime.value = t; for (const fn of Night.frameFns) fn(dt, t); };
+  Night.frame = function (dt, t) {
+    UNI.uNTime.value = t; for (const fn of Night.frameFns) fn(dt, t);
+    for (let i = 0; i < 4; i++) { const sp = Night.spills[i]; const c = UNI.uNSpC.value[i]; if (!sp) { c.set(0, 0, 0); continue; } const v = sp.fn(t); c.set(v[0], v[1], v[2]); }
+  };
+  // the W hotel's gridshell (EnvYas' 'yasShellLED'): three coloured volumes along the building, in the LED show's palette at their
+  // spot (the same function as the skin's shader), so the track, the run-off, the walls and the cars under it take its colour
+  function hotelSpills(scene) {
+    if (Night.spills.length) return; const m = scene.getObjectByName('yasShellLED'); if (!m || !m.geometry) return;
+    m.geometry.computeBoundingBox(); const bb = m.geometry.boundingBox; const sx = bb.max.x - bb.min.x, sz = bb.max.z - bb.min.z; const cy = bb.min.y + 10;
+    const pal = (t) => { t = t - Math.floor(t); const A = [1.0, 0.12, 0.75], B = [0.2, 0.35, 1.0], Cc = [0.62, 0.25, 1.0], D = [0.95, 0.95, 1.0]; const mix = (a, b, u) => [a[0] + (b[0] - a[0]) * u, a[1] + (b[1] - a[1]) * u, a[2] + (b[2] - a[2]) * u];
+      return t < 0.25 ? mix(A, B, t * 4) : t < 0.5 ? mix(B, Cc, t * 4 - 1) : t < 0.75 ? mix(Cc, D, t * 4 - 2) : mix(D, A, t * 4 - 3); };
+    const L = Math.max(sx, sz), R = Math.max(80, L * 0.62);
+    for (const f of [0.2, 0.5, 0.8]) {
+      const x = sx >= sz ? bb.min.x + sx * f : (bb.min.x + bb.max.x) / 2, z = sx >= sz ? (bb.min.z + bb.max.z) / 2 : bb.min.z + sz * f;
+      Night.addColorSpill(x, cy, z, R, (t) => { const c = pal(x * 0.0025 + cy * 0.006 + t * 0.035); const w = 0.75 + 0.25 * Math.sin(x * 0.035 + cy * 0.08 - t * 0.9); const k = 3.4 * w; return [c[0] * k, c[1] * k * 0.75, c[2] * k]; });
+    }
+  }
 
   // ---------------------------------------------------------------- after the scenery and the track are built
   // broadcast lighting along the circuit (see bake): core level on the racing surface, spill level, colour. Set from the look.
@@ -197,7 +252,11 @@ window.EI = window.EI || {};
     const L = EI.look && EI.look.nightTrack; if (L) Object.assign(Night.track, L);
     if (Night.floods.length < 20) autoFloods(track);
     const ground = scenery && scenery.height ? (x, z) => scenery.height(x, z) : null;
-    bake(track, ground); buildGlows(scene);
+    bake(track, ground); buildGlows(scene); hotelSpills(scene);
+    Night.spills.slice(0, 4).forEach((sp, i) => UNI.uNSp.value[i].set(sp.x, sp.y, sp.z, sp.r));
+    const air = EI.look && EI.look.nightAir; if (air) UNI.uNAir.value.set(air[0], air[1], air[2], air[3]);
+    // the racing surfaces turn smoother at night (specular streaks under the floods)
+    if (track.group) track.group.traverse(o => { if (!o.material || Array.isArray(o.material)) return; const k = { asphalt: 0.75, runoff: 0.6, kerb: 0.5, pitLane: 0.6, paint: 0.5 }[o.name]; if (k) o.material.userData.nightGloss = k; });
     if (scenery) { if (scenery.clouds) scenery.clouds.visible = false; if (scenery.clouds2) scenery.clouds2.visible = false; }   // a clear desert night
     Night.patchScene(scene);
   };

@@ -624,7 +624,19 @@ window.EI = window.EI || {};
       // corner's painted run-off in bands of it and a deeper shade
       const RC = this.data.runoffColors;
       if (RC) { const A = lin(RC[0]), B = lin(RC[1]); for (const c of this.data.corners) if (c.t) SCHEMES[c.name] = [c.t % 3 === 0 ? 2 : c.t % 2, A, B]; }
-      const runFrag = RC ? RUNOFF_FRAG.replace('vec3(0.045, 0.2, 0.06)', (() => { const c = lin(RC[2] || RC[0]); return 'vec3(' + c.r.toFixed(4) + ', ' + c.g.toFixed(4) + ', ' + c.b.toFixed(4) + ')'; })()) : RUNOFF_FRAG;
+      const v3 = (c) => 'vec3(' + c.r.toFixed(4) + ', ' + c.g.toFixed(4) + ', ' + c.b.toFixed(4) + ')';
+      // house-colour run-off (Yas): the whole apron from the kerb to the wall in the colour, with darker concentric stripes
+      // following the track edge, a white line at its outer edge; tyre marks and wear stay on top
+      const RC_STRIPES = RC ? `
+    float rTq = rGon * step(eiHW + eiKW - 0.05, rAl) * (1.0 - smoothstep(rOuter - 0.3 - rAA, rOuter - 0.3 + rAA, rAl));
+    float rDd = rAl - eiHW - eiKW; float rSt = 0.0;
+    for (int k = 0; k < 5; k++) { float c0 = 2.9 + float(k) * 1.75; rSt += smoothstep(c0 - rAA, c0 + rAA, rDd) * (1.0 - smoothstep(c0 + 0.85 - rAA, c0 + 0.85 + rAA, rDd)); }
+    vec3 rTqC = mix(${v3(lin(RC[2] || RC[0]))}, ${v3(lin(RC[1]).lerp(lin(RC[0]), 0.35))}, rSt * (0.75 + 0.25 * rM1.g)) * (0.9 + 0.2 * rM2.r);
+    rTqC = mix(rTqC, vec3(0.72, 0.72, 0.7), 1.0 - smoothstep(0.1, 0.1 + rAA, abs(rAl - rOuter + 0.55)));
+    rCol = mix(rCol, mix(rTqC, rBase * 1.05, clamp(rWear * 0.5, 0.0, 0.6)), rTq);
+    rGreen = max(rGreen, rTq);
+` : '';
+      const runFrag = RC ? RUNOFF_FRAG.replace('vec3(0.045, 0.2, 0.06)', v3(lin(RC[2] || RC[0]))).replace('    rCol = mix(rCol, rCol * 0.45, rTyre', RC_STRIPES + '    rCol = mix(rCol, rCol * 0.45, rTyre') : RUNOFF_FRAG;
       const aw0 = hw + kw + 2.0;
       const rMat = shaderMat({ map: T.runoff.map, normalMap: T.runoff.normalMap, normalScale: new THREE.Vector2(0.7, 0.7), roughnessMap: T.runoff.roughnessMap, roughness: 1, metalness: 0, polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 2 }, 'runoff' + (RC ? '-' + RC.join('') : ''), common, VARY_RUN, runFrag, RUNOFF_ROUGH, FLATTEN);
       const gMat = shaderMat({ map: T.gravel.map, normalMap: T.gravel.normalMap, normalScale: new THREE.Vector2(1.25, 1.25), roughnessMap: T.gravel.roughnessMap, roughness: 1, metalness: 0, polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 3 }, 'gravel', common, VARY4, GRAVEL_FRAG, GRAVEL_ROUGH, '', GRAVEL_NORMAL);
@@ -632,14 +644,14 @@ window.EI = window.EI || {};
       for (const side of [-1, 1]) {
         const run = side < 0 ? this.runoffL : this.runoffR, grav = side < 0 ? this.gravelL : this.gravelR, wall = side < 0 ? this.wallL : this.wallR;
         // outer edge: dilate then smooth so the run-off tapers in and out and never leaves a gap to the gravel
-        const raw = new Float32Array(n); for (let i = 0; i < n; i++) raw[i] = run[i] ? hw + kw + (grav[i] ? 7.05 : 14) : kerbMask(i) ? aw0 + 0.05 : hw + 1.0;
+        const raw = new Float32Array(n); for (let i = 0; i < n; i++) raw[i] = run[i] ? hw + kw + (grav[i] ? 7.05 : 14) : RC ? hw + kw + 11 : kerbMask(i) ? aw0 + 0.05 : hw + 1.0;
         const dil = new Float32Array(n); for (let i = 0; i < n; i++) { let m = 0; for (let j = -4; j <= 4; j++) m = Math.max(m, raw[(i + j + n) % n]); dil[i] = m; }
         const outer = this.smooth(dil, 4); for (let i = 0; i < n; i++) outer[i] = Math.max(hw + 0.6, Math.min(outer[i], wall[i] - 0.4));
         // paint scheme per row (corner name), spread one row so the colour attribute is constant across each paint boundary quad
         const sch = new Int8Array(n).fill(-1); const names = Object.keys(SCHEMES);
         for (let i = 0; i < n; i++) if (run[i]) { const nm = cornerAt(this.s[i]); const k = names.indexOf(nm); if (k >= 0) sch[i] = k; }
         const schC = Int8Array.from(sch); for (let i = 0; i < n; i++) if (sch[i] < 0) { for (const j of [1, -1, 2, -2]) { const q = sch[(i + j + n) % n]; if (q >= 0) { schC[i] = q; break; } } }
-        const green = new Uint8Array(n); if (!this.data.street) for (let i = 0; i < n; i++) green[i] = kerbMask(i) || run[i] ? 1 : 0;
+        const green = new Uint8Array(n); if (!this.data.street) for (let i = 0; i < n; i++) green[i] = kerbMask(i) || run[i] || RC ? 1 : 0;
         const geo = this.strip(2, {
           lat: (ii, c) => side * (c ? outer[ii] : hw - 0.05), uv: (ii, c, l, i) => [l / 4, i * ds / per(4)],
           attrs: {

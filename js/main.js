@@ -50,8 +50,13 @@ window.EI = window.EI || {};
       // Yas Marina: the race starts at sunset - the sun low over the Gulf in the west-south-west, warm haze, long shadows
       // Yas Marina: a night race under floodlights (js/night.js: night sky, the light map, glows); the 'sun' is dim moonlight from
       // high up so the cars keep their contact shadows
-      abudhabi: { night: true, elev: 70, azim: 200, west: [-0.7, 0, 0.7], horizon: 0x1c150e, fog: [800, 3400], fogLow: [480, 1900], hemi: [0x26324e, 0x16120d, 0.3], sun: [0xc8d2ff, 0.22], nightTrack: { core: 1.55, halo: 0.34 } } };
+      abudhabi: { night: true, elev: 70, azim: 200, west: [-0.7, 0, 0.7], horizon: 0x1c150e, fog: [800, 3400], fogLow: [480, 1900], hemi: [0x2c3a5a, 0x221a12, 0.42], sun: [0xc8d2ff, 0.2], nightTrack: { core: 0.6, halo: 0.2 }, nightAir: [1.0, 0.84, 0.62, 0.05],
+        grade: { sat: 1.22, con: 1.12, warm: [1.02, 1.0, 0.985] } } };
     const LK = Object.assign({ elev: 42, azim: 205, turb: 2.5, ray: 2.0, mie: 0.004, horizon: 0xa9c4e4, fog: [600, 2600], fogLow: [350, 1500], hemi: [0x9fc4ee, 0x3f5a2e, 0.35], sun: [0xfff1dd, 2.4] }, LOOKS[trackId] || {}); EI.look = LK;
+    // a per-circuit grade replaces the default one (the night race: less saturation boost, a little more contrast, so the floodlit
+    // turquoise and the purple LED wash read vivid without turning neon)
+    if (LK.grade) { const G = LK.grade, wm = G.warm || [1.03, 1.0, 0.97]; THREE.ShaderChunk.tonemapping_fragment = '#if defined( TONE_MAPPING )\n gl_FragColor.rgb = toneMapping( gl_FragColor.rgb );\n#endif\n' +
+      '{ vec3 c = gl_FragColor.rgb; float l = dot(c, vec3(0.2126, 0.7152, 0.0722)); c = mix(vec3(l), c, ' + G.sat.toFixed(3) + '); c = (c - 0.5) * ' + G.con.toFixed(3) + ' + 0.5; c *= vec3(' + wm.map(v => v.toFixed(3)).join(', ') + '); gl_FragColor.rgb = clamp(c, 0.0, 1.0); }\n'; }
     const nightLook = !!(LK.night && EI.Night); if (nightLook) EI.Night.on = true; const nightWest = new THREE.Vector3(...(LK.west || [-1, 0, 0]));
     const sunDir = new THREE.Vector3(); const elev = LK.elev, azim = LK.azim; const phi = THREE.MathUtils.degToRad(90 - elev), theta = THREE.MathUtils.degToRad(azim); sunDir.setFromSphericalCoords(1, phi, theta);
     skyMesh = new THREE.Sky(); skyMesh.scale.setScalar(5500); const su = skyMesh.material.uniforms; su.turbidity.value = LK.turb; su.rayleigh.value = LK.ray; su.mieCoefficient.value = LK.mie; su.mieDirectionalG.value = LK.mieG || 0.85;

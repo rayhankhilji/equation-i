@@ -68,6 +68,64 @@ window.EI = window.EI || {};
       emit(vert(i, j), vert(i, j + 1), vert(i + 1, j + 1), vert(i + 1, j));
     }
   }
+  // the long axis of a set of footprints: centroid c and unit direction (dx, dz) of the largest spread (2x2 covariance)
+  function principalAxis(polys) {
+    let n = 0, mx = 0, mz = 0; for (const p of polys) for (const q of p) { mx += q[0]; mz += q[1]; n++; } mx /= n; mz /= n;
+    let xx = 0, zz = 0, xz = 0; for (const p of polys) for (const q of p) { const a = q[0] - mx, b = q[1] - mz; xx += a * a; zz += b * b; xz += a * b; }
+    const th = 0.5 * Math.atan2(2 * xz, xx - zz); return { c: [mx, mz], dx: Math.cos(th), dz: Math.sin(th) };
+  }
+  // surface() in a rotated frame with the vertices kept: F is an sdf over local (u, v), toW maps local to world (x, z),
+  // f(u, v, din) -> y. Vertices are { p: [x, y, z], lu, lv, din }, shared between the quads that use them
+  function surfaceGrid(F, f, toW) {
+    const { nx, nz, st, x0, z0, d } = F; const V = new Array(nx * nz); const quads = [];
+    const vert = (i, j) => {
+      const k = j * nx + i; if (V[k]) return V[k]; let u = x0 + i * st, v = z0 + j * st; let dd = d[k];
+      if (dd < 0) { const gu = F.at(u + st, v) - F.at(u - st, v), gv = F.at(u, v + st) - F.at(u, v - st); const gl = Math.hypot(gu, gv) || 1; u -= gu / gl * dd; v -= gv / gl * dd; dd = 0; }
+      const w = toW(u, v); return (V[k] = { p: [w[0], f(u, v, Math.max(0, dd)), w[1]], lu: u, lv: v, din: Math.max(0, dd) });
+    };
+    for (let j = 0; j < nz - 1; j++) for (let i = 0; i < nx - 1; i++) {
+      const k = j * nx + i; if (d[k] < 0 && d[k + 1] < 0 && d[k + nx] < 0 && d[k + nx + 1] < 0) continue;
+      quads.push([vert(i, j), vert(i, j + 1), vert(i + 1, j + 1), vert(i + 1, j)]);
+    }
+    return { V, quads, nx, nz };
+  }
+  // the W's bridge over the track: a smooth white pod lofted along the footprint's long axis (elliptic sections, ends rounded
+  // as a superellipse), the big oval window of u1-u3 on both sides facing along the track, lit inside at night
+  function pod(B, poly, y0, y1, night) {
+    const ax = principalAxis([poly]); const L = (q) => [(q[0] - ax.c[0]) * ax.dx + (q[1] - ax.c[1]) * ax.dz, -(q[0] - ax.c[0]) * ax.dz + (q[1] - ax.c[1]) * ax.dx];
+    const lp = poly.map(L); let u0 = Infinity, u1 = -Infinity; for (const q of lp) { u0 = Math.min(u0, q[0]); u1 = Math.max(u1, q[0]); }
+    // the footprint's width across the axis at station u
+    const span = (u) => { let a = Infinity, b = -Infinity; for (let i = 0; i < lp.length; i++) { const P = lp[i], Q = lp[(i + 1) % lp.length]; if ((P[0] - u) * (Q[0] - u) > 0 || P[0] === Q[0]) continue; const v = P[1] + (Q[1] - P[1]) * (u - P[0]) / (Q[0] - P[0]); a = Math.min(a, v); b = Math.max(b, v); } return a < b ? [a, b] : null; };
+    const NS = 22, NA = 18, yc = (y0 + y1) / 2, hh = (y1 - y0) / 2; const P = [];
+    let ref = span((u0 + u1) / 2) || [-6, 6];
+    for (let s = 0; s <= NS; s++) {
+      const t = s / NS, u = u0 + (u1 - u0) * (0.02 + 0.96 * t); const sp = span(u) || ref; ref = sp; const vc = (sp[0] + sp[1]) / 2, hw = (sp[1] - sp[0]) / 2 + 0.6;
+      const e = Math.abs(t * 2 - 1); const k = Math.pow(Math.max(0, 1 - Math.pow(e, 5)), 1 / 5);   // superellipse end rounding
+      const row = []; for (let a = 0; a <= NA; a++) { const th = a / NA * 6.2832; const cv = Math.cos(th), sv = Math.sin(th);
+        // a slightly squared ellipse (flatter sides, the pod reads as a sculpted lozenge, not a tube)
+        const sq = (x) => Math.sign(x) * Math.pow(Math.abs(x), 0.8); const lv = vc + sq(cv) * hw * k, ly = yc + sq(sv) * hh * (0.35 + 0.65 * k);
+        row.push([ax.c[0] + ax.dx * u - ax.dz * lv, ly, ax.c[1] + ax.dz * u + ax.dx * lv, t, th]); }
+      P.push(row);
+    }
+    const white = C(0xf4f3f0), N = (s, a) => { const r = P[s], A = r[(a + 1) % NA], Z = r[(a + NA - 1) % NA], S1 = P[Math.min(NS, s + 1)][a], S0 = P[Math.max(0, s - 1)][a];
+      const ux = S1[0] - S0[0], uy = S1[1] - S0[1], uz = S1[2] - S0[2], vx = A[0] - Z[0], vy = A[1] - Z[1], vz = A[2] - Z[2]; let nx = uy * vz - uz * vy, ny = uz * vx - ux * vz, nz = ux * vy - uy * vx;
+      const cx = ax.c[0] + ax.dx * (u0 + u1) / 2, cz = ax.c[1] + ax.dz * (u0 + u1) / 2; if (nx * (r[a][0] - cx) + ny * (r[a][1] - yc) + nz * (r[a][2] - cz) < 0) { nx = -nx; ny = -ny; nz = -nz; } const l = Math.hypot(nx, ny, nz) || 1; return [nx / l, ny / l, nz / l]; };
+    const NN = P.map((r, s) => r.map((_, a) => N(s, a % NA)));
+    // the window: the middle 70 % of the length, +-55 degrees round each side (the texture's white margin blends into the skin)
+    const WT0 = 0.15, WT1 = 0.85, WA = 0.96; const winUV = (q, side) => { const th = side > 0 ? q[4] : q[4] - Math.PI; const aa = Math.atan2(Math.sin(th), Math.cos(th)); return [side > 0 ? (q[3] - WT0) / (WT1 - WT0) : 1 - (q[3] - WT0) / (WT1 - WT0), 0.5 + aa / (2 * WA) * side]; };
+    for (let s = 0; s < NS; s++) for (let a = 0; a < NA; a++) {
+      const A = P[s][a], Bq = P[s + 1][a], Cq = P[s + 1][a + 1], D = P[s][a + 1]; const nA = NN[s][a], nB = NN[s + 1][a], nC = NN[s + 1][a + 1], nD = NN[s][a + 1];
+      const tm = (A[3] + Bq[3]) / 2, thm = (A[4] + D[4]) / 2; const dR = Math.abs(Math.atan2(Math.sin(thm), Math.cos(thm))), dL = Math.abs(Math.atan2(Math.sin(thm - Math.PI), Math.cos(thm - Math.PI)));
+      const side = dR < WA ? 1 : dL < WA ? -1 : 0; let uv = null;
+      if (side && tm > WT0 && tm < WT1) { B.set(TX().podWin, 0.25, 0.2, night ? 0.75 : 0); const q = [A, Bq, Cq, D].map(v => winUV(v, side)); uv = [q[0][0], q[0][1], q[1][0], q[1][1], q[2][0], q[2][1], q[3][0], q[3][1]]; }
+      else B.set('white', 0.35, 0.15, night ? 0.06 : 0);
+      // outward winding check against the smooth normal
+      const ux = Bq[0] - A[0], uy = Bq[1] - A[1], uz = Bq[2] - A[2], vx = D[0] - A[0], vy = D[1] - A[1], vz = D[2] - A[2]; const f = (uy * vz - uz * vy) * nA[0] + (uz * vx - ux * vz) * nA[1] + (ux * vy - uy * vx) * nA[2];
+      const pa = A.slice(0, 3), pb = Bq.slice(0, 3), pc = Cq.slice(0, 3), pd = D.slice(0, 3);
+      if (f >= 0) { B.triN(pa, pb, pc, nA, nB, nC, white, white, white, uv && [uv[0], uv[1], uv[2], uv[3], uv[4], uv[5]]); B.triN(pa, pc, pd, nA, nC, nD, white, white, white, uv && [uv[0], uv[1], uv[4], uv[5], uv[6], uv[7]]); }
+      else { B.triN(pa, pd, pc, nA, nD, nC, white, white, white, uv && [uv[0], uv[1], uv[6], uv[7], uv[4], uv[5]]); B.triN(pa, pc, pb, nA, nC, nB, white, white, white, uv && [uv[0], uv[1], uv[4], uv[5], uv[2], uv[3]]); }
+    }
+  }
   // a quad facing the horizontal direction (nx, nz): the world material is single sided
   function wallQuad(B, A, Bq, Cq, D, nx, nz, col, uv) {
     const ux = Bq[0] - A[0], uy = Bq[1] - A[1], uz = Bq[2] - A[2], vx = Cq[0] - A[0], vy = Cq[1] - A[1], vz = Cq[2] - A[2];
@@ -148,67 +206,104 @@ window.EI = window.EI || {};
       if (p.h <= 12) { B.set(R.stone, 0.75, 0); prism(B, p.p, y0, y0 + p.h, white, 16, 8, C(0xd6d2c8), 'white'); continue; }
       wings.push({ p: p.p, h: p.h, y0 });
       B.set(R.stone, 0.75, 0, night ? 0.25 : 0); prism(B, p.p, y0, y0 + 9, white, 16, 8);
-      B.set(TX().curtain, 0.16, 0.45, night ? 0.75 : 0); prism(B, p.p, y0 + 9, y0 + p.h, glassTint, 9.6, 13.2, roofC, 'white');
+      B.set(night ? TX().whotel : TX().curtain, 0.16, 0.45, night ? 0.8 : 0); prism(B, p.p, y0 + 9, y0 + p.h, glassTint, 9.6, 13.2, roofC, 'white');
     }
     // the bridge across the track (9 m clear), glazed sides, white soffit
     const br = H.bridge; let bridgeY = null;
     if (br && br.p.length >= 3) {
       const y0 = ground(br.p) + 0.3 + br.h0, y1 = ground(br.p) + 0.3 + br.h; bridgeY = [y0, y1];
-      B.set(TX().curtain, 0.16, 0.45, isNight() ? 1.15 : 0); prism(B, br.p, y0 + 1.2, y1, glassTint, 9.6, 13.2, roofC, 'white');
-      B.set('white', 0.7, 0); prism(B, br.p, y0, y0 + 1.2, white); cap(B, br.p, y0, white, false);
+      pod(B, br.p, y0, y1, night);
     }
     W.add(B, 'main'); out.hotelTris = B.count / 3;
     // ---- the gridshell: one flowing skin over both wings and the bridge, 6 m proud of them, its hem rising over the track
     const doms = wings.map(w => w.p).concat(br ? [br.p] : []); if (!doms.length) return;
     let x0 = Infinity, x1 = -Infinity, z0 = Infinity, z1 = -Infinity; for (const p of doms) for (const q of p) { x0 = Math.min(x0, q[0]); x1 = Math.max(x1, q[0]); z0 = Math.min(z0, q[1]); z1 = Math.max(z1, q[1]); }
-    const PAD = 9; x0 -= PAD + 4; x1 += PAD + 4; z0 -= PAD + 4; z1 += PAD + 4;
+    const PAD = 6; x0 -= PAD + 4; x1 += PAD + 4; z0 -= PAD + 4; z1 += PAD + 4;
     const inside = (x, z) => { for (const p of doms) if (U.pointInPoly(x, z, p) || polyDist(x, z, p) < PAD) return true; return false; };
-    const F = sdf(x0, z0, x1, z1, 2.5, inside); const pr = {};
+    // the skin's own frame: along the hotel's long axis (s) and across it (q), so the lattice runs with the building
+    const ax = principalAxis(doms); const toW = (u, v) => [ax.c[0] + ax.dx * u - ax.dz * v, ax.c[1] + ax.dz * u + ax.dx * v];
+    let u0 = Infinity, u1 = -Infinity, v0 = Infinity, v1 = -Infinity; for (const p of doms) for (const q of p) { const du = (q[0] - ax.c[0]) * ax.dx + (q[1] - ax.c[1]) * ax.dz, dv = -(q[0] - ax.c[0]) * ax.dz + (q[1] - ax.c[1]) * ax.dx; u0 = Math.min(u0, du); u1 = Math.max(u1, du); v0 = Math.min(v0, dv); v1 = Math.max(v1, dv); }
+    const PADL = PAD + 4; const F = sdf(u0 - PADL, v0 - PADL, u1 + PADL, v1 + PADL, 2.5, (u, v) => { const w = toW(u, v); return inside(w[0], w[1]); }); const pr = {};
     const yBase = Math.min(...wings.map(w => w.y0));
     const topAt = (x, z) => { let sw = 0, sh = 0; for (const w of wings) { const d = U.pointInPoly(x, z, w.p) ? 0 : polyDist(x, z, w.p); const k = 1 / Math.pow(d + 6, 2.2); sw += k; sh += k * (w.y0 + w.h + 11); } return sh / sw; };
-    const yFn = (x, z, din) => {
-      t.project(x, z, null, pr); const overTrack = pr.dist < Math.max(t.wallL[pr.i], t.wallR[pr.i]) + 4;
-      const hem = yBase + (overTrack ? 24 : 11); const top = topAt(x, z);
-      const k = Math.pow(U.smoothstep(0, 16, din), 0.55);
-      return hem + (top - hem) * k + (Math.sin(x / 17 + z / 29) * 2.2 + Math.sin(z / 11 - x / 23) * 0.9) * k;
+    // the ribbon: a hem 17 m up (24 m over the track) sweeping up to ~11 m above the roofs, with a long slow twist along its length
+    const yFn = (u, v, din) => {
+      const [x, z] = toW(u, v); t.project(x, z, null, pr); const overTrack = pr.dist < Math.max(t.wallL[pr.i], t.wallR[pr.i]) + 4;
+      const hem = yBase + (overTrack ? 24 : 17); const top = topAt(x, z);
+      // rises almost vertically off the hem (the skin bulges out over the lower floors), clears the roofs above the walls
+      const k = 1 - Math.pow(1 - Math.min(1, din / (PAD + 3)), 2.2);
+      return hem + (top - hem) * k + (Math.sin(u / 29 + 0.6) * 4.5 + Math.sin(v / 13 - u / 41) * 1.2) * k;
     };
-    const S = new (SKx().Batch)(); const tA = C(0xe9eef6), tB = C(0xeadff8);
-    const uvOf = (p) => { const k = 1 / 4.2; return [(p[0] + p[2]) * k + p[1] * 0.12, (p[0] - p[2]) * k - p[1] * 0.12]; };
-    let nq = 0; const led = [];
-    surface(F, yFn, (a, b, c, d) => {
-      if (night) led.push(a, b, c, a, c, d);
-      const col = Math.sin(a[0] / 37) * Math.cos(a[2] / 29) > 0.2 ? tB : tA; S.set(R.shell, 0.35, 0.55, night ? 0.04 : 0.22);
-      const ua = uvOf(a), ub = uvOf(b), uc = uvOf(c), ud = uvOf(d);
-      S.quad(a, b, c, d, col, [ua[0], ua[1], ub[0], ub[1], uc[0], uc[1], ud[0], ud[1]]); S.quad(a, d, c, b, col, [ua[0], ua[1], ud[0], ud[1], uc[0], uc[1], ub[0], ub[1]]); nq++;
-    });
-    // the hem: a white steel edge beam all round
-    const shellMesh = batchMesh(W, [S], 'yasGridshell'); shellMesh.castShadow = false; shellMesh.receiveShadow = false; sc.group.add(shellMesh); out.shellTris = S.count / 3;
-    // ---- at night the gridshell is a light show: ~5,000 LED nodes in the lattice washing slow waves of magenta, blue, purple and
-    // white over the skin (one additive mesh over the same surface, animated in the shader)
-    if (night && led.length) {
-      const pos = new Float32Array(led.length * 3); led.forEach((p, k) => { pos[k * 3] = p[0]; pos[k * 3 + 1] = p[1]; pos[k * 3 + 2] = p[2]; });
-      const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(pos, 3)); g.computeBoundingSphere();
-      const uni = { uT: { value: 0 } };
-      const mat = new THREE.ShaderMaterial({ uniforms: uni, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -4,
-        vertexShader: 'varying vec3 vP; void main() { vP = position; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
-        fragmentShader: ['uniform float uT; varying vec3 vP;',
-          'vec3 pal(float t) { t = fract(t); vec3 a = vec3(1.0, 0.12, 0.75), b = vec3(0.2, 0.35, 1.0), c = vec3(0.62, 0.25, 1.0), d = vec3(0.95, 0.95, 1.0);',
-          '  return t < 0.25 ? mix(a, b, t * 4.0) : t < 0.5 ? mix(b, c, t * 4.0 - 1.0) : t < 0.75 ? mix(c, d, t * 4.0 - 2.0) : mix(d, a, t * 4.0 - 3.0); }',
-          'void main() { vec2 q = vec2((vP.x + vP.z) / 4.2 + vP.y * 0.12, (vP.x - vP.z) / 4.2 - vP.y * 0.12); vec2 f = fract(q); vec2 e = min(f, 1.0 - f);',
-          '  float line = 1.0 - smoothstep(0.0, 0.07, min(e.x, e.y)); float node = 1.0 - smoothstep(0.0, 0.16, length(e));',
-          '  float wave = 0.55 + 0.45 * sin(vP.x * 0.035 + vP.y * 0.08 - uT * 0.9) * sin(vP.z * 0.03 + uT * 0.37);',
-          '  vec3 col = pal(vP.x * 0.0025 + vP.y * 0.006 + uT * 0.035);',
-          '  gl_FragColor = vec4(col * (0.2 + line * 0.06 + node * 0.55) * wave, 1.0); }'].join('\n') });
-      mat.userData.nightEmissive = true;
-      const lm = new THREE.Mesh(g, mat); lm.name = 'yasShellLED'; lm.renderOrder = 4; sc.group.add(lm);
-      EI.Night.onFrame((dt, tt) => { uni.uT.value = tt; });
-      // the skin's glow lights the track and the marina under it
-      const hc = centroid(doms[0]); EI.Night.addFlood(hc[0], yBase + 30, hc[1], { power: 0.5, range: 110, color: [0.7, 0.45, 1.0] });
-      if (br) { const bc = centroid(br.p); EI.Night.addFlood(bc[0], yBase + 12, bc[1], { power: 0.35, range: 50, color: [0.85, 0.6, 1.0] }); }
-      // the track through the hotel: banks of lights under the wings' soffits and the bridge (the floodlight towers keep clear of
-      // the building), every ~28 m through the hotel section
+    const G = surfaceGrid(F, yFn, toW);
+    // developed lattice coordinates: arc length along the grid rows (the long axis) and columns (across), so the diamonds keep
+    // their size up the steep flanks instead of stretching
+    const { V, nx: gx, nz: gz } = G;
+    for (let j = 0; j < gz; j++) { let pv = null; for (let i = 0; i < gx; i++) { const vv = V[j * gx + i]; if (!vv) { pv = null; continue; } vv.U = pv ? pv.U + Math.hypot(vv.p[0] - pv.p[0], vv.p[1] - pv.p[1], vv.p[2] - pv.p[2]) * (vv.lu >= pv.lu ? 1 : -1) : vv.lu; pv = vv; } }
+    for (let i = 0; i < gx; i++) { let pv = null; for (let j = 0; j < gz; j++) { const vv = V[j * gx + i]; if (!vv) { pv = null; continue; } vv.W = pv ? pv.W + Math.hypot(vv.p[0] - pv.p[0], vv.p[1] - pv.p[1], vv.p[2] - pv.p[2]) * (vv.lv >= pv.lv ? 1 : -1) : vv.lv; pv = vv; } }
+    const PU = 4.4, PW = 3.0;   // panel diagonals along / across the ribbon (m)
+    const latOf = (vv) => [(vv.U / PU + vv.W / PW), (vv.U / PU - vv.W / PW)];
+    let nq = G.quads.length;
+    if (!night) {
+      const S = new (SKx().Batch)(); const tA = C(0xe9eef6), tB = C(0xeadff8);
+      for (const [a, b, c, d] of G.quads) {
+        const col = Math.sin(a.p[0] / 37) * Math.cos(a.p[2] / 29) > 0.2 ? tB : tA; S.set(R.shell, 0.35, 0.55, 0.22);
+        const ua = latOf(a), ub = latOf(b), uc = latOf(c), ud = latOf(d);
+        S.quad(a.p, b.p, c.p, d.p, col, [ua[0], ua[1], ub[0], ub[1], uc[0], uc[1], ud[0], ud[1]]); S.quad(a.p, d.p, c.p, b.p, col, [ua[0], ua[1], ud[0], ud[1], uc[0], uc[1], ub[0], ub[1]]);
+      }
+      const shellMesh = batchMesh(W, [S], 'yasGridshell'); shellMesh.castShadow = false; shellMesh.receiveShadow = false; sc.group.add(shellMesh); out.shellTris = S.count / 3;
+    } else {
+      // ---- at night the skin is the light show of u1-u3: white diamond panels in a white frame, an LED at every node (thousands of
+      // bright points that halo in the resolve pass), the panels washed by the LEDs, the colour drifting slowly through purple,
+      // magenta, blue and lavender. One opaque, double-sided shader mesh (one draw call); the lattice is drawn in the fragment
+      // shader from the developed coordinates, antialiased and fading to its average brightness in the distance (no shimmer).
+      const idx = new Map(); const pos = [], lat = [], ind = [];
+      const vid = (vv) => { let k = idx.get(vv); if (k == null) { k = pos.length / 3; idx.set(vv, k); pos.push(vv.p[0], vv.p[1], vv.p[2]); const l = latOf(vv); lat.push(l[0], l[1]); } return k; };
+      for (const [a, b, c, d] of G.quads) { const A = vid(a), Bq = vid(b), Cq = vid(c), D = vid(d); ind.push(A, Bq, Cq, A, Cq, D); }
+      const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute('lat', new THREE.Float32BufferAttribute(lat, 2)); g.setIndex(ind); g.computeBoundingSphere();
+      const mat = new THREE.ShaderMaterial({
+        uniforms: THREE.UniformsUtils.merge([THREE.UniformsLib.fog, { uT: { value: 0 } }]), side: THREE.DoubleSide, fog: true,
+        vertexShader: ['attribute vec2 lat; varying vec2 vL; varying vec3 vW;', '#include <fog_pars_vertex>',
+          'void main() { vL = lat; vec4 wp = modelMatrix * vec4(position, 1.0); vW = wp.xyz; vec4 mvPosition = viewMatrix * wp; gl_Position = projectionMatrix * mvPosition;', '#include <fog_vertex>', '}'].join('\n'),
+        fragmentShader: ['uniform float uT; varying vec2 vL; varying vec3 vW;', '#include <fog_pars_fragment>',
+          'vec3 pal(float t) { t = fract(t); vec3 a = vec3(0.56, 0.18, 1.0), b = vec3(0.95, 0.16, 0.85), c = vec3(0.26, 0.30, 1.0), d = vec3(0.70, 0.45, 1.0);',
+          '  return t < 0.25 ? mix(a, b, smoothstep(0.0, 1.0, t * 4.0)) : t < 0.5 ? mix(b, c, smoothstep(0.0, 1.0, t * 4.0 - 1.0)) : t < 0.75 ? mix(c, d, smoothstep(0.0, 1.0, t * 4.0 - 2.0)) : mix(d, a, smoothstep(0.0, 1.0, t * 4.0 - 3.0)); }',
+          'float band(float d, float w, float aa) { return 1.0 - smoothstep(w - aa, w + aa, d); }',
+          'void main() {',
+          '  vec2 f = fract(vL); vec2 e = min(f, 1.0 - f); vec2 fw2 = fwidth(vL); float fw = max(max(fw2.x, fw2.y), 1e-4);',
+          '  float far = smoothstep(0.04, 0.16, fw), farD = smoothstep(0.3, 0.75, fw);',
+          '  float ln = mix(band(min(e.x, e.y), 0.03, fw), 0.12, far);',             // the white frame members
+          '  float dn = length(e);',                                                      // distance to the nearest node
+          '  float rD = max(0.085, fw * 0.75); float dt = mix(band(dn, rD, fw * 0.8) * min(1.0, 0.0072 / (rD * rD) + 0.35), 0.06, farD);',                     // the LED at the node
+          '  float hue = uT * 0.012 + vW.x * 0.0011 + vW.z * 0.0007 + vW.y * 0.0035;',
+          '  vec3 c = pal(hue); float wave = 0.82 + 0.18 * sin(vW.x * 0.021 - vW.z * 0.013 - uT * 0.35);',
+          '  vec3 panel = c * (0.07 + 0.36 * exp(-dn * dn * 9.0));',                    // each pane lit from its LED corner
+          '  vec3 frame = mix(c, vec3(1.0), 0.35) * 0.2;',
+          '  vec3 col = mix(panel, frame, ln) * wave + mix(c, vec3(1.0), 0.5) * 3.2 * dt;',
+          '  if (!gl_FrontFacing) col *= 0.85;',
+          '  gl_FragColor = vec4(col, 1.0);',
+          '#include <tonemapping_fragment>', '#include <encodings_fragment>', '#include <fog_fragment>', '}'].join('\n'),
+      });
+      mat.extensions = { derivatives: true }; mat.userData.nightEmissive = true;
+      const lm = new THREE.Mesh(g, mat); lm.name = 'yasGridshell'; lm.castShadow = false; lm.receiveShadow = false; sc.group.add(lm); out.shellTris = ind.length / 3;
+      const uT = mat.uniforms.uT; EI.Night.onFrame((dt, tt) => { uT.value = tt; });
+      // the skin lights its surroundings: the track and the run-off under and around it take its violet (u1)
+      const hc = centroid(doms[0]); EI.Night.addFlood(hc[0], yBase + 30, hc[1], { power: 0.55, range: 130, color: [0.72, 0.42, 1.0] });
+      if (br) { const bc = centroid(br.p); EI.Night.addFlood(bc[0], yBase + 14, bc[1], { power: 0.45, range: 70, color: [0.8, 0.5, 1.0] }); }
+      for (const w of wings) { const c = centroid(w.p); EI.Night.addFlood(c[0], w.y0 + w.h + 8, c[1], { power: 0.35, range: 110, color: [0.68, 0.42, 1.0] }); }
       const hs = []; for (let s = 0; s < t.length; s += 4) { const i = t.idxAtS(s); for (const p of doms) if (polyDist(t.x[i], t.z[i], p) < 45) { hs.push(s); break; } }
-      let last = -1e9; for (const s of hs) if (s - last >= 28) { last = s; const i = t.idxAtS(s); EI.Night.addFlood(t.x[i], t.y[i] + 14, t.z[i], { power: 0.7, range: 60, color: [1.0, 0.95, 0.9] }); for (const sd of [-1, 1]) { const w = (sd < 0 ? t.wallL[i] : t.wallR[i]) + 1; EI.Night.addGlow(t.x[i] + t.nx[i] * sd * w, t.y[i] + 9, t.z[i] + t.nz[i] * sd * w, 2.2, [1, 0.95, 0.88]); } }
+      let last = -1e9; for (const s of hs) if (s - last >= 28) { last = s; const i = t.idxAtS(s); EI.Night.addFlood(t.x[i], t.y[i] + 14, t.z[i], { power: 0.6, range: 60, color: [0.95, 0.88, 1.0] }); }
+      // slim white diagonal columns from the ground to the hem (u1): where the hem comes down near the ground, clear of the track
+      const Cb = new (SKx().Batch)(); Cb.set('white', 0.4, 0.1, 0.05); const colW = C(0xf4f4f6); const mI = new THREE.Matrix4(); let ncol = 0; const placed = [];
+      for (const [a] of G.quads) {
+        if (a.din > 0.01 || ncol >= 22) continue; const P = a.p; if (placed.some(q => Math.hypot(q[0] - P[0], q[2] - P[2]) < 26)) continue;
+        t.project(P[0], P[2], null, pr); if (pr.dist < Math.max(t.wallL[pr.i], t.wallR[pr.i]) + 3) continue;
+        // lean the foot outward from the hotel by a third of the height
+        const hc2 = centroid(doms[0]); let ox = P[0] - hc2[0], oz = P[2] - hc2[1]; const ol = Math.hypot(ox, oz) || 1; ox /= ol; oz /= ol;
+        const gy = E.ground(P[0], P[2]); const hh = P[1] - gy; if (hh < 6) continue; const fx = P[0] + ox * hh * 0.28, fz = P[2] + oz * hh * 0.28;
+        t.project(fx, fz, null, pr); if (pr.dist < Math.max(t.wallL[pr.i], t.wallR[pr.i]) + 3) continue;
+        Cb.beam(mI, [fx, E.ground(fx, fz) - 0.2, fz], [P[0], P[1] - 0.3, P[2]], 0.55, colW, 8); placed.push(P); ncol++;
+      }
+      if (ncol) W.add(Cb, 'main'); out.shellColumns = ncol;
     }
     out.shell = { quads: nq, bridgeY };
   }

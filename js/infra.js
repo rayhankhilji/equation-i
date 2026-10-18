@@ -60,6 +60,7 @@ window.EI = window.EI || {};
       if (scenery.env && scenery.env.standPolys) for (const p of scenery.env.standPolys) this.polys.push(p);
       this.obstacles = this.polys.concat(t.data.scenery.woods, t.data.scenery.water);
       this.tyreCorners = t.data.tyreCorners || ['Copse', 'Stowe', 'Club', 'Village', 'Vale', 'Brooklands', 'Luffield']; this.F = t.data.furniture || {};
+      this.desert = !!(scenery.env && scenery.env.data && scenery.env.data.kind === 'desert');
       if (t.data.tunnel) for (let s = t.data.tunnel.s0 - 10; s <= t.data.tunnel.s1 + 10; s += 20) { this.reserve(s, 1, 12); this.reserve(s, -1, 12); }
     }
     inPit(s, side) { const L = this.t.length; return side === this.pitSide && U.mod(s - this.pitS0, L) < U.mod(this.pitS1 - this.pitS0, L); }
@@ -108,9 +109,25 @@ window.EI = window.EI || {};
     for (let k = 0; k < NBRANDS; k++) { const x = (k % 4) * 512, y = Math.floor(k / 4) * 128; EI.Ads.paintTile(ctx, k, x, y, 512, 128); ctx.fillStyle = '#2a2d31'; ctx.fillRect(x, y + 120, 512, 8); }
     return tex(c);
   };
+  // Yas Marina: black sponsor boards with the partners' white lock-ups and URLs (u2-u4), same 4 x 2 layout. Painted in the
+  // boards' 5:1 frame squeezed into the 4:1 tiles
+  Infra.hoardingAtlasDark = function () {
+    const [c, ctx] = canvas(2048, 256); const A = EI.Ads;
+    for (let k = 0; k < NBRANDS; k++) {
+      const x = (k % 4) * 512, y = Math.floor(k / 4) * 128; ctx.save(); ctx.beginPath(); ctx.rect(x, y, 512, 128); ctx.clip(); ctx.translate(x, y); ctx.scale(512 / 640, 1);
+      ctx.fillStyle = k === 6 ? '#f2f1ec' : '#0b0c0f'; ctx.fillRect(0, 0, 640, 128); const ink = k === 6 ? '#0b0c0f' : '#ffffff';
+      const brand = k % 2 ? 'intake' : 'lumi';
+      if (k < 2 || k >= 6) { if (A && A.lockupCentered) A.lockupCentered(ctx, brand, 320, 62, 58, 560, ink, k !== 6); }
+      else if (k < 4) { ctx.fillStyle = ink; ctx.font = '800 66px "Plus Jakarta Sans", Arial, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(brand === 'lumi' ? 'trylumi.co' : 'intake.ink', 320, 66); }
+      else { if (A) { if (brand === 'lumi') A.lumiMark(ctx, 36, 22, 84, null, true); else A.intakeMark(ctx, 36, 22, 84); } ctx.fillStyle = ink; ctx.font = '800 54px "Plus Jakarta Sans", Arial, sans-serif'; ctx.textAlign = 'left'; ctx.textBaseline = 'middle'; ctx.fillText(brand === 'lumi' ? 'Ask Lumi.' : 'Get paid to learn.', 150, 66); }
+      ctx.restore(); ctx.fillStyle = '#2a2d31'; ctx.fillRect(x, y + 120, 512, 8);
+    }
+    return tex(c);
+  };
+  const hoardAtlas = (cx) => cx.hoardAtlas || (cx.hoardAtlas = cx.desert ? Infra.hoardingAtlasDark() : Infra.hoardingAtlas());
   function buildHoardings(cx) {
     const t = cx.t, rng = U.rng(901);
-    const atlas = cx.hoardAtlas || (cx.hoardAtlas = Infra.hoardingAtlas());
+    const atlas = hoardAtlas(cx);
     const geo = new THREE.BoxGeometry(5.0, 1.0, 0.08); const uv = geo.attributes.uv;
     for (let i = 0; i < uv.count; i++) { if (i >= 16 && i < 20) uv.setXY(i, uv.getX(i), 0.08 + uv.getY(i) * 0.9); else uv.setXY(i, 0.5, 0.03); }
     const spots = [];
@@ -128,7 +145,7 @@ window.EI = window.EI || {};
     };
     mat.customProgramCacheKey = () => 'hoarding';
     // night races: the boards are LED panels, lit from within
-    if (EI.Night && EI.Night.on) { mat.emissive = new THREE.Color(1, 1, 1); mat.emissiveMap = atlas; mat.emissiveIntensity = 0.95; }
+    if (EI.Night && EI.Night.on) { mat.emissive = new THREE.Color(1, 1, 1); mat.emissiveMap = atlas; mat.emissiveIntensity = cx.desert ? 0.6 : 0.95; }
     const inst = new THREE.InstancedMesh(geo, mat, spots.length);
     const tiles = new Float32Array(spots.length * 2);
     const leg = (x) => { const g = new THREE.CylinderGeometry(0.07, 0.07, 2.05, 4, 1, true); g.rotateY(Math.PI / 4); g.translate(x, 1.025, -0.1); g.userData.color = C(0x2a2d31); return g; };
@@ -209,10 +226,48 @@ window.EI = window.EI || {};
     }
     posts.count = k; rails.count = k; posts.castShadow = true;
     cx.add(posts, 'fencePosts'); cx.add(rails, 'fenceRails'); cx.stats.fencePosts = k;
+    // Yas: galvanised posts and the mesh itself - panels of chain-link with a frame every ~2.5 m above the concrete wall (u1-u3),
+    // one transparent ribbon round the lap (mipmapped, so far off it fades to a light haze instead of shimmering)
+    if (cx.desert) {
+      mat.color.set(0xb4b9be);
+      const [fc, fx] = canvas(128, 128); fx.clearRect(0, 0, 128, 128);
+      fx.strokeStyle = 'rgba(205,210,214,0.95)'; fx.lineWidth = 1.6; for (let k2 = -128; k2 < 256; k2 += 14) { fx.beginPath(); fx.moveTo(k2, 0); fx.lineTo(k2 + 128, 128); fx.stroke(); fx.beginPath(); fx.moveTo(k2, 128); fx.lineTo(k2 + 128, 0); fx.stroke(); }
+      fx.fillStyle = 'rgba(190,196,200,1)'; fx.fillRect(0, 0, 4, 128); fx.fillRect(0, 0, 128, 4); fx.fillRect(0, 62, 128, 3); fx.fillRect(0, 124, 128, 4);
+      const ft = tex(fc, true);
+      const pos = [], uv = []; let u = 0;
+      for (const sidePts of pts) for (let j = 0; j < sidePts.length; j++) {
+        const a = sidePts[j], b = sidePts[(j + 1) % sidePts.length]; const len = Math.hypot(b.x - a.x, b.z - a.z); if (len > 12) continue;
+        const y0a = a.y + 1.05, y0b = b.y + 1.05, y1a = a.y + 3.45, y1b = b.y + 3.45; const u1 = u + len / 2.5;
+        pos.push(a.x, y0a, a.z, b.x, y0b, b.z, b.x, y1b, b.z, a.x, y0a, a.z, b.x, y1b, b.z, a.x, y1a, a.z); uv.push(u, 0, u1, 0, u1, 1, u, 0, u1, 1, u, 1); u = u1;
+      }
+      const fg = new THREE.BufferGeometry(); fg.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); fg.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2)); fg.computeVertexNormals(); fg.computeBoundingSphere();
+      const fm = new THREE.MeshStandardMaterial({ map: ft, transparent: true, depthWrite: false, side: THREE.DoubleSide, roughness: 0.45, metalness: 0.55, alphaTest: 0.02 });
+      const mesh = new THREE.Mesh(fg, fm); mesh.castShadow = false; mesh.receiveShadow = false; cx.add(mesh, 'debrisFence'); cx.stats.fenceMeshTris = pos.length / 9;
+    }
   }
 
   // ---------------------------------------------------------------- 3. tyre stacks at the big braking zones
+  // Yas: TecPro barriers instead of tyres at the corners - red / white polyethylene blocks strapped in a line along the wall
+  function buildTecPro(cx) {
+    const t = cx.t; const g0 = new THREE.BoxGeometry(1.08, 1.18, 0.9); g0.translate(0, 0.59, 0);
+    // a darker strap band round each block (vertex colour mask), and a lighter top
+    const strap = new THREE.BoxGeometry(1.1, 0.1, 0.92); strap.translate(0, 0.85, 0); strap.userData.color = C(0x5a5a5a); g0.userData.color = C(0xffffff);
+    const geo = merge([g0, strap]); const spots = [];
+    for (const side of [-1, 1]) {
+      let lp = null, run = 0;
+      for (let s = 0; s < t.length; s += 0.5) {
+        const i = t.idxAtS(s); if (!cx.tyreZone(i, side)) { lp = null; continue; }
+        const p = cx.at(s, side, -0.5); if (lp && Math.hypot(p.x - lp.x, p.z - lp.z) < 1.12) continue; lp = p; spots.push([p, side, run++]);
+      }
+    }
+    const inst = new THREE.InstancedMesh(geo, stdMat({ roughness: 0.6, metalness: 0.0 }), spots.length);
+    const red = C(0xd0151c), white = C(0xeeeeea);
+    spots.forEach(([p, side, k], j) => { frame(_m, p.x, p.y + 0.01, p.z, side, p.tx, p.tz); inst.setMatrixAt(j, _m); inst.setColorAt(j, k % 2 ? white : red); });
+    if (!spots.length) return; inst.instanceColor.needsUpdate = true; inst.castShadow = true; inst.receiveShadow = true;
+    cx.add(inst, 'tyreStacks'); cx.stats.tecPro = spots.length;
+  }
   function buildTyreStacks(cx) {
+    if (cx.desert) return buildTecPro(cx);
     const t = cx.t, rng = U.rng(77);
     // one column: 4 tyres with dark gaps and a dark hub hole on top; vertex colour is a brightness mask, instance colour paints the rubber
     // a single 8-sided column with a banded texture (the dark gaps between the four tyres), a cap and a dark hub hole
@@ -303,7 +358,7 @@ window.EI = window.EI || {};
   }
   function buildCameraTowers(cx) {
     const t = cx.t; const geos = []; const steel = C(0x8d9298), dark = C(0x33363b), cam = C(0x1a1b1e);
-    const want = [[3160, 1], [3900, 1], [5075, 1], [5705, -1], [2010, 1], [965, 1], [460, 1]];
+    const want = cx.F.cameraTowers || [[3160, 1], [3900, 1], [5075, 1], [5705, -1], [2010, 1], [965, 1], [460, 1]];
     let placed = 0;
     for (const [s, which] of want) {
       const i = t.idxAtS(s + 20); const side = which > 0 ? -cx.outsideSide(i) : cx.outsideSide(i);
@@ -320,6 +375,8 @@ window.EI = window.EI || {};
       beam(geos, [0, H + 0.1, 0], [0, H + 1.45, 0], 0.08, dark, m); box(geos, 0.5, 0.45, 0.9, 0, H + 1.7, 0.2, cam, m); const lens = new THREE.CylinderGeometry(0.12, 0.16, 0.5, 8); lens.rotateX(Math.PI / 2); lens.translate(0, H + 1.7, 0.85); lens.applyMatrix4(m); lens.userData.color = cam; geos.push(lens);
       box(geos, 0.55, 1.0, 0.4, 0.75, H + 1.75, -0.2, C(0x5a4a3a), m); // the operator
       cyl(geos, 0.16, 0.16, 0.3, 6, 0.75, H + 2.45, -0.2, C(0xe2c3a8), m);
+      // Yas: a small canopy over the platform (sun / dew), white with a dark trim
+      if (cx.desert) { for (const [rx, rz] of [[-1.25, -1.25], [1.25, -1.25], [-1.25, 1.25], [1.25, 1.25]]) beam(geos, [rx, H + 1.2, rz], [rx, H + 3.1, rz], 0.05, steel, m); box(geos, 3.0, 0.1, 3.0, 0, H + 3.15, 0, C(0xf0f0ee), m); box(geos, 3.04, 0.22, 3.04, 0, H + 3.0, 0, C(0x1d2a44), m); }
       cx.reserve(p.s, side, 4); placed++;
     }
     if (!geos.length) return;
@@ -357,8 +414,16 @@ window.EI = window.EI || {};
     }
     const gapAt = (s) => { let best = Infinity; for (const [p] of spots) { let d = Math.abs(U.mod(s - p.s, t.length)); d = Math.min(d, t.length - d); best = Math.min(best, d); } return best; };
     let alt = 1;
+    // Yas: a post every ~190 m on BOTH sides (behind the walls, u2-u4)
+    if (cx.desert) {
+      const gapSide = (s, sd) => { let best = Infinity; for (const [p, q] of spots) { if (q !== sd) continue; let d = Math.abs(U.mod(s - p.s, t.length)); d = Math.min(d, t.length - d); best = Math.min(best, d); } return best; };
+      for (let s = 0; s < t.length; s += 20) for (const side of [1, -1]) {
+        if (gapSide(s, side) < 190 || cx.inPit(s, side)) continue; const p = cx.freeSpot(s, side, 2.6, 3, 3); if (!p) continue;
+        spots.push([p, side]); cx.reserve(p.s, side, 5); cx.reserve(p.s + 14, side, 3);
+      }
+    }
     for (let s = 0; s < t.length; s += 20) {
-      if (gapAt(s) < 290) continue; alt = -alt; const side = cx.inPit(s, alt) ? -alt : alt;
+      if (cx.desert || gapAt(s) < 290) continue; alt = -alt; const side = cx.inPit(s, alt) ? -alt : alt;
       const p = cx.freeSpot(s, side, 2.6, 3, 3) || cx.freeSpot(s, -side, 2.6, 3, 3); if (!p) continue;
       const sd = Math.sign(p.nx * t.nx[p.i] + p.nz * t.nz[p.i]) || side; spots.push([p, sd]); cx.reserve(p.s, sd, 5); cx.reserve(p.s + 14, sd, 3);
     }
@@ -396,7 +461,7 @@ window.EI = window.EI || {};
   function buildBroadcast(cx) {
     const t = cx.t, rng = U.rng(4545); const geos = [], boards = [];
     const tube = C(0xa3a8ae), plank = C(0x8a6d4a), cam = C(0x1a1b1e), dark = C(0x2a2d31);
-    const atlas = cx.hoardAtlas || (cx.hoardAtlas = Infra.hoardingAtlas());
+    const atlas = hoardAtlas(cx);
     const tile = (geo, brand, u0, u1) => { const uv = geo.attributes.uv; for (let v = 0; v < uv.count; v++) uv.setXY(v, ((brand % 4) + u0 + (u1 - u0) * uv.getX(v)) * 0.25, 0.5 - Math.floor(brand / 4) * 0.5 + 0.06 + uv.getY(v) * 0.4); };
     // camera scaffolds: tube towers ~2.6 m with a plank deck, rails, tripod camera, operator and an umbrella
     let scaff = 0;
