@@ -37,10 +37,10 @@ window.EI = window.EI || {};
     audi: { rings: 1 }, mercedesbenz: { star: 1 }, haas: { n: 'HAAS', w: 900, it: 1, col: '#e6002b' }, tgremblem: { n: 'GR', w: 900, it: 1, col: '#eb0a1e' }, tommyhilfiger: { n: 'TOMMY HILFIGER', w: 700, col: '#ffffff' },
   };
   function toneCol(tone, def) { if (!tone || tone === 'color') return def; if (tone === 'white') return '#ffffff'; if (tone === 'black') return '#111214'; if (tone.indexOf('mono:') === 0) return tone.slice(5); return def; }
-  function partner(g, id, w, h, tone) {
+  function partner(g, id, w, h, tone, plate) {
     const A = EI.Ads; const sid = slug(id); const f0 = FALLBACK[sid];
     // f1-BRAND's artwork (aspect kept); it draws a wordmark itself for unknown ids, except where a drawn emblem below reads better
-    if (A && A.drawPartner && (!(f0 && !f0.n) || (A.hasPartner && A.hasPartner(id)))) { A.drawPartner(g, id, 0, 0, w * MM, h * MM, { tone: tone || 'color' }); return; }
+    if (A && A.drawPartner && (!(f0 && !f0.n) || (A.hasPartner && A.hasPartner(id)))) { A.drawPartner(g, id, 0, 0, w * MM, h * MM, { tone: tone || 'color', plate: plate || null }); return; }
     id = sid; const f = f0 || { n: id.toUpperCase(), w: 800, col: '#ffffff' };
     if (f.mc) { const r = Math.min(h * 0.5, w * 0.31) * MM; g.globalAlpha = 1; g.fillStyle = tone === 'white' || tone === 'black' ? toneCol(tone) : '#eb001b'; g.beginPath(); g.arc(-r * 0.62, 0, r, 0, 7); g.fill(); g.fillStyle = tone === 'white' || tone === 'black' ? toneCol(tone) : '#f79e1b'; g.beginPath(); g.arc(r * 0.62, 0, r, 0, 7); g.fill(); if (!tone || tone === 'color') { g.fillStyle = '#ff5f00'; g.beginPath(); g.arc(-r * 0.62, 0, r, -1.02, 1.02); g.arc(r * 0.62, 0, r, Math.PI - 1.02, Math.PI + 1.02); g.fill(); } return; }
     if (f.rings) { rings(g, Math.min(w, h * 3.2), toneCol(tone, '#ffffff')); return; }
@@ -160,13 +160,13 @@ window.EI = window.EI || {};
       k.stroke(LINE.map(([x, y]) => [x, y + 0.012]), 0.008, '#47c7fc');
       k.poly([[0.02, 1.2], [0.02, 0.84], [-0.34, 0.84], [-0.4, 1.2]], '#0f3d2e');   // Allwyn airbox
       L.emblem('speedmark', 2.15, 0.45, 0.26, AN);
-      L.partner('mastercard', 'sp', 'color'); L.partner('okx', 'spLow', 'white'); L.partner('allwyn', 'airbox', 'white'); L.partner('gemini', 'ec', 'black');
+      L.partnerAt('mastercard', -0.15, 0.44, 0.42, 0.15, 'color', '#2b2d31'); L.partner('okx', 'spLow', 'white'); L.partner('allwyn', 'airbox', 'white'); L.partner('gemini', 'ec', 'black');
       L.partner('etihad', 'rwEnd', 'black'); L.partner('dell', 'cockpit', 'black'); L.partner('deloitte', 'fwEnd', 'white');
       L.number(1.0, 0.48, 0.09, AN); L.codeText(1.3, 0.62, 0.05, AN); L.number(-2.13, 0.62, 0.11, AN);
     },
     top(L) {
       const { t } = L; t.rect(-3.2, -1.25, -1.2, 1.2, '#2b2d31'); t.rect(-0.36, 0.02, -0.09, 0.09, '#0f3d2e');
-      L.number(2.15, 0, 0.13, '#2b2d31'); L.partner('mastercard', 'noseTop', 'color'); L.partner('etihad', 'rwTop', 'white'); L.partner('mastercard', 'spTop', 'black');
+      L.number(2.15, 0, 0.13, '#2b2d31'); L.partnerTop('mastercard', 1.62, 0, 0.15, 0.1, 'color', 0, '#2b2d31'); L.partner('etihad', 'rwTop', 'white'); L.partner('mastercard', 'spTop', 'black');
     },
   };
   // Oracle Red Bull Racing, RB22: gloss navy with a woven sheen, black lower body, heritage white panel behind the bull
@@ -355,7 +355,7 @@ window.EI = window.EI || {};
     return {
       g, k, s: k.s, team, num, code,
       partner(id, slot, tone) { const b = SIDE[slot]; if (!b) return; at(b[0], b[1], () => partner(g, id, b[2], b[3], tone)); },
-      partnerAt(id, x, y, w, h, tone) { at(x, y, () => partner(g, id, w, h, tone)); },
+      partnerAt(id, x, y, w, h, tone, plate) { at(x, y, () => partner(g, id, w, h, tone, plate)); },
       emblem(name, x, y, ...args) { at(x, y, () => EMBLEM[name](g, ...args)); },
       mark(id, x, y, w, h, tone, name, ...args) { at(x, y, () => (EI.Ads && EI.Ads.hasPartner && EI.Ads.hasPartner(id) ? partner(g, id, w, h, tone) : EMBLEM[name](g, ...args))); },
       number(x, y, cap, col) { at(x, y, () => styledText(g, String(num), cap, col, st)); },
@@ -369,7 +369,7 @@ window.EI = window.EI || {};
       g, t, team, num,
       partner(id, slot, tone) { const b = TOP[slot]; if (!b) return; const n = b[1] ? 2 : 1;
         for (let i = 0; i < n; i++) { const z = b[1] * (i ? -1 : 1); t.at(b[0], z, () => partner(g, id, b[4] ? b[3] : b[2], b[4] ? b[2] : b[3], tone), b[4] ? (z < 0 ? Math.PI / 2 : -Math.PI / 2) : 0); } },
-      partnerTop(id, x, z, w, h, tone, rot) { t.at(x, z, () => partner(g, id, w, h, tone), rot || 0); },
+      partnerTop(id, x, z, w, h, tone, rot, plate) { t.at(x, z, () => partner(g, id, w, h, tone, plate), rot || 0); },
       emblem(name, x, z, ...args) { t.at(x, z, () => EMBLEM[name](g, ...args)); },
       mark(id, x, z, w, h, tone, name, ...args) { t.at(x, z, () => (EI.Ads && EI.Ads.hasPartner && EI.Ads.hasPartner(id) ? partner(g, id, w, h, tone) : EMBLEM[name](g, ...args))); },
       number(x, z, cap, col) { t.at(x, z, () => styledText(g, String(num), cap, col, st), Math.PI); },   // reads from the front
