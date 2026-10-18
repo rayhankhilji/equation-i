@@ -130,7 +130,7 @@ window.EI = window.EI || {};
     float rGw = fwidth(vTrk2.x); float rGon = smoothstep(0.5 - rGw, 0.5 + rGw, vTrk2.x);
     float rPw = fwidth(vTrk.z); float rPon = smoothstep(0.44 - rPw, 0.44 + rPw, vTrk.z);
     float rGreen = rGon * eiBox(rAl, eiHW + eiKW - 0.05, aw0, rAA);
-    vec3 rGreenC = vec3(0.1, 0.25, 0.085) * (0.85 + 0.3 * rM2.r);
+    vec3 rGreenC = vec3(0.13, 0.235, 0.105) * (0.85 + 0.3 * rM2.r);
     float rWear = smoothstep(0.5, 0.85, rM2.r) * 0.55 + rCr * 0.5;
     vec4 rTy = texture2D(eiAux, vec2((rAl * 0.9 - rS * 0.22) * 0.09, rS * eiSP.w * 0.5));
     float rTyre = smoothstep(0.62, 0.8, rTy.g) * (1.0 - smoothstep(aw0, aw0 + 9.0, rAl));
@@ -698,7 +698,7 @@ window.EI = window.EI || {};
       rCol = mix(rCol, rSC, vTrk3.x * rGon * step(0.0, rE));
     }
 ` : '';
-      const runFrag = RC ? RUNOFF_FRAG.replace('vec3(0.1, 0.25, 0.085)', v3(lin(RC[2] || RC[0]))).replace('    rCol = mix(rCol, rCol * 0.45, rTyre', RC_STRIPES + '    rCol = mix(rCol, rCol * 0.45, rTyre') : RUNOFF_FRAG;
+      const runFrag = RC ? RUNOFF_FRAG.replace('vec3(0.13, 0.235, 0.105)', v3(lin(RC[2] || RC[0]))).replace('    rCol = mix(rCol, rCol * 0.45, rTyre', RC_STRIPES + '    rCol = mix(rCol, rCol * 0.45, rTyre') : RUNOFF_FRAG;
       const aw0 = hw + kw + 2.0;
       const rMat = shaderMat({ map: T.runoff.map, normalMap: T.runoff.normalMap, normalScale: new THREE.Vector2(0.7, 0.7), roughnessMap: T.runoff.roughnessMap, roughness: 1, metalness: 0, polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 2 }, 'runoff' + (RC ? '-' + RC.join('') + '-sp' : ''), RC ? Object.assign({}, common, { eiBrand: { value: brandStripTexture() } }) : common, RC ? VARY_RUN_RC : VARY_RUN, runFrag, RC ? RUNOFF_ROUGH + '    roughnessFactor = mix(roughnessFactor, 0.9, rTq);\n' : RUNOFF_ROUGH, FLATTEN);
       const gMat = shaderMat({ map: T.gravel.map, normalMap: T.gravel.normalMap, normalScale: new THREE.Vector2(1.25, 1.25), roughnessMap: T.gravel.roughnessMap, roughness: 1, metalness: 0, color: new THREE.Color(GT.x, GT.y, GT.z), polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 3 }, 'gravel', common, VARY4, GRAVEL_FRAG, GRAVEL_ROUGH, '', GRAVEL_NORMAL);

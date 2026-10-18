@@ -71,7 +71,7 @@ window.EI = window.EI || {};
     const Hw = 4.05, Ht = 4.55, Hc = 5.0, tray = 0.55; // tiles to Hw, upright tray face to Ht, the tray slopes in to the ceiling at Hc
     const P = [], N = [], Cc = [], UV = [], I = []; const LP = [], LC = [], LI = []; const SH = new EI.Env.Builder(); const OV = { p: [], uv: [], i: [] };
     const BP = [], BC = [], BU = [], BI = [];
-    const tile = C(0xeee8da), dado = C(0x4c4f52), trayC = C(0x55585c), ceil = C(0x8c8e8f), shellC = C(0xb7ab98);
+    const tile = C(0xeee8da), dado = C(0x4c4f52), trayC = C(0x55585c), ceil = C(0x9a9c9e), shellC = C(0xb7ab98);
     // the outer side of the curve gets the lamp row and the boards: the arc bulges away from its chord towards it
     const iA = t.idxAtS(s0), iB = t.idxAtS(s1), iM = t.idxAtS((s0 + s1) / 2);
     const outer = ((t.x[iM] - (t.x[iA] + t.x[iB]) / 2) * t.nx[iM] + (t.z[iM] - (t.z[iA] + t.z[iB]) / 2) * t.nz[iM]) > 0 ? 1 : -1;
@@ -97,7 +97,7 @@ window.EI = window.EI || {};
         // baked light: the lamp row washes the outer wall and the ceiling, the walls fade darker towards the dado
         const outerW = f === outer ? 1.12 : f === 0 ? 1.0 : 0.9;
         const glow = (0.42 + 0.42 * Math.exp(-Math.pow((h - (Hw - 0.4)) / 1.6, 2))) * portalBoost * outerW * (colr === ceil ? joint : 1) * (0.95 + 0.1 * Math.sin(along * 0.79));
-        Cc.push(colr.r * glow * 1.04, colr.g * glow, colr.b * glow * 0.92);
+        const warm = colr === tile ? 1 : 0.35; Cc.push(colr.r * glow * (1 + 0.04 * warm), colr.g * glow, colr.b * glow * (1 - 0.08 * warm));
         const nx = f < 0 ? t.nx[i] : f > 0 ? -t.nx[i] : 0, nz = f < 0 ? t.nz[i] : f > 0 ? -t.nz[i] : 0; N.push(nx, colr === ceil ? -1 : 0, nz);
       }
       const K = PROF.length; if (k > 0) for (let c = 0; c < K - 1; c++) { const a = vtx - K + c, b = vtx + c; I.push(a, b, a + 1, a + 1, b, b + 1); }
@@ -120,7 +120,7 @@ window.EI = window.EI || {};
         if (prev && dIn > 22 && Math.min(prev.s - s0, s1 - prev.s) > 22) {
           const run = 32, bl = 27; const p0 = prev.p[3] % run, p1 = p0 + (along - prev.p[3]);
           if (p1 <= bl) { const row = Math.floor(prev.p[3] / run) % 4; const b0 = BP.length / 3; const v0 = 1 - (row + 1) / 4 + 0.004, v1 = 1 - row / 4 - 0.004;
-            const u0 = outer < 0 ? p0 / bl : 1 - p0 / bl, u1 = outer < 0 ? p1 / bl : 1 - p1 / bl;
+            const u0 = outer < 0 ? 1 - p0 / bl : p0 / bl, u1 = outer < 0 ? 1 - p1 / bl : p1 / bl;
             for (const [q, u, h] of [[prev.p, u0, 1.3], [cur, u1, 1.3], [cur, u1, 3.1], [prev.p, u0, 3.1]]) { BP.push(q[0], q[1] + h, q[2]); BU.push(u, h < 2 ? v0 : v1); const g = 0.82 * portalBoost; BC.push(g, g, g); }
             BI.push(b0, b0 + 1, b0 + 2, b0, b0 + 2, b0 + 3); } }
         prev = { p: cur, s }; }
