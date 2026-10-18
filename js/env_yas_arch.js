@@ -526,22 +526,36 @@ window.EI = window.EI || {};
     out.paddock = { buildings: list.length, tents };
   }
 
-  // ---------------------------------------------------------------- race control towers: white tapered shaft on a podium, a flared
-  // cup holding the dark glass control room band, a white conical cap and mast (two: Turn 1 and the marina)
+  // ---------------------------------------------------------------- race control towers (a05): a waisted shaft of dark glass behind a
+  // white diamond lattice, carrying the control room as a big inverted cone of dark glass, a white disc roof with a light open
+  // crown of raking posts, a mast with the aircraft light (two: Turn 1 and the marina)
   function tower(B, R, Rr, x, z, y0, k) {
-    const m = new THREE.Matrix4().makeTranslation(x, y0, z); const white = C(0xf6f6f3), whiteD = C(0xdcdedf); const night = isNight();
-    const s = (v) => v * k;
-    B.set(R.stone, 0.7, 0); B.col(m, 0, 0, 0, s(6), s(9), s(8.5), 16, white);
-    B.set('white', 0.55, 0.05); B.col(m, 0, 0, s(6), s(31), s(4.6), s(3.3), 16, white);
-    // vertical slot windows up the shaft
-    B.set(Rr.towerG, 0.2, 0.2, night ? 0.6 : 0); B.col(m, 0, 0, s(10), s(29), s(4.36), s(3.37), 4, C(0xffffff));
-    B.set('white', 0.55, 0.05); B.col(m, 0, 0, s(31), s(33.5), s(3.3), s(6.2), 16, white);                       // the flare
-    B.set(Rr.towerG, 0.12, 0.3, night ? 0.9 : 0); B.col(m, 0, 0, s(33.5), s(38.5), s(6.2), s(6.7), 20, C(0xffffff)); // control room glass
-    B.set('white', 0.5, 0.05); B.col(m, 0, 0, s(38.5), s(39.6), s(7.0), s(7.0), 20, whiteD, true);
-    B.col(m, 0, 0, s(39.6), s(46), s(6.8), s(0.4), 20, white, true);                                          // conical cap
-    B.set('white', 0.4, 0.6); B.col(m, 0, 0, s(46), s(53), s(0.18), s(0.06), 6, C(0xc9ccd0), true);
-    glow([x, y0 + s(53.2), z], 1.8, [1.0, 0.12, 0.08], { pulse: 0.5 });   // aircraft warning light
-    if (night) { for (let a = 0; a < 6; a++) glow([x + Math.cos(a) * s(7.1), y0 + s(36), z + Math.sin(a) * s(7.1)], 3.2, [0.55, 0.75, 1.0]); flood([x, y0 + s(30), z], { power: 0.25, range: 45, color: [0.75, 0.85, 1.0] }); }
+    const m = new THREE.Matrix4().makeTranslation(x, y0, z); const white = C(0xf6f6f3); const night = isNight();
+    const s = (v) => v * k; const H = 24;
+    const rr = (y) => y < 13 ? 5 + 2 * Math.pow((13 - y) / 13, 2) : 5 + 3.5 * Math.pow((y - 13) / 11, 2);
+    // the glass core
+    B.set(Rr.towerG, 0.15, 0.3, night ? 0.55 : 0);
+    for (let j = 0; j < 8; j++) { const ya = H * j / 8, yb = H * (j + 1) / 8; B.col(m, 0, 0, s(ya), s(yb), s(rr(ya)), s(rr(yb)), 20, C(0xffffff)); }
+    // the white diamond lattice: two families of helical members
+    const N = 18, NS = 8; const P = (a, y) => { const r = s(rr(y) + 0.18); return [x + Math.cos(a) * r, y0 + s(y), z + Math.sin(a) * r]; };
+    B.set('white', 0.5, 0.1, night ? 0.15 : 0);
+    for (let i = 0; i < N; i++) for (const tw of [1, -1]) for (let j = 0; j < NS; j++) {
+      const ya = H * j / NS, yb = H * (j + 1) / NS, a0 = 2 * Math.PI * i / N;
+      B.beam(I4, P(a0 + tw * j * Math.PI / N, ya), P(a0 + tw * (j + 1) * Math.PI / N, yb), s(0.32), white);
+    }
+    for (let j = 0; j <= NS; j += 2) { const y = H * j / NS; for (let i = 0; i < N * 2; i++) B.beam(I4, P(Math.PI * i / N, y), P(Math.PI * (i + 1) / N, y), s(0.22), white); }
+    // control room: the inverted cone of dark glass, a white sill
+    B.set(Rr.towerG, 0.1, 0.35, night ? 0.95 : 0); B.col(m, 0, 0, s(H), s(H + 9.5), s(8.6), s(14), 28, C(0xffffff));
+    B.set('white', 0.5, 0.05); B.col(m, 0, 0, s(H - 0.4), s(H), s(8.4), s(8.7), 28, white);
+    // the disc roof and its crown
+    B.col(m, 0, 0, s(H + 9.5), s(H + 10.0), s(14), s(15.2), 28, white); B.col(m, 0, 0, s(H + 10.0), s(H + 10.5), s(15.2), s(15.2), 28, white, true);
+    B.col(m, 0, 0, s(H + 10.5), s(H + 12.4), s(8), s(7.4), 20, white, true);
+    const nc = 24; const cr = (a, r, y) => [x + Math.cos(a) * s(r), y0 + s(y), z + Math.sin(a) * s(r)];
+    B.set('white', 0.5, 0.2);
+    for (let i = 0; i < nc; i++) { const a = 2 * Math.PI * i / nc, a2 = 2 * Math.PI * (i + 1) / nc; B.beam(I4, cr(a, 13.8, H + 10.5), cr(a + 0.08, 16.2, H + 13.2), s(0.22), white); B.beam(I4, cr(a + 0.08, 16.2, H + 13.2), cr(a2 + 0.08, 16.2, H + 13.2), s(0.18), white); B.beam(I4, cr(a, 13.8, H + 10.5), cr(a2 + 0.08, 16.2, H + 13.2), s(0.12), white); }
+    B.set('white', 0.4, 0.6); B.col(m, 0, 0, s(H + 12.4), s(H + 19), s(0.2), s(0.07), 6, C(0xc9ccd0), true);
+    glow([x, y0 + s(H + 19.2), z], 1.8, [1.0, 0.12, 0.08], { pulse: 0.5 });   // aircraft warning light
+    if (night) { for (let a = 0; a < 8; a++) glow([x + Math.cos(a * 0.785) * s(14.6), y0 + s(H + 9.2), z + Math.sin(a * 0.785) * s(14.6)], 2.4, [0.75, 0.88, 1.0]); flood([x, y0 + s(H), z], { power: 0.25, range: 45, color: [0.75, 0.85, 1.0] }); }
   }
   function towers(E, B, R, Rr, pit, out) {
     const t = E.t; const tw = t.data.scenery.buildings.filter(b => b.n === 'Control Tower'); const done = [];

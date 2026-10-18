@@ -201,7 +201,7 @@ window.EI = window.EI || {};
       // the frame may have flipped its x to stay right-handed: +x must point down the lap (towards Abbey)
       const ex = m.elements; const dirX = (ex[0] * t.tx[i0] + ex[2] * t.tz[i0]) > 0 ? 1 : -1;
       const B = new Env.Builder(), G = new Env.Builder(), F = new Env.Builder();   // structure, glass, fine detail
-      const white = C(0xf1f2f0), offW = C(0xdfe1e2), steel = C(0xb9bec4), dark = C(0x2b2f36), glass = C(0x4d6684), glassD = C(0x2e4258), shutter = C(0x9ea4ab), roofTop = C(0xc8ccd0), under = C(0xe4e6e8), red = C(0xc8102e);
+      const white = C(0xf1f2f0), offW = C(0xdfe1e2), steel = C(0xb9bec4), dark = C(0x2b2f36), glass = C(0x26364a), glassD = C(0x172230), shutter = C(0x9ea4ab), roofTop = C(0xc8ccd0), under = C(0xe4e6e8), red = C(0xc8102e);
       const L0 = -200, L1 = 200;                     // frontage along the straight (x, metres from the line; + towards Abbey)
       const X = (x) => x * dirX;
       const zG = latC + 7.8, zGB = latC + 17.8;      // garage front / back (from pit.js)
@@ -260,8 +260,10 @@ window.EI = window.EI || {};
       { const P = (x, y, z) => Env.xf(m, X(x), y, z); B.quad(P(L0, yb, back(L0)), P(L0, yb, frontZ(L0, yb)), P(L0, yt, frontZ(L0, yt)), P(L0, yt, back(L0)), offW); }
       // ---- the blade roof: an aerofoil section extruded along the frontage, overhanging the pit lane; it lifts and sweeps forward into a
       // point beyond the prow. Leading edge (track side) higher and thinner, upper surface pale grey, the underside white with downlights.
-      const prof = (x) => { const p = prow(x); const rise = 3.0 * p; const over = 9 + 7 * p; const zle = z0 - over, zte = back(x) + 1.0 - 6 * p;
-        return { zle, zte, yle: yt + 2.6 + rise + 1.2 * p, yte: yt + 0.9 + rise * 0.6, thick: 1.6 - 0.6 * p }; };
+      // the roofline's second crest: the blade kinks up to a sharp ridge about a third of the way along and back down (the 'wing')
+      const kink = (x) => 5.2 * Math.max(0, 1 - Math.abs(x + 110) / 74);
+      const prof = (x) => { const p = prow(x), kk = kink(x); const rise = 3.0 * p + kk; const over = 9 + 7 * p + kk * 0.5; const zle = z0 - over, zte = back(x) + 1.0 - 6 * p;
+        return { zle, zte, yle: yt + 2.6 + rise + 1.2 * p, yte: yt + 0.9 + rise * 0.6 - kk * 0.25, thick: 1.6 - 0.6 * p }; };
       const rx = []; for (let x = L0 - 6; x <= L1 + 34.01; x += 4) rx.push(x);
       const sec = (x) => { const q = prof(x); const pts = []; const n = 6; for (let j = 0; j <= n; j++) { const u = j / n; const z = q.zle + (q.zte - q.zle) * u; const camber = Math.sin(Math.PI * u) * 0.9; const y = q.yle + (q.yte - q.yle) * u + camber; const th = q.thick * Math.sin(Math.PI * Math.min(1, u * 1.15 + 0.05)) * 0.9 + 0.15; pts.push([z, y + th * 0.4, y - th * 0.6]); } return pts; };
       const tipCut = (x) => U.clamp((L1 + 34 - x) / 34, 0.08, 1);   // the plan narrows to a point beyond the prow
@@ -287,7 +289,7 @@ window.EI = window.EI || {};
       }
       // ---- the paddock-side service core and stair towers (dark glass slots) every ~90 m
       for (let x = L0 + 40; x < L1 - 40; x += 90) { B.box(m, 8, yt + 1.5, 6, X(x), 0, zB + 2.5, offW); G.box(m, 1.4, yt - 2, 0.1, X(x), 2, zB - 0.5 + 0.05 + 2.5 + 3.0, glassD); }
-      if (this.statics) { this.statics.add(B.geometry(), 0.55, 0.08, 'main'); this.statics.add(G.geometry(), 0.12, 0.65, 'main'); this.statics.add(F.geometry(), 0.5, 0.3, 'clutter'); }
+      if (this.statics) { this.statics.add(B.geometry(), 0.55, 0.08, 'main'); this.statics.add(G.geometry(), 0.16, 0.4, 'main'); this.statics.add(F.geometry(), 0.5, 0.3, 'clutter'); }
       // ---- the name along the blade's leading edge, facing the track (one small textured mesh)
       {
         const text = 'SILVERSTONE  ·  HOME OF BRITISH MOTOR RACING  ·  ';

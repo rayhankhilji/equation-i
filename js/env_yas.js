@@ -409,10 +409,10 @@ window.EI = window.EI || {};
     const beamOf = (k, Lb) => Lb * (k === 'super' ? 0.19 : k === 'bigsail' ? 0.21 : 0.31);
     let n = 0, nSuper = 0; const MAX = 64; const ropeC = C(0xd6cfbd);
     for (const ln of lines) {
-      if (n >= MAX) break; const dx = ln.b[0] - ln.a[0], dz = ln.b[1] - ln.a[1]; const tx = dx / ln.l, tz = dz / ln.l; const heroQ = ln.dh < 200;
+      if (n >= MAX) break; const dx = ln.b[0] - ln.a[0], dz = ln.b[1] - ln.a[1]; const tx = dx / ln.l, tz = dz / ln.l; const heroQ = ln.dh < 260;
       for (let s = 2; s < ln.l - 2 && n < MAX;) {
         const r = rng(); let kind, Lb;
-        if (heroQ && r < 0.45) { kind = 'super'; Lb = 38 + rng() * 34; } else if (r < 0.6) { kind = 'cruiser'; Lb = 14 + rng() * 14; } else if (r < 0.75) { kind = 'bigsail'; Lb = 24 + rng() * 16; } else if (r < 0.9) { kind = 'sail'; Lb = 11 + rng() * 9; } else { kind = 'sport'; Lb = 9 + rng() * 5; }
+        if (heroQ && r < 0.58) { kind = 'super'; Lb = 40 + rng() * 36; } else if (r < 0.6) { kind = 'cruiser'; Lb = 14 + rng() * 14; } else if (r < 0.75) { kind = 'bigsail'; Lb = 24 + rng() * 16; } else if (r < 0.9) { kind = 'sail'; Lb = 11 + rng() * 9; } else { kind = 'sport'; Lb = 9 + rng() * 5; }
         const Bm = beamOf(kind, Lb); const along = s + Bm / 2; if (along > ln.l - Bm / 2) break;
         const sx = ln.a[0] + tx * along, sz = ln.a[1] + tz * along; const cx = sx + ln.nx * (Lb / 2 + 1.6), cz = sz + ln.nz * (Lb / 2 + 1.6);
         if (rng() < 0.12 || !free(cx, cz, ln.nx, ln.nz, Lb, Bm)) { s += Bm * 0.6 + 0.8; continue; }
