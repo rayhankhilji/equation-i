@@ -438,6 +438,8 @@
       runoff: ['aramco', 'L', 'pirelli', 'I'], bridge: { lumi: 'L', intake: 'etihadairways', lumi2: 'aramco', intake2: 'I' } },
   };
   const venue = Ads.venue = () => VENUES[EI.trackId] || VENUES.silverstone;
+  // the track's width (m): the start gantry banner ((width + 2.6) x 0.9 m) and the bridge fascias ((width + 6.8) x 2.1 m) span it
+  const trackW = () => (EI.TRACKS && EI.TRACKS[EI.trackId] && EI.TRACKS[EI.trackId].width) || 15;
   // a partner board in a (w x h) frame that already has the board's physical proportions (the callers pre-squeeze, see paintTile).
   // Real LED / vinyl boards are flat: the brand ground and the logo, repeated on the very long formats. o.dark: Yas's black boards
   function partnerBoard(ctx, id, w, h, o) {
@@ -463,6 +465,7 @@
   function slotPainter(slot, fmt, o) {
     if (slot[0] === 'L' || slot[0] === 'I') {
       const lumi = slot[0] === 'L', k = slot.length > 1 ? +slot.slice(1) : 0;
+      if (o && o.dark) return darkBrand(slot[0]);
       if (fmt === 'tile') return (ctx, w, h) => TILES[k % TILES.length].paint(ctx, w, h);
       if (fmt === 'billboard') return (ctx, w, h) => brandBillboard(ctx, k, w, h);
       if (fmt === 'barrier') return lumi ? BRAND_BARRIER[0] : BRAND_BARRIER[3];
@@ -505,7 +508,7 @@
   // the sponsor bridges over the track: `which` is the bridge's name in the track data ('lumi', 'intake', 'lumi2', 'intake2'); the venue
   // maps it to a partner (VENUES[track].bridge) - one Lumi and one Intake bridge stay, the others carry the event's partners
   Ads.paintBridge = function (ctx, which, w, h, aspect) {
-    const vw = h * (aspect || 10.4); const V = venue(); const slot = (V.bridge && V.bridge[which]) || which;
+    const vw = h * (aspect || (trackW() + 6.8) / 2.1); const V = venue(); const slot = (V.bridge && V.bridge[which]) || which;
     ctx.save(); ctx.scale(w / vw, 1);
     if (slot === 'L' || slot === 'I') brandBridge(ctx, slot === 'L' ? (which === 'lumi2' ? 'lumi2' : 'lumi') : (which === 'intake' ? 'intake' : 'intake2'), vw, h);
     else if (VENUES[EI.trackId] || slot !== which) partnerBoard(ctx, slot, vw, h, { dark: V.dark, lh: 0.58 });
@@ -529,7 +532,7 @@
   // the start gantry: F1 black, the official F1 logo, the event title ("FORMULA 1 QATAR AIRWAYS BRITISH GRAND PRIX 2026" with the title
   // partner's logo) and the TAG Heuer timing panel at both ends, as on the 2025-26 gantries. aspect = physical width / height of the banner
   Ads.paintBanner = function (ctx, w, h, aspect) {
-    const vw = aspect ? h * aspect : w; ctx.save(); ctx.scale(w / vw, 1); w = vw;
+    const vw = h * (aspect || (trackW() + 2.6) / 0.9); ctx.save(); ctx.scale(w / vw, 1); w = vw;
     const V = venue(); ctx.fillStyle = '#15151e'; ctx.fillRect(0, 0, w, h);
     ctx.fillStyle = '#e10600'; ctx.fillRect(0, h * 0.9, w, h * 0.1);
     // TAG Heuer panels at both ends

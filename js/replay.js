@@ -45,6 +45,7 @@ window.EI = window.EI || {};
     }
   }
 
+  const INCIDENT = { contact: 1, wall: 1, spin: 1, off: 1, nearmiss: 1 };
   const posBonus = (p) => (p === 1 ? 18 : p <= 3 ? 10 : p <= 6 ? 5 : p <= 10 ? 2 : 0);
   function code(c) {
     if (!c) return '';
@@ -116,13 +117,13 @@ window.EI = window.EI || {};
         if (score > sl.score) sl.score = score; return sl;
       }
       let sl = null; for (const s of this.slots) if (!s.used) { sl = s; break; }
-      if (!sl) { for (const s of this.slots) if (!s.open && s.score < score && (!sl || s.score < sl.score)) sl = s; if (!sl) return null; for (const e of sl.events) e.slot = null; }
-      sl.used = true; sl.events.length = 0; sl.g0 = gA; sl.g1 = Math.min(gA + cap - 1, gB); sl.n = 0; sl.score = score;
+      if (!sl) { for (const s of this.slots) if (!s.open && !s.keep && s.score < score && (!sl || s.score < sl.score)) sl = s; if (!sl) return null; for (const e of sl.events) e.slot = null; }
+      sl.used = true; sl.keep = false; sl.events.length = 0; sl.g0 = gA; sl.g1 = Math.min(gA + cap - 1, gB); sl.n = 0; sl.score = score;
       for (let gg = gA; gg <= gNow && sl.n < cap; gg++) copySample(this.ring, gg % RC, sl.st, sl.n++);
       sl.open = sl.g0 + sl.n <= sl.g1; return sl;
     }
     add(ev) {
-      ev.slot = this.request(ev.tA, ev.t, ev.tB, ev.score); if (ev.slot) ev.slot.events.push(ev);
+      ev.slot = this.request(ev.tA, ev.t, ev.tB, ev.score); if (ev.slot) { ev.slot.events.push(ev); if (ev.type === 'start' || ev.type === 'finish') ev.slot.keep = true; }   // never evicted
       this.events.push(ev);
       if (this.events.length > 600) { let w = -1; for (let i = 0; i < this.events.length; i++) if (!this.events[i].slot && (w < 0 || this.events[i].score < this.events[w].score)) w = i; if (w >= 0) this.events.splice(w, 1); }
       return ev;
@@ -298,7 +299,8 @@ window.EI = window.EI || {};
         let bi = null, bs = -1;
         for (const e of cand) {
           if (pick.indexOf(e) >= 0) continue; let s = e.score;
-          for (const q of pick) { if (pairK(q) === pairK(e)) s *= 0.6; if (q.type === e.type && e.type !== 'pass') s *= 0.8; }
+          let inc = 0; for (const q of pick) { if (pairK(q) === pairK(e)) s *= 0.6; if (q.type === e.type && e.type !== 'pass') s *= 0.75; if (INCIDENT[q.type]) inc++; }
+          if (INCIDENT[e.type] && inc >= 3) continue;   // at most three incidents: the reel is about the racing
           if (s > bs) { bs = s; bi = e; }
         }
         if (!bi || bs < 8 || (bs < 16 && pick.length >= 5)) break; pick.push(bi);
