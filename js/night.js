@@ -21,7 +21,8 @@ window.EI = window.EI || {};
   Night.addGlow = function (x, y, z, size, color, opts) { Night.glows.push({ x, y, z, size, color: color || [1, 0.95, 0.85], pulse: (opts && opts.pulse) || 0 }); };
   Night.onFrame = function (fn) { Night.frameFns.push(fn); };
 
-  // shared uniforms (one object, referenced by every patched material)
+  // shared uniforms (one object, referenced by every patched material). The light map is read with a soft roll-off
+  // (e / (1 + 0.32 e)): overlapping pools such as the pit straight's compress, a single pool barely changes
   const UNI = {
     uNMap: { value: null }, uNDir: { value: null }, uNBox: { value: new THREE.Vector4(0, 0, 1, 1) }, uNTop: { value: 60 },
     uNBasic: { value: new THREE.Vector3(0.16, 0.18, 0.24) }, uNTime: { value: 0 },
@@ -116,7 +117,7 @@ window.EI = window.EI || {};
   const VERT = 'vec4 nwp = vec4(transformed, 1.0);\n#ifdef USE_INSTANCING\nnwp = instanceMatrix * nwp;\n#endif\nvNW = (modelMatrix * nwp).xyz;\n';
   const FDECL = 'varying vec3 vNW; uniform sampler2D uNMap; uniform sampler2D uNDir; uniform vec4 uNBox; uniform float uNTop; uniform vec3 uNBasic;\n' +
     'vec3 nightE(out vec3 Lw) { vec2 uv = (vNW.xz - uNBox.xy) * uNBox.z; Lw = vec3(0.0, 1.0, 0.0); if (uv.x <= 0.0 || uv.y <= 0.0 || uv.x >= 1.0 || uv.y >= 1.0) return vec3(0.0);\n' +
-    '  vec3 e = texture2D(uNMap, uv).rgb; e = e * e * uNBox.w; e = e / (1.0 + e * 0.32);   // soft roll-off: overlapping pools (the pit straight) compress, single pools barely change vec3 dd = texture2D(uNDir, uv).rgb; vec2 dh = (dd.xy * 2.0 - 1.0) * dd.z;\n' +
+    '  vec3 e = texture2D(uNMap, uv).rgb; e = e * e * uNBox.w; e = e / (1.0 + e * 0.32); vec3 dd = texture2D(uNDir, uv).rgb; vec2 dh = (dd.xy * 2.0 - 1.0) * dd.z;\n' +
     '  Lw = normalize(vec3(dh.x * 0.9, 1.0, dh.y * 0.9)); return e * (1.0 - smoothstep(uNTop, uNTop + 50.0, vNW.y)); }\n';
   const LIT = '{ vec3 nLw; vec3 nE = nightE(nLw); IncidentLight nl; nl.color = nE; nl.direction = normalize((viewMatrix * vec4(nLw, 0.0)).xyz); nl.visible = true; RE_Direct(nl, geometry, material, reflectedLight); }\n';
   const patched = new WeakSet();
