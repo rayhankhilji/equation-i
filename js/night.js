@@ -47,7 +47,7 @@ window.EI = window.EI || {};
     'void main() {',
     '  vec3 d = normalize(vDir); float h = d.y;',
     // near-black navy overhead easing to a hazy blue-grey low down: the floodlit air over the venue lifts the whole lower sky
-    '  vec3 zen = vec3(0.012, 0.018, 0.048), mid = vec3(0.024, 0.034, 0.072), hor = vec3(0.07, 0.068, 0.076);',
+    '  vec3 zen = vec3(0.0075, 0.0115, 0.031), mid = vec3(0.016, 0.023, 0.05), hor = vec3(0.062, 0.06, 0.068);',
     '  vec3 c = mix(hor, mid, smoothstep(0.0, 0.25, h)); c = mix(c, zen, smoothstep(0.2, 0.9, h));',
     // the light-pollution dome: warm sodium haze all round the horizon (Yas Island, the motorways), strongest over Abu Dhabi
     '  float w = max(dot(normalize(vec3(d.x, 0.0, d.z)), uWest), 0.0); float hp = max(h, 0.0);',
@@ -55,7 +55,7 @@ window.EI = window.EI || {};
     '  c += vec3(0.105, 0.072, 0.040) * dome;',
     // the venue glow: light scattered up from ~100 floodlight towers by the humid Gulf air - a pale blue-grey veil, highest
     // round the horizon, so roofs, poles and stands read as silhouettes against it instead of a black void
-    '  c += vec3(0.040, 0.046, 0.060) * exp(-hp * 2.6) + vec3(0.010, 0.012, 0.018) * exp(-hp * 0.8);',
+    '  c += vec3(0.034, 0.038, 0.048) * exp(-hp * 3.2) + vec3(0.005, 0.006, 0.009) * exp(-hp * 0.8);',
     '  if (h < 0.0) c = mix(c, vec3(0.045, 0.036, 0.028), smoothstep(0.0, -0.05, h));',
     // stars: only the brightest, only high overhead - the floodlights wash the rest out
     '  vec3 q = floor(d * 380.0); float s = hash(q); float st = step(0.9993, s) * smoothstep(0.42, 0.85, h) * (0.3 + 0.7 * hash(q + 7.0));',

@@ -229,13 +229,15 @@ window.EI = window.EI || {};
       const back = (x) => zB - (zB - z0 - 4) * prow(x) * 0.85;           // the back face sweeps in towards the prow
       const topY = (x) => yt + 4.2 * prow(x);                             // the media centre adds a floor at the prow
       const frontZ = (x, y) => z0 - lean * (y - yb) / (yt - yb) - 3 * prow(x);
+      // faces in this block are emitted with both windings: the frame's x may run either way along the straight (dirX)
+      const dq = (Bd, a, b, c, d, col) => { Bd.quad(a, b, c, d, col); Bd.quad(d, c, b, a, col); };
       for (let k = 0; k + 1 < xs.length; k++) {
         const xa = xs[k], xb = xs[k + 1]; const ta = Math.min(1, (xa - L1) / 22), tb = Math.min(1, (xb - L1) / 22);
         if (xa >= L1) { // the prow itself: a wedge closing to a point
           const P = (x, y, z) => Env.xf(m, X(x), y, z);
           const zbA = back(xa), zbB = z0 - 3, yA = topY(xa), zfA = frontZ(xa, yA);
-          G.quad(P(xa, yb, frontZ(xa, yb)), P(xb, yb, zbB), P(xb, yA - 1, zbB), P(xa, yA, zfA), glass);
-          G.quad(P(xb, yb, zbB), P(xa, yb, zbA), P(xa, yA, zbA), P(xb, yA - 1, zbB), glassD);
+          dq(G, P(xa, yb, frontZ(xa, yb)), P(xb, yb, zbB), P(xb, yA - 1, zbB), P(xa, yA, zfA), glass);
+          dq(G, P(xb, yb, zbB), P(xa, yb, zbA), P(xa, yA, zbA), P(xb, yA - 1, zbB), glassD);
           continue;
         }
         const P = (x, y, z) => Env.xf(m, X(x), y, z);
@@ -243,21 +245,21 @@ window.EI = window.EI || {};
         // glass front (two triangles per floor so the lean reads), white slab edges at every floor
         for (let f = 0; f < nFl + 1; f++) {
           const yA0 = yb + f * fl, yA1 = Math.min(ya, yb + (f + 1) * fl), yB1 = Math.min(ybb, yb + (f + 1) * fl); if (yA1 <= yA0 + 0.1) continue;
-          G.quad(P(xa, yA0 + 0.35, frontZ(xa, yA0 + 0.35)), P(xb, yA0 + 0.35, frontZ(xb, yA0 + 0.35)), P(xb, yB1, frontZ(xb, yB1)), P(xa, yA1, frontZ(xa, yA1)), f % 2 ? glass : glassD);
+          dq(G, P(xa, yA0 + 0.35, frontZ(xa, yA0 + 0.35)), P(xb, yA0 + 0.35, frontZ(xb, yA0 + 0.35)), P(xb, yB1, frontZ(xb, yB1)), P(xa, yA1, frontZ(xa, yA1)), f % 2 ? glass : glassD);
           // slab edge (white band) and a soffit under it
-          B.quad(P(xa, yA0, frontZ(xa, yA0) - 0.5), P(xb, yA0, frontZ(xb, yA0) - 0.5), P(xb, yA0 + 0.38, frontZ(xb, yA0 + 0.38) - 0.5), P(xa, yA0 + 0.38, frontZ(xa, yA0 + 0.38) - 0.5), white);
-          B.quad(P(xa, yA0, frontZ(xa, yA0) - 0.5), P(xa, yA0, frontZ(xa, yA0) + 1.5), P(xb, yA0, frontZ(xb, yA0) + 1.5), P(xb, yA0, frontZ(xb, yA0) - 0.5), under);
+          dq(B, P(xa, yA0, frontZ(xa, yA0) - 0.5), P(xb, yA0, frontZ(xb, yA0) - 0.5), P(xb, yA0 + 0.38, frontZ(xb, yA0 + 0.38) - 0.5), P(xa, yA0 + 0.38, frontZ(xa, yA0 + 0.38) - 0.5), white);
+          dq(B, P(xa, yA0, frontZ(xa, yA0) - 0.5), P(xa, yA0, frontZ(xa, yA0) + 1.5), P(xb, yA0, frontZ(xb, yA0) + 1.5), P(xb, yA0, frontZ(xb, yA0) - 0.5), under);
         }
         // mullions every 1.5 m (fine layer) and a glass balustrade line on each slab
         for (let x = xa; x < xb - 0.1; x += 1.5) F.beam(m, [X(x), yb + 0.38, frontZ(x, yb + 0.38) - 0.04], [X(x), ya, frontZ(x, ya) - 0.04], 0.09, white);
         // back wall (offwhite, with a dark window band) and roof of the box
         const zba = back(xa), zbb = back(xb);
-        B.quad(P(xb, yb, zbb), P(xa, yb, zba), P(xa, ya, zba), P(xb, ybb, zbb), offW);
-        G.quad(P(xb, yb + 4.5, zbb + 0.05), P(xa, yb + 4.5, zba + 0.05), P(xa, yb + 6.2, zba + 0.05), P(xb, yb + 6.2, zbb + 0.05), glassD);
-        B.quad(P(xa, ya, frontZ(xa, ya)), P(xa, ya, zba), P(xb, ybb, zbb), P(xb, ybb, frontZ(xb, ybb)), roofTop);
+        dq(B, P(xb, yb, zbb), P(xa, yb, zba), P(xa, ya, zba), P(xb, ybb, zbb), offW);
+        dq(G, P(xb, yb + 4.5, zbb + 0.05), P(xa, yb + 4.5, zba + 0.05), P(xa, yb + 6.2, zba + 0.05), P(xb, yb + 6.2, zbb + 0.05), glassD);
+        dq(B, P(xa, ya, frontZ(xa, ya)), P(xa, ya, zba), P(xb, ybb, zbb), P(xb, ybb, frontZ(xb, ybb)), roofTop);
       }
       // end wall at the far (Luffield) end
-      { const P = (x, y, z) => Env.xf(m, X(x), y, z); B.quad(P(L0, yb, back(L0)), P(L0, yb, frontZ(L0, yb)), P(L0, yt, frontZ(L0, yt)), P(L0, yt, back(L0)), offW); }
+      { const P = (x, y, z) => Env.xf(m, X(x), y, z); dq(B, P(L0, yb, back(L0)), P(L0, yb, frontZ(L0, yb)), P(L0, yt, frontZ(L0, yt)), P(L0, yt, back(L0)), offW); }
       // ---- the blade roof: an aerofoil section extruded along the frontage, overhanging the pit lane; it lifts and sweeps forward into a
       // point beyond the prow. Leading edge (track side) higher and thinner, upper surface pale grey, the underside white with downlights.
       // the roofline's second crest: the blade kinks up to a sharp ridge about a third of the way along and back down (the 'wing')
