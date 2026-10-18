@@ -11,7 +11,7 @@ window.EI = window.EI || {};
   //    black-and-white flag, 4th and each further 5 s; a cut that gains a place must give it back (else 10 s), a large time gain 5 s
   //  - blue flags for lapped cars (players: 5 s after a third of a lap ignoring them), jump start 5 s, chequered flag for every car
   //    at its next crossing after the leader, time penalties added to the classification, two dry compounds from 3 laps (else DSQ)
-  const LOOP = 20, OT_GAP = 1.0, OT_ENERGY = 0.5, OFF_W = 1.1, TL_DEBOUNCE = 0.12, TL_REJOIN = 0.35, GIVE_BACK_T = 15, MANDATORY_LAPS = 3;
+  const LOOP = 20, HYST = 1.0, OT_GAP = 1.0, OT_ENERGY = 0.5, OFF_W = 1.1, TL_DEBOUNCE = 0.12, TL_REJOIN = 0.35, GIVE_BACK_T = 15, MANDATORY_LAPS = 3;
 
   class Race {
     constructor(track, cfg) {
@@ -284,7 +284,8 @@ window.EI = window.EI || {};
         for (const c of cars) this.orderKey(c);
         for (let i = 1; i < cars.length; i++) {
           const c = cars[i]; let j = i - 1;
-          while (j >= 0 && (c._ok > cars[j]._ok || (c._ok === cars[j]._ok && c._ot < cars[j]._ot))) { cars[j + 1] = cars[j]; j--; }
+          // ... and a car only goes ahead once it is at least HYST m clear (cars nose to tail or side by side keep their order)
+          while (j >= 0 && (c._ok > cars[j]._ok || (c._ok === cars[j]._ok && c._ot < cars[j]._ot)) && (c.finished || cars[j].finished || c.dist - cars[j].dist > HYST)) { cars[j + 1] = cars[j]; j--; }
           cars[j + 1] = c;
         }
       }

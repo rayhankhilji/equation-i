@@ -76,13 +76,13 @@ window.EI = window.EI || {};
     // zenith deepening]) keeps a clear blue overhead fading to a paler, hazier horizon - only on screen (the environment map
     // that lights and reflects the scene keeps the full sky)
     // LOOKS ridge: [azimuth from, azimuth to (atan2(z, x), +x east, +z south), crest height as sin(elevation)]: a hazy mountain
-    // silhouette in the sky itself (no geometry; it sits behind everything), darker and greener towards the crest, mottled scrub/rock
+    // silhouette in the sky itself (no geometry; it sits behind everything), darker grey-olive towards the crest, streaked by ravines
     const RIDGE = !LK.ridge ? '' : (() => { const R = LK.ridge, f = (v) => (+v).toFixed(4); return ' float rph = atan(direction.z, direction.x);' +
       ' float rmk = smoothstep(' + f(R[0]) + ', ' + f(R[0] + 0.35) + ', rph) * (1.0 - smoothstep(' + f(R[1] - 0.35) + ', ' + f(R[1]) + ', rph));' +
       ' float rh = ' + f(R[2]) + ' * rmk * (0.6 + 0.2 * sin(rph * 3.1 + 0.7) + 0.13 * sin(rph * 7.7 + 2.1) + 0.06 * sin(rph * 19.3 + 0.4) + 0.025 * sin(rph * 47.0 + 1.3) + 0.012 * sin(rph * 113.0));' +
       ' float ra = (1.0 - smoothstep(rh - 0.0022, rh, direction.y)) * step(0.004, rh);' +
-      ' if (ra > 0.0) { float rd = clamp(direction.y / max(rh, 0.001), 0.0, 1.0); float rn = 0.5 + 0.5 * sin(rph * 260.0 + direction.y * 90.0) * sin(rph * 97.0 - direction.y * 160.0);' +
-      ' vec3 rc = hz0 * uSkyGain * mix(vec3(0.74, 0.78, 0.8), vec3(0.36, 0.42, 0.37), smoothstep(0.0, 0.8, rd)) * (0.82 + 0.36 * rn);' +
+      ' if (ra > 0.0) { float rd = clamp(direction.y / max(rh, 0.001), 0.0, 1.0); float rn = 0.5 + 0.5 * sin(rph * 64.0 + 2.2 * sin(rph * 23.0) + direction.y * 6.0) * (0.6 + 0.4 * sin(rph * 17.0 + 1.3));' +
+      ' vec3 rc = hz0 * uSkyGain * mix(vec3(0.8, 0.82, 0.82), vec3(0.5, 0.5, 0.42), smoothstep(0.0, 0.8, rd)) * (0.88 + 0.22 * rn);' +
       ' retColor = mix(retColor, rc, ra); }'; })();
     { const SG = LK.sky || [0.62, 0.35]; su.uSkyGain = { value: SG[0] }; su.uSkyDeep = { value: SG[1] };
       skyMesh.material.onBeforeCompile = (sh) => { sh.uniforms.uSkyGain = su.uSkyGain; sh.uniforms.uSkyDeep = su.uSkyDeep;

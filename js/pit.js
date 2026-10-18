@@ -1092,7 +1092,7 @@ window.EI = window.EI || {};
   const setT = (el, s) => { if (el._v !== s) { el._v = s; el.textContent = s; } };
   function updateUI(race, dt) {
     if (!R.ui || !R.ui.length) return;
-    if (race.started && !R.toastDone && EI.HUD) { R.toastDone = true; EI.HUD.toast(race.players.length > 1 ? 'Pit stop: P1 P + 1/2/3 · P2 Backspace + 8/9/0' : 'Pit stop: P to call the car in · 1/2/3 choose soft / medium / hard'); }
+    if (race.started && !R.toastDone && EI.HUD) { R.toastDone = true; EI.HUD.toast((race.players.length > 1 ? 'Pit stop: P1 P + 1/2/3 · P2 Backspace + 8/9/0' : 'Pit stop: P to call the car in · 1/2/3 choose soft / medium / hard') + (race.laps >= 3 ? ' · two dry compounds required' : '')); }
     const vps = (EI.debug && EI.debug.viewports) || [];
     for (const u of R.ui) {
       const vp = vps[u.k]; if (vp && vp.el) { const r = vp.el.style.cssText; if (r !== u.rect) { u.rect = r; const s = vp.el.style; u.el.style.left = s.left; u.el.style.top = s.top; u.el.style.width = s.width; u.el.style.height = s.height; const sc = U.clamp(Math.min((vp.w || 1280) / 1280, (vp.h || 720) / 720), 0.64, 1.3); u.el.style.setProperty('--s', sc.toFixed(3)); } }
