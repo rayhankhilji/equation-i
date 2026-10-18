@@ -47,3 +47,20 @@ trimmed, 160 px tall) for canvas drawing.
 
 The site serves about 140 more employer logos under `/logos/`; these twelve are the ones its home and tracker pages feature
 (preloaded hero cards and tracker highlights).
+
+## Formula 1 (loading screen, start gantry)
+
+| File | Source | Notes |
+| --- | --- | --- |
+| `f1/f1-logo.svg` | [File:F1.svg](https://commons.wikimedia.org/wiki/File:F1.svg) via https://commons.wikimedia.org/wiki/Special:FilePath/F1.svg | The official Formula 1 logo (2018-), red `#EE0000`, unmodified. |
+| `f1/Saira-wdth.woff2` + `f1/Saira-OFL.txt` | npm `@fontsource-variable/saira@5.3.0` (`files/saira-latin-wdth-normal.woff2`), Saira by Omnibus-Type, SIL OFL 1.1 | The official Formula1 Display face is not freely licensed; Saira at its widest setting (wdth 125) is the closest open face. Declared as "F1 Wide" (css/style.css for the loading screen, a FontFace in js/ads.js for the canvases). |
+
+## Race and team partners (trackside boards, car liveries)
+
+Official logos from Wikimedia Commons, found through each company's Wikidata "logo image" (P154) and downloaded from the Commons file
+(the Special:FilePath URL redirects to the same upload). Each file is sanitised (no scripts, metadata or external references) and its
+`viewBox` trimmed to the painted bounds with an explicit width/height, so the game can fit it in a box by its true aspect; the artwork
+itself is unchanged. Partners with no clean vector on Commons (e.g. the current Aramco wordmark, Crypto.com, INEOS, Snapdragon,
+Allwyn, OKX, BWT, TGR, MoneyGram ...) are set as wordmarks in code (js/ads.js `PARTNERS[id].word`).
+
+<!--PARTNER-TABLE-->
