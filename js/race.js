@@ -472,6 +472,7 @@ window.EI = window.EI || {};
     const r = (t) => { const i = ids.indexOf(t.id); return i < 0 ? 99 + t.index : i; }; return T.sort((a, b) => r(a) - r(b));
   }
   Race.ownTeams = () => EI.OWN_TEAMS || [];
+  const seasonName = (t) => { const s = EI.SEASON && (EI.SEASON.teams || []).find(x => x.id === t.id); return s && s.name || t.name; };   // 'Cadillac', not the full entry name
   // the team a player config picks: { own: 'lumi' } for an own team, else EI.TEAMS[teamIndex]
   const ownOf = (p) => p && p.own ? Race.ownTeams().find(t => t.id === p.own) || null : null;
   // players -> { entries (EI.TEAMS order, taken-over entries replaced by the own team's per-race clone), seats, playerSeats, takeovers }
@@ -483,7 +484,7 @@ window.EI = window.EI || {};
       const own = ownOf(p); if (!own || byOwn[own.id]) return;
       const low = standings().reverse().find(t => !driven.has(t.id)); if (!low) return;   // lowest team in the standings no player drives for
       driven.add(low.id);
-      const c = Object.assign({}, own, { entry: low.id, entryName: low.name, index: low.index, skill: low.skill, drivers: low.drivers.slice(), takeover: low });
+      const c = Object.assign({}, own, { entry: low.id, entryName: seasonName(low), index: low.index, skill: low.skill, drivers: low.drivers.slice(), takeover: low });
       entries[low.index] = c; byOwn[own.id] = c; takeovers.push({ own: own.id, entry: low.id, team: c });
     });
     const seats = []; entries.forEach((t) => t.drivers.forEach((d, di) => seats.push({ team: t, driver: d, di, key: entryOf(t) + ':' + di })));

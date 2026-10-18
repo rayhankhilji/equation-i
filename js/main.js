@@ -187,7 +187,7 @@ window.EI = window.EI || {};
     const lineupFor = (k) => { const np = +$('opt-players').value; const ks = k < np ? [0, 1].slice(0, np) : [k]; const LU = EI.Race.lineup(ks.map(j => Object.assign(pick(j), { seat: seatSel[j] ? +seatSel[j].value || 0 : 0 }))); return LU.playerSeats[ks.indexOf(k)]; };
     const fillSeats = (k) => {
       const sel = seatSel[k]; if (!sel) return; const st = lineupFor(k), t = st.team, key = t.id + ':' + (t.entry || '');
-      if (sel._key !== key) { const was = sel.value; sel._key = key; sel.innerHTML = ''; t.drivers.forEach((d, j) => { const o = document.createElement('option'); o.value = j; o.textContent = d.name + ' · ' + d.num + (t.entry ? ' (' + t.entryName + ')' : ''); sel.appendChild(o); }); sel.value = was && +was < t.drivers.length ? was : '0'; }
+      if (sel._key !== key) { const was = sel.value; sel._key = key; sel.innerHTML = ''; t.drivers.forEach((d, j) => { const o = document.createElement('option'); o.value = j; o.textContent = '#' + d.num + ' ' + String(d.name).split(' ').pop() + (t.entry ? ' · ' + t.entryName + ' entry' : ''); o.title = d.name; sel.appendChild(o); }); sel.value = was && +was < t.drivers.length ? was : '0'; }
     };
     const refresh = () => {
       fillSeats(0); fillSeats(1);
