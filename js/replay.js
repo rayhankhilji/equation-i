@@ -400,7 +400,7 @@ window.EI = window.EI || {};
       // save what playback overwrites on the cars
       this.saved = this.rec.cars.map(c => ({ v: c.v, steer: c.steer, brake: c.brake, throttle: c.throttle, drsOpen: c.drsOpen, ersActive: c.ersActive, aLat: c.aLat, aLong: c.aLong, gradeNow: c.gradeNow, surface: c.surface }));
       this.ensureUI(); document.body.classList.add('hl-on'); this.ui.root.classList.remove('hidden'); document.getElementById('results').classList.add('hidden');
-      this.playing = true; this.paused = false; this.host.enter(this.cam);
+      this.playing = true; this.paused = false; this.padSeed = true; this.host.enter(this.cam);
       window.addEventListener('keydown', this._key, true);
       this.go(from || 0); return true;
     },
@@ -465,11 +465,11 @@ window.EI = window.EI || {};
     pollPad() {
       const pads = navigator.getGamepads ? navigator.getGamepads() : null; if (!pads) return;
       for (const p of pads) {
-        if (!p) continue; const P = this.pad[p.index] || (this.pad[p.index] = {}); const b = (k) => !!(p.buttons[k] && p.buttons[k].pressed);
-        const st = { a: b(0), b: b(1), l: b(14) || b(4), r: b(15) || b(5), s: b(9) };
-        if (st.a && !P.a) this.next(); else if (st.r && !P.r) this.next(); else if (st.l && !P.l) this.prev(); else if ((st.b && !P.b) || (st.s && !P.s)) { this.pad[p.index] = st; this.stop(); return; }
-        this.pad[p.index] = st;
+        if (!p) continue; const B = p.buttons, b = (k) => !!(B[k] && B[k].pressed);
+        const m = (b(0) ? 1 : 0) | (b(1) ? 2 : 0) | (b(14) || b(4) ? 4 : 0) | (b(15) || b(5) ? 8 : 0) | (b(9) ? 16 : 0); const e = this.padSeed ? 0 : m & ~(this.pad[p.index] | 0); this.pad[p.index] = m;
+        if (e & 9) this.next(); else if (e & 4) this.prev(); else if (e & 18) { this.stop(); return; }
       }
+      this.padSeed = false;   // buttons already held when the reel starts do not count
     },
     ensureUI() {
       if (this.ui) return;
