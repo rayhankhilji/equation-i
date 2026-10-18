@@ -365,7 +365,9 @@ window.EI = window.EI || {};
     // day circuits get a gentle high-threshold glare too (sun glints off cars, glass and white paint): LOOKS bloom [strength,
     // thresholds x3]; the night threshold catches every lamp
     const night = !!(EI.Night && EI.Night.on), BL = (EI.look && EI.look.bloom) || (night ? [1, 0.8, 0.55, 0.42] : [0.55, 0.93, 0.84, 0.76]);
-    const bloom = quality !== 'high' && !st.msaa && renderer.capabilities.isWebGL2 && BL[0] > 0;
+    // (day glare is optional polish: it goes as soon as the internal resolution has to drop - the mip chain of the target is a
+    // full-screen pass on its own; the night glow stays, the lamps need it)
+    const bloom = quality !== 'high' && !st.msaa && renderer.capabilities.isWebGL2 && BL[0] > 0 && (night || st.sc >= 0.999);
     PIPE.mat.uniforms.uBloom.value = bloom ? BL[0] : 0; PIPE.mat.uniforms.uBT.value.set(BL[1], BL[2], BL[3]);
     PIPE.mat.uniforms.uVig.value = (EI.look && EI.look.vignette != null) ? EI.look.vignette : 0.22; PIPE.mat.uniforms.uAsp.value = window.innerWidth / Math.max(1, window.innerHeight);
     PIPE.sc = st.sc; if (PIPE.rt && PIPE.w === w && PIPE.h === h && PIPE.msaa === st.msaa && PIPE.bloom === bloom) return;
@@ -634,7 +636,7 @@ window.EI = window.EI || {};
     if (!split) {
       if (splitShadow) { renderer.shadowMap.autoUpdate = splitShadow.auto; splitShadow = null; }
       scenery.update(dt, race.players[0].x, race.players[0].z);
-      if (skyMesh) skyMesh.position.set(race.players[0].x, 0, race.players[0].z);
+      if (skyMesh) skyMesh.position.set(cameras[0].position.x, 0, cameras[0].position.z);   // the sky box follows the eye (TV / free cameras can be far from the car)
     } else {
       // Two views, one shadow pass per frame when the cars are close: the sun's shadow box is centred between them (it covers
       // both). Apart, each view gets its own shadow pass (the static part comes from the shadow cache). The scenery level of
