@@ -23,9 +23,52 @@ window.EI = window.EI || {};
   if (ED) {
     ED.sailRoofs = true;
     ED.standRuns = (ED.standRuns || []).concat([
-      [1203, 1482, -1, 3, 19, false, 0x1d4f8f],   // North Grandstand round the Turn 5 hairpin
       [2380, 2712, -1, 3, 15, false, 0x8c1d24],   // West Grandstand at the Turn 6-7 chicane
     ]);
+    // the North Grandstand: one continuous horseshoe round the outside of the Turn 5 hairpin under one scalloped tent roof (u5)
+    ED.northStand = { s0: 1196, s1: 1492, side: -1, gap: 3.4, rows: 22, seat: 0x33507a, chord: 7.5 };
+  }
+  // the horseshoe: the venue's straight stand blocks cannot follow the hairpin, so the stand is cut into short chords along a
+  // smoothed line just behind the barrier; the venue builds their tiers, crowd and front walls, this file fills the wedges between
+  // them and builds the continuous roof, back and stair towers (EI.EnvYasArch.build -> northStand)
+  if (EI.EnvVenue) {
+    const origLS = EI.EnvVenue.layoutStands;
+    EI.EnvVenue.layoutStands = function (E) {
+      const r = origLS.call(this, E);
+      if (E.data.kind === 'desert' && E.data.northStand) { try { northLayout(E, E.data.northStand); } catch (e) { console.error('EnvYasArch northLayout', e); } }
+      return r;
+    };
+  }
+  function northLayout(E, N) {
+    const t = E.t, OCC = EI.Env.OCC, pr = {};
+    // the front line: barrier + gap, smoothed, resampled into equal chords
+    let P = []; let ySum = 0, yN = 0;
+    for (let s = N.s0; s <= N.s1 + 0.01; s += 2) { const f = lapFrame(t, s, N.side); const d = E.wallCap(f.i, N.side) + N.gap; P.push([f.x + f.nx * d, f.z + f.nz * d]); ySum += f.y; yN++; }
+    yN = ySum / yN - 0.03;
+    for (let it = 0; it < 4; it++) P = P.map((p, k) => k === 0 || k === P.length - 1 ? p : [(P[k - 1][0] + 2 * p[0] + P[k + 1][0]) / 4, (P[k - 1][1] + 2 * p[1] + P[k + 1][1]) / 4]);
+    const cum = [0]; for (let k = 1; k < P.length; k++) cum.push(cum[k - 1] + Math.hypot(P[k][0] - P[k - 1][0], P[k][1] - P[k - 1][1]));
+    const Lt = cum[cum.length - 1], K = Math.max(2, Math.round(Lt / N.chord)); const F = [];
+    for (let k = 0, j = 0; k <= K; k++) { const a = Lt * k / K; while (j < P.length - 2 && cum[j + 1] < a) j++; const u = (a - cum[j]) / Math.max(1e-6, cum[j + 1] - cum[j]); F.push([U.lerp(P[j][0], P[j + 1][0], u), U.lerp(P[j][1], P[j + 1][1], u)]); }
+    // chord frames (normal away from the track)
+    const ch = [];
+    for (let k = 0; k < K; k++) {
+      const A = F[k], B = F[k + 1]; let ax = B[0] - A[0], az = B[1] - A[1]; const L = Math.hypot(ax, az); ax /= L; az /= L; let nx = -az, nz = ax;
+      const mx = (A[0] + B[0]) / 2, mz = (A[1] + B[1]) / 2; t.project(mx, mz, null, pr); if (nx * (mx - t.x[pr.i]) + nz * (mz - t.z[pr.i]) < 0) { nx = -nx; nz = -nz; }
+      ch.push({ A, B, L, ax, az, nx, nz, tA: 0, tB: 0, s: N.s0 + (N.s1 - N.s0) * (k + 0.5) / K });
+    }
+    // concave joints (the line bending towards the stand's back): trim both chords so the backs of the tiers do not overlap
+    const zBack = 0.4 + N.rows * 0.82;
+    for (let k = 1; k < K; k++) { const a = ch[k - 1], b = ch[k]; const ux = a.ax + b.ax, uz = a.az + b.az, ul = Math.hypot(ux, uz) || 1; const open = ((b.nx - a.nx) * ux + (b.nz - a.nz) * uz) / ul * zBack;
+      if (open < 0) { const tr = -open / 2 + 0.08; a.tB = tr; b.tA = tr; } }
+    const depth = zBack + 0.6; const blocks = [];
+    for (let k = 0; k < K; k++) {
+      const c = ch[k]; const len = c.L - c.tA - c.tB - 0.04; if (len < 2) continue; const off = (c.tA - c.tB) / 2;
+      const cx = (c.A[0] + c.B[0]) / 2 + c.ax * off, cz = (c.A[1] + c.B[1]) / 2 + c.az * off;
+      const blk = { cx, cz, ax: c.ax, az: c.az, nx: c.nx, nz: c.nz, len, rows: N.rows, roof: false, seat: N.seat, y: yN, s: c.s, first: k === 0, last: k === K - 1, north: k };
+      E.blocks.push(blk); blocks.push(blk);
+      E.standPolys.push(E.markRect(cx + c.nx * (depth + 5) / 2, cz + c.nz * (depth + 5) / 2, c.ax, c.az, len / 2 + 0.5, (depth + 5) / 2, OCC.BUILT));
+    }
+    E.north = { F, K, Lt, y: yN, rows: N.rows, zBack, blocks, nrm: ch.map(c => [c.nx, c.nz]) };
   }
   // the venue marks every grandstand footprint as built ground before it lays out the stand runs: the two corner stands (whose
   // footprint centroids project onto the track, so the venue never builds them as blocks) would block their own runs
@@ -169,8 +212,12 @@ window.EI = window.EI || {};
   function standSails(E, B, LN) {
     const blocks = E.standBlocks || []; let n = 0;
     for (const b of blocks) {
+      if (b.north != null) continue;   // the North Grandstand horseshoe has its own continuous roof (northStand)
       const m = EI.Env.frame(b.cx, b.y, b.cz, b.ax, b.az, b.nx, b.nz); const hl = b.len / 2, rows = b.rows;
       const yTop = 1.4 + rows * 0.42, zBack = 0.4 + rows * 0.82;
+      // the venue's bare stair towers at the run ends: clad them like the stand backs
+      if (b.first) cladTower(B, m, -hl - 1.9, zBack - 2.0, yTop, -1);
+      if (b.last) cladTower(B, m, hl + 1.9, zBack - 2.0, yTop, 1);
       sailRow(B, LN, m, -hl - 0.3, hl + 0.3, -4.2, zBack + 1.4, yTop + 3.4, 3.6, 3.0, [-b.nx, -b.nz], 0.16); n++;
       // the back of the stand: pale composite cladding over a lit concourse of kiosks and fans (instead of the bare dark wall)
       const TX = EI.EnvYasTex.regions(), zc = zBack + 0.07, yC = 3.6, yT = yTop + 1.2;

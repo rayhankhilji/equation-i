@@ -470,9 +470,15 @@ window.EI = window.EI || {};
       // purlins and a row of lights - all visible from the track
       if (b.roof) {
         const ry = yTop + 4.0, front = -1.6;
-        B.box(m, L + 0.4, 0.32, zBack - front + 1.0, 0, ry, (front + zBack + 1.0) / 2, roofGrey, { top: white, bottom: true });
-        B.box(m, L + 0.42, 0.8, 0.18, 0, ry - 0.45, front - 0.02, red);
-        if (L > 12) strip(ry - 0.85, 0.8, front - 0.14);   // partner ads along the roof fascia
+        // scaffold venues: a silver sheet roof with a white fascia carrying the stand's name (Club: the green-and-white striped roof)
+        const club = galv && /club/i.test(b.name || cornerName(b.s != null ? b.s : t.project(b.cx, b.cz, null, pr).s) || '');
+        B.box(m, L + 0.4, 0.32, zBack - front + 1.0, 0, ry, (front + zBack + 1.0) / 2, galv ? C(0x9da4ab) : roofGrey, { top: galv ? C(0xc3c9cf) : white, bottom: true });
+        if (club) for (let a = -hl; a < hl - 0.1; a += 4) { const a2 = Math.min(hl, a + 2); B.quad(P(a, ry + 0.335, front - 0.2), P(a, ry + 0.335, zBack + 1.2), P(a2, ry + 0.335, zBack + 1.2), P(a2, ry + 0.335, front - 0.2), C(0x0f6b3a)); }
+        B.box(m, L + 0.42, 0.8, 0.18, 0, ry - 0.45, front - 0.02, galv ? (club ? C(0x0f6b3a) : C(0xf2f3f3)) : red);
+        const nkF = galv && L >= 14 ? nameSlot(b.name || cornerName(b.s != null ? b.s : t.project(b.cx, b.cz, null, pr).s)) : -1;
+        if (nkF >= 0) { const bw = Math.min(8, L - 4), u0n = (nkF % 2) * 0.5, v1 = 1 - Math.floor(nkF / 2) * 64 / 1024, v0 = v1 - 64 / 1024, zz = front - 0.2;
+          NM.quad(P(bw / 2, ry - 0.82, zz), P(-bw / 2, ry - 0.82, zz), P(-bw / 2, ry + 0.33, zz), P(bw / 2, ry + 0.33, zz), W1, [u0n + 0.004, v0, u0n + 0.496, v0, u0n + 0.496, v1, u0n + 0.004, v1]); }
+        if (L > 12 && !galv) strip(ry - 0.85, 0.8, front - 0.14);   // partner ads along the roof fascia
         const span = Math.max(7, L / Math.max(1, Math.round(L / 9)));
         for (let a = -hl + 1; a <= hl - 0.9; a += span) {
           M.box(m, 0.36, ry, 0.36, a, 0, zBack + 0.5, steel);

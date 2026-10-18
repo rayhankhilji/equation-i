@@ -46,7 +46,10 @@ window.EI = window.EI || {};
     // physically based sky, with the sun light aligned to it and a PMREM environment for reflections / ambient
     // per-circuit light: Silverstone keeps its English afternoon; Monaco gets a high late-May sun from over the sea (so the
     // city facades facing the harbour are lit), a clearer sky, sea haze on the horizon and warm stone bounce light
-    const LOOKS = { monaco: { elev: 52, azim: 338, turb: 1.9, ray: 1.5, mie: 0.003, horizon: 0xbcd3ea, sky: [0.66, 0.4], fog: [550, 2400], fogLow: [320, 1400], hemi: [0xa8cdf2, 0x8a7a66, 0.42], sun: [0xfff3e0, 2.65] },
+    const LOOKS = { monaco: { elev: 52, azim: 338, turb: 1.9, ray: 1.5, mie: 0.003, horizon: 0xbcd3ea, sky: [0.66, 0.4], fog: [550, 2400], fogLow: [320, 1400], hemi: [0xa8cdf2, 0x8a7a66, 0.42], sun: [0xfff3e0, 2.65],
+        // the cyan sky in the reflections tinted the shaded asphalt teal: a greyer environment, a little less saturation boost and
+        // more contrast for the hard May sun; the Tete de Chien / Mont Agel ridge painted into the sky to the north (west to east-north-east)
+        envSat: 0.4, grade: { sat: 1.3, con: 1.12, warm: [1.03, 1.0, 0.975] }, ridge: [-3.05, -0.3, 0.2] },
       // Yas Marina: the race starts at sunset - the sun low over the Gulf in the west-south-west, warm haze, long shadows
       // Yas Marina: a night race under floodlights (js/night.js: night sky, the light map, glows); the 'sun' is dim moonlight from
       // high up so the cars keep their contact shadows
@@ -65,14 +68,26 @@ window.EI = window.EI || {};
     // the scattering sky comes out bright enough that ACES flattens it to near-white: a gain per circuit (LOOKS sky: [gain,
     // zenith deepening]) keeps a clear blue overhead fading to a paler, hazier horizon - only on screen (the environment map
     // that lights and reflects the scene keeps the full sky)
+    // LOOKS ridge: [azimuth from, azimuth to (atan2(z, x), +x east, +z south), crest height as sin(elevation)]: a hazy mountain
+    // silhouette in the sky itself (no geometry; it sits behind everything), darker and greener towards the crest, mottled scrub/rock
+    const RIDGE = !LK.ridge ? '' : (() => { const R = LK.ridge, f = (v) => (+v).toFixed(4); return ' float rph = atan(direction.z, direction.x);' +
+      ' float rmk = smoothstep(' + f(R[0]) + ', ' + f(R[0] + 0.35) + ', rph) * (1.0 - smoothstep(' + f(R[1] - 0.35) + ', ' + f(R[1]) + ', rph));' +
+      ' float rh = ' + f(R[2]) + ' * rmk * (0.6 + 0.2 * sin(rph * 3.1 + 0.7) + 0.13 * sin(rph * 7.7 + 2.1) + 0.06 * sin(rph * 19.3 + 0.4) + 0.025 * sin(rph * 47.0 + 1.3) + 0.012 * sin(rph * 113.0));' +
+      ' float ra = (1.0 - smoothstep(rh - 0.0022, rh, direction.y)) * step(0.004, rh);' +
+      ' if (ra > 0.0) { float rd = clamp(direction.y / max(rh, 0.001), 0.0, 1.0); float rn = 0.5 + 0.5 * sin(rph * 260.0 + direction.y * 90.0) * sin(rph * 97.0 - direction.y * 160.0);' +
+      ' vec3 rc = hz0 * uSkyGain * mix(vec3(0.86, 0.9, 0.92), vec3(0.5, 0.56, 0.54), smoothstep(0.0, 1.0, rd)) * (0.9 + 0.2 * rn);' +
+      ' retColor = mix(retColor, rc, ra); }'; })();
     { const SG = LK.sky || [0.62, 0.35]; su.uSkyGain = { value: SG[0] }; su.uSkyDeep = { value: SG[1] };
       skyMesh.material.onBeforeCompile = (sh) => { sh.uniforms.uSkyGain = su.uSkyGain; sh.uniforms.uSkyDeep = su.uSkyDeep;
         sh.fragmentShader = sh.fragmentShader.replace('void main() {', 'uniform float uSkyGain; uniform float uSkyDeep;\nvoid main() {')
-          .replace('gl_FragColor = vec4( retColor, 1.0 );', 'float zk = smoothstep(0.02, 0.75, direction.y); retColor *= uSkyGain * mix(vec3(1.0), vec3(0.78, 0.9, 1.08), zk * uSkyDeep); gl_FragColor = vec4( retColor, 1.0 );'); };
-      skyMesh.material.customProgramCacheKey = () => 'ei-sky-gain'; }
+          .replace('gl_FragColor = vec4( retColor, 1.0 );', 'vec3 hz0 = retColor; float zk = smoothstep(0.02, 0.75, direction.y); retColor *= uSkyGain * mix(vec3(1.0), vec3(0.78, 0.9, 1.08), zk * uSkyDeep);' + RIDGE + ' gl_FragColor = vec4( retColor, 1.0 );'); };
+      skyMesh.material.customProgramCacheKey = () => 'ei-sky-gain' + (LK.ridge ? 'r' : ''); }
     if (nightLook) { scene.remove(skyMesh); skyMesh = EI.Night.makeSky(nightWest); scene.add(skyMesh); }
     const t0 = performance.now(); const pm = new THREE.PMREMGenerator(renderer); pm.compileEquirectangularShader();
     const skyScene = new THREE.Scene(); const sky2 = new THREE.Sky(); sky2.scale.setScalar(5500); sky2.material.uniforms.turbidity.value = LK.turb; sky2.material.uniforms.rayleigh.value = LK.ray; if (LK.skyElev != null) { sky2.material.uniforms.mieCoefficient.value = LK.mie; sky2.material.uniforms.mieDirectionalG.value = LK.mieG || 0.85; } sky2.material.uniforms.sunPosition.value.copy(skySun); skyScene.add(sky2);
+    // the environment (reflections + ambient of every PBR surface) sees a greyer sky than the screen: the saturated cyan otherwise
+    // tints every grazing surface - asphalt in the shade above all - teal (LOOKS envSat, 1 = the full sky colour)
+    { const es = (LK.envSat != null ? LK.envSat : 0.6).toFixed(3); sky2.material.onBeforeCompile = (sh) => { sh.fragmentShader = sh.fragmentShader.replace('gl_FragColor = vec4( retColor, 1.0 );', 'retColor = mix(vec3(dot(retColor, vec3(0.2126, 0.7152, 0.0722))), retColor, ' + es + '); gl_FragColor = vec4( retColor, 1.0 );'); }; sky2.material.customProgramCacheKey = () => 'ei-env-sky' + es; }
     scene.environment = nightLook ? EI.Night.makeEnv(renderer, nightWest) : pm.fromScene(skyScene, 0.02).texture; pm.dispose(); const tPmrem = Math.round(performance.now() - t0);
     const horizon = LK.horizon; scene.fog = new THREE.Fog(horizon, LK.fog[0], LK.fog[1]);
     hemi = new THREE.HemisphereLight(LK.hemi[0], LK.hemi[1], LK.hemi[2]); scene.add(hemi);
@@ -118,6 +133,15 @@ window.EI = window.EI || {};
   let quality = savedQ; EI.quality = savedQ;
   // one view of the frame: the High preset's post chain (bloom, FXAA, speed blur; single view only) renders straight to the
   // canvas, everything else goes through the render pipeline's offscreen target (rect in CSS pixels, null = full screen)
+  // tunnel exposure (a circuit with a tunnel): inside, the camera opens up (exposure x1.45) while the ambient fill drops, so the
+  // bore reads dim and the exit burns white; it adapts over ~0.3 s each way, per view (uniform changes only)
+  const tunF = [0, 0]; let dtT = 0;
+  function tunnelLight(k, car, dt) {
+    const TD = track && track.data.tunnel; if (!TD || !hemi || !EI.look) return; if (k === 0) dtT = dt;
+    const s = car.trk ? car.trk.s : -1e9, inT = s > TD.s0 + 4 && s < TD.s1 - 2 ? 1 : 0;
+    tunF[k] += (inT - tunF[k]) * Math.min(1, dt * 3.5);
+    renderer.toneMappingExposure = 1.05 * (1 + 0.45 * tunF[k]); hemi.intensity = EI.look.hemi[2] * (1 - 0.45 * tunF[k]);
+  }
   function renderView(cam, usePost, rect) {
     if (!(usePost && composer && quality === 'high')) { pipeDraw(cam, rect); return; }
     { composer.passes[0].camera = cam; if (speedPass && race) { const car = race.players[0]; const v = Math.abs(car.v); speedPass.uniforms.strength.value = U.clamp((v - 35) / 60, 0, 1) * (CAM_MODES[camModes[0]] === 'cockpit' ? 0.5 : 0.9); } composer.render(); }
@@ -662,7 +686,7 @@ window.EI = window.EI || {};
         if (skyMesh) skyMesh.position.set(cam.position.x, 0, cam.position.z);
       }
       const cockpit = CAM_MODES[camModes[k]] === 'cockpit'; if (cockpit) car.helmet.visible = false;
-      renderView(cam, !split, split ? r : null); if (cockpit) car.helmet.visible = true;
+      tunnelLight(k, car, k === 0 ? dt : dtT); renderView(cam, !split, split ? r : null); if (cockpit) car.helmet.visible = true;
     });
     pipeResolve(); pushFence(gl2);
   }

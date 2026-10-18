@@ -224,6 +224,8 @@ window.EI = window.EI || {};
     const oakSize = (k) => { const s = 0.75 + rng() * 0.5; return [11 * s * (k || 1), 13.5 * s * (k || 1)]; };
     // ---- woodland blocks: dense along the edge (closed canopy wall), lighter inside
     const woods = t.data.scenery.woods.concat(E.data.woods || []); E.allWoods = woods;
+    // farmland (Silverstone): English broadleaf only - round oaks and ash, no scots pines or poplar spires near the circuit
+    const farm = E.data.kind !== 'street' && E.data.kind !== 'desert';
     // tree-line strips standing in for the billboards beyond the far LOD radius (medium / low): [points, height]
     const inner = E.innerStrips = []; const H = Env.CARD_HALF;
     for (const w of woods) if (Math.abs(U.polyArea(w)) >= 150) inner.push([w.concat([w[0]]), 17]);
@@ -236,8 +238,8 @@ window.EI = window.EI || {};
         const de = E.distToPoly(px, pz, w); const p = de < 9 ? 1 : de < 22 ? 0.4 : 0.17; if (rng() > p) continue;
         const k = rng(); let sp = SP.OAK, wd, ht;
         if (de < 4 && k < 0.4) { sp = SP.SHRUB; wd = 4 + rng() * 3; ht = 3 + rng() * 2.5; }
-        else if (k < 0.1) { sp = SP.PINE; wd = 8 + rng() * 3; ht = 16 + rng() * 6; }
-        else if (k < 0.15) { sp = SP.POPLAR; wd = 5 + rng() * 2; ht = 18 + rng() * 6; }
+        else if (!farm && k < 0.1) { sp = SP.PINE; wd = 8 + rng() * 3; ht = 16 + rng() * 6; }
+        else if (!farm && k < 0.15) { sp = SP.POPLAR; wd = 5 + rng() * 2; ht = 18 + rng() * 6; }
         else { [wd, ht] = oakSize(1.05); }
         if (!ok(px, pz, wd * 0.6)) continue; add(px, pz, sp, wd, ht, null, null, de > 10); nWood++;
       }
@@ -255,7 +257,7 @@ window.EI = window.EI || {};
     for (const [k, poly] of noFarm ? [] : (E.fieldPolys || [])) {
       if (E.fType[k] !== 8) continue; const sx = E.seedX[k], sz = E.seedZ[k]; if (E.isVenue(sx, sz) || Math.max(Math.abs(sx), Math.abs(sz)) > Env.CARD_HALF) continue; const R = 45 + E.fTone[k] * 35;
       { const ring = []; for (let a = 0; a <= 12; a++) ring.push([sx + Math.cos(a / 12 * 6.283) * R * 1.1, sz + Math.sin(a / 12 * 6.283) * R * 0.8]); inner.push([ring, 14]); }
-      for (let i = 0; i < R * R * 0.032; i++) { const a = rng() * 6.283, d = Math.sqrt(rng()) * R; const x = sx + Math.cos(a) * d * 1.2, z = sz + Math.sin(a) * d * 0.85; const [wd, ht] = oakSize(); if (!ok(x, z, wd)) continue; add(x, z, rng() < 0.15 ? SP.PINE : SP.OAK, wd, ht); nCopse++; }
+      for (let i = 0; i < R * R * 0.032; i++) { const a = rng() * 6.283, d = Math.sqrt(rng()) * R; const x = sx + Math.cos(a) * d * 1.2, z = sz + Math.sin(a) * d * 0.85; const [wd, ht] = oakSize(); if (!ok(x, z, wd)) continue; add(x, z, SP.OAK, wd, ht); nCopse++; }
     }
     // ---- hedgerows along the field boundaries (outside the venue): shrubs every ~3 m, standard oaks, some poplar rows and tree lines
     const seen = new Set(); let nHedge = 0; const hc = {};
@@ -272,7 +274,7 @@ window.EI = window.EI || {};
           if (Math.abs(x) > H || Math.abs(z) > H) continue; if (E.isVenue(x, z)) continue;
           if (style === 'poplar') { if (!ok(x, z, 6, OCC.WOOD)) continue; add(x, z, SP.POPLAR, 4.5 + rng() * 2, 17 + rng() * 7); nHedge++; continue; }
           const std = !dense || rng() < (style === 'trees' ? 0.3 : 0.07);
-          if (std) { const [wd, ht] = oakSize(); if (!ok(x, z, wd * 0.5, OCC.WOOD)) continue; add(x, z, rng() < 0.85 ? SP.OAK : SP.PINE, wd, ht); }
+          if (std) { const [wd, ht] = oakSize(); if (!ok(x, z, wd * 0.5, OCC.WOOD)) continue; add(x, z, SP.OAK, wd, ht); }
           else { if (!ok(x, z, 4, OCC.WOOD)) continue; add(x, z, SP.SHRUB, 4.6 + rng() * 2.4, 2.5 + rng() * 1.6); }
           nHedge++;
         }
@@ -296,7 +298,7 @@ window.EI = window.EI || {};
               const off = r.w / 2 + 3.8 + row * 1.7 + rng() * 0.8; const sj = s + row * step * 0.5; if (sj > L) continue;
               const x = a[0] + (b[0] - a[0]) * sj / L + nx * sd * off, z = a[1] + (b[1] - a[1]) * sj / L + nz * sd * off;
               if (Math.abs(x) > H || Math.abs(z) > H || (!close && E.isVenue(x, z))) continue; const std = row === 0 && rng() < (close ? 0.12 : 0.08);
-              if (std) { const [wd, ht] = oakSize(); if (!ok(x, z, 6, OCC.WOOD)) continue; add(x, z, rng() < 0.9 ? SP.OAK : SP.POPLAR, wd, ht); } else { if (!ok(x, z, 4, OCC.WOOD)) continue; add(x, z, SP.SHRUB, 3.4 + rng() * 2.2, 2.4 + rng() * 1.6); }
+              if (std) { const [wd, ht] = oakSize(); if (!ok(x, z, 6, OCC.WOOD)) continue; add(x, z, SP.OAK, wd, ht); } else { if (!ok(x, z, 4, OCC.WOOD)) continue; add(x, z, SP.SHRUB, 3.4 + rng() * 2.2, 2.4 + rng() * 1.6); }
               if (row === 0) segRun.push([x, z]); nRoad++;
             }
           }
@@ -308,7 +310,7 @@ window.EI = window.EI || {};
     let nLine = 0;
     for (const [x0, z0, x1, z1] of noFarm ? [] : (E.treeLines || [])) {
       const L = Math.hypot(x1 - x0, z1 - z0); inner.push([[[x0, z0], [x1, z1]], 13]);
-      for (let s = rng() * 5; s < L; s += 6 + rng() * 5) { const u = s / L; const x = x0 + (x1 - x0) * u + (rng() - 0.5) * 2, z = z0 + (z1 - z0) * u + (rng() - 0.5) * 2; const kind = rng(); const pop = kind < 0.1; const [wd, ht] = pop ? [4.5 + rng() * 2, 16 + rng() * 6] : oakSize(); if (!ok(x, z, wd)) continue; add(x, z, pop ? SP.POPLAR : SP.OAK, wd, ht); nLine++; }
+      for (let s = rng() * 5; s < L; s += 6 + rng() * 5) { const u = s / L; const x = x0 + (x1 - x0) * u + (rng() - 0.5) * 2, z = z0 + (z1 - z0) * u + (rng() - 0.5) * 2; const [wd, ht] = oakSize(); if (!ok(x, z, wd)) continue; add(x, z, SP.OAK, wd, ht); nLine++; }
     }
     // ---- scattered clumps around the estate (between stands, car parks and roads)
     let nClump = 0;
@@ -316,7 +318,7 @@ window.EI = window.EI || {};
       const s = rng() * t.length, side = rng() < 0.55 ? 1 : -1; const i = t.idxAtS(s); const d = E.wallCap(i, side) + 18 + rng() * 170;
       const cx = t.x[i] + t.nx[i] * side * d, cz = t.z[i] + t.nz[i] * side * d; if (!E.isVenue(cx, cz) || E.occAt(cx, cz)) continue;
       const nn = 2 + Math.floor(rng() * 6);
-      for (let k = 0; k < nn; k++) { const x = cx + (rng() - 0.5) * 26, z = cz + (rng() - 0.5) * 26; const sp = rng() < 0.05 ? SP.POPLAR : rng() < 0.2 ? SP.SHRUB : SP.OAK; const [wd, ht] = sp === SP.POPLAR ? [4.5, 17 + rng() * 5] : sp === SP.SHRUB ? [4 + rng() * 2, 3 + rng() * 1.5] : oakSize(0.9); if (!ok(x, z, wd + 2)) continue; add(x, z, sp, wd, ht); nClump++; }
+      for (let k = 0; k < nn; k++) { const x = cx + (rng() - 0.5) * 26, z = cz + (rng() - 0.5) * 26; const sp = rng() < 0.25 ? SP.SHRUB : SP.OAK; const [wd, ht] = sp === SP.POPLAR ? [4.5, 17 + rng() * 5] : sp === SP.SHRUB ? [4 + rng() * 2, 3 + rng() * 1.5] : oakSize(0.9); if (!ok(x, z, wd + 2)) continue; add(x, z, sp, wd, ht); nClump++; }
     }
     E.stats.trees = { wood: nWood, copse: nCopse, hedge: nHedge, road: nRoad, lines: nLine, clumps: nClump, total: trees.length };
     sc.treeCount = trees.length;

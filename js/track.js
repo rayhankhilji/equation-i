@@ -273,9 +273,9 @@ window.EI = window.EI || {};
   // kerb: x = across (0 at the track edge), y = along; one tile = one red + one white block with slanted (sawtooth) joints
   function kerbTexture(style) {
     const W = 256, H = 512; const c = document.createElement('canvas'); c.width = W; c.height = H; const ctx = c.getContext('2d');
-    ctx.fillStyle = '#ece9e1'; ctx.fillRect(0, 0, W, H);
+    ctx.fillStyle = style === 'street' ? '#e4e0d8' : '#ece9e1'; ctx.fillRect(0, 0, W, H);
     const slant = style === 'street' ? 0 : H * 0.07; const joint = (y0) => [[0, y0 - slant], [W, y0 + slant]];
-    ctx.fillStyle = '#c8141e';
+    ctx.fillStyle = style === 'street' ? '#b0242a' : '#c8141e';
     for (const off of [-H, 0, H]) { const a = joint(off), b = joint(off + H / 2); ctx.beginPath(); ctx.moveTo(a[0][0], a[0][1]); ctx.lineTo(a[1][0], a[1][1]); ctx.lineTo(b[1][0], b[1][1]); ctx.lineTo(b[0][0], b[0][1]); ctx.closePath(); ctx.fill(); }
     ctx.strokeStyle = 'rgba(25,10,10,0.55)'; ctx.lineWidth = 3;
     for (const off of [-H, -H / 2, 0, H / 2, H]) { const a = joint(off); ctx.beginPath(); ctx.moveTo(a[0][0], a[0][1]); ctx.lineTo(a[1][0], a[1][1]); ctx.stroke(); }
@@ -650,8 +650,9 @@ window.EI = window.EI || {};
         Abbey: [1, GREEN, BLUE], Village: [1, RED, BLUE], 'The Loop': [1, RED, BLUE], Brooklands: [0, GREEN, DBLUE],
       };
       // street circuit: the escape road at the Nouvelle Chicane is painted solid red with white borders, Sainte Devote's in blue / red bands
-      const WHITE_ = lin(0xe9e9e6);
-      if (this.data.street) Object.assign(SCHEMES, { 'Nouvelle Chicane': [0, RED, RED], 'Sainte Dévote': [2, BLUE, WHITE_], 'La Rascasse': [2, RED, WHITE_] });
+      // (brick red, worn: chicane1 / rascasse refs, never the saturated pink-red)
+      const WHITE_ = lin(0xe2ded6), BRICK = lin(0xa52a2a);
+      if (this.data.street) Object.assign(SCHEMES, { 'Nouvelle Chicane': [0, BRICK, BRICK], 'Sainte Dévote': [2, BLUE, WHITE_], 'La Rascasse': [2, BRICK, WHITE_] });
       // circuits with a house colour for the run-off (Yas Marina's turquoise): the strip behind the kerbs in that colour, and every
       // corner's painted run-off in bands of it and a deeper shade
       const RC = this.data.runoffColors;
@@ -667,20 +668,21 @@ window.EI = window.EI || {};
     rTqC = mix(rTqC, vec3(0.72, 0.72, 0.7), 1.0 - smoothstep(0.1, 0.1 + rAA, abs(rAl - rOuter + 0.55)));
     rCol = mix(rCol, mix(rTqC, rBase * 1.05, clamp(rWear * 0.5, 0.0, 0.6)), rTq);
     rGreen = max(rGreen, rTq);
-    // painted straight (vTrk3.x red / white flat-kerb band, vTrk3.y dark band with white partner lettering): no turquoise there,
-    // the asphalt apron runs dark grey to the wall
-    float rWS = clamp(vTrk3.x + vTrk3.y, 0.0, 1.0);
-    if (rWS > 0.001) {
+    // painted straight (vTrk3.x red / white flat kerb along the edge, vTrk3.y dark band with white partner lettering beyond it,
+    // vTrk3.z distance from the edge where the turquoise strip by the wall starts): the apron between runs dark grey
+    if (vTrk3.x > 0.001) {
       float rE = rAl - eiHW; vec3 rDark = rBase * 0.66;
-      float rwIn = smoothstep(0.18 - rAA, 0.18 + rAA, rE) * (1.0 - smoothstep(1.7 - rAA, 1.7 + rAA, rE));
-      float rBlk = step(0.5, fract(rS / 4.0));
+      float rwIn = smoothstep(0.18 - rAA, 0.18 + rAA, rE) * (1.0 - smoothstep(1.55 - rAA, 1.55 + rAA, rE));
+      float rwRim = smoothstep(1.55 - rAA, 1.55 + rAA, rE) * (1.0 - smoothstep(1.75 - rAA, 1.75 + rAA, rE));
+      float rBlk = step(0.5, fract(rS / 5.0));
       vec3 rRW = mix(vec3(0.56, 0.035, 0.045), vec3(0.74, 0.74, 0.72), rBlk) * (0.88 + 0.2 * rM1.g);
-      float brIn = smoothstep(0.35 - rAA, 0.35 + rAA, rE) * (1.0 - smoothstep(2.85 - rAA, 2.85 + rAA, rE));
-      float rTx = texture2D(eiBrand, vec2(rS / 36.0, clamp((rE - 0.35) / 2.5, 0.0, 1.0))).r * brIn;
-      vec3 rBR = mix(mix(rDark, vec3(0.04, 0.045, 0.05), brIn), vec3(0.78, 0.78, 0.76), rTx);
-      vec3 rSC = (mix(rDark, rRW, rwIn) * vTrk3.x + rBR * vTrk3.y) / max(vTrk3.x + vTrk3.y, 0.001);
+      vec3 rSC = mix(mix(rDark, rRW, rwIn), vec3(0.74, 0.74, 0.72), rwRim);
+      float brIn = smoothstep(2.3 - rAA, 2.3 + rAA, rE) * (1.0 - smoothstep(4.1 - rAA, 4.1 + rAA, rE)) * vTrk3.y;
+      float rTx = texture2D(eiBrand, vec2(rS / 16.0 * vTrk3.w, clamp((rE - 2.3) / 1.8, 0.0, 1.0))).r * brIn;
+      rSC = mix(mix(rSC, vec3(0.04, 0.045, 0.05), brIn), vec3(0.78, 0.78, 0.76), rTx);
+      rSC = mix(rSC, rCol, smoothstep(vTrk3.z - rAA, vTrk3.z + rAA, rE));
       rSC = mix(rSC, rSC * 0.6, rTyre * 0.4) * (1.0 - clamp(rWear * 0.25, 0.0, 0.3));
-      rCol = mix(rCol, rSC, rWS * rGon * step(0.0, rE));
+      rCol = mix(rCol, rSC, vTrk3.x * rGon * step(0.0, rE));
     }
 ` : '';
       const runFrag = RC ? RUNOFF_FRAG.replace('vec3(0.045, 0.2, 0.06)', v3(lin(RC[2] || RC[0]))).replace('    rCol = mix(rCol, rCol * 0.45, rTyre', RC_STRIPES + '    rCol = mix(rCol, rCol * 0.45, rTyre') : RUNOFF_FRAG;
@@ -699,15 +701,16 @@ window.EI = window.EI || {};
         for (let i = 0; i < n; i++) if (run[i]) { const nm = cornerAt(this.s[i]); const k = names.indexOf(nm); if (k >= 0) sch[i] = k; }
         const schC = Int8Array.from(sch); for (let i = 0; i < n; i++) if (sch[i] < 0) { for (const j of [1, -1, 2, -2]) { const q = sch[(i + j + n) % n]; if (q >= 0) { schC[i] = q; break; } } }
         const green = new Uint8Array(n); if (!this.data.street) for (let i = 0; i < n; i++) green[i] = kerbMask(i) || run[i] || RC ? 1 : 0;
-        // painted straights: per-row weights of the red / white band and the dark brand band on this side (pit side: red / white;
-        // the other side: the brand band, red / white for the first and last `ends` metres)
-        const wRW = new Float32Array(n), wBR = new Float32Array(n);
+        // painted straights: per-row weights of the kerb and the brand band on this side (pit side: kerb, then turquoise only in a
+        // narrow strip by the wall; the other side: kerb + brand band, not over the first and last `ends` metres)
+        const wRW = new Float32Array(n), wBR = new Float32Array(n), tqS = new Float32Array(n).fill(99);
         if (RC) for (const P of this.data.straightPaint || []) {
-          const L = this.length, span = U.mod(P.s1 - P.s0, L); const pitSide = this.pitSideSign ? this.pitSideSign() : -1; const onPit = side === pitSide;
+          const L = this.length, span = U.mod(P.s1 - P.s0, L); const onPit = side === this.pitSideSign();
           for (let i = 0; i < n; i++) {
             const u = U.mod(this.s[i] - P.s0, L); const out = u <= span ? 0 : Math.min(u - span, L - u); const f = 1 - U.smoothstep(0, 25, out); if (f <= 0) continue;
-            const style = onPit ? P.pit : P.far; const endF = Math.min(u, span - u); const rwEnd = !onPit && P.ends && u <= span ? 1 - U.smoothstep(P.ends - 15, P.ends, endF) : 0;
-            const br = style === 'brand' ? f * (1 - rwEnd) : 0; wBR[i] = Math.max(wBR[i], br); wRW[i] = Math.max(wRW[i], f - br);
+            const endF = Math.min(u, span - u); const mid = P.ends && u <= span ? U.smoothstep(P.ends - 15, P.ends, endF) : 1;
+            wRW[i] = Math.max(wRW[i], f); if ((onPit ? P.pit : P.far) === 'brand') wBR[i] = Math.max(wBR[i], mid);
+            if (onPit && P.wall) tqS[i] = Math.min(tqS[i], P.wall - 1.3);
           }
         }
         const geo = this.strip(2, {
@@ -717,7 +720,7 @@ window.EI = window.EI || {};
             trk2: [4, (ii) => [green[ii], grav[ii] ? hw + kw + 6.9 : 99, aw0, outer[ii]]],
             colA: [3, (ii) => { const c = schC[ii] >= 0 ? SCHEMES[names[schC[ii]]][1] : BLUE; return [c.r, c.g, c.b]; }],
             colB: [3, (ii) => { const c = schC[ii] >= 0 ? SCHEMES[names[schC[ii]]][2] : BLUE; return [c.r, c.g, c.b]; }],
-            ...(RC ? { trk3: [4, (ii) => [wRW[ii], wBR[ii], 0, 0]] } : {}),
+            ...(RC ? { trk3: [4, (ii) => [wRW[ii], wBR[ii], tqS[ii], side]] } : {}),
           },
         });
         const rm = new THREE.Mesh(geo, rMat); rm.receiveShadow = true; rm.name = 'runoff'; rm.position.y = -0.008; g.add(rm);
@@ -1013,8 +1016,8 @@ window.EI = window.EI || {};
       const sleeves = SLV.map(([bg, txt], k) => AT.region('armSleeve' + k, 512, 64, (x, w, h) => { x.fillStyle = bg; x.fillRect(0, 0, w, h); x.fillStyle = 'rgba(255,255,255,0.10)'; x.fillRect(0, 2, w, 2); x.fillStyle = 'rgba(0,0,0,0.22)'; x.fillRect(0, h - 4, w, 4);
         for (let j = 0; j < 2; j++) { const cx = w / 4 + j * w / 2; if (txt === 'lumi' && EI.Ads) EI.Ads.lockupCentered(x, 'lumi', cx, h * 0.5, h * 0.62, w * 0.4, '#ffffff', true);
           else { x.fillStyle = '#ffffff'; x.font = '800 ' + Math.round(h * 0.5) + 'px "Plus Jakarta Sans", "Titillium Web", Arial, sans-serif'; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText(txt, cx, h * 0.54, w * 0.42); } }
-        weather(x, w, h, 61 + k, 160); }, (x, w, h) => { x.fillStyle = 'rgb(120,120,120)'; x.fillRect(0, 0, w, 3); x.fillRect(0, h - 3, w, 3); }, null, 'u'));
-      const chain = AT.region('chain', 64, 64, (x, w, h) => { x.clearRect(0, 0, w, h); x.strokeStyle = 'rgba(204,208,212,0.9)'; x.lineWidth = 1.0; for (let k = -64; k <= 128; k += 8) { x.beginPath(); x.moveTo(k, 0); x.lineTo(k + 64, 64); x.stroke(); x.beginPath(); x.moveTo(k, 64); x.lineTo(k + 64, 0); x.stroke(); } }, null, (x, w, h) => { x.fillStyle = 'rgb(110,110,110)'; x.fillRect(0, 0, w, h); }, 'uv');
+        weather(x, w, h, 61 + k, 70); }, (x, w, h) => { x.fillStyle = 'rgb(120,120,120)'; x.fillRect(0, 0, w, 3); x.fillRect(0, h - 3, w, 3); }, null, 'u'));
+      const chain = AT.region('chain', 64, 64, (x, w, h) => { x.clearRect(0, 0, w, h); x.strokeStyle = 'rgba(204,208,212,0.72)'; x.lineWidth = 1.0; for (let k = -64; k <= 128; k += 8) { x.beginPath(); x.moveTo(k, 0); x.lineTo(k + 64, 64); x.stroke(); x.beginPath(); x.moveTo(k, 64); x.lineTo(k + 64, 0); x.stroke(); } }, null, (x, w, h) => { x.fillStyle = 'rgb(110,110,110)'; x.fillRect(0, 0, w, h); }, 'uv');
       const tec = AT.region('tecpro', 128, 96, (x, w, h) => { x.fillStyle = '#ffffff'; x.fillRect(0, 0, w, h); x.fillStyle = 'rgba(0,0,0,0.1)'; x.fillRect(0, 0, w, 4); x.fillRect(0, h - 4, w, 4); x.fillStyle = '#1a1b1e'; x.fillRect(0, h * 0.2, w, h * 0.09); x.fillRect(0, h * 0.68, w, h * 0.09); x.fillStyle = 'rgba(255,255,255,0.9)'; x.font = '900 18px Arial Black, Arial'; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillStyle = 'rgba(30,30,30,0.85)'; x.fillText('SAFETY', w / 2, h * 0.49); weather(x, w, h, 71, 300); },
         (x, w, h) => { x.fillStyle = 'rgb(150,150,150)'; x.fillRect(0, h * 0.2, w, h * 0.09); x.fillRect(0, h * 0.68, w, h * 0.09); const g2 = x.createLinearGradient(0, 0, 0, 10); g2.addColorStop(0, 'rgb(90,90,90)'); g2.addColorStop(1, 'rgb(128,128,128)'); x.fillStyle = g2; x.fillRect(0, 0, w, 10); }, (x, w, h) => { x.fillStyle = 'rgb(160,160,160)'; x.fillRect(0, 0, w, h); }, 'none');
       const belt = AT.region('belt', 256, 64, (x, w, h) => { x.fillStyle = '#1b1c1e'; x.fillRect(0, 0, w, h); const r = U.rng(9); for (let i = 0; i < 400; i++) { x.fillStyle = 'rgba(255,255,255,' + (0.02 + r() * 0.05) + ')'; x.fillRect(r() * w, r() * h, 1 + r() * 3, 1); } x.fillStyle = '#5b5e62'; for (let k = 8; k < w; k += 32) for (const yy of [8, h - 8]) { x.beginPath(); x.arc(k, yy, 2.6, 0, 6.283); x.fill(); } },
@@ -1069,12 +1072,12 @@ window.EI = window.EI || {};
         }
         // ---- debris fence: chain-link to 3.5 m behind the rail, the catch section leaning 0.75 m over the road; posts every ~4 m
         // wire tone: dark enough that the mesh reads as galvanised wire against the sky and the facades, not as a frosted sheet
-        const fC = lin(0x7a8085); const fl = (ii) => base(ii) + 0.34; let fprev = null, last = null, prevPost = null, sinceGate = 60;
+        const fC = lin(0x5e6367); const fl = (ii) => base(ii) + 0.34; let fprev = null, last = null, prevPost = null, sinceGate = 60;
         const fRuns = []; let fc = null; for (let i = 0; i <= n; i++) { const ii = i % n; if (!fenceOn(ii)) { if (fc && fc.length > 1) fRuns.push(fc); fc = null; continue; } if (!fc) fc = []; if (i % 2 === 0 || !fenceOn((ii + 1) % n)) fc.push(ii); } if (fc && fc.length > 1) fRuns.push(fc);
         for (const run of fRuns) {
           let acc = 0; fprev = null;
           for (let k = 0; k < run.length; k++) { const ii = run[k]; const lo = P(ii, fl(ii), 0), up = P(ii, fl(ii), 3.5), arm = P(ii, fl(ii) - 0.75, 4.35);
-            if (fprev) { acc += Math.hypot(lo[0] - fprev.lo[0], lo[2] - fprev.lo[2]); const v0 = fprev.acc / 0.5, v1 = acc / 0.5; Fn.set(chain, 0.55, 0.3); Fn.quad(fprev.lo, lo, up, fprev.up, fC, [0, v0, 0, v1, 7, v1, 7, v0]); Fn.quad(fprev.up, up, arm, fprev.arm, fC, [0, v0, 0, v1, 2.3, v1, 2.3, v0]); }
+            if (fprev) { acc += Math.hypot(lo[0] - fprev.lo[0], lo[2] - fprev.lo[2]); const v0 = fprev.acc / 0.5, v1 = acc / 0.5; Fn.set(chain, 0.9, 0.0); Fn.quad(fprev.lo, lo, up, fprev.up, fC, [0, v0, 0, v1, 7, v1, 7, v0]); Fn.quad(fprev.up, up, arm, fprev.arm, fC, [0, v0, 0, v1, 2.3, v1, 2.3, v0]); }
             fprev = { lo, up, arm, acc }; }
         }
         for (let i = 0; i < n; i++) {

@@ -1784,7 +1784,7 @@ window.EI = window.EI || {};
       if (dc < rad + 70) for (let i = 0; i < ring.length; i++) if (!segClear(E, ring[i], ring[(i + 1) % ring.length], 0.5)) { stats.skipped++; return; } const tier = farSet ? (dc < 470 ? 'mid' : null) : dc < 140 ? 'near' : 'mid';
       const ob = obb(ring); const D = design(E, b, c[0], c[1], area, ob ? ob.hw * 2 : 0);
       if (tier) buildOne(E, G, ring, D, tier, c); buildOne(E, G, ring, D, 'proxy', c); stats[tier || 'proxyOnly']++;
-      if (tier === 'near') nearList.push({ c, style: D.style, rv: D.rv, H: D.H, y: D.lv.yG });
+      if (tier === 'near') nearList.push({ c, style: D.style, rv: D.rv, H: D.H, y: D.lv.yG }); if (D.albert) stats.albert = (stats.albert || 0) + (tier === 'near' ? 1 : 0.001);
     };
     for (const b of t.data.scenery.buildings) doOne(b, false);
     // the near ring's footprints the circuit data left out: kept when they clear the barriers, stands, pit lane and tunnel
