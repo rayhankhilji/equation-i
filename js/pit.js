@@ -70,8 +70,8 @@ window.EI = window.EI || {};
     let r0 = dCap; while (r0 < P.dA && Math.abs(P.lat[r0]) < hw + 0.6) r0++; P.dRoad0 = r0;
     let r1 = dRel; while (r1 > P.dB && Math.abs(P.lat[r1]) < hw + 0.6) r1--; P.dRoad1 = r1;
     P.dLimIn = P.dA + 15; P.dLimOut = P.dB - 15;
-    const mid = (P.dLimIn + P.dLimOut) / 2; P.boxD = []; for (let k = 0; k < 10; k++) P.boxD.push(mid + (4.5 - k) * BOX_SP);
-    P.garD0 = P.boxD[9] - BOX_SP / 2; P.garD1 = P.boxD[0] + BOX_SP / 2;
+    const mid = (P.dLimIn + P.dLimOut) / 2; const NB = Math.max(10, EI.TEAMS.length); P.boxD = []; for (let k = 0; k < NB; k++) P.boxD.push(mid + ((NB - 1) / 2 - k) * BOX_SP);   // one box per entry (11 in 2026)
+    P.garD0 = P.boxD[NB - 1] - BOX_SP / 2; P.garD1 = P.boxD[0] + BOX_SP / 2;
     const u = (s) => P.sCap + U.mod(s - P.sCap, TL);
     P.anch = [[dCap, P.sCap], [P.dA, u(P.s[P.dA])], [P.dB, u(P.s[P.dB])], [dRel, u(P.s[dRel])]];
     for (let k = 1; k < P.anch.length; k++) if (P.anch[k][1] <= P.anch[k - 1][1]) P.anch[k][1] = P.anch[k - 1][1] + (P.anch[k][0] - P.anch[k - 1][0]);
@@ -154,11 +154,11 @@ window.EI = window.EI || {};
     // 5 x 4 cells of 256 x 128: rows 0-1 box decals (team short + box number), row 2: '80', 'PIT', 'PIT EXIT', 'LIMIT END', row 3 spare
     return canvasTex(1280, 512, (ctx) => {
       ctx.clearRect(0, 0, 1280, 512); ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      EI.TEAMS.slice(0, 10).forEach((t, k) => {
-        const x = (k % 5) * 256, y = Math.floor(k / 5) * 128;
+      EI.TEAMS.slice(0, 16).forEach((t, k0) => {
+        const k = boxCell(k0), x = (k % 5) * 256, y = Math.floor(k / 5) * 128;
         ctx.fillStyle = t.primary; ctx.fillRect(x + 6, y + 6, 244, 116); ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 6; ctx.strokeRect(x + 9, y + 9, 238, 110);
         ctx.fillStyle = t.accent === t.primary ? '#ffffff' : t.accent; ctx.font = 'italic 900 64px Arial Black, Arial'; ctx.fillText(t.short, x + 100, y + 66);
-        ctx.fillStyle = '#ffffff'; ctx.fillRect(x + 186, y + 22, 52, 84); ctx.fillStyle = '#111'; ctx.font = '900 56px Arial Black, Arial'; ctx.fillText(String(k + 1), x + 212, y + 66);
+        ctx.fillStyle = '#ffffff'; ctx.fillRect(x + 186, y + 22, 52, 84); ctx.fillStyle = '#111'; ctx.font = '900 ' + (k0 >= 9 ? 40 : 56) + 'px Arial Black, Arial'; ctx.fillText(String(k0 + 1), x + 212, y + 66);
       });
       const cell = (k, fn) => { const x = (k % 5) * 256, y = Math.floor(k / 5) * 128; fn(x, y); };
       cell(10, (x, y) => { ctx.fillStyle = '#ffffff'; ctx.font = 'italic 900 100px Arial Black, Arial'; ctx.fillText('80', x + 128, y + 68); });
@@ -167,15 +167,17 @@ window.EI = window.EI || {};
       cell(13, (x, y) => { ctx.fillStyle = '#ffd200'; ctx.font = 'italic 900 50px Arial Black, Arial'; ctx.fillText('LIMIT', x + 128, y + 66); });
     });
   }
+  const boxCell = (k) => k < 10 ? k : k + 4;   // atlas cell of box k's decal (cells 10-13 hold the lane words)
   const cellUV = (k) => { const x = (k % 5) / 5, y = 1 - (Math.floor(k / 5) + 1) / 4; return [x, y, x + 0.2, y + 0.25]; };
+  const SIGN_ROWS = () => Math.max(10, EI.TEAMS.length);
   function signAtlas() {
-    // 10 rows of 1024 x 102: garage facade signs
+    // SIGN_ROWS rows of 1024 x (1024 / rows): garage facade signs, one per entry
     return canvasTex(1024, 1024, (ctx) => {
-      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      EI.TEAMS.slice(0, 10).forEach((t, k) => {
-        const y = k * 102.4; ctx.fillStyle = t.primary; ctx.fillRect(0, y, 1024, 102.4);
-        ctx.fillStyle = t.secondary; ctx.fillRect(0, y + 88, 1024, 14.4); ctx.fillRect(0, y, 1024, 6);
-        ctx.fillStyle = (t.accent === t.primary ? '#ffffff' : t.accent); ctx.font = 'italic 900 58px Arial Black, Arial'; ctx.fillText(t.name.toUpperCase(), 512, y + 48);
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; const rh = 1024 / SIGN_ROWS();
+      EI.TEAMS.slice(0, SIGN_ROWS()).forEach((t, k) => {
+        const y = k * rh; ctx.fillStyle = t.primary; ctx.fillRect(0, y, 1024, rh);
+        ctx.fillStyle = t.secondary; ctx.fillRect(0, y + rh * 0.86, 1024, rh * 0.14); ctx.fillRect(0, y, 1024, 6);
+        ctx.fillStyle = (t.accent === t.primary ? '#ffffff' : t.accent); ctx.font = 'italic 900 ' + Math.round(rh * 0.57) + 'px Arial Black, Arial'; ctx.fillText(t.name.toUpperCase(), 512, y + rh * 0.47, 1000);
       });
     });
   }
@@ -256,7 +258,7 @@ window.EI = window.EI || {};
         const v0 = new THREE.Vector3(cx - ax - hx, y, cz - az - hz), v1 = new THREE.Vector3(cx - ax + hx, y, cz - az + hz), v2 = new THREE.Vector3(cx + ax + hx, y, cz + az + hz), v3 = new THREE.Vector3(cx + ax - hx, y, cz + az - hz);
         gb.quad(v0, v1, v2, v3, 0xffffff, cellUV(cell));
       };
-      L.boxD.forEach((d, k) => decal(d + 4.6, BOXO, 3.2, 1.6, k));
+      L.boxD.forEach((d, k) => decal(d + 4.6, BOXO, 3.2, 1.6, boxCell(k)));
       decal(L.dLimIn + 6, FAST, 3.6, 1.8, 10); decal(L.dLimIn + 6, BOXO, 3.6, 1.8, 10); decal(L.dRoad0 + 14, 0, 3.4, 1.7, 11); decal(L.dLimOut + 6, 0, 3.6, 1.8, 13); decal(L.dRoad1 - 30, 0, 3.4, 1.7, 12);
       const m = gb.mesh(new THREE.MeshStandardMaterial({ map: tex, transparent: true, roughness: 0.75, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -6, polygonOffsetUnits: -10 })); grp.add(m);
     }
@@ -338,7 +340,7 @@ window.EI = window.EI || {};
         shell.add('box', lm(gf, 0, H + 0.7, sZ(GAR_D / 2), BOX_SP, 1.4, GAR_D + 0.3), hdr);
         shell.add('box', lm(gf, 0, H + 0.12, sZ(-0.2), BOX_SP, 0.22, 0.08), tc);
         for (let x = -BOX_SP / 2 + 0.5; x < BOX_SP / 2; x += 1.2) shell.add('box', lm(gf, x, H + 1.15, sZ(-0.2), 0.05, 0.5, 0.05), trussC);
-        signs.quad(...quadV(gf, -W / 2 + 1.5, H + 0.28, sZ(-0.22), W - 3, 0.85, GZ), 0xffffff, [0, 1 - (k + 1) / 10, 1, 1 - k / 10]);
+        signs.quad(...quadV(gf, -W / 2 + 1.5, H + 0.28, sZ(-0.22), W - 3, 0.85, GZ), 0xffffff, [0, 1 - (k + 1) / SIGN_ROWS(), 1, 1 - k / SIGN_ROWS()]);
         const V3 = (x, y, z) => new THREE.Vector3(x, y, sZ(z)).applyMatrix4(gf); const yb = H + 1.4, yt = H + 5.2, zb = 0.1, zt = -1.5, xa = -W / 2 + 0.6, xb = W / 2 - 0.6;
         const both = (a, b, c, d, cc) => { shell.quad(a, b, c, d, cc); shell.quad(b, a, d, c, cc); };
         both(V3(xa, yb, zb), V3(xb, yb, zb), V3(xb, yt, zt), V3(xa, yt, zt), gl);
@@ -351,7 +353,7 @@ window.EI = window.EI || {};
       } else {
       // facade: header with the team sign, upper floor glass band, roof slab over the walkway
       shell.add('box', lm(gf, 0, H + 0.9, sZ(GAR_D / 2), BOX_SP, 1.8, GAR_D + 0.3), white);
-      signs.quad(...quadV(gf, -W / 2 + 1.5, H + 0.35, sZ(-0.17), W - 3, 1.15, GZ), 0xffffff, [0, 1 - (k + 1) / 10, 1, 1 - k / 10]);
+      signs.quad(...quadV(gf, -W / 2 + 1.5, H + 0.35, sZ(-0.17), W - 3, 1.15, GZ), 0xffffff, [0, 1 - (k + 1) / SIGN_ROWS(), 1, 1 - k / SIGN_ROWS()]);
       shell.add('box', lm(gf, 0, H + 3.4, sZ(GAR_D / 2 + 0.6), BOX_SP, 3.2, GAR_D - 1.0), glass);
       shell.add('box', lm(gf, 0, H + 5.15, sZ(GAR_D / 2 - 1.2), BOX_SP, 0.35, GAR_D + 3.6), white);
       shell.add('box', lm(gf, 0, H + 5.2, sZ(-2.9), BOX_SP, 0.5, 0.2), col(0xc8102e));
@@ -683,7 +685,7 @@ window.EI = window.EI || {};
     // progress: continue from the car's own track position, blending onto the lane mapping over the first 80 m
     const TL = race.track.length; let ws = car.trk.s - L.sCap; ws -= Math.round(ws / TL) * TL; const sU = L.sCap + ws;
     st.sOff = sU - sEqAt(d0); st.distBase = car.dist - sU;
-    const box = V ? V.boxes[EI.TEAMS.indexOf(car.team) % V.boxes.length] : { d: L.boxD[EI.TEAMS.indexOf(car.team) % 10], owner: null, queue: [] };
+    const ti = car.team.index != null ? car.team.index : Math.max(0, EI.TEAMS.indexOf(car.team)); const box = V ? V.boxes[ti % V.boxes.length] : { d: L.boxD[ti % L.boxD.length], owner: null, queue: [] };
     st.box = box; if (!box.owner) { box.owner = car; st.stopD = box.d; } else { box.queue.push(car); st.queued = true; st.stopD = box.d - QUEUE_GAP; }
     car.drsOpen = false; car.drsEligible = false; car.ersActive = false;
     if (car.isPlayer) uiFlash(car, 'PIT LANE', 'info');
