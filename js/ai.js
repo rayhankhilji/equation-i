@@ -32,6 +32,9 @@ window.EI = window.EI || {};
   // lap time a late braker gains over an early one on top of the profile (trail-braking carry, later lift: update()), per unit of
   // the braking trait, measured in the headless sim. The corner grip is solved against it so braking style never changes the pace.
   const K_BRAKE = { silverstone: 0.001, monaco: 0.002, abudhabi: 0.001 }, K_BRAKE_DEFAULT = 0.0015;
+  // the bots realise ~93% of the lap-time difference the profile predicts between two corner-grip scales (fit over 3 tracks x
+  // 7 levels x 22 drivers, residual ~0.1%), so the gap is asked for 1/0.93 larger to come out right on the stopwatch
+  const GAP_STRETCH = 1.075;
 
   // ---------------------------------------------------------------- personality
   // Every driver carries these twelve indices (0.01 .. 1.00), taken from the season data (EI.SEASON). lo / hi say what the ends mean.
@@ -291,7 +294,7 @@ window.EI = window.EI || {};
       P.carry = 1 + L(0.006, 0.022, T.braking);                               // trail-braking: speed carried towards the apex
       // (both the same on every level: the level's earlier braking is in d.brake, so the style costs the same everywhere)
       P.brakeGain = L(7, 5, T.braking);                                       // late brakers stamp on the pedal, early ones squeeze it
-      const kb = K_BRAKE[trackOf(this.track)]; this.cornerScale = gripFor(this.track, this.lapRatio * (1 + (kb != null ? kb : K_BRAKE_DEFAULT) * (T.braking - 0.5)), P.decel, DEC_REF);
+      const kb = K_BRAKE[trackOf(this.track)]; this.cornerScale = gripFor(this.track, (1 + d.lapLoss) * (1 + GAP_STRETCH * this.expGap) * (1 + (kb != null ? kb : K_BRAKE_DEFAULT) * (T.braking - 0.5)), P.decel, DEC_REF);
       this.prof = profileFor(this.track, P.decel, this.cornerScale);
       this.profDive = profileFor(this.track, Math.min(0.96, P.decel + L(0.0, 0.05, U.clamp((T.risk - 0.55) / 0.45, 0, 1))), this.cornerScale);
       // consistency and composure: lap-to-lap drift (narrower on the higher levels), steering noise, mistake rate, pressure

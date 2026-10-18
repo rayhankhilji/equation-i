@@ -355,7 +355,7 @@ window.EI = window.EI || {};
   if (typeof document === 'undefined') { EI.Replay = { attach() {}, detach() {}, onResults() {} }; return; }
   const R = {
     rec: null, host: null, playing: false, clips: [], ci: 0, pt: 0, paused: false, cam: null, focus: { x: 0, y: 0, z: 0 }, eye: { trk: { s: -1e9 } },
-    audio: { rpm: 0.2, thr: 0, vol: 0, gear: 1 }, spots: null, spotsFor: null, ui: null, autoT: -1, saved: null, shot: -1, cur: 0, fade: 0, pad: {},
+    audio: { rpm: 0.2, thr: 0, vol: 0, gear: 1 }, lights: 0, spots: null, spotsFor: null, ui: null, autoT: -1, saved: null, shot: -1, cur: 0, fade: 0, pad: {},
     get camera() { return this.cam; },
     bind(host) { this.host = host; },
     attach(race) {
@@ -403,6 +403,7 @@ window.EI = window.EI || {};
     stop(quiet) {
       if (!this.playing) return; this.playing = false; window.removeEventListener('keydown', this._key, true);
       const cars = this.rec ? this.rec.cars : []; if (this.saved) cars.forEach((c, j) => Object.assign(c, this.saved[j])); this.saved = null;
+      if (this.lights && this.rec && this.rec.track.setStartLights) this.rec.track.setStartLights(0); this.lights = 0;
       if (this.ui) this.ui.root.classList.add('hidden'); document.body.classList.remove('hl-on');
       if (this.host) this.host.exit(quiet);
       if (!quiet) { const r = document.getElementById('results'); if (r) r.classList.remove('hidden'); }
@@ -424,6 +425,7 @@ window.EI = window.EI || {};
       const step = this.paused ? 0 : dt * slow; this.pt += step;
       if (this.pt >= c.c1) { this.next(); if (!this.playing) return; return this.update(0); }
       this.pose(c.slot, this.pt, step);
+      const lights = c.type === 'start' && this.pt < c.ev.t ? 5 : 0; if (lights !== this.lights && this.rec.track.setStartLights) { this.lights = lights; this.rec.track.setStartLights(lights); }
       let si = 0; for (let k = 0; k < c.shots.length; k++) if (this.pt >= c.shots[k].t0) si = k;
       const snap = si !== this.shot; this.shot = si; shotCamera(this, c, c.shots[si], snap, dt);
       // caption in after a beat, progress bar, the dip to black between clips
@@ -566,16 +568,25 @@ window.EI = window.EI || {};
       _v.set(cs.lx, cs.ly, cs.lz); cam.up.set(0, 1, 0); cam.lookAt(_v);
       const d = Math.hypot(cs.lx - p.x, cs.ly - p.y, cs.lz - p.z); const W = 16 + sep * 1.2; const hf = 2 * Math.atan(W / 2 / Math.max(d, 1)); const vf = 2 * Math.atan(Math.tan(hf / 2) / aspect) * 180 / Math.PI;
       const fv = clamp(vf, 3.5, 50); cs.fov = snap ? fv : cs.fov + (fv - cs.fov) * (1 - Math.exp(-dt * 3)); cam.fov = cs.fov; camD = d;
-    } else if (sh.kind === 'heli' || sh.kind === 'grid') {
-      const street = !!(tr.data && tr.data.street); const grid = sh.kind === 'grid';
-      if (snap) { cs.ang = grid ? 0.55 : 0.75; cs.px = tx; cs.py = ty; cs.pz = tz; const i = tr.idxAtS(A.trk ? A.trk.s : 0); cs.yaw = Math.atan2(tr.tz[i], tr.tx[i]); if (grid) { const g0 = tr.gridSlot(0); cs.yaw = g0.heading; } }
-      const k = 1 - Math.exp(-dt * (grid ? 1.2 : 2.2)); cs.px += (tx - cs.px) * (snap ? 1 : k); cs.py += (ty - cs.py) * (snap ? 1 : k); cs.pz += (tz - cs.pz) * (snap ? 1 : k);
-      cs.ang += dt * (grid ? 0.03 : 0.07) * (P.paused ? 0 : 1);
-      const back = grid ? 34 : 34, up = grid ? 26 : street ? 62 : 34, side = grid ? 30 : 22; const ya = cs.yaw + (grid ? 0 : 0);
+    } else if (sh.kind === 'grid') {
+      // the start: high beside the track ahead of pole, looking back down the grid, then panning with the leader into turn 1
+      const g0 = tr.gridSlot(0), i = g0.i, side = -(tr.pitSideSign ? tr.pitSideSign() : -1), street = !!(tr.data && tr.data.street);
+      const wall = side < 0 ? tr.wallL[i] : tr.wallR[i]; const off = street ? wall + 0.5 : Math.min(wall + 4, tr.halfWidth + 16);
+      const j = tr.idxAtS(tr.s[i] + 70); cam.position.set(tr.x[j] + tr.nx[j] * side * off, tr.y[j] + (street ? 9 : 13), tr.z[j] + tr.nz[j] * side * off);
+      const gm = tr.gridSlot(Math.min(cars.length - 1, 7)); const u = U.smoothstep(c.ev.t + 0.5, c.ev.t + 4, P.pt);
+      const gx = U.lerp((g0.x + gm.x) / 2, ax + fx * 0.15 * A.v, u), gz = U.lerp((g0.z + gm.z) / 2, az + fz * 0.15 * A.v, u), gy = U.lerp(g0.y, ay, u) + 0.6;
+      const k = snap ? 1 : 1 - Math.exp(-dt * 5); cs.lx += (gx - cs.lx) * k; cs.ly += (gy - cs.ly) * k; cs.lz += (gz - cs.lz) * k;
+      _v.set(cs.lx, cs.ly, cs.lz); cam.up.set(0, 1, 0); cam.lookAt(_v); cam.fov = U.lerp(34, 22, u); camD = cam.position.distanceTo(_v);
+    } else if (sh.kind === 'heli') {
+      const street = !!(tr.data && tr.data.street);
+      if (snap) { cs.ang = 0.75; cs.px = tx; cs.py = ty; cs.pz = tz; const i = tr.idxAtS(A.trk ? A.trk.s : 0); cs.yaw = Math.atan2(tr.tz[i], tr.tx[i]); }
+      const k = 1 - Math.exp(-dt * 2.2); cs.px += (tx - cs.px) * (snap ? 1 : k); cs.py += (ty - cs.py) * (snap ? 1 : k); cs.pz += (tz - cs.pz) * (snap ? 1 : k);
+      cs.ang += dt * 0.07 * (P.paused ? 0 : 1);
+      const back = 34, up = street ? 62 : 34, side = 22; const ya = cs.yaw;
       const bx = Math.cos(ya), bz = Math.sin(ya); const lx = bz, lz = -bx; const ca = Math.cos(cs.ang), sa = Math.sin(cs.ang);
       const ox = -bx * back * ca + lx * side * sa * 1.6, oz = -bz * back * ca + lz * side * sa * 1.6;
-      cam.position.set(cs.px + ox, cs.py + up, cs.pz + oz); _v.set(cs.px + bx * (grid ? 25 : 6), cs.py + 0.5, cs.pz + bz * (grid ? 25 : 6)); cam.up.set(0, 1, 0); cam.lookAt(_v);
-      cam.fov = grid ? 42 : street ? 26 : 34; camD = Math.hypot(ox, up, oz);
+      cam.position.set(cs.px + ox, cs.py + up, cs.pz + oz); _v.set(cs.px + bx * 6, cs.py + 0.5, cs.pz + bz * 6); cam.up.set(0, 1, 0); cam.lookAt(_v);
+      cam.fov = street ? 26 : 34; camD = Math.hypot(ox, up, oz);
     } else if (sh.kind === 'onboard') {
       // T-cam above the airbox, looking down the road over the driver's helmet
       const g = A.gradeNow || 0; cam.position.set(ax - fx * 0.55, ay + 1.32, az - fz * 0.55); _v.set(ax + fx * 30, ay + 0.55 + g * 30, az + fz * 30); cam.up.set(0, 1, 0); cam.lookAt(_v); cam.fov = 58; camD = 1.5;
