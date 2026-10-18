@@ -646,8 +646,8 @@ window.EI = window.EI || {};
       for (let x = -hw + 2; x < hw; x += 3) { H.box(m, 0.14, 3.4, 0.14, x, 4.5, -10.55, white); H.box(m, 0.14, 2.9, 0.14, x, 0.5, -11.08, C(0xc9ced2)); if (Math.abs(x) < hw - 5) H.box(m, 0.14, 3.2, 0.14, x, 8.4, -5.55, white); }
       // the canopy: eight peaked membranes in a row, each rising to a crown at the mast line, the front edge scalloped between masts
       const nM = 8, mw = (Wl + 4) / nM, x0 = -(Wl + 4) / 2, zf = -15.2, zr = 9.5, NX = 6, NZ = 4;
-      const cy = (x, z) => { const u = ((x - x0) / mw) % 1, w = Math.abs(u - 0.5) * 2; const vz = (z - zf) / (zr - zf); const crown = 1 - Math.pow(1 - w, 1.6);
-        return 12.4 + 2.6 * crown * (1 - 0.35 * vz) + 0.9 * Math.sin(Math.PI * vz) * (1 - crown * 0.6) - 1.2 * (1 - crown) * (1 - Math.sin(Math.PI * vz)); };
+      const cy = (x, z) => { const u = U.mod((x - x0) / mw, 1), w = Math.min(1, Math.abs(u - 0.5) * 2); const vz = (z - zf) / (zr - zf); const crown = 1 - Math.pow(1 - w, 1.6);
+        return 12.9 + 2.6 * crown * (1 - 0.35 * vz) + 0.9 * Math.sin(Math.PI * vz) * (1 - crown * 0.6) - 1.2 * (1 - crown) * (1 - Math.sin(Math.PI * vz)); };
       for (let k = 0; k < nM; k++) for (let i = 0; i < NX; i++) for (let j = 0; j < NZ; j++) {
         const xa = x0 + (k + i / NX) * mw, xb = x0 + (k + (i + 1) / NX) * mw - (i === NX - 1 ? 0.001 : 0), za = zf + (zr - zf) * j / NZ, zb = zf + (zr - zf) * (j + 1) / NZ;
         const q = [P(xa, cy(xa, za), za), P(xb, cy(xb, za), za), P(xb, cy(xb, zb), zb), P(xa, cy(xa, zb), zb)]; H.quad(q[3], q[2], q[1], q[0], memb); H.quad(q[0], q[1], q[2], q[3], membU);

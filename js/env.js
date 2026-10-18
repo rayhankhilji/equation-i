@@ -887,6 +887,37 @@ window.EI = window.EI || {};
       ctx.fillStyle = 'rgb(138,135,128)'; for (const h of E.hosp || []) { ctx.save(); ctx.translate(h.cx, h.cz); ctx.rotate(Math.atan2(h.tz, h.tx)); ctx.fillRect(-h.L / 2 - 5, -h.D / 2 - 5, h.L + 10, h.D + 10); ctx.restore(); }
     };
   };
+  // street lights along Yas's service and public roads, so the land beyond the fences reads at night instead of a black void
+  // (b_outward): a 10 m galvanised pole every ~36 m, the arm over the carriageway, sides alternating; twin arms on the central
+  // reservation of the dual carriageways. Night: a lamp glow and a small warm pool in the light map. Poles go to the clutter layer
+  Ctx.prototype.desertLights = function () {
+    const E = this, night = !!(EI.Night && EI.Night.on); const B = new Env.Builder(), I4 = new THREE.Matrix4();
+    const pc = new THREE.Color(0x8c9096).convertSRGBToLinear(), hc = new THREE.Color(0x3c3f44).convertSRGBToLinear();
+    const LIM = 1750, H = 10, SP = 36, LC = [1.0, 0.86, 0.66]; let n = 0;
+    const pole = (x, z, arms) => {
+      const y = E.ground(x, z); B.beam(I4, [x, y - 0.2, z], [x, y + H, z], 0.16, pc);
+      for (const [ax, az] of arms) {
+        const hx = x + ax * 2.2, hz = z + az * 2.2; B.beam(I4, [x, y + H - 0.4, z], [hx, y + H, hz], 0.07, pc); B.box(I4, 0.8, 0.14, 0.8, hx, y + H - 0.12, hz, hc);
+        if (night) { EI.Night.addGlow(hx, y + H - 0.2, hz, 1.5, LC); EI.Night.addFlood(hx, y + H, hz, { power: 0.06, range: 30, color: LC }); }
+      }
+      n++;
+    };
+    for (const r of E.roads || []) {
+      if (r.w < 6) continue; const L = r.line; const wide = r.w >= 14; let next = SP * 0.5, side = 1;
+      for (let i = 0; i + 1 < L.length; i++) {
+        const a = L[i], b = L[i + 1]; const d = Math.hypot(b[0] - a[0], b[1] - a[1]); if (d < 0.01) continue;
+        const tx = (b[0] - a[0]) / d, tz = (b[1] - a[1]) / d, nx = -tz, nz = tx;
+        for (; next < d; next += SP) {
+          side = -side; const off = wide ? 0 : r.w / 2 + 1.2; const x = a[0] + tx * next + nx * side * off, z = a[1] + tz * next + nz * side * off;
+          if (Math.abs(x) > LIM || Math.abs(z) > LIM) continue; const f = E.fAt(x, z); if (f < 14 || f > 1400) continue;
+          if (E.occAt(x, z) & (OCC.BUILT | OCC.WATER)) continue;
+          pole(x, z, wide ? [[nx, nz], [-nx, -nz]] : [[-nx * side, -nz * side]]);
+        }
+        next -= d;
+      }
+    }
+    if (B.count) this.sc.statics.add(B.geometry(), 0.5, 0.6, 'clutter'); this.stats.streetLights = n;
+  };
   // street circuit ground colour (sRGB): built-up city, Mediterranean scrub (garrigue), umbrella-pine woods and the grey limestone
   // of the steep faces and the high ground; the harbour floor under the water
   const SPAL = { city: [112, 108, 102], cityDark: [90, 88, 84], scrub: [80, 82, 66], scrubDark: [52, 58, 45], dry: [120, 112, 94], pine: [38, 46, 34], rock: [128, 123, 112], rockDark: [86, 82, 74], high: [98, 98, 82], garden: [58, 66, 48], gardenDry: [90, 90, 72], sea: [70, 78, 76] };

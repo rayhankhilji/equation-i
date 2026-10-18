@@ -250,6 +250,7 @@ window.EI = window.EI || {};
     const MED = { pine: SP.UMBRELLA, palm: SP.PALM, cypress: SP.CYPRESS, oleander: SP.OLEANDER, cactus: SP.CYPRESS, shrub: SP.SHRUB, oak: SP.OAK };
     const medSize = (sp) => sp === SP.UMBRELLA ? [11 + rng() * 6, 12 + rng() * 5] : sp === SP.PALM ? [6 + rng() * 2.5, 10 + rng() * 6] : sp === SP.CYPRESS ? [2.6 + rng() * 1, 10 + rng() * 5] : [6 + rng() * 3, 8 + rng() * 4];
     if (street) for (const [x, z] of t.data.scenery.trees || []) { if (!ok(x, z, 2.5)) continue; const nm = SK ? EI.StreetKit.treeSpecies(E, x, z) : null; const sp = nm ? MED[nm] : SP.OAK; if (sp === SP.OAK) add(x, z, SP.OAK, 6 + rng() * 3, 8 + rng() * 4); else { const [w, h] = medSize(sp); add(x, z, sp, w, h); } }
+    if (desert && E.desertLights) E.desertLights();
     if (desert) for (const [x, z, nm, w, h] of Veg.desertTrees(E, rng)) { const sp = MED[nm]; if (sp == null) continue; if (!ok(x, z, 2)) continue; add(x, z, sp, w, h); }
     if (SK) for (const [x, z, nm, w, h] of EI.StreetKit.trees(E)) { const sp = MED[nm]; if (sp == null) continue; add(x, z, sp, nm === 'cactus' ? 1.8 : w, nm === 'cactus' ? 3 : h, null, nm === 'cactus' ? 1.25 : null); }
     // ---- copses in a few far fields

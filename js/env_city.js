@@ -904,7 +904,10 @@ window.EI = window.EI || {};
     H = Math.min(H, Math.max(9, Math.sqrt(area) * 5.5)); if (area < 90) H = Math.min(H, 3.5 + Math.sqrt(area) * 0.9);   // kiosks, pavilions, monuments stay low
     if (minW && minW < 5) H = Math.min(H, Math.max(4, minW * 2.6));   // slivers (walls, arcades, passages) too
     const nf = Math.max(0, Math.round((H - S.gh) / S.fh)); H = S.gh + nf * S.fh;
-    const tint = albert ? C(pick([0xead3a2, 0xe5cb96, 0xefdcb4, 0xe2c48f, 0xf1e2c0], h2)) : soften(C(pick(TINTS[style] || TINTS.plain, h2)), 0.3), acc = C(pick(ACCS[style] || ACCS.plain, h5));
+    // the pink / peach blocks at Portier and the ochre-pink row of the Quai Antoine Ier above Rascasse
+    const mc = T.data.id === 'monaco' && pa.dist < 90 && (style === 'riviera' || style === 'belle' || style === 'villa');
+    const pinkP = mc && pa.s > 1330 && pa.s < 1470, pinkR = mc && pa.s > 2770 && pa.s < 2960;
+    const tint = albert ? C(pick([0xead3a2, 0xe5cb96, 0xefdcb4, 0xe2c48f, 0xf1e2c0], h2)) : pinkP ? C(pick([0xebbaa6, 0xf0c6b2, 0xe6ab96, 0xf2d2c0], h2)) : pinkR ? C(pick([0xe6a88e, 0xe3b480, 0xeec29c, 0xdc9c84, 0xe8b896], h2)) : soften(C(pick(TINTS[style] || TINTS.plain, h2)), 0.3), acc = C(pick(ACCS[style] || ACCS.plain, h5));
     let roof = S.roof; if (b.roof === 1) roof = 'flat'; else if (b.roof === 2) roof = 'hip'; if (roof === 'mansard' && (area < 160 || nf < 3)) roof = 'flat'; if (roof === 'hip' && area > (zone === 'rocher' ? 2600 : 900)) roof = 'flat'; if (zone === 'rocher' && roof === 'flat' && area < 2600 && b.roof !== 1 && h6 < 0.8) roof = 'hip'; if (style === 'villa' && h3 < 0.35 && area > 200) roof = 'flat';
     if (style === 'riviera' && nf <= 4 && area < 500 && h6 < 0.35) roof = 'hip';
     const roofTint = roof === 'flat' ? C(pick(FLATT, h3)) : roof === 'mansard' ? C(0x8e969c) : soften(C(pick(ROOFT, h3)), 0.22);
@@ -1357,6 +1360,22 @@ window.EI = window.EI || {};
       const i0 = t.idxAtS(790); const np = nearestOn(hdp, t.x[i0], t.z[i0]); let dx = c[0] - np[0], dz = c[1] - np[1]; const l = Math.hypot(dx, dz) || 1; const dcx = np[0] + dx / l * 9, dcz = np[1] + dz / l * 9;
       // the rotunda only where its whole drum stands on the hotel's roof
       let rr = 8.6; while (rr > 4 && ![0, 1, 2, 3, 4, 5, 6, 7].every(k => pip(dcx + Math.cos(k * 0.785) * rr, dcz + Math.sin(k * 0.785) * rr, hdp))) rr -= 0.8;
+      // the entrance on the square: the black glass marquise over the steps, flanked by two red marble columns (where it clears the circuit)
+      if (D.lv && E.cityZones) {
+        const Zc = E.cityZones.casino, ep = nearestOn(hdp, Zc[0], Zc[1]); let ex = Zc[0] - ep[0], ez = Zc[1] - ep[1]; const el = Math.hypot(ex, ez) || 1; ex /= el; ez /= el; const yG = D.lv.yG;
+        let dep = 4.6; while (dep > 2.2 && !(clear(E, ep[0] + ex * dep - ez * 4.6, ep[1] + ez * dep + ex * 4.6, 0.6) && clear(E, ep[0] + ex * dep + ez * 4.6, ep[1] + ez * dep - ex * 4.6, 0.6))) dep -= 0.4;
+        if (dep > 2.2) {
+          G.at(ep[0], ep[1], 'D', 0); const mx = ep[0] + ex * dep / 2, mz = ep[1] + ez * dep / 2;
+          G.box(mx, mz, -ez, ex, 4.6, dep / 2, yG + 4.5, yG + 4.75, C(0x1e2328), cell('marquise'), cell('marquise'), 2, 0.3, C(0x3a4148));
+          G.box(mx, mz, -ez, ex, 4.7, dep / 2 + 0.08, yG + 4.75, yG + 4.95, C(0x2a2c2e), cell('plain'), null, 3, 1);
+          for (const sg of [-1, 1]) {
+            const cx = ep[0] + ex * (dep - 0.5) - ez * sg * 3.9, cz = ep[1] + ez * (dep - 0.5) + ex * sg * 3.9; G.box(cx, cz, 1, 0, 0.07, 0.07, yG, yG + 4.5, C(0x22252a), cell('plain'), null, 1, 1);
+            const px = ep[0] + ex * 0.7 - ez * sg * 2.2, pz = ep[1] + ez * 0.7 + ex * sg * 2.2;
+            G.lathe(px, pz, [[0.55, yG], [0.55, yG + 0.6], [0.4, yG + 0.75], [0.36, yG + 5.4], [0.55, yG + 5.8], [0.62, yG + 6.1]], 10, C(0xa8443a), cell('conc'), 1);
+          }
+          G.box(ep[0] + ex * 1.2, ep[1] + ez * 1.2, -ez, ex, 3.4, 1.2, yG - 0.2, yG + 0.45, STONE_TRIM, cell('slab'), cell('slab'), 3, 1);
+        }
+      }
       if (rr > 4) for (const kind of ['D', 'P']) { const sg = kind === 'D' ? 16 : 8; G.at(dcx, dcz, kind, 0); G.lathe(dcx, dcz, [[rr, D.yR], [rr, D.yR + 3.4]], sg, D.tint, cell('be_top'), 1); G.lathe(dcx, dcz, domeProfile(rr, rr * 0.75, D.yR + 3.4, kind === 'D' ? 7 : 3), sg, C(0x7d8288), cell('zinc'), 1); G.lathe(dcx, dcz, [[1.2, D.yR + 3.3 + rr * 0.75], [1.2, D.yR + 5 + rr * 0.75], [0.05, D.yR + 6.5 + rr * 0.75]], 8, C(0x9a9890), cell('zinc'), 1); }
     }
     // ---- the Cafe de Paris: two storeys of arcades and awnings, a roof terrace

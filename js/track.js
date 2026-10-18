@@ -273,14 +273,18 @@ window.EI = window.EI || {};
   }
   function canvasTex(c, wrap) { const t = new THREE.CanvasTexture(c); if (wrap) t.wrapS = t.wrapT = THREE.RepeatWrapping; t.anisotropy = 8; return t; }
   // kerb: x = across (0 at the track edge), y = along; one tile = one red + one white block with slanted (sawtooth) joints
+  // style 'yas': Yas Marina's flat kerbs (a20-a23), a white band with inset orange-red blocks, one tile = one block + gap (7.2 m)
   function kerbTexture(style) {
     const W = 256, H = 512; const c = document.createElement('canvas'); c.width = W; c.height = H; const ctx = c.getContext('2d');
     ctx.fillStyle = style === 'street' ? '#e4e0d8' : '#ece9e1'; ctx.fillRect(0, 0, W, H);
+    if (style === 'yas') { ctx.fillStyle = '#c8321f'; ctx.fillRect(W * 0.11, 0, W * 0.78, H * 0.62); }
+    else {
     const slant = style === 'street' ? 0 : H * 0.07; const joint = (y0) => [[0, y0 - slant], [W, y0 + slant]];
     ctx.fillStyle = style === 'street' ? '#b0242a' : '#c8141e';
     for (const off of [-H, 0, H]) { const a = joint(off), b = joint(off + H / 2); ctx.beginPath(); ctx.moveTo(a[0][0], a[0][1]); ctx.lineTo(a[1][0], a[1][1]); ctx.lineTo(b[1][0], b[1][1]); ctx.lineTo(b[0][0], b[0][1]); ctx.closePath(); ctx.fill(); }
     ctx.strokeStyle = 'rgba(25,10,10,0.55)'; ctx.lineWidth = 3;
     for (const off of [-H, -H / 2, 0, H / 2, H]) { const a = joint(off); ctx.beginPath(); ctx.moveTo(a[0][0], a[0][1]); ctx.lineTo(a[1][0], a[1][1]); ctx.stroke(); }
+    }
     const r = U.rng(8);
     // rubber smudges where tyres ride the kerb (inner half), grit and paint chips
     for (let i = 0; i < 260; i++) { const x = Math.pow(r(), 1.8) * W * 0.75, y = r() * H; ctx.fillStyle = 'rgba(20,20,22,' + (0.03 + r() * 0.08).toFixed(3) + ')'; ctx.beginPath(); ctx.ellipse(x, y, 3 + r() * 10, 8 + r() * 30, 0, 0, 6.283); ctx.fill(); }
@@ -309,8 +313,11 @@ window.EI = window.EI || {};
     weather(ctx, 1024, 512, 91, 26000, 1024, 0);
     const q = 21; for (let i = 0; i < 48; i++) for (let j = 0; j < 4; j++) { ctx.fillStyle = (i + j) % 2 ? '#e9e8e3' : '#151517'; ctx.fillRect(1032 + i * q, 560 + j * q, q, q); }
     ctx.fillStyle = '#ecebe6'; ctx.fillRect(1032, 680, 64, 64);
+    // infield patch (Yas's hairpin pocket, u5): Lumi plum ground, cream rim, the reversed Lumi lock-up
+    { const L = EI.Ads.LUMI; ctx.fillStyle = L.plum; ctx.fillRect(1104, 700, 940, 316); ctx.strokeStyle = L.bg; ctx.lineWidth = 10; ctx.strokeRect(1116, 712, 916, 292);
+      EI.Ads.lockupCentered(ctx, 'lumi', 1574, 858, 180, 760, L.bg); weather(ctx, 940, 316, 23, 5000, 1104, 700); }
     const tex = U.srgb(canvasTex(c)); tex.wrapS = tex.wrapT = THREE.ClampToEdgeWrapping;
-    return { tex, grid: atlasRect(W, H, 0, 0, 1024, 1024), logos: atlasRect(W, H, 1024, 0, 1024, 512), cheq: atlasRect(W, H, 1032, 560, 48 * q, 4 * q), white: atlasRect(W, H, 1032, 680, 64, 64) };
+    return { tex, grid: atlasRect(W, H, 0, 0, 1024, 1024), logos: atlasRect(W, H, 1024, 0, 1024, 512), cheq: atlasRect(W, H, 1032, 560, 48 * q, 4 * q), white: atlasRect(W, H, 1032, 680, 64, 64), patch: atlasRect(W, H, 1104, 700, 940, 316) };
   }
 
   class Track {
@@ -619,13 +626,13 @@ window.EI = window.EI || {};
       const aMesh = new THREE.Mesh(aGeo, aMat); aMesh.receiveShadow = true; aMesh.name = 'asphalt'; g.add(aMesh);
 
       // ------------------------------------------------ kerbs: bevelled profile (rise, top, fall), sawtooth red/white tiled by arc length
-      const kerbTex = kerbTexture(this.data.street ? 'street' : null);
+      const KS = this.data.kerbStyle; const kerbTex = kerbTexture(this.data.street ? 'street' : KS); const kerbTile = KS === 'yas' ? 7.2 : 2.4;
       const kerbMat = new THREE.MeshStandardMaterial({ map: kerbTex, vertexColors: true, roughness: 0.48, metalness: 0, normalMap: T.runoff.normalMap, normalScale: new THREE.Vector2(0.25, 0.25) });
       const ramp = new Float32Array(n); { const a = new Float32Array(n), b = new Float32Array(n);
         for (let k = 0; k < 2 * n; k++) { const i = k % n, p = (i + n - 1) % n; a[i] = kerbMask(p) ? a[p] + 1 : 0; }
         for (let k = 2 * n; k >= 0; k--) { const i = k % n, q = (i + 1) % n; b[i] = kerbMask(i) ? b[q] + 1 : 0; }
         for (let i = 0; i < n; i++) ramp[i] = U.clamp(Math.min(a[i], b[i]) * ds / 3.0, 0, 1); }
-      const prof = this.data.street ? [[0, 0.004], [0.1, 0.026], [kw - 0.1, 0.03], [kw, 0.006]] : [[0, 0.004], [0.3, 0.068], [kw - 0.32, 0.074], [kw, 0.0]];
+      const prof = this.data.street || KS === 'yas' ? [[0, 0.004], [0.1, 0.026], [kw - 0.1, 0.03], [kw, 0.006]] : [[0, 0.004], [0.3, 0.068], [kw - 0.32, 0.074], [kw, 0.0]];
       const kerbTone = new Float32Array(n); for (let i = 0; i < n; i++) kerbTone[i] = 0.82 + 0.18 * U.noise2(i * 0.11, 4.2);
       for (const side of [-1, 1]) {
         // stripes advance with the arc length at the kerb's middle so they never stretch on the outside of a corner
@@ -637,7 +644,7 @@ window.EI = window.EI || {};
             mask: kerbMask, normals: 'compute',
             lat: (ii, c) => side * (hw + (c ? p1[0] : p0[0])),
             y: (ii, c) => (c ? p1[1] : p0[1]) * (0.15 + 0.85 * ramp[ii]),
-            uv: (ii, c, l, i) => [(c ? p1[0] : p0[0]) / kw, (i === n ? arc[n] : arc[ii]) / 2.4],
+            uv: (ii, c, l, i) => [(c ? p1[0] : p0[0]) / kw, (i === n ? arc[n] : arc[ii]) / kerbTile],
             attrs: { color: [3, (ii, c) => { const t = kerbTone[ii] * (c === 0 && pIdx === 0 ? 0.9 : 1); return [t, t, t]; }] },
           });
           const m = new THREE.Mesh(geo, kerbMat); m.receiveShadow = true; m.castShadow = pIdx === 1; m.name = 'kerb'; g.add(m);
@@ -678,11 +685,11 @@ window.EI = window.EI || {};
     // vTrk3.z distance from the edge where the turquoise strip by the wall starts): the apron between runs dark grey
     if (vTrk3.x > 0.001) {
       float rE = rAl - eiHW; vec3 rDark = rBase * 0.66;
-      float rwIn = smoothstep(0.18 - rAA, 0.18 + rAA, rE) * (1.0 - smoothstep(1.55 - rAA, 1.55 + rAA, rE));
-      float rwRim = smoothstep(1.55 - rAA, 1.55 + rAA, rE) * (1.0 - smoothstep(1.75 - rAA, 1.75 + rAA, rE));
-      float rBlk = step(0.5, fract(rS / 5.0));
-      vec3 rRW = mix(vec3(0.56, 0.035, 0.045), vec3(0.74, 0.74, 0.72), rBlk) * (0.88 + 0.2 * rM1.g);
-      vec3 rSC = mix(mix(rDark, rRW, rwIn), vec3(0.74, 0.74, 0.72), rwRim);
+      // the corners' kerb pattern (kerbTexture 'yas'): white band, inset orange-red blocks 4.5 m long every 7.2 m
+      float rwIn = smoothstep(0.15 - rAA, 0.15 + rAA, rE) * (1.0 - smoothstep(1.75 - rAA, 1.75 + rAA, rE));
+      float rRed = smoothstep(0.33 - rAA, 0.33 + rAA, rE) * (1.0 - smoothstep(1.57 - rAA, 1.57 + rAA, rE)) * step(fract(rS / 7.2), 0.62);
+      vec3 rRW = mix(vec3(0.74, 0.74, 0.72), vec3(0.58, 0.032, 0.014), rRed) * (0.88 + 0.2 * rM1.g);
+      vec3 rSC = mix(rDark, rRW, rwIn);
       float brIn = smoothstep(2.3 - rAA, 2.3 + rAA, rE) * (1.0 - smoothstep(4.1 - rAA, 4.1 + rAA, rE)) * vTrk3.y;
       float rTx = texture2D(eiBrand, vec2(rS / 16.0 * vTrk3.w, clamp((rE - 2.3) / 1.8, 0.0, 1.0))).r * brIn;
       rSC = mix(mix(rSC, vec3(0.04, 0.045, 0.05), brIn), vec3(0.78, 0.78, 0.76), rTx);
@@ -858,6 +865,29 @@ window.EI = window.EI || {};
         if (best >= 0) place(best, bside, slot, len);
       }
       if (lb.idx.length) { const lm = Track.batchMesh(lb, mat); lm.name = 'runoffLogos'; lm.userData.decor = true; g.add(lm); }
+      // the painted partner patch in a hairpin pocket (data.infieldLogo: { corner, len }), as at Yas's Turn 5 (u5): placed as close to the
+      // apex as clears the run-off of both legs (full size first), text reading from behind the apex, draped on the ground; kept on low quality
+      const ip = this.data.infieldLogo, ipc = ip && this.data.corners.find(cc => cc.name === ip.corner);
+      if (ipc) {
+        let ia = -1, km = 0; for (let s = ipc.s - 40; s < ipc.s + 200; s += 2) { const i = this.idxAtS(U.mod(s, L)); if (Math.abs(this.kFold[i]) > km) { km = Math.abs(this.kFold[i]); ia = i; } }
+        const sd = this.kFold[ia] > 0 ? 1 : -1, fx = this.nx[ia] * sd, fz = this.nz[ia] * sd, rx = -fz, rz = fx; const pr = {};
+        const clear = (x, z) => { const p = this.project(x, z, null, pr); const o = p.lat < 0 ? this.runoffOuterL[p.i] : this.runoffOuterR[p.i]; return p.dist > Math.max(o, hw + kw + 3) + 1.5; };
+        let fit = null;
+        for (let len = ip.len || 30; len >= 16 && !fit; len -= 2) for (let D = hw + 8; D < 70 && !fit; D += 2) {
+          const wd = len * 316 / 940, cx = this.x[ia] + fx * D, cz = this.z[ia] + fz * D; let ok = true;
+          for (const a of [-0.5, 0, 0.5]) for (const q of [-0.5, 0.5]) if (ok && !clear(cx + rx * a * len + fx * q * wd, cz + rz * a * len + fz * q * wd)) ok = false;
+          if (ok) fit = { cx, cz, len, wd };
+        }
+        if (fit) {
+          const pb = { pos: [], uv: [], idx: [] }, NA = 10, NB = 4, sc = this.scenery;
+          for (let j = 0; j <= NB; j++) for (let k = 0; k <= NA; k++) {
+            const a = (k / NA - 0.5) * fit.len, q = (j / NB - 0.5) * fit.wd, x = fit.cx + rx * a + fx * q, z = fit.cz + rz * a + fz * q;
+            pb.pos.push(x, (sc && sc.height ? sc.height(x, z) : this.y[ia]) + 0.04, z); const t = A.patch(k / NA, j / NB); pb.uv.push(t[0], t[1]);
+            if (j && k) { const v = j * (NA + 1) + k; pb.idx.push(v - NA - 2, v - NA - 1, v - 1, v - NA - 1, v, v - 1); }
+          }
+          const pm = Track.batchMesh(pb, mat); pm.name = 'infieldLogo'; g.add(pm);
+        }
+      }
     }
 
     // wall panel artwork: the partners' boards; Yas Marina's walls carry black boards with the white lock-ups and URLs (u3 / u4)

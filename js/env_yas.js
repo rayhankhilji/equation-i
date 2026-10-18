@@ -203,7 +203,8 @@ window.EI = window.EI || {};
     const wings = [];
     for (const p of parts) {
       const y0 = ground(p.p);
-      if (p.h <= 12) { B.set(R.stone, 0.75, 0); prism(B, p.p, y0, y0 + p.h, white, 16, 8, C(0xd6d2c8), 'white'); continue; }
+      // the low podium along the track (u1): warm-lit restaurant glazing under a white canopy band
+      if (p.h <= 12) { const hg = Math.max(3.5, p.h - 1.4); B.set(TX().hosp, 0.12, 0.35, night ? 1.1 : 0); prism(B, p.p, y0, y0 + hg, white, 12, 13.5); B.set(R.stone, 0.75, 0); prism(B, p.p, y0 + hg, y0 + p.h, white, 16, 8, C(0xd6d2c8), 'white'); continue; }
       // the OSM height is the gridshell's crest: the glass blocks under it stop ~12 m lower (u1: two podium floors + ~8 room floors)
       const hb = Math.max(22, p.h - 12); wings.push({ p: p.p, h: hb, y0 });
       // track-level podium: two floors of warm-lit restaurant / lounge glazing (u1)
@@ -244,11 +245,11 @@ window.EI = window.EI || {};
     const yBase = Math.min(...wings.map(w => w.y0));
     // crest a few metres over the roofs (inverse-distance blend between the wings), dipping where it bridges the gap between them
     const topAt = (x, z) => { let sw = 0, sh = 0, dm = Infinity; for (const w of wings) { const d = U.pointInPoly(x, z, w.p) ? 0 : polyDist(x, z, w.p); dm = Math.min(dm, d); const k = 1 / Math.pow(d + 6, 2.2); sw += k; sh += k * (w.y0 + w.h + 8); } return sh / sw - 7 * U.smoothstep(PAD, PAD + 14, dm); };
-    // the ribbon: a hem 15 m up (24 m over the track), rising steeply to hug the walls, a long gentle wave along its length,
+    // the ribbon: a hem 19 m up (24 m over the track), rising steeply to hug the walls, a long gentle wave along its length,
     // the ends sweeping down to the ground
     const yFn = (u, v, din) => {
       const [x, z] = toW(u, v); const overTrack = !offTrack(x, z, 4); const te = tailE(x, z); const f = te == null ? 0 : U.smoothstep(0, 1, te);
-      const hem = yBase + (overTrack ? 24 : 15) * (1 - f) + 3.5 * f, top = topAt(x, z) * (1 - f) + (yBase + 7) * f;
+      const hem = yBase + (overTrack ? 24 : 19) * (1 - f) + 3.5 * f, top = topAt(x, z) * (1 - f) + (yBase + 7) * f;
       // a rounded shoulder that crests 6 m inside the walls, a low dome across the top and a long wave along the ribbon
       const k = Math.pow(Math.sin(Math.PI / 2 * Math.min(1, din / (PAD + 6))), 0.6), dome = 4 * U.smoothstep(PAD + 6, PAD + 26, din);
       return hem + (top + dome - hem) * k + (Math.sin(u / 47 + 0.6) * 3.5 + Math.sin(v / 23 - u / 53) * 0.8) * k * (1 - f);

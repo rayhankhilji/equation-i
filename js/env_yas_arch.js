@@ -281,7 +281,7 @@ window.EI = window.EI || {};
     const yAt = (z) => yF + (yB - yF) * (z - zF) / (zB - zF); const D = zB - zF, th = 0.45;
     B.set(Rr.soffit, 0.6, 0.3, night ? 1.6 : 0);
     qW(B, Q(x0, yF, zF), Q(x1, yF, zF), Q(x1, yB, zB), Q(x0, yB, zB), C(0xffffff), [x0 / 12, 0, x1 / 12, 0, x1 / 12, D / 6, x0 / 12, D / 6], [0, -1, 0]);
-    B.set('white', 0.45, 0.35, 0); qW(B, Q(x0, yF + th, zF), Q(x1, yF + th, zF), Q(x1, yB + th, zB), Q(x0, yB + th, zB), C(0xd3d7db), null, [0, 1, 0]);
+    B.set(TX.clad, 0.45, 0.35, 0); qW(B, Q(x0, yF + th, zF), Q(x1, yF + th, zF), Q(x1, yB + th, zB), Q(x0, yB + th, zB), C(0xc4c9ce), [x0 / 6, 0, x1 / 6, 0, x1 / 6, D / 4, x0 / 6, D / 4], [0, 1, 0]);
     // fascia (front), back edge, ends
     const fas = C(0x1f2328);
     B.set('white', 0.5, 0.5, 0); qW(B, Q(x0, yF - 0.75, zF), Q(x1, yF - 0.75, zF), Q(x1, yF + th + 0.1, zF), Q(x0, yF + th + 0.1, zF), fas, null, [-wz[0], 0, -wz[2]]);
@@ -352,7 +352,7 @@ window.EI = window.EI || {};
     // stair towers at the two ends (the venue's boxes, clad)
     for (const b of [byIdx[0], byIdx[K - 1]]) { if (!b) continue; const m = EI.Env.frame(b.cx, b.y, b.cz, b.ax, b.az, b.nx, b.nz), hl = b.len / 2; if (b.first) cladTower(B, m, -hl - 1.9, zBack - 2.0, yTop, -1); if (b.last) cladTower(B, m, hl + 1.9, zBack - 2.0, yTop, 1); }
     // ---- the roof
-    const zF = -4.6, zB = zBack + 1.6, yB = yTop + 2.8, yF = yB + 4.2, Pk = 5.6, sagY = 1.3, valley = 0.8;
+    const zF = -4.6, zB = zBack + 1.6, yB = yTop + 2.8, yF = yB + 4.0, Pk = 7.4, sagY = 1.3, valley = 0.9;
     const nm = Math.max(1, Math.round(Lt / 15)), w = Lt / nm, D = zB - zF, scal = Math.min(D * 0.14, w * 0.2);
     const NU = 12, NV = 8, cable = C(0xaab1b8), white = C(0xf6f6f3);
     const pt = (a0, u, v) => {
@@ -362,7 +362,7 @@ window.EI = window.EI || {};
       y -= sagY * e4 * (1 - v) * (1 - v);
       y -= valley * (1 - e4) * 4 * v * (1 - v);
       const du = (u - 0.5) / 0.5, dv = (v - 0.45) / 0.55; const d = Math.min(1, Math.sqrt(du * du * 0.9 + dv * dv));
-      y += Pk * Math.pow(1 - d, 1.9);
+      y += Pk * Math.pow(1 - d, 2.1);
       return map(a0 + w * u, y, z);
     };
     for (let k = 0; k < nm; k++) {
