@@ -194,7 +194,7 @@
     moetchandon: { n: 'Moët & Chandon', board: { bg: '#111111', tone: 'white' } },
     liquimoly: { n: 'Liqui Moly', board: { bg: '#ffffff', tone: 'color' } },
     globant: { n: 'Globant', board: { bg: '#ffffff', tone: 'color' } },
-    etihadairways: { n: 'Etihad Airways', board: { bg: '#2b2522', tone: 'color' } },
+    etihadairways: { n: 'Etihad Airways', board: { bg: '#f6f1e7', tone: 'color' } },
     // team partners on the cars (season2026.json teams[].partners); the board entries double as their plate colours
     petronas: { n: 'PETRONAS', board: { bg: '#00a19c', tone: 'white' } }, microsoft: { n: 'Microsoft' }, crowdstrike: { n: 'CrowdStrike' }, ineos: { n: 'INEOS', word: W_(SANS, 900, { up: 1, ls: 0.04 }) },
     snapdragon: { n: 'Snapdragon', word: W_(SANS, 700, { ls: -0.01 }) }, adidas: { n: 'adidas' }, teamviewer: { n: 'TeamViewer', word: W_(SANS, 700) }, ubs: { n: 'UBS', word: W_('Georgia, serif', 700, { up: 1, ls: 0.05 }) },
@@ -376,7 +376,8 @@
   function intakeFrame(ctx, w, h, bg) { ctx.fillStyle = bg; ctx.fillRect(0, 0, w, h); if (bg === INTAKE.bg) dots(ctx, 0, 0, w, h, 'rgba(43,33,28,0.10)', h * 0.16); }
   // shared two-row layout: o = { logo: 'lumi' | 'intake' | 'lumiMark' | 'intakeMark', logoCol, head: parts, headFont, sub: [text, col] (replaces the URL pill), pill: [text, bg, fg, font, weight] }
   function rows(ctx, w, h, o) {
-    const m = h * 0.1, top = h * 0.1, lh = h * 0.26;
+    // safe margins: at least 16 % of the height or 4.5 % of the width on each side (nothing runs to a board edge)
+    const m = Math.max(h * 0.16, w * 0.045), top = h * 0.1, lh = h * 0.26;
     if (o.logo === 'lumi') Ads.lumiLogo(ctx, m, top, lh, o.logoCol); else if (o.logo === 'intake') Ads.intakeLogo(ctx, m, top, lh, o.logoCol, null, o.rev);
     else if (o.logo === 'lumiMark') Ads.lumiMark(ctx, m, top, lh); else Ads.intakeMark(ctx, m, top, lh);
     if (o.pill) pill(ctx, w - m, top - h * 0.02, lh + h * 0.04, o.pill[0], o.pill[1], o.pill[2], o.pill[3], o.pill[4], 'right');
@@ -449,11 +450,13 @@
   // Real LED / vinyl boards are flat: the brand ground and the logo, repeated on the very long formats. o.dark: Yas's black boards
   function partnerBoard(ctx, id, w, h, o) {
     o = o || {}; const P = PARTNERS[id] || {}; const b = P.board || { bg: '#ffffff', tone: 'color' };
-    const dark = o.dark && id !== 'f1'; const bg = dark ? '#0b0c0f' : (o.bg || b.bg); const tone = dark ? (b.tone === 'color' && isLightRaster(id) ? 'color' : 'white') : (o.tone || b.tone);
+    const dark = o.dark && id !== 'f1'; const bg = dark ? '#0b0c0f' : (o.bg || b.bg); const tone = dark ? (b.tone === 'whiteKeepRed' ? b.tone : b.tone === 'color' && isLightRaster(id) ? 'color' : 'white') : (o.tone || b.tone);
     ctx.fillStyle = bg; ctx.fillRect(0, 0, w, h);
-    const asp = w / h; const n = o.repeat || (asp > 7.5 ? Math.max(2, Math.round(asp / 4.6)) : 1); const cw = w / n;
-    const lh = h * (o.lh || 0.6), lw = cw * 0.78;
-    for (let i = 0; i < n; i++) Ads.drawPartner(ctx, id, cw * (i + 0.5), h * 0.5, lw, lh, { tone, fill: o.fill || 0.36 });
+    // compact marks (TAG Heuer's shield, Gulf's disc ...) on long boards: larger, and repeated like the real boards; safe margins all round
+    const a = partnerRaster(id, 'color').a, asp = w / h, compact = a < 2.2 && asp > 2.6;
+    const n = compact ? Math.max(1, Math.min(6, Math.floor(asp / (a * 0.84 + 1.1)))) : (o.repeat || (asp > 7.5 ? Math.max(2, Math.round(asp / 4.6)) : 1)); const cw = w / n;
+    const lh = h * (compact ? 0.8 : (o.lh || 0.6)), lw = cw * 0.8;
+    for (let i = 0; i < n; i++) Ads.drawPartner(ctx, id, cw * (i + 0.5), h * 0.5, lw, lh, { tone, fill: compact ? 1 : (o.fill || 0.36) });
     if (n > 1 && o.dividers !== false) { ctx.fillStyle = dark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.07)'; for (let i = 1; i < n; i++) ctx.fillRect(cw * i - h * 0.01, h * 0.18, h * 0.02, h * 0.64); }
   }
   Ads.partnerBoard = partnerBoard;
@@ -471,7 +474,8 @@
     if (slot[0] === 'L' || slot[0] === 'I') {
       const lumi = slot[0] === 'L', k = slot.length > 1 ? +slot.slice(1) : 0;
       if (o && o.dark) return darkBrand(slot[0]);
-      if (fmt === 'tile') return (ctx, w, h) => TILES[k % TILES.length].paint(ctx, w, h);
+      // short boards (under ~3.2:1, e.g. Yas's 2:1 LED band) get the short copy: the lock-up and the URL only, so nothing overlaps
+      if (fmt === 'tile') return (ctx, w, h) => (w / h < 3.2 ? compactBrand(lumi, ctx, w, h) : TILES[k % TILES.length].paint(ctx, w, h));
       if (fmt === 'billboard') return (ctx, w, h) => brandBillboard(ctx, k, w, h);
       if (fmt === 'barrier') return lumi ? BRAND_BARRIER[0] : BRAND_BARRIER[3];
       if (fmt === 'runoff') return null;
@@ -480,6 +484,11 @@
     return (ctx, w, h) => partnerBoard(ctx, slot, w, h, o);
   }
   Ads.slotPainter = slotPainter;
+  function compactBrand(lumi, ctx, w, h) {
+    if (lumi) lumiFrame(ctx, w, h, LUMI.bg, ['rgba(230,200,255,0.55)', 'rgba(220,238,209,0.6)']); else intakeFrame(ctx, w, h, INTAKE.bg);
+    Ads.lockupCentered(ctx, lumi ? 'lumi' : 'intake', w / 2, h * 0.42, h * 0.34, w * 0.8);
+    line(ctx, [[lumi ? 'trylumi.co' : 'intake.ink', lumi ? LUMI.plum : INTAKE.blueDeep]], w / 2, h * 0.84, h * 0.15, lumi ? LUMI.body : INTAKE.body, lumi ? 700 : 600, w * 0.8, 'center');
+  }
   // single-colour (white mask on black) lettering band painted on the run-off along a straight (track.js brandStripTexture): the venue's
   // title partner and Aramco in white, with the two race partners' URLs between them; w x h covers 2 x `seg` metres per partner
   Ads.paintMaskStrip = function (ctx, w, h) {
@@ -625,10 +634,10 @@
     ctx.save(); ctx.beginPath(); ctx.rect(x, y, w, h); ctx.clip(); ctx.translate(x, y);
     lumiFrame(ctx, w, h / 2, LUMI.bg, ['rgba(230,200,255,0.6)', 'rgba(220,238,209,0.7)']);
     Ads.lumiLogo(ctx, h * 0.06, h * 0.07, h * 0.15);
-    line(ctx, [['Stuck on a question? Ask Lumi.', LUMI.ink]], h * 0.06, h * 0.41, h * 0.11, LUMI.head, 800, w - h * 0.12, 'left');
+    line(ctx, [['Stuck on a question? Ask Lumi.', LUMI.ink]], h * 0.06, h * 0.41, h * 0.11, LUMI.head, 800, w - h * 0.2, 'left');
     ctx.translate(0, h / 2); intakeFrame(ctx, w, h / 2, INTAKE.bg);
     Ads.intakeLogo(ctx, h * 0.06, h * 0.07, h * 0.15);
-    line(ctx, [['Get paid ', INTAKE.blueDeep], ['to get a degree.', INTAKE.ink]], h * 0.06, h * 0.41, h * 0.11, INTAKE.head, 800, w - h * 0.12, 'left');
+    line(ctx, [['Get paid ', INTAKE.blueDeep], ['to get a degree.', INTAKE.ink]], h * 0.06, h * 0.41, h * 0.11, INTAKE.head, 800, w - h * 0.2, 'left');
     ctx.restore();
   };
 

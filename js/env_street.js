@@ -70,7 +70,7 @@ window.EI = window.EI || {};
     const s0 = TD.s0, s1 = TD.s1, step = 2; const Z = t.streetZones ? t.streetZones() : null;
     const Hw = 4.05, Ht = 4.55, Hc = 5.0, tray = 0.55; // tiles to Hw, upright tray face to Ht, the tray slopes in to the ceiling at Hc
     const P = [], N = [], Cc = [], UV = [], I = []; const LP = [], LC = [], LI = []; const SH = new EI.Env.Builder(); const OV = { p: [], uv: [], i: [] };
-    const BP = [], BC = [], BU = [], BI = [];
+    const BP = [], BC = [], BU = [], BI = [], TB = {};
     const tile = C(0xeee8da), dado = C(0x4c4f52), trayC = C(0x55585c), ceil = C(0x9a9c9e), shellC = C(0xb7ab98);
     // the outer side of the curve gets the lamp row and the boards: the arc bulges away from its chord towards it
     const iA = t.idxAtS(s0), iB = t.idxAtS(s1), iM = t.idxAtS((s0 + s1) / 2);
@@ -122,10 +122,9 @@ window.EI = window.EI || {};
           const run = 32, bl = 27; const P0 = prev.p[3], P1 = along, base0 = Math.floor(P0 / run) * run;
           for (let o = base0; o < P1; o += run) { const p0 = Math.max(0, P0 - o), p1 = Math.min(bl, P1 - o); if (p1 <= p0) continue;
             const ta = (o + p0 - P0) / (P1 - P0), tb = (o + p1 - P0) / (P1 - P0); const L3 = (t) => [prev.p[0] + (cur[0] - prev.p[0]) * t, prev.p[1] + (cur[1] - prev.p[1]) * t, prev.p[2] + (cur[2] - prev.p[2]) * t];
-            const qa = L3(ta), qb = L3(tb); const row = Math.floor(o / run) % 4; const b0 = BP.length / 3; const v0 = 1 - (row + 1) / 4 + 0.004, v1 = 1 - row / 4 - 0.004;
-            const u0 = outer < 0 ? 1 - p0 / bl : p0 / bl, u1 = outer < 0 ? 1 - p1 / bl : p1 / bl;
-            for (const [q, u, h] of [[qa, u0, 1.3], [qb, u1, 1.3], [qb, u1, 3.1], [qa, u0, 3.1]]) { BP.push(q[0], q[1] + h, q[2]); BU.push(u, h < 2 ? v0 : v1); const g = 0.82 * portalBoost; BC.push(g, g, g); }
-            BI.push(b0, b0 + 1, b0 + 2, b0, b0 + 2, b0 + 3); } }
+            const qa = L3(ta), qb = L3(tb); const row = Math.floor(o / run) % 4; const v0 = 1 - (row + 1) / 4 + 0.004, v1 = 1 - row / 4 - 0.004;
+            const u0 = outer < 0 ? 1 - p0 / bl : p0 / bl, u1 = outer < 0 ? 1 - p1 / bl : p1 / bl; const g = 0.82 * portalBoost;
+            const bk = TB[o] || (TB[o] = { len: 0, q: [] }); bk.len += p1 - p0; bk.q.push([[qa, u0, 1.3], [qb, u1, 1.3], [qb, u1, 3.1], [qa, u0, 3.1]].map(([q, u, h]) => [q[0], q[1] + h, q[2], u, h < 2 ? v0 : v1, g])); } }
         prev = { p: cur, s }; }
       // outer shell (top + sides), so nothing shows through from above
       const LT = [t.x[i] - t.nx[i] * (wl + 1.4), y + Hc + 1.4, t.z[i] - t.nz[i] * (wl + 1.4)], RT = [t.x[i] + t.nx[i] * (wr + 1.4), y + Hc + 1.4, t.z[i] + t.nz[i] * (wr + 1.4)];
@@ -145,6 +144,8 @@ window.EI = window.EI || {};
     const vault = new THREE.Mesh(g, new THREE.MeshBasicMaterial({ map: tunnelTileTexture(), vertexColors: true, side: THREE.DoubleSide })); vault.name = 'tunnel'; sc.group.add(vault);
     const lg = new THREE.BufferGeometry(); lg.setAttribute('position', new THREE.Float32BufferAttribute(LP, 3)); lg.setAttribute('color', new THREE.Float32BufferAttribute(LC, 3)); lg.setIndex(LI); lg.computeBoundingSphere();
     const lamps = new THREE.Mesh(lg, new THREE.MeshBasicMaterial({ vertexColors: true, toneMapped: false, side: THREE.DoubleSide })); lamps.name = 'tunnelLamps'; sc.group.add(lamps);
+    // only complete boards (the portal clearance can cut a board's start or end off: such boards are dropped)
+    for (const o in TB) if (TB[o].len >= 27 - 0.01) for (const quad of TB[o].q) { const b0 = BP.length / 3; for (const v of quad) { BP.push(v[0], v[1], v[2]); BU.push(v[3], v[4]); BC.push(v[5], v[5], v[5]); } BI.push(b0, b0 + 1, b0 + 2, b0, b0 + 2, b0 + 3); }
     if (BI.length) {
       const bg = new THREE.BufferGeometry(); bg.setAttribute('position', new THREE.Float32BufferAttribute(BP, 3)); bg.setAttribute('color', new THREE.Float32BufferAttribute(BC, 3)); bg.setAttribute('uv', new THREE.Float32BufferAttribute(BU, 2)); bg.setIndex(BI); bg.computeBoundingSphere();
       const boards = new THREE.Mesh(bg, new THREE.MeshBasicMaterial({ map: tunnelBoardTexture(), vertexColors: true, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -4 })); boards.name = 'tunnelBoards'; sc.group.add(boards);
