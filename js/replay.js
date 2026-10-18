@@ -499,7 +499,7 @@ window.EI = window.EI || {};
   function spots(P) {
     const tr = P.rec.track; if (P.spots && P.spotsFor === tr) return P.spots;
     const out = [], L = tr.length, street = !!(tr.data && tr.data.street);
-    const inf = P.host && P.host.scenery && P.host.scenery.infra; const cs = inf && inf.camSpots;
+    const inf = P.host && P.host.scenery && P.host.scenery.infra; const cs = (inf && inf.camSpots) || towerSpots(inf);
     if (cs && cs.length) for (const p of cs) { const pr = tr.project(p.x, p.z, null, {}); out.push({ x: p.x, y: p.y, z: p.z, s: pr.s, tower: true }); }
     const pit = tr.pitSideSign ? tr.pitSideSign() : -1;
     for (let s = 0; s < L; s += 90) {
@@ -510,6 +510,26 @@ window.EI = window.EI || {};
       out.push({ x: tr.x[i] + tr.nx[i] * side * off, y: tr.y[i] + h, z: tr.z[i] + tr.nz[i] * side * off, s, tower: false });
     }
     P.spots = out; P.spotsFor = tr; return out;
+  }
+  // the TV towers and camera scaffolds js/infra.js built: their placement is deterministic (want list -> freeSpot -> reserve), so each
+  // one is found again from its reservation [s, side, 4] and re-derived with the builder's own numbers (deck height, camera on top)
+  function towerSpots(cx) {
+    if (!cx || !cx.reserved || !cx.at || !cx.t) return null; const t = cx.t, out = [], F = cx.F || {};
+    const DS = [0, 15, -15, 30, -30, 45, -45, 60, -60, 80, -80, 100, -100];
+    const find = (s, side) => { for (const ds of DS) for (const r of cx.reserved) if (r[1] === side && r[2] === 4 && r[0] === s + ds) return s + ds; return null; };
+    try {
+      let placed = 0;
+      for (const [s, which] of F.cameraTowers || [[3160, 1], [3900, 1], [5075, 1], [5705, -1], [2010, 1], [965, 1], [460, 1]]) {
+        const i = t.idxAtS(s + 20); const side = which > 0 ? -cx.outsideSide(i) : cx.outsideSide(i); const ps = find(s, side); if (ps == null) continue;
+        const p = cx.at(ps, side, 5.5); const H = 9 + (placed % 3) * 1.5; placed++; out.push({ x: p.x - p.nx * 0.85, y: p.y + H + 1.7, z: p.z - p.nz * 0.85 });
+      }
+      let sc = 0;
+      for (const s0 of F.scaffolds || [610, 1130, 1960, 2470, 3470, 3790, 4230, 5290, 5560, 760, 2860]) {
+        const side = cx.outsideSide(t.idxAtS(s0 + 20)); const ps = find(s0, side); if (ps == null) continue;
+        const p = cx.at(ps, side, 4.2); const Hh = 2.4 + (sc % 3) * 0.6; sc++; out.push({ x: p.x - p.nx * 0.95, y: p.y + Hh + 1.5, z: p.z - p.nz * 0.95 });
+      }
+    } catch (e) { return out; }
+    return out;
   }
   function pickSpot(P, s, x, z, wantAhead) {
     const tr = P.rec.track, L = tr.length; let best = null, bs = 1e9;

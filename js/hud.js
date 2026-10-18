@@ -105,8 +105,11 @@ window.EI = window.EI || {};
         const row = rows[i]; const j = a + i; const o = order[j];
         if (!o) { row.el.className = 'lp-row empty'; continue; }
         const me = o === c; let gap;
+        // lapped cars read in laps (+1 LAP), as on the timing screens
+        const lg = !race.started || !race.lapGap ? 0 : me ? race.lapGap(order[0], c) : j < idx ? race.lapGap(o, c) : race.lapGap(c, o);
         if (!race.started) gap = '—';
-        else if (me) gap = c.finished ? 'FIN' : c.pos === 1 ? 'LEADER' : '+' + race.timeGap(order[0], c).toFixed(3);
+        else if (me) gap = c.finished ? 'FIN' : c.pos === 1 ? 'LEADER' : lg > 0 ? '+' + lg + ' LAP' : '+' + race.timeGap(order[0], c).toFixed(3);
+        else if (lg > 0 && !(o.finished && !c.finished)) gap = (j < idx ? '-' : '+') + lg + ' LAP';
         else { const g = j < idx ? -race.timeGap(o, c) : race.timeGap(c, o); gap = (g < 0 ? '-' : '+') + Math.abs(g).toFixed(3); if (o.finished && !c.finished) gap = 'FIN'; }
         const cls = 'lp-row' + (me ? ' me' : ''); if (row.el.className.replace(/ (gain|loss)/g, '') !== cls) row.el.className = cls;
         setText(row.p, String(o.pos)); row.bar.style.background = o.team.primary; setText(row.n, shortName(o)); row.ty.className = 'ty ' + o.tyreKey; setText(row.ty, TYRE_LETTER[o.tyreKey] || '?'); setText(row.g, gap);
@@ -115,13 +118,13 @@ window.EI = window.EI || {};
       // ---- position change flash
       if (c.pos !== r.prevPos) { const cls = c.pos < r.prevPos ? 'gain' : 'loss'; flash(r.posWrap, cls, 900); if (r.meRow && race.started) flash(r.meRow, cls, 900); r.prevPos = c.pos; }
       // ---- timing box
-      setText(r.pos, String(c.pos)); setText(r.posT, '/ ' + race.cars.length);
+      setText(r.pos, String(c.pos)); setText(r.posT, '/ ' + race.cars.length + (c.penalty > 0 ? '  +' + c.penalty + 's' : ''));
       setText(r.time, race.started && !c.finished ? fmt(race.time - c.lapStart) : c.finished ? fmt(c.finishTime) : '0:00.000');
       for (let si = 0; si < 3; si++) {
         const f = c.sectorFlags ? c.sectorFlags[si] : ''; const cls = f || (si === c.sector && race.started && !c.finished ? 'live' : '');
         if (r.sectors[si].className.replace(' pop', '') !== cls) { r.sectors[si].className = cls; if (f) flash(r.sectors[si], 'pop', 600); }
       }
-      setText(r.last, c.lastLap > 0 ? fmt(c.lastLap) : '--:--.---'); setText(r.best, c.bestLap > 0 ? fmt(c.bestLap) : '--:--.---');
+      setText(r.last, c.lastLap > 0 ? fmt(c.lastLap) : '--:--.---'); const del = !!c.lastLapDeleted; if (r._del !== del) { r._del = del; r.last.style.textDecoration = del ? 'line-through' : ''; r.last.style.opacity = del ? '0.55' : ''; r.last.title = del ? 'Lap deleted (track limits)' : ''; } setText(r.best, c.bestLap > 0 ? fmt(c.bestLap) : '--:--.---');
       const d = race.deltaBest(c); setText(r.delta, d == null ? '' : (d >= 0 ? '+' : '') + d.toFixed(2)); r.delta.className = 'delta ' + (d == null ? '' : d < 0 ? 'neg' : 'pos');
       setText(r.corner, t.cornerNameAt(c.trk.s));
       if (r.msgT > 0) { r.msgT -= dt; if (r.msgT <= 0) r.msg.classList.remove('show'); }
@@ -166,6 +169,10 @@ window.EI = window.EI || {};
   // DRS on the dash: a single box, dim when DRS is not available, green outline when it is ready to use, solid green while
   // the flap is open. Nothing else (no callouts, toasts or chimes): in the cockpit the steering-wheel display carries the lamp.
   function updateDrs(r, race, c, ck) {
+    // 2026: the box is the active-aero Straight Mode (any car, in the activation zones); Overtake (extra energy for the lap, earned
+    // within 1 s at the Detection Line) lights the ERS label
+    const ot = c.otEnergy > 0.01; if (r._ot !== ot && r.ers) { r._ot = ot; const lb = r.ers.querySelector('.ers-label'); if (lb) { lb.textContent = ot ? 'OVERTAKE' : 'ERS'; lb.style.color = ot ? '#ff8a1f' : ''; } }
+    if (r._aero !== 1 && r.drs) { r._aero = 1; const b = r.drs.querySelector('b'); if (b) b.textContent = 'AERO'; r.drs.title = 'Straight Mode (low-drag wings) in the activation zones'; }
     if (ck) return; const open = !!c.drsOpen, ready = !!c.drsEligible && !open;
     const cls = 'drs' + (open ? ' open' : ready ? ' armed' : ''); if (r.drs.className !== cls) r.drs.className = cls; setText(r.drsSub, '');
   }
@@ -245,7 +252,7 @@ window.EI = window.EI || {};
     let html = '<tr><th class="pos">Pos</th><th>Driver</th><th>Team</th><th>Tyre</th><th class="num">Time / Gap</th><th class="num">Best lap</th></tr>';
     res.forEach(r => {
       const c = r.car; const dnf = !c.finished && r.lapsBehind === 0 && r.gap == null; const ai = race.aiFor ? race.aiFor(c) : null;
-      const gap = r.pos === 1 ? fmt(r.time != null ? r.time : race.time) : r.lapsBehind > 0 ? '+' + r.lapsBehind + ' LAP' + (r.lapsBehind > 1 ? 'S' : '') : r.gap != null ? '+' + r.gap.toFixed(3) : 'DNF';
+      const gap = r.dsq ? 'DSQ' : r.pos === 1 ? fmt(r.time != null ? r.time : race.time) : r.lapsBehind > 0 ? '+' + r.lapsBehind + ' LAP' + (r.lapsBehind > 1 ? 'S' : '') : r.gap != null ? '+' + r.gap.toFixed(3) : 'DNF';
       const isFl = race.fastest.car === c && c.bestLap > 0;
       html += '<tr class="' + (c.isPlayer ? 'player' : '') + (dnf ? ' dnf' : '') + '"><td class="pos">' + r.pos + '</td><td class="drv"><span class="c" style="background:' + c.team.primary + '"></span>' + c.name + (c.penalty ? ' <span class="pen">+' + c.penalty + 's</span>' : '') + (ai ? '<span class="arch-tag arch-' + ai.archetype.id + '">' + ai.archetype.name + '</span>' : '') + '</td><td class="team">' + c.team.name + '</td><td><span class="ty ' + c.tyreKey + '">' + (TYRE_LETTER[c.tyreKey] || '?') + '</span></td><td class="num">' + gap + '</td><td class="num' + (isFl ? ' fl' : '') + '">' + U.fmtTime(c.bestLap, '—') + '</td></tr>';
     });

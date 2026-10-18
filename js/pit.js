@@ -3,7 +3,8 @@
 window.EI = window.EI || {};
 (function () {
   const U = EI.U;
-  const LIMIT = 80 / 3.6;                  // pit lane speed limit (m/s)
+  let LIMIT = 80 / 3.6;                    // pit lane speed limit (m/s): 80 km/h, 60 km/h at Monaco (set per circuit in buildLayout)
+  const kmh = () => String(Math.round(LIMIT * 3.6));
   const FAST = -2.5, BOXO = 2.6;           // lateral offsets (towards the garages) of the fast lane and of the working lane
   const LANE_HW = 6.0, ROAD_HW = 4.2;      // half widths of the pit lane proper and of the entry / exit roads
   const GAR_FRONT = 7.8, GAR_D = 10, BOX_SP = 18, QUEUE_GAP = 8.6, STAND_O = -6.35;
@@ -20,10 +21,21 @@ window.EI = window.EI || {};
   // ================================================================ layout
   function buildLayout(track) {
     const raw = track.data.pit; if (!raw || raw.length < 4) return null;
+    LIMIT = (track.data.pitLimit || (track.data.id === 'monaco' ? 60 : 80)) / 3.6; Pit.LIMIT = LIMIT;
     const TL = track.length, hw = track.halfWidth, pr = {};
     const c0 = new THREE.CatmullRomCurve3(raw.map(p => new THREE.Vector3(p[0], 0, p[1])), false, 'centripetal'); c0.arcLengthDivisions = 8000;
     const n0 = Math.max(10, Math.round(c0.getLength() / 10)); const sp0 = c0.getSpacedPoints(n0);
-    const orig = sp0.map(p => { track.project(p.x, p.z, null, pr); return { x: p.x, z: p.z, s: pr.s, lat: pr.lat }; });
+    // lane -> circuit projection that keeps going forward: a fresh nearest-sample lookup can snap to another stretch that passes close
+    // (Monaco: the pool, Rascasse and harbour sections lie beside the pit lane), so it is only taken when it moves on by less than
+    // 450 m of lap and is nearer than the stretch the previous point was on; otherwise the lookup follows on from that point
+    const pq = {}; let pl = null;
+    const projLane = (x, z, out) => {
+      track.project(x, z, null, out); if (!pl) { pl = { i: out.i, s: out.s }; return out; }
+      track.project(x, z, pl.i, pq); const fwd = U.mod(out.s - pl.s, TL);
+      if (!(fwd <= 450 && out.dist <= pq.dist)) { out.i = pq.i; out.s = pq.s; out.lat = pq.lat; out.along = pq.along; out.dist = pq.dist; }
+      pl.i = out.i; pl.s = out.s; return out;
+    };
+    const orig = sp0.map(p => { projLane(p.x, p.z, pr); return { x: p.x, z: p.z, s: pr.s, lat: pr.lat }; });
     let sumLat = 0; for (const q of orig) sumLat += q.lat; const side = sumLat < 0 ? -1 : 1;
     const wallOf = (i) => side < 0 ? track.wallL[i] : track.wallR[i]; // wallL is the lat < 0 side
     // the pit lane proper runs parallel to the start / finish straight, beyond the circuit barrier and a strip for the pit wall stands
@@ -42,14 +54,17 @@ window.EI = window.EI || {};
       else ctrl.push(new THREE.Vector3(q.x, 0, q.z));
     }
     if (!straight0) return null;
+    // the polyline ended inside the window (Monaco: the exit road rejoins within 40 m of the straight's end): keep its tail beyond the
+    // straight so the lane still runs back to the circuit instead of stopping out in the lane
+    if (phase === 1) for (const q of orig) { const k = U.mod(q.s - sA, TL); if (k > span + 6 && k < span + 60) ctrl.push(new THREE.Vector3(q.x, 0, q.z)); }
     const curve = new THREE.CatmullRomCurve3(ctrl, false, 'centripetal'); curve.arcLengthDivisions = 16000;
-    const len = curve.getLength(); const n = Math.round(len); const ds = len / n; const sp = curve.getSpacedPoints(n); const N = n + 1;
+    pl = null; const len = curve.getLength(); const n = Math.round(len); const ds = len / n; const sp = curve.getSpacedPoints(n); const N = n + 1;
     const A = (T) => new T(N);
     const P = { n: N, ds, len, side, TL, x: A(Float32Array), z: A(Float32Array), y: A(Float32Array), tx: A(Float32Array), tz: A(Float32Array), gx: A(Float32Array), gz: A(Float32Array), s: A(Float32Array), lat: A(Float32Array), ti: A(Int32Array), k: A(Float32Array), vAuto: A(Float32Array), vCurv: A(Float32Array) };
     for (let i = 0; i < N; i++) { P.x[i] = sp[i].x; P.z[i] = sp[i].z; }
     for (let i = 0; i < N; i++) {
       const a = Math.max(0, i - 1), b = Math.min(N - 1, i + 1); let dx = P.x[b] - P.x[a], dz = P.z[b] - P.z[a]; const l = Math.hypot(dx, dz) || 1; P.tx[i] = dx / l; P.tz[i] = dz / l;
-      track.project(P.x[i], P.z[i], null, pr); P.s[i] = pr.s; P.lat[i] = pr.lat; P.ti[i] = pr.i;
+      projLane(P.x[i], P.z[i], pr); P.s[i] = pr.s; P.lat[i] = pr.lat; P.ti[i] = pr.i;
     }
     // garage side: the right-hand normal (-tz, tx) or its opposite, whichever points away from the track along the straight
     const im = nearestIdx(P, straight0.x, straight0.z, 0, N);
@@ -161,7 +176,7 @@ window.EI = window.EI || {};
         ctx.fillStyle = '#ffffff'; ctx.fillRect(x + 186, y + 22, 52, 84); ctx.fillStyle = '#111'; ctx.font = '900 ' + (k0 >= 9 ? 40 : 56) + 'px Arial Black, Arial'; ctx.fillText(String(k0 + 1), x + 212, y + 66);
       });
       const cell = (k, fn) => { const x = (k % 5) * 256, y = Math.floor(k / 5) * 128; fn(x, y); };
-      cell(10, (x, y) => { ctx.fillStyle = '#ffffff'; ctx.font = 'italic 900 100px Arial Black, Arial'; ctx.fillText('80', x + 128, y + 68); });
+      cell(10, (x, y) => { ctx.fillStyle = '#ffffff'; ctx.font = 'italic 900 100px Arial Black, Arial'; ctx.fillText(kmh(), x + 128, y + 68); });
       cell(11, (x, y) => { ctx.fillStyle = '#ffffff'; ctx.font = 'italic 900 100px Arial Black, Arial'; ctx.fillText('PIT', x + 128, y + 68); });
       cell(12, (x, y) => { ctx.fillStyle = '#ffffff'; ctx.font = 'italic 900 62px Arial Black, Arial'; ctx.fillText('EXIT', x + 128, y + 66); });
       cell(13, (x, y) => { ctx.fillStyle = '#ffd200'; ctx.font = 'italic 900 50px Arial Black, Arial'; ctx.fillText('LIMIT', x + 128, y + 66); });
@@ -370,7 +385,7 @@ window.EI = window.EI || {};
         (d, o, text, bg, fg, w) => { const f = frameAt(d, o, 0); shell.add('box', lm(f, 0, 1.2, 0, 0.12, 2.4, 0.12), dark); const tx = U.srgb(U.textTexture(text, { w: 512, h: 128, bg, color: fg, size: 64, font: 'italic 900 Arial Black, Arial' })); const mm = new THREE.Mesh(new THREE.PlaneGeometry(w, w / 4), new THREE.MeshBasicMaterial({ map: tx, side: THREE.DoubleSide })); mm.applyMatrix4(lm(f, 0.08, 2.6, 0, 1, 1, 1, -Math.PI / 2)); grp.add(mm); };
       const ext = V.laneExt;
       board(L.dRoad0 - 30, ext(L.dRoad0)[1] + 1.2, 'PIT ENTRY', '#1a73e8', '#ffffff', 3.2);
-      board(L.dLimIn - 4, ext(L.dLimIn)[1] + 0.8, 'PIT LIMIT 80', '#ffffff', '#c8102e', 3.4);
+      board(L.dLimIn - 4, ext(L.dLimIn)[1] + 0.8, 'PIT LIMIT ' + kmh(), '#ffffff', '#c8102e', 3.4);
       board(L.dLimOut + 4, ext(L.dLimOut)[1] + 0.8, 'END LIMIT', '#ffd200', '#111111', 3.0);
       board(L.dRoad1 - 50, ext(L.dRoad1 - 50)[1] + 1.2, 'PIT EXIT', '#1a73e8', '#ffffff', 3.0);
       if (sbg.length) { const geo = U.mergeGeometries(sbg.map(g => ({ geo: g, matrix: new THREE.Matrix4() }))); const tx = new THREE.CanvasTexture(sbc); tx.encoding = THREE.sRGBEncoding; grp.add(new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ map: tx, side: THREE.DoubleSide }))); }
@@ -579,7 +594,7 @@ window.EI = window.EI || {};
     const st = { active: false, request: false, next: otherCompound(car.tyreKey), phase: null, d: 0, v: 0, o: 0, off0: 0, d0: 0, served: false, stops: 0, keyPrev: false, prevS: null, box: null, queued: false, stopD: null, plan: null, lastStop: null, ui: null };
     car.pit = st;
     // strategy for bots
-    if (!car.isPlayer) { const laps = race.laps; st.planLap = laps >= 5 ? U.clamp(Math.round(laps * (0.38 + race.rng() * 0.27)), 2, laps - 2) : 0; }
+    if (!car.isPlayer) { const laps = race.laps; st.planLap = laps >= 5 ? U.clamp(Math.round(laps * (0.38 + race.rng() * 0.27)), 2, laps - 2) : laps >= 3 ? U.clamp(Math.round(laps * (0.3 + race.rng() * 0.4)), 1, laps - 1) : 0; }
     // physics override: while in the pit lane this module moves the car along the lane
     const orig = car.update;
     car.update = function (dt, track, rc) { if (this.pit && this.pit.active) return stepPitCar(this, dt, track, rc || race); return orig.call(this, dt, track, rc); };
@@ -646,7 +661,9 @@ window.EI = window.EI || {};
   };
 
   // ================================================================ per-step logic (end of Race.update)
-  function crossed(a, b, s, TL) { return (a <= s && b >= s && b - a < TL / 2) || (a > b && (s >= a || s <= b)); }
+  // forward crossings only: a car nudged backwards (contact, a spin, standing still) used to "cross" every line at once, which
+  // captured a car with a pit request into the lane from anywhere on the circuit
+  function crossed(a, b, s, TL) { const d = b - a; if (d >= 0 && d < TL / 2) return a < s && s <= b; if (d < -TL / 2) return s > a || s <= b; return false; }
   Pit.update = function (race, dt) {
     if (!R || R.race !== race || !L) return;
     const TL = race.track.length;
@@ -661,18 +678,24 @@ window.EI = window.EI || {};
       if (car.finished && !st.active) { st.request = false; st.prevS = car.trk.s; continue; }
       if (!car.isPlayer) strategy(car, st, race);
       if (st.request && !st.active && st.prevS != null && crossed(st.prevS, car.trk.s, L.sCap, TL)) {
-        if (car.trk.lat * L.side >= 0.8 && car.v > 2) capture(car, race);
+        const side = car.trk.lat * L.side;
+        if (side >= 0.8 && car.v > 2) capture(car, race);
+        // a late swerve across the pit entry line still makes the lane, but it is a 5 s penalty (App. L Ch. IV 4d)
+        else if (side >= -1.6 && car.v > 2) { capture(car, race); race.addPenalty && race.addPenalty(car, 5, 'Crossing the pit entry line', true); }
         else if (car.isPlayer) { uiFlash(car, 'MISSED THE PIT ENTRY', 'bad'); if (EI.HUD) EI.HUD.toast(car.name + ' missed the pit entry'); }
       }
       st.prevS = car.trk.s;
     }
     if (V) for (const b of V.boxes) stepBox(b, race, dt);
   };
+  // a car that still owes the second dry compound (races of 3 laps or more)
+  function owesCompound(car, race) { return race.laps >= 3 && car.compounds && Object.keys(car.compounds).length < 2; }
   function strategy(car, st, race) {
     if (st.active) return;
-    if (st.request) { if (car.lap > race.laps - 2) st.request = false; return; }
-    if (st.stops >= 3 || car.lap > race.laps - 2 || car.lap < 1) return;
-    const due = car.wear > 0.55 || (st.planLap > 0 && st.stops === 0 && car.lap >= st.planLap);
+    const owes = owesCompound(car, race), lastLap = owes ? race.laps - 1 : race.laps - 2;
+    if (st.request) { if (car.lap > lastLap) st.request = false; return; }
+    if (st.stops >= 3 || car.lap > lastLap || car.lap < 1) return;
+    const due = car.wear > 0.55 || (st.planLap > 0 && st.stops === 0 && car.lap >= st.planLap) || (owes && car.lap >= lastLap);
     if (!due) return;
     const dTo = U.mod(L.sCap - car.trk.s, race.track.length); if (dTo < 260) return; // too late on this lap: commit next time round
     st.request = true; st.next = chooseBotCompound(car, race);
@@ -724,7 +747,16 @@ window.EI = window.EI || {};
     // ---- speed limit line
     if (!st.limitChecked && dPrev < L.dLimIn && st.d >= L.dLimIn) {
       st.limitChecked = true;
-      if (st.v > LIMIT + 0.7) { car.penalty += 5; st.speeding = true; if (car.isPlayer) uiFlash(car, 'PIT LANE SPEEDING  +5 S', 'bad', 3); if (EI.HUD) EI.HUD.toast(car.name + ': pit lane speeding, +5 s penalty'); race.emit('pitPenalty', car); }
+      // speeding at the line, by margin: < 6 km/h 5 s, 6-15 km/h drive-through, > 15 km/h stop-and-go (the last two as their
+      // end-of-race time equivalents, 20 s and 30 s, B1.9.6c iii). The limiter then holds the car to the limit.
+      const over = (st.v - LIMIT) * 3.6;
+      if (over > 0.3) {
+        const sec = over <= 6 ? 5 : over <= 15 ? 20 : 30; st.speeding = sec; st.speedOver = over;
+        const why = 'Pit lane speeding +' + over.toFixed(1) + ' km/h' + (sec === 20 ? ' (drive-through)' : sec === 30 ? ' (stop-and-go)' : '');
+        if (race.addPenalty) race.addPenalty(car, sec, why, sec === 5); else car.penalty += sec;
+        if (car.isPlayer) uiFlash(car, 'PIT LANE SPEEDING  +' + sec + ' S', 'bad', 3); else if (EI.HUD) EI.HUD.toast(car.name + ': pit lane speeding, +' + sec + ' s penalty');
+        race.emit('pitPenalty', car);
+      }
       st.v = Math.min(st.v, LIMIT);
     }
     // ---- box: stop, wait, service, release
@@ -739,7 +771,7 @@ window.EI = window.EI || {};
       if (pl.t >= pl.release) {
         // unsafe release check: hold the car while a car is coming down the fast lane alongside
         let clear = true; for (const o of race.cars) { const q = o.pit; if (o === car || !q || !q.active) continue; if (q.d > b.d - 26 && q.d < b.d + 3 && q.o < 0.5 && q.v > 2) clear = false; }
-        if (clear || pl.t > pl.release + 3) endService(car, race);
+        if (clear || pl.t > pl.release + 6) { if (!clear && race.addPenalty) race.addPenalty(car, 5, 'Unsafe release', false); endService(car, race); }
       }
     }
     if (st.d >= L.dRel * L.ds) { releaseCar(car, track, race); return; }
@@ -769,13 +801,15 @@ window.EI = window.EI || {};
     const corners = []; for (let w = 0; w < 4; w++) { const off = scale * (0.55 + rng() * 0.15); const on = off + scale * (0.55 + rng() * 0.2); const done = on + scale * (0.3 + rng() * 0.12); corners.push({ off, on, done }); }
     if (!car.isPlayer && rng() < 0.05) { const c = corners[Math.floor(rng() * 4)]; const extra = 0.5 + rng() * 1.0; c.on += extra; c.done += extra; } // a sticky wheel nut
     let last = 0; for (const c of corners) last = Math.max(last, c.done);
-    const plan = { t: 0, corners, jackUp: 0.15, jackDown: last + 0.12, release: last + 0.37, oldKey: car.tyreKey, newKey: st.next || otherCompound(car.tyreKey) };
+    const serve = Math.max(0, Math.min(car.penServable || 0, car.penalty || 0));
+    if (serve > 0) { for (const c of corners) { c.off += serve; c.on += serve; c.done += serve; } last += serve; car.penalty -= serve; car.penServable = 0; car.penServed = (car.penServed || 0) + serve; }
+    const plan = { t: 0, serve, corners, jackUp: 0.15 + serve, jackDown: last + 0.12, release: last + 0.37, oldKey: car.tyreKey, newKey: st.next || otherCompound(car.tyreKey) };
     st.plan = plan; b.plan = plan; b.car = car; b.oldKey = plan.oldKey; b.newKey = plan.newKey;
   }
   function liftAt(pl, which) { const o = which === 'F' ? 0 : 0.05; return 0.075 * sstep(pl.jackUp + o, pl.jackUp + o + 0.22, pl.t) * (1 - sstep(pl.jackDown + o, pl.jackDown + o + 0.14, pl.t)); }
   function endService(car, race) {
     const st = car.pit, b = st.box, pl = st.plan;
-    car.tyreKey = pl.newKey; car.tyre = EI.TYRES[pl.newKey]; car.wear = 0; st.stops++; st.served = true; st.phase = 'leave';
+    car.tyreKey = pl.newKey; car.tyre = EI.TYRES[pl.newKey]; car.wear = 0; st.stops++; st.served = true; st.phase = 'leave'; (car.compounds || (car.compounds = {}))[pl.newKey] = true;
     st.lastStop = { time: pl.t, key: pl.newKey, lap: car.lap }; st.next = otherCompound(car.tyreKey);
     if (car._pitWheels) for (const w of car._pitWheels) { w.spin.visible = true; setWheelCompound(w, pl.newKey); }
     b.green = 1.4; b.owner = b.queue.shift() || null; b.tRel = race.time;
@@ -1017,6 +1051,15 @@ window.EI = window.EI || {};
       '#pitui .pt-big { font-size: 46px; font-weight: 900; font-style: italic; line-height: 1; letter-spacing: -1px; text-shadow: 0 3px 14px rgba(0,0,0,0.85); font-variant-numeric: tabular-nums; }',
       '#pitui .pt-big:empty, #pitui .pt-sub:empty { display: none; }',
       '#pitui .pt.good .pt-big { color: #2fe36d; }',
+      '#pitui .rk { position: absolute; left: 50%; top: calc(66px * var(--s, 1)); transform: translateX(-50%) scale(var(--s, 1)); transform-origin: top center; display: flex; align-items: center; gap: 9px; padding: 5px 13px 5px 8px; border-radius: 5px; background: rgba(9,11,16,0.78); border: 1px solid rgba(255,255,255,0.1); font-family: var(--font, "Titillium Web", Arial, sans-serif); color: #eef2f7; white-space: nowrap; opacity: 0; transition: opacity 0.25s, top 0.25s; }',
+      '#pitui .pitp.pit-on .rk { top: calc(150px * var(--s, 1)); }',
+      '#pitui .rk.on { opacity: 1; }',
+      '#pitui .rk i { width: 16px; height: 12px; border-radius: 2px; flex: none; background: #8a93a3; }',
+      '#pitui .rk.warn i { background: #ffd200; } #pitui .rk.pen i { background: #e10600; } #pitui .rk.blue i { background: #1e5bff; } #pitui .rk.ok i { background: #2fe36d; } #pitui .rk.ot i { background: #ff8a1f; }',
+      '#pitui .rk.bw i { background: linear-gradient(135deg, #111 50%, #f4f4f4 50%); border: 1px solid rgba(255,255,255,0.5); }',
+      '#pitui .rk b { font-weight: 900; font-size: 13.5px; letter-spacing: 1.2px; text-transform: uppercase; }',
+      '#pitui .rk span { font-weight: 600; font-size: 12.5px; color: #b9c2cf; letter-spacing: 0.3px; }',
+      '#pitui .rk span:empty { display: none; }',
       '@keyframes ptIn { from { opacity: 0; transform: translateY(-8px) scale(var(--s, 1)); } to { opacity: 1; transform: translateY(0) scale(var(--s, 1)); } }',
       '@keyframes ptBlink { 0% { background: #1a73e8; } 100% { background: #0d3f86; } }',
     ].join('\n');
@@ -1027,11 +1070,23 @@ window.EI = window.EI || {};
     ensureUI(); const root = document.getElementById('pitui'); root.innerHTML = '';
     R.ui = race.players.map((car, k) => {
       const el = document.createElement('div'); el.className = 'pitp';
-      el.innerHTML = '<div class="pt"><div class="pt-bar"><span class="pt-tag">PIT</span><span class="pt-main"></span><span class="pt-ty"><i></i><b></b></span></div><div class="pt-sub"></div><div class="pt-big"></div></div>';
+      el.innerHTML = '<div class="pt"><div class="pt-bar"><span class="pt-tag">PIT</span><span class="pt-main"></span><span class="pt-ty"><i></i><b></b></span></div><div class="pt-sub"></div><div class="pt-big"></div></div><div class="rk"><i></i><b></b><span></span></div>';
       root.appendChild(el);
       const q = (s) => el.querySelector(s);
-      return { car, k, el, box: q('.pt'), tag: q('.pt-tag'), main: q('.pt-main'), ty: q('.pt-ty'), tyI: q('.pt-ty i'), tyB: q('.pt-ty b'), sub: q('.pt-sub'), big: q('.pt-big'), flash: null, flashUntil: -1, cls: '', shown: false, rect: '' };
+      return { car, k, el, box: q('.pt'), tag: q('.pt-tag'), main: q('.pt-main'), ty: q('.pt-ty'), tyI: q('.pt-ty i'), tyB: q('.pt-ty b'), sub: q('.pt-sub'), big: q('.pt-big'), rk: q('.rk'), rkB: q('.rk b'), rkS: q('.rk span'), note: null, noteUntil: -1, rkCls: '', flash: null, flashUntil: -1, cls: '', shown: false, rect: '' };
     });
+  }
+  // rules messages for a player (race.js stewards): one line, the newest replaces the last; blue flag / give back stay while they apply
+  Pit.notify = function (car, title, sub, cls, dur) { if (!R || !R.ui) return; const u = R.ui.find(x => x.car === car); if (!u) return; u.note = { title, sub: sub || '', cls: cls || 'warn' }; u.noteUntil = (R.race ? R.race.time : 0) + (dur || 2.5); };
+  function updateNote(u, race) {
+    const car = u.car, rl = car.rules; let n = u.note && race.time < u.noteUntil ? u.note : null;
+    if (!n && rl && rl.give) { const left = Math.max(0, Math.ceil(rl.give.until - race.time)); n = { title: 'GIVE THE POSITION BACK', sub: rl.give.cars.map(o => o.driver && o.driver.code || o.name).join(', ') + ' · ' + left + ' s', cls: 'warn' }; }
+    if (!n && car.blueFlag && !car.finished) n = { title: 'BLUE FLAG', sub: 'Let ' + (car.blueFlag.driver && car.blueFlag.driver.code || car.blueFlag.name) + ' through', cls: 'blue' };
+    if (!n && race.started && !car.finished && car.pit && !car.pit.active && owesCompound(car, race) && car.lap >= race.laps - 1 && race.laps >= 3) n = { title: 'MANDATORY STOP', sub: 'Two dry compounds needed · P to pit', cls: 'warn' };
+    const on = !!n; if (on !== u.rkOn) { u.rkOn = on; u.rk.classList.toggle('on', on); }
+    if (!n) return;
+    if (u.rkCls !== n.cls) { if (u.rkCls) u.rk.classList.remove(u.rkCls); u.rk.classList.add(n.cls); u.rkCls = n.cls; }
+    setT(u.rkB, n.title); setT(u.rkS, n.sub);
   }
   function uiFlash(car, text, cls, dur) { if (!R || !R.ui) return; const u = R.ui.find(x => x.car === car); if (!u) return; u.flash = { text, cls: cls || 'info' }; u.flashUntil = (R.race ? R.race.time : 0) + (dur || 2.2); }
   const setT = (el, s) => { if (el._v !== s) { el._v = s; el.textContent = s; } };
@@ -1042,23 +1097,25 @@ window.EI = window.EI || {};
     for (const u of R.ui) {
       const vp = vps[u.k]; if (vp && vp.el) { const r = vp.el.style.cssText; if (r !== u.rect) { u.rect = r; const s = vp.el.style; u.el.style.left = s.left; u.el.style.top = s.top; u.el.style.width = s.width; u.el.style.height = s.height; const sc = U.clamp(Math.min((vp.w || 1280) / 1280, (vp.h || 720) / 720), 0.64, 1.3); u.el.style.setProperty('--s', sc.toFixed(3)); } }
       const car = u.car, st = car.pit; if (!st) continue;
+      updateNote(u, race);
       let show = false, tag = 'PIT', main = '', sub = '', big = '', cls = 'info', tyre = st.next;
       if (st.active) {
         show = true; const d = st.d;
-        if (st.phase === 'service') { tag = 'BOX'; main = 'PIT STOP'; big = st.plan.t.toFixed(2) + ' s'; cls = 'bad'; tyre = st.plan.newKey; sub = 'CHANGING TO ' + EI.TYRES[st.plan.newKey].name.toUpperCase(); }
+        if (st.phase === 'service') { tag = 'BOX'; main = 'PIT STOP'; big = st.plan.t.toFixed(2) + ' s'; cls = 'bad'; tyre = st.plan.newKey; sub = st.plan.serve && st.plan.t < st.plan.serve ? 'SERVING ' + st.plan.serve + ' S PENALTY · ' + Math.ceil(st.plan.serve - st.plan.t) : 'CHANGING TO ' + EI.TYRES[st.plan.newKey].name.toUpperCase(); }
         else if (st.phase === 'leave' && st.lastStop && d < st.box.d + 40) { tag = 'GO'; main = 'RELEASE'; big = st.lastStop.time.toFixed(2) + ' s'; cls = 'good'; tyre = st.lastStop.key; }
         else if (st.phase === 'wait') { tag = 'BOX'; main = 'WAIT · CAR IN THE BOX'; cls = 'bad'; }
-        else if (d < L.dLimIn) { const m = Math.max(0, L.dLimIn - d); tag = 'PIT'; main = 'PIT LANE · LIMIT IN ' + Math.round(m) + ' M'; sub = (car.v > LIMIT + 0.5 ? 'BRAKE · ' : '') + Math.round(car.v * 3.6) + ' KM/H · LIMIT 80'; cls = car.v > LIMIT + 0.5 && m < 120 ? 'bad' : 'info'; }
-        else if (d <= L.dLimOut) { tag = 'LIM'; main = 'PIT LIMITER  80'; cls = 'lim'; sub = Math.round(car.v * 3.6) + ' KM/H' + (st.phase === 'in' && st.box ? ' · BOX IN ' + Math.max(0, Math.round(st.box.d - d)) + ' M' : ''); if (st.lastStop && st.served) { big = st.lastStop.time.toFixed(2) + ' s'; } }
+        else if (d < L.dLimIn) { const m = Math.max(0, L.dLimIn - d); tag = 'PIT'; main = 'PIT LANE · LIMIT IN ' + Math.round(m) + ' M'; sub = (car.v > LIMIT + 0.1 ? 'BRAKE · ' : '') + Math.round(car.v * 3.6) + ' KM/H · LIMIT ' + kmh(); cls = car.v > LIMIT + 0.5 && m < 120 ? 'bad' : 'info'; }
+        else if (d <= L.dLimOut) { tag = 'LIM'; main = 'PIT LIMITER  ' + kmh(); cls = 'lim'; sub = Math.round(car.v * 3.6) + ' KM/H' + (st.phase === 'in' && st.box ? ' · BOX IN ' + Math.max(0, Math.round(st.box.d - d)) + ' M' : ''); if (st.lastStop && st.served) { big = st.lastStop.time.toFixed(2) + ' s'; } }
         else { tag = 'PIT'; main = 'LIMITER OFF · PIT EXIT'; cls = 'good'; }
-        if (st.speeding && d < L.dLimIn + 80) { sub = 'PIT LANE SPEEDING · +5 S'; cls = 'bad'; }
+        if (st.speeding && d < L.dLimIn + 80) { sub = 'PIT LANE SPEEDING · +' + st.speeding + ' S'; cls = 'bad'; }
       } else if (st.request && !car.finished) {
         show = true; tag = 'BOX'; main = 'PIT REQUESTED'; const dTo = U.mod(L.sCap - car.trk.s, race.track.length);
         sub = dTo < 700 ? 'PIT ENTRY ' + Math.round(dTo) + ' M · KEEP ' + (L.side < 0 ? 'RIGHT' : 'LEFT') : (u.k === 0 ? '1 SOFT · 2 MEDIUM · 3 HARD · P CANCEL' : '8 SOFT · 9 MEDIUM · 0 HARD · BKSP CANCEL');
+        if (dTo >= 700 && owesCompound(car, race) && car.compounds[st.next]) sub = 'SAME COMPOUND · THE RULES NEED A SECOND ONE';
         cls = dTo < 700 ? 'bad' : 'info';
       } else if (st.tOut != null && race.time - st.tOut < 3 && st.lastStop) { show = true; tag = 'PIT'; main = 'STOP ' + st.lastStop.time.toFixed(2) + ' S · LANE ' + (st.lastStop.laneTime || 0).toFixed(1) + ' S'; cls = 'good'; tyre = st.lastStop.key; }
       if (u.flash && race.time < u.flashUntil && !(st.active && st.phase === 'service')) { show = true; if (!st.active && !st.request) { main = u.flash.text; tag = 'PIT'; sub = ''; big = ''; } else if (!st.active) sub = u.flash.text; cls = u.flash.cls === 'muted' ? cls : u.flash.cls; if (u.flash.text === 'RELEASE' || /SPEEDING|MISSED/.test(u.flash.text)) { main = u.flash.text; } }
-      if (show !== u.shown) { u.shown = show; u.box.classList.toggle('on', show); }
+      if (show !== u.shown) { u.shown = show; u.box.classList.toggle('on', show); u.el.classList.toggle('pit-on', show); }
       if (!show) continue;
       if (u.cls !== cls) { u.box.classList.remove(u.cls || 'x'); if (cls) u.box.classList.add(cls); u.cls = cls; }
       setT(u.tag, tag); setT(u.main, main); setT(u.sub, sub); setT(u.big, big);
