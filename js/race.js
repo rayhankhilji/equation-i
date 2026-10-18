@@ -123,7 +123,8 @@ window.EI = window.EI || {};
         if (this.lightsOn === 5 && this.phaseT >= 5 + this.holdT - 1) {
           this.phase = 'racing'; this.started = true; this.time = 0; track.setStartLights(0); this.emit('go');
           for (const c of this.cars) { c.lapStart = 0; c.compounds = {}; c.compounds[c.tyreKey] = true; }
-          this.players.forEach(p => { if (p.jumpStart) { p.penalty += 5; this.emit('penalty', p); } });
+          // jump start (B5.11): 5 s, servable at a stop; main.js shows the message on the 'penalty' event
+          this.players.forEach(p => { if (p.jumpStart) { p.penalty += 5; p.penServable = (p.penServable || 0) + 5; (p.penLog || (p.penLog = [])).push({ sec: 5, reason: 'Jump start', t: 0, lap: 1 }); this.emit('penalty', p); } });
         }
       }
       if (this.started) this.time += dt;
@@ -380,7 +381,7 @@ window.EI = window.EI || {};
             // progress beyond what the tightest legal line (the inside edge of this bend) could have made: the cut
             const k = Math.abs(t.k[car.trk.i] || 0); const legal = Math.abs(car.v) * dt / Math.max(0.25, 1 - k * hw);
             R.gain += prog - legal;
-            if (Math.abs(U.wrapAngle(car.heading - t.heading[car.trk.i])) > 0.75 || car.v < 3) R.lost = true;   // spun / stopped
+            if (Math.abs(car.vLat) > Math.max(4, 0.4 * Math.abs(car.v)) || car.v < 3) R.lost = true;   // sliding / spun / stopped: loss of control
             if (car.hit > 0.25) R.hit = true;
           }
         } else {
