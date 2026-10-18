@@ -218,21 +218,38 @@ window.EI = window.EI || {};
     // ---- the gridshell: one flowing skin over both wings and the bridge, 6 m proud of them, its hem rising over the track
     const doms = wings.map(w => w.p).concat(br ? [br.p] : []); if (!doms.length) return;
     let x0 = Infinity, x1 = -Infinity, z0 = Infinity, z1 = -Infinity; for (const p of doms) for (const q of p) { x0 = Math.min(x0, q[0]); x1 = Math.max(x1, q[0]); z0 = Math.min(z0, q[1]); z1 = Math.max(z1, q[1]); }
-    const PAD = 6; x0 -= PAD + 4; x1 += PAD + 4; z0 -= PAD + 4; z1 += PAD + 4;
-    const inside = (x, z) => { for (const p of doms) if (U.pointInPoly(x, z, p) || polyDist(x, z, p) < PAD) return true; return false; };
+    const PAD = 13, TAIL = 32; const pr = {};
+    const latOf0 = (x, z) => { t.project(x, z, null, pr); return pr.lat; };
+    const offTrack = (x, z, m) => { t.project(x, z, null, pr); return pr.dist > Math.max(t.wallL[pr.i], t.wallR[pr.i]) + m; };
+    // each wing's own long axis; the ends away from the bridge carry a tail along which the skin sweeps down to the ground (u1)
+    const bc = br ? centroid(br.p) : centroid(doms[0]);
+    const tails = []; for (const w of wings) {
+      const a = principalAxis([w.p]); let lo = Infinity, hi = -Infinity, bw = 0; for (const q of w.p) { const al = (q[0] - a.c[0]) * a.dx + (q[1] - a.c[1]) * a.dz, bl = -(q[0] - a.c[0]) * a.dz + (q[1] - a.c[1]) * a.dx; lo = Math.min(lo, al); hi = Math.max(hi, al); bw = Math.max(bw, Math.abs(bl)); }
+      const ab = (bc[0] - a.c[0]) * a.dx + (bc[1] - a.c[1]) * a.dz; const ends = ab > lo && ab < hi ? [-1, 1] : [ab < lo ? 1 : -1];
+      for (const sg of ends) tails.push({ a, end: sg > 0 ? hi : lo, sg, bw: bw + PAD, p: w.p });
+    }
+    // 0 on the wings, rising to 1 at a tail's tip (null: not in a tail)
+    for (const T of tails) { const c = centroid(T.p); T.side = Math.sign(latOf0(c[0], c[1])) || 1; }
+    const tailOf = (x, z) => { for (const T of tails) { const al = (x - T.a.c[0]) * T.a.dx + (z - T.a.c[1]) * T.a.dz, bl = -(x - T.a.c[0]) * T.a.dz + (z - T.a.c[1]) * T.a.dx; const e = (al - T.end) * T.sg; if (e > 0 && e <= TAIL && Math.abs(bl) < T.bw * (1 - 0.55 * Math.pow(e / TAIL, 1.4))) return T; } return null; };
+    const tailE = (x, z) => { let best = null; for (const T of tails) { const al = (x - T.a.c[0]) * T.a.dx + (z - T.a.c[1]) * T.a.dz, bl = -(x - T.a.c[0]) * T.a.dz + (z - T.a.c[1]) * T.a.dx; const e = (al - T.end) * T.sg; if (e <= 0 || e > TAIL) continue; const f = e / TAIL;
+      if (Math.abs(bl) < T.bw * (1 - 0.55 * Math.pow(f, 1.4))) best = Math.max(best || 0, f); } return best; };
+    // tails stay on their wing's side of the track and off the water
+    const inside = (x, z) => { for (const p of doms) if (U.pointInPoly(x, z, p) || polyDist(x, z, p) < PAD) return true; const te = tailOf(x, z); return te != null && offTrack(x, z, 3) && latOf0(x, z) * te.side > 0; };
     // the skin's own frame: along the hotel's long axis (s) and across it (q), so the lattice runs with the building
     const ax = principalAxis(doms); const toW = (u, v) => [ax.c[0] + ax.dx * u - ax.dz * v, ax.c[1] + ax.dz * u + ax.dx * v];
     let u0 = Infinity, u1 = -Infinity, v0 = Infinity, v1 = -Infinity; for (const p of doms) for (const q of p) { const du = (q[0] - ax.c[0]) * ax.dx + (q[1] - ax.c[1]) * ax.dz, dv = -(q[0] - ax.c[0]) * ax.dz + (q[1] - ax.c[1]) * ax.dx; u0 = Math.min(u0, du); u1 = Math.max(u1, du); v0 = Math.min(v0, dv); v1 = Math.max(v1, dv); }
-    const PADL = PAD + 4; const F = sdf(u0 - PADL, v0 - PADL, u1 + PADL, v1 + PADL, 2.5, (u, v) => { const w = toW(u, v); return inside(w[0], w[1]); }); const pr = {};
+    const PADL = PAD + TAIL + 4; const F = sdf(u0 - PADL, v0 - PADL, u1 + PADL, v1 + PADL, 2.5, (u, v) => { const w = toW(u, v); return inside(w[0], w[1]); });
     const yBase = Math.min(...wings.map(w => w.y0));
-    const topAt = (x, z) => { let sw = 0, sh = 0; for (const w of wings) { const d = U.pointInPoly(x, z, w.p) ? 0 : polyDist(x, z, w.p); const k = 1 / Math.pow(d + 6, 2.2); sw += k; sh += k * (w.y0 + w.h + 11); } return sh / sw; };
-    // the ribbon: a hem 17 m up (24 m over the track) sweeping up to ~11 m above the roofs, with a long slow twist along its length
+    // crest a few metres over the roofs (inverse-distance blend between the wings), dipping where it bridges the gap between them
+    const topAt = (x, z) => { let sw = 0, sh = 0, dm = Infinity; for (const w of wings) { const d = U.pointInPoly(x, z, w.p) ? 0 : polyDist(x, z, w.p); dm = Math.min(dm, d); const k = 1 / Math.pow(d + 6, 2.2); sw += k; sh += k * (w.y0 + w.h + 5); } return sh / sw - 7 * U.smoothstep(PAD, PAD + 14, dm); };
+    // the ribbon: a hem 15 m up (24 m over the track), rising steeply to hug the walls, a long gentle wave along its length,
+    // the ends sweeping down to the ground
     const yFn = (u, v, din) => {
-      const [x, z] = toW(u, v); t.project(x, z, null, pr); const overTrack = pr.dist < Math.max(t.wallL[pr.i], t.wallR[pr.i]) + 4;
-      const hem = yBase + (overTrack ? 24 : 17); const top = topAt(x, z);
-      // rises almost vertically off the hem (the skin bulges out over the lower floors), clears the roofs above the walls
-      const k = 1 - Math.pow(1 - Math.min(1, din / (PAD + 3)), 2.2);
-      return hem + (top - hem) * k + (Math.sin(u / 29 + 0.6) * 4.5 + Math.sin(v / 13 - u / 41) * 1.2) * k;
+      const [x, z] = toW(u, v); const overTrack = !offTrack(x, z, 4); const te = tailE(x, z); const f = te == null ? 0 : U.smoothstep(0, 1, te);
+      const hem = yBase + (overTrack ? 24 : 15) * (1 - f) + 3.5 * f, top = topAt(x, z) * (1 - f) + (yBase + 7) * f;
+      // a rounded shoulder that crests 6 m inside the walls, a low dome across the top and a long wave along the ribbon
+      const k = Math.pow(Math.sin(Math.PI / 2 * Math.min(1, din / (PAD + 6))), 0.6), dome = 4 * U.smoothstep(PAD + 6, PAD + 26, din);
+      return hem + (top + dome - hem) * k + (Math.sin(u / 47 + 0.6) * 3.5 + Math.sin(v / 23 - u / 53) * 0.8) * k * (1 - f);
     };
     const G = surfaceGrid(F, yFn, toW);
     // developed lattice coordinates: arc length along the grid rows (the long axis) and columns (across), so the diamonds keep
@@ -240,7 +257,16 @@ window.EI = window.EI || {};
     const { V, nx: gx, nz: gz } = G;
     for (let j = 0; j < gz; j++) { let pv = null; for (let i = 0; i < gx; i++) { const vv = V[j * gx + i]; if (!vv) { pv = null; continue; } vv.U = pv ? pv.U + Math.hypot(vv.p[0] - pv.p[0], vv.p[1] - pv.p[1], vv.p[2] - pv.p[2]) * (vv.lu >= pv.lu ? 1 : -1) : vv.lu; pv = vv; } }
     for (let i = 0; i < gx; i++) { let pv = null; for (let j = 0; j < gz; j++) { const vv = V[j * gx + i]; if (!vv) { pv = null; continue; } vv.W = pv ? pv.W + Math.hypot(vv.p[0] - pv.p[0], vv.p[1] - pv.p[1], vv.p[2] - pv.p[2]) * (vv.lv >= pv.lv ? 1 : -1) : vv.lv; pv = vv; } }
-    const PU = 4.4, PW = 3.0;   // panel diagonals along / across the ribbon (m)
+    // the stretch each row / column picks up over the steep flanks differs from its neighbours': keep it as an offset from the plan
+    // coordinate, centred on each run, and relax it across the grid so the lattice shears smoothly instead of tearing into stripes
+    { const N = gx * gz, dU = new Float32Array(N), dW = new Float32Array(N), has = new Uint8Array(N);
+      for (let k = 0; k < N; k++) { const vv = V[k]; if (vv) { has[k] = 1; dU[k] = vv.U - vv.lu; dW[k] = vv.W - vv.lv; } }
+      const centre = (d, stride, outer, inner) => { for (let o = 0; o < outer; o++) { const ks = []; for (let q = 0; q < inner; q++) { const k = stride === 1 ? o * gx + q : q * gx + o; if (has[k]) ks.push(k); } if (!ks.length) continue; const m = d[ks[ks.length >> 1]]; for (const k of ks) d[k] -= m; } };
+      centre(dU, 1, gz, gx); centre(dW, gx, gx, gz);
+      const tmp = new Float32Array(N);
+      for (const d of [dU, dW]) for (let it = 0; it < 40; it++) { for (let j = 0; j < gz; j++) for (let i = 0; i < gx; i++) { const k = j * gx + i; if (!has[k]) continue; let sum = d[k] * 2, w = 2; if (i > 0 && has[k - 1]) { sum += d[k - 1]; w++; } if (i < gx - 1 && has[k + 1]) { sum += d[k + 1]; w++; } if (j > 0 && has[k - gx]) { sum += d[k - gx]; w++; } if (j < gz - 1 && has[k + gx]) { sum += d[k + gx]; w++; } tmp[k] = sum / w; } d.set(tmp); }
+      for (let k = 0; k < N; k++) if (has[k]) { V[k].U = V[k].lu + dU[k]; V[k].W = V[k].lv + dW[k]; } }
+    const PU = 3.2, PW = 2.3;   // panel diagonals along / across the ribbon (m)
     const latOf = (vv) => [(vv.U / PU + vv.W / PW), (vv.U / PU - vv.W / PW)];
     let nq = G.quads.length;
     if (!night) {
@@ -270,15 +296,13 @@ window.EI = window.EI || {};
           'float band(float d, float w, float aa) { return 1.0 - smoothstep(w - aa, w + aa, d); }',
           'void main() {',
           '  vec2 f = fract(vL); vec2 e = min(f, 1.0 - f); vec2 fw2 = fwidth(vL); float fw = max(max(fw2.x, fw2.y), 1e-4);',
-          '  float far = smoothstep(0.04, 0.16, fw), farD = smoothstep(0.3, 0.75, fw);',
-          '  float ln = mix(band(min(e.x, e.y), 0.03, fw), 0.12, far);',             // the white frame members
-          '  float dn = length(e);',                                                      // distance to the nearest node
-          '  float rD = max(0.1, fw * 0.75); float dt = mix(band(dn, rD, fw * 0.8) * min(1.0, 0.0072 / (rD * rD) + 0.35), 0.06, farD);',                     // the LED at the node
+          '  float gap = band(min(e.x, e.y), 0.05, fw) * (1.0 - smoothstep(0.05, 0.14, fw));',   // dark joints, gone before they alias
+          '  float dn = length(e);',                                                                // distance to the nearest node
+          '  float rD = max(0.09, fw * 0.7); float dt = mix(band(dn, rD, fw * 0.8) * min(1.0, 0.0081 / (rD * rD) + 0.3), 0.05, smoothstep(0.35, 0.8, fw));',
           '  float hue = uT * 0.012 + vW.x * 0.0011 + vW.z * 0.0007 + vW.y * 0.0035;',
-          '  vec3 c = pal(hue); float wave = 0.82 + 0.18 * sin(vW.x * 0.021 - vW.z * 0.013 - uT * 0.35);',
-          '  vec3 panel = mix(vec3(0.86, 0.86, 0.96), c, 0.62) * (0.09 + 0.34 * exp(-dn * dn * 9.0));',                    // each pane lit from its LED corner
-          '  vec3 frame = mix(c, vec3(0.9, 0.9, 0.95), 0.7) * 0.3;',
-          '  vec3 col = mix(panel, frame, ln) * wave + mix(c, vec3(1.0), 0.55) * 3.4 * dt;',
+          '  vec3 c = pal(hue); float wave = 0.85 + 0.15 * sin(vW.x * 0.021 - vW.z * 0.013 - uT * 0.35);',
+          '  vec3 panel = mix(vec3(0.9, 0.9, 0.98), c, 0.8) * (0.12 + 0.18 * mix(exp(-dn * dn * 6.0), 0.35, smoothstep(0.25, 0.6, fw)));',  // white panes washed by the LEDs
+          '  vec3 col = mix(panel, c * 0.03, gap) * wave + mix(c, vec3(1.0), 0.55) * 3.4 * dt;',
           '  if (!gl_FrontFacing) col *= 0.85;',
           '  gl_FragColor = vec4(col, 1.0);',
           '#include <tonemapping_fragment>', '#include <encodings_fragment>', '#include <fog_fragment>', '}'].join('\n'),

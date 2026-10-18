@@ -630,21 +630,21 @@ window.EI = window.EI || {};
       const RC_STRIPES = RC ? `
     float rTq = rGon * step(eiHW + eiKW - 0.05, rAl) * (1.0 - smoothstep(rOuter - 0.3 - rAA, rOuter - 0.3 + rAA, rAl));
     float rDd = rAl - eiHW - eiKW; float rSt = 0.0;
-    for (int k = 0; k < 5; k++) { float c0 = 2.9 + float(k) * 1.75; rSt += smoothstep(c0 - rAA, c0 + rAA, rDd) * (1.0 - smoothstep(c0 + 0.85 - rAA, c0 + 0.85 + rAA, rDd)); }
-    vec3 rTqC = mix(${v3(lin(RC[2] || RC[0]))}, ${v3(lin(RC[1]).lerp(lin(RC[0]), 0.35))}, rSt * (0.75 + 0.25 * rM1.g)) * (0.68 + 0.16 * rM2.r);
+    for (int k = 0; k < 3; k++) { float c0 = 1.9 + float(k) * 2.3; rSt += smoothstep(c0 - rAA, c0 + rAA, rDd) * (1.0 - smoothstep(c0 + 0.9 - rAA, c0 + 0.9 + rAA, rDd)); }
+    vec3 rTqC = mix(${v3(lin(RC[2] || RC[0]))}, ${v3(lin(RC[1]))}, rSt * (0.85 + 0.15 * rM1.g)) * (0.9 + 0.12 * rM2.r);
     rTqC = mix(rTqC, vec3(0.72, 0.72, 0.7), 1.0 - smoothstep(0.1, 0.1 + rAA, abs(rAl - rOuter + 0.55)));
     rCol = mix(rCol, mix(rTqC, rBase * 1.05, clamp(rWear * 0.5, 0.0, 0.6)), rTq);
     rGreen = max(rGreen, rTq);
 ` : '';
       const runFrag = RC ? RUNOFF_FRAG.replace('vec3(0.045, 0.2, 0.06)', v3(lin(RC[2] || RC[0]))).replace('    rCol = mix(rCol, rCol * 0.45, rTyre', RC_STRIPES + '    rCol = mix(rCol, rCol * 0.45, rTyre') : RUNOFF_FRAG;
       const aw0 = hw + kw + 2.0;
-      const rMat = shaderMat({ map: T.runoff.map, normalMap: T.runoff.normalMap, normalScale: new THREE.Vector2(0.7, 0.7), roughnessMap: T.runoff.roughnessMap, roughness: 1, metalness: 0, polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 2 }, 'runoff' + (RC ? '-' + RC.join('') : ''), common, VARY_RUN, runFrag, RUNOFF_ROUGH, FLATTEN);
+      const rMat = shaderMat({ map: T.runoff.map, normalMap: T.runoff.normalMap, normalScale: new THREE.Vector2(0.7, 0.7), roughnessMap: T.runoff.roughnessMap, roughness: 1, metalness: 0, polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 2 }, 'runoff' + (RC ? '-' + RC.join('') : ''), common, VARY_RUN, runFrag, RC ? RUNOFF_ROUGH + '    roughnessFactor = mix(roughnessFactor, 0.9, rTq);\n' : RUNOFF_ROUGH, FLATTEN);
       const gMat = shaderMat({ map: T.gravel.map, normalMap: T.gravel.normalMap, normalScale: new THREE.Vector2(1.25, 1.25), roughnessMap: T.gravel.roughnessMap, roughness: 1, metalness: 0, polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 3 }, 'gravel', common, VARY4, GRAVEL_FRAG, GRAVEL_ROUGH, '', GRAVEL_NORMAL);
       this.surfMats = { runoff: rMat, gravel: gMat };
       for (const side of [-1, 1]) {
         const run = side < 0 ? this.runoffL : this.runoffR, grav = side < 0 ? this.gravelL : this.gravelR, wall = side < 0 ? this.wallL : this.wallR;
         // outer edge: dilate then smooth so the run-off tapers in and out and never leaves a gap to the gravel
-        const raw = new Float32Array(n); for (let i = 0; i < n; i++) raw[i] = run[i] ? hw + kw + (grav[i] ? 7.05 : 14) : RC ? hw + kw + 11 : kerbMask(i) ? aw0 + 0.05 : hw + 1.0;
+        const raw = new Float32Array(n); for (let i = 0; i < n; i++) raw[i] = run[i] ? hw + kw + (grav[i] ? 7.05 : 14) : RC ? hw + kw + (kerbMask(i) ? 9 : 3.4) : kerbMask(i) ? aw0 + 0.05 : hw + 1.0;
         const dil = new Float32Array(n); for (let i = 0; i < n; i++) { let m = 0; for (let j = -4; j <= 4; j++) m = Math.max(m, raw[(i + j + n) % n]); dil[i] = m; }
         const outer = this.smooth(dil, 4); for (let i = 0; i < n; i++) outer[i] = Math.max(hw + 0.6, Math.min(outer[i], wall[i] - 0.4));
         // paint scheme per row (corner name), spread one row so the colour attribute is constant across each paint boundary quad
@@ -792,6 +792,14 @@ window.EI = window.EI || {};
       if (lb.idx.length) { const lm = Track.batchMesh(lb, mat); lm.name = 'runoffLogos'; lm.userData.decor = true; g.add(lm); }
     }
 
+    // wall panel artwork: the partners' boards; Yas Marina's walls carry black boards with the white lock-ups and URLs (u3 / u4)
+    barrierArt() {
+      const A = EI.Ads; const desert = !!(this.scenery && this.scenery.env && this.scenery.env.data.kind === 'desert'); if (!desert) return A.BARRIER;
+      const txt = (t, font) => (ctx, w, h) => { ctx.fillStyle = '#0b0c0f'; ctx.fillRect(0, 0, w, h); ctx.fillStyle = '#ffffff'; ctx.font = '800 ' + Math.round(h * 0.56) + 'px ' + font; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(t, w / 2, h * 0.53); };
+      const lock = (brand) => (ctx, w, h) => { ctx.fillStyle = '#0b0c0f'; ctx.fillRect(0, 0, w, h); A.lockupCentered(ctx, brand, w / 2, h / 2, h * 0.6, w * 0.8, '#ffffff', true); };
+      const F = '"Plus Jakarta Sans", Arial, sans-serif';
+      return [lock('lumi'), txt('intake.ink', F), txt('trylumi.co', F), lock('intake'), txt('Ask Lumi.', F)];
+    }
     buildBarriers(g) {
       if (this.data.street) { this.buildStreetBarriers(g); return; }
       const kk = this.smooth(this.k, 12);
@@ -804,7 +812,7 @@ window.EI = window.EI || {};
       const band = (k, rough, metal) => { rx.fillStyle = 'rgb(255,' + Math.round(rough * 255) + ',' + Math.round(metal * 255) + ')'; rx.fillRect(k * 128, 0, 128, AH); };
       // panels: 5 partner boards along 25.6 m, text running along the wall (drawn rotated: canvas y is the lap direction).
       // Band 0 reads left to right along +s (left-hand wall), band 4 is the same art flipped along the lap for the right-hand wall
-      { const ph = AH / 5; EI.Ads.BARRIER.forEach((paint, i) => { for (const flip of [0, 1]) { cx.save(); cx.beginPath(); cx.rect(flip * 512, i * ph, 128, ph); cx.clip(); cx.translate(flip * 512 + 128, i * ph + flip * ph); cx.rotate(Math.PI / 2); if (flip) cx.scale(-1, 1); const vw = 128 * EI.Ads.BARRIER_ASPECT; cx.scale(ph / vw, 1); paint(cx, vw, 128); cx.restore(); } });
+      { const ph = AH / 5; this.barrierArt().forEach((paint, i) => { for (const flip of [0, 1]) { cx.save(); cx.beginPath(); cx.rect(flip * 512, i * ph, 128, ph); cx.clip(); cx.translate(flip * 512 + 128, i * ph + flip * ph); cx.rotate(Math.PI / 2); if (flip) cx.scale(-1, 1); const vw = 128 * EI.Ads.BARRIER_ASPECT; cx.scale(ph / vw, 1); paint(cx, vw, 128); cx.restore(); } });
         band(0, 0.5, 0); band(4, 0.5, 0); }
       // tyre wall: stacks of 4 tyres, 4 stacks per 2.6 m, white / red marker stacks
       { cx.fillStyle = '#151515'; cx.fillRect(128, 0, 128, AH); const cols = ['#202020', '#202020', '#e8e8e8', '#202020', '#c81418', '#202020', '#202020', '#202020'];
@@ -906,7 +914,7 @@ window.EI = window.EI || {};
         X.rail = U.srgb(canvasTex(c, true)); }
       // partner sleeves over the rails: 8 rows of two boards (4 m x 1 m each), u along, v across
       { const [c, x] = cv(1024, 1024); x.fillStyle = '#ffffff'; x.fillRect(0, 0, 1024, 1024);
-        const B = EI.Ads && EI.Ads.BARRIER; for (let k = 0; k < 8; k++) for (let j = 0; j < 2; j++) { x.save(); x.beginPath(); x.rect(j * 512, k * 128, 512, 128); x.clip(); x.translate(j * 512, k * 128); const vw = 128 * 4; x.scale(512 / vw, 1); if (B) B[(k * 2 + j) % B.length](x, vw, 128); else { x.fillStyle = k % 2 ? '#1a3d6e' : '#0d5e52'; x.fillRect(0, 0, vw, 128); } x.restore(); x.fillStyle = 'rgba(0,0,0,0.18)'; x.fillRect(j * 512, k * 128, 3, 128); }
+        const B = EI.Ads && EI.Ads.BARRIER && this.barrierArt(); for (let k = 0; k < 8; k++) for (let j = 0; j < 2; j++) { x.save(); x.beginPath(); x.rect(j * 512, k * 128, 512, 128); x.clip(); x.translate(j * 512, k * 128); const vw = 128 * 4; x.scale(512 / vw, 1); if (B) B[(k * 2 + j) % B.length](x, vw, 128); else { x.fillStyle = k % 2 ? '#1a3d6e' : '#0d5e52'; x.fillRect(0, 0, vw, 128); } x.restore(); x.fillStyle = 'rgba(0,0,0,0.18)'; x.fillRect(j * 512, k * 128, 3, 128); }
         weather(x, 1024, 1024, 61, 5000); X.cover = U.srgb(canvasTex(c, true)); X.cover.wrapT = THREE.ClampToEdgeWrapping; }
       // chain-link mesh (0.5 m tile, diamond weave, ~6 cm cells): alpha; mipmaps fade it to a light haze in the distance
       { const [c, x] = cv(64, 64); x.clearRect(0, 0, 64, 64); x.strokeStyle = 'rgba(196,200,204,1)'; x.lineWidth = 1.1;
