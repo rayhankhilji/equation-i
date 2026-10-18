@@ -181,6 +181,13 @@ window.EI = window.EI || {};
       if (isNight()) { for (let a = -hl + 4; a < hl; a += 9) glow(Q(a, 2.6, zc + 1.2), 2.2, [1.0, 0.85, 0.6]); flood(Q(0, 6, zc + 6), { power: 0.06 * Math.max(1, b.len / 30), range: 30, color: [1.0, 0.86, 0.66] }); }
       // a second, weaker flood back over the crowd
       flood(xf(m, 0, yTop + 4, zBack * 0.5), { power: 0.05 * Math.max(1, b.len / 25), range: 40 });
+      // flags on slim poles along the back of the stand (u4 / u5): the UAE flag, both faces
+      for (let a = -hl + 6; a < hl - 2; a += 24) {
+        const y0 = yTop + 1.2, y1 = y0 + 9; B.set('white', 0.4, 0.5, 0); B.col(m, a, zBack + 1.0, y0 - 1.0, y1, 0.09, 0.06, 6, C(0xe8e8ea), true);
+        const F = (u, v) => xf(m, a + 0.1 + u * 2.7 + 0.25 * Math.sin(u * 3.0 + a), y1 - 0.15 - v * 1.35, zBack + 1.0 + 0.35 * Math.sin(u * 2.4 + a * 0.3));
+        const band = (u0, u1, v0, v1, col) => { const A = F(u0, v0), Bq = F(u1, v0), Cq = F(u1, v1), D = F(u0, v1); B.quad(A, Bq, Cq, D, col); B.quad(A, D, Cq, Bq, col); };
+        B.set('white', 0.7, 0, isNight() ? 0.25 : 0); band(0, 0.25, 0, 1, C(0xc8102e)); band(0.25, 1, 0, 1 / 3, C(0x00843d)); band(0.25, 1, 1 / 3, 2 / 3, C(0xf4f4f4)); band(0.25, 1, 2 / 3, 1, C(0x111111));
+      }
     }
     return n;
   }
@@ -336,9 +343,9 @@ window.EI = window.EI || {};
     const signQ = (l0, l1, h0, h1, a, rep, flip) => { const A = P(l0, h0, a), Bq = P(l1, h0, a), Cq = P(l1, h1, a), D = P(l0, h1, a); const uv = flip ? [rep, 0, 0, 0, 0, 1, rep, 1] : [0, 0, rep, 0, rep, 1, 0, 1];
       const ux = Bq[0] - A[0], uz = Bq[2] - A[2], vy = D[1] - A[1]; const nz = ux * vy, nx = -uz * vy; const fx = f.tx * a, fz = f.tz * a; if (nx * fx + nz * fz >= 0) B.quad(A, Bq, Cq, D, C(0xffffff), uv); else B.quad(A, D, Cq, Bq, C(0xffffff), [uv[0], uv[1], uv[6], uv[7], uv[4], uv[5], uv[2], uv[3]]); };
     B.set(Rr.sign, 0.5, 0.1, night ? 0.9 : 0.15); const span = wl + wr; const rep = Math.max(1, Math.round(span / 16));
-    for (const a of [-0.92, 0.92]) signQ(-wl + 0.2, wr - 0.2, 9.15, 10.65, a, rep, a > 0);
+    for (const a of [-0.92, 0.92]) signQ(-wl + 0.2, wr - 0.2, 9.15, 10.65, a, rep, a < 0);
     B.set('white', 0.55, 0.3); boxL(-9.5, 9.5, 10.9, 15.2, -0.55, 0.55, black, ['top', 'left', 'right', 'front', 'back']);
-    B.set(Rr.sign, 0.5, 0.1, night ? 1.0 : 0.2); for (const a of [-0.57, 0.57]) signQ(-9.2, 9.2, 11.15, 14.95, a, 1, a > 0);
+    B.set(Rr.sign, 0.5, 0.1, night ? 1.0 : 0.2); for (const a of [-0.57, 0.57]) signQ(-9.2, 9.2, 11.15, 14.95, a, 1, a < 0);
     // trim lines and columns
     B.set('white', 0.5, 0.4); for (const a of [-0.92, 0.92]) { boxL(-wl - 0.6, wr + 0.6, 10.9, 11.05, a - 0.04, a + 0.04, trim); boxL(-wl - 0.6, wr + 0.6, 8.75, 8.9, a - 0.04, a + 0.04, trim); }
     for (const lat of [-wl - 0.6, wr + 0.6]) boxL(lat - 0.7, lat + 0.7, -0.5, 8.9, -0.7, 0.7, black, ['left', 'right', 'front', 'back']);
@@ -399,7 +406,7 @@ window.EI = window.EI || {};
       m.compose(p.set(x, y + Hh, z), q, s1); iHead.setMatrixAt(k, m); iL.setMatrixAt(k, m);
       const hp = [x + ax * 1.2, y + Hh + 1.0, z + az * 1.2];
       flood(hp, { power: 0.95 * step / 62, aim: [ax, az], spread: 1.0, range: 120 });
-      glow(hp, 8.5, [1.0, 0.97, 0.9]); glow([x, y + Hh + 3.15, z], 1.6, [1.0, 0.12, 0.06], { pulse: 0.5 });
+      glow(hp, 4.5, [1.0, 0.97, 0.9]); glow([x, y + Hh + 3.15, z], 1.6, [1.0, 0.12, 0.06], { pulse: 0.5 });
     });
     const bb = new THREE.Box3(); for (const S of spots) bb.expandByPoint(p.set(S[0], S[1], S[2])); bb.max.y += 42; const bs = bb.getBoundingSphere(new THREE.Sphere());
     for (const im of [iPole, iHead, iL]) { im.instanceMatrix.needsUpdate = true; im.castShadow = false; im.receiveShadow = false; im.geometry = im.geometry.clone(); im.geometry.boundingSphere = bs.clone(); }

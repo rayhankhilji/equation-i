@@ -117,7 +117,7 @@ window.EI = window.EI || {};
       const A = P[s][a], Bq = P[s + 1][a], Cq = P[s + 1][a + 1], D = P[s][a + 1]; const nA = NN[s][a], nB = NN[s + 1][a], nC = NN[s + 1][a + 1], nD = NN[s][a + 1];
       const tm = (A[3] + Bq[3]) / 2, thm = (A[4] + D[4]) / 2; const dR = Math.abs(Math.atan2(Math.sin(thm), Math.cos(thm))), dL = Math.abs(Math.atan2(Math.sin(thm - Math.PI), Math.cos(thm - Math.PI)));
       const side = dR < WA ? 1 : dL < WA ? -1 : 0; let uv = null;
-      if (side && tm > WT0 && tm < WT1) { B.set(TX().podWin, 0.25, 0.2, night ? 0.75 : 0); const q = [A, Bq, Cq, D].map(v => winUV(v, side)); uv = [q[0][0], q[0][1], q[1][0], q[1][1], q[2][0], q[2][1], q[3][0], q[3][1]]; }
+      if (side && tm > WT0 && tm < WT1) { B.set(TX().podWin, 0.25, 0.2, night ? 0.45 : 0); const q = [A, Bq, Cq, D].map(v => winUV(v, side)); uv = [q[0][0], q[0][1], q[1][0], q[1][1], q[2][0], q[2][1], q[3][0], q[3][1]]; }
       else B.set('white', 0.35, 0.15, night ? 0.06 : 0);
       // outward winding check against the smooth normal
       const ux = Bq[0] - A[0], uy = Bq[1] - A[1], uz = Bq[2] - A[2], vx = D[0] - A[0], vy = D[1] - A[1], vz = D[2] - A[2]; const f = (uy * vz - uz * vy) * nA[0] + (uz * vx - ux * vz) * nA[1] + (ux * vy - uy * vx) * nA[2];
@@ -273,25 +273,22 @@ window.EI = window.EI || {};
           '  float far = smoothstep(0.04, 0.16, fw), farD = smoothstep(0.3, 0.75, fw);',
           '  float ln = mix(band(min(e.x, e.y), 0.03, fw), 0.12, far);',             // the white frame members
           '  float dn = length(e);',                                                      // distance to the nearest node
-          '  float rD = max(0.085, fw * 0.75); float dt = mix(band(dn, rD, fw * 0.8) * min(1.0, 0.0072 / (rD * rD) + 0.35), 0.06, farD);',                     // the LED at the node
+          '  float rD = max(0.1, fw * 0.75); float dt = mix(band(dn, rD, fw * 0.8) * min(1.0, 0.0072 / (rD * rD) + 0.35), 0.06, farD);',                     // the LED at the node
           '  float hue = uT * 0.012 + vW.x * 0.0011 + vW.z * 0.0007 + vW.y * 0.0035;',
           '  vec3 c = pal(hue); float wave = 0.82 + 0.18 * sin(vW.x * 0.021 - vW.z * 0.013 - uT * 0.35);',
-          '  vec3 panel = c * (0.07 + 0.36 * exp(-dn * dn * 9.0));',                    // each pane lit from its LED corner
-          '  vec3 frame = mix(c, vec3(1.0), 0.35) * 0.2;',
-          '  vec3 col = mix(panel, frame, ln) * wave + mix(c, vec3(1.0), 0.5) * 3.2 * dt;',
+          '  vec3 panel = mix(vec3(0.86, 0.86, 0.96), c, 0.62) * (0.09 + 0.34 * exp(-dn * dn * 9.0));',                    // each pane lit from its LED corner
+          '  vec3 frame = mix(c, vec3(0.9, 0.9, 0.95), 0.7) * 0.3;',
+          '  vec3 col = mix(panel, frame, ln) * wave + mix(c, vec3(1.0), 0.55) * 3.4 * dt;',
           '  if (!gl_FrontFacing) col *= 0.85;',
           '  gl_FragColor = vec4(col, 1.0);',
           '#include <tonemapping_fragment>', '#include <encodings_fragment>', '#include <fog_fragment>', '}'].join('\n'),
       });
       mat.extensions = { derivatives: true }; mat.userData.nightEmissive = true;
-      const lm = new THREE.Mesh(g, mat); lm.name = 'yasGridshell'; lm.castShadow = false; lm.receiveShadow = false; sc.group.add(lm); out.shellTris = ind.length / 3;
+      const lm = new THREE.Mesh(g, mat); lm.name = 'yasShellLED'; lm.castShadow = false; lm.receiveShadow = false; sc.group.add(lm); out.shellTris = ind.length / 3;
       const uT = mat.uniforms.uT; EI.Night.onFrame((dt, tt) => { uT.value = tt; });
-      // the skin lights its surroundings: the track and the run-off under and around it take its violet (u1)
-      const hc = centroid(doms[0]); EI.Night.addFlood(hc[0], yBase + 30, hc[1], { power: 0.55, range: 130, color: [0.72, 0.42, 1.0] });
-      if (br) { const bc = centroid(br.p); EI.Night.addFlood(bc[0], yBase + 14, bc[1], { power: 0.45, range: 70, color: [0.8, 0.5, 1.0] }); }
-      for (const w of wings) { const c = centroid(w.p); EI.Night.addFlood(c[0], w.y0 + w.h + 8, c[1], { power: 0.35, range: 110, color: [0.68, 0.42, 1.0] }); }
+      // its colour spill on the track and the run-off is night.js' (volumes from this mesh's bounds); here only white track floods
       const hs = []; for (let s = 0; s < t.length; s += 4) { const i = t.idxAtS(s); for (const p of doms) if (polyDist(t.x[i], t.z[i], p) < 45) { hs.push(s); break; } }
-      let last = -1e9; for (const s of hs) if (s - last >= 28) { last = s; const i = t.idxAtS(s); EI.Night.addFlood(t.x[i], t.y[i] + 14, t.z[i], { power: 0.6, range: 60, color: [0.95, 0.88, 1.0] }); }
+      let last = -1e9; for (const s of hs) if (s - last >= 28) { last = s; const i = t.idxAtS(s); EI.Night.addFlood(t.x[i], t.y[i] + 14, t.z[i], { power: 0.4, range: 60, color: [0.95, 0.9, 1.0] }); }
       // slim white diagonal columns from the ground to the hem (u1): where the hem comes down near the ground, clear of the track
       const Cb = new (SKx().Batch)(); Cb.set('white', 0.4, 0.1, 0.05); const colW = C(0xf4f4f6); const mI = new THREE.Matrix4(); let ncol = 0; const placed = [];
       for (const [a] of G.quads) {

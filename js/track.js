@@ -631,7 +631,7 @@ window.EI = window.EI || {};
     float rTq = rGon * step(eiHW + eiKW - 0.05, rAl) * (1.0 - smoothstep(rOuter - 0.3 - rAA, rOuter - 0.3 + rAA, rAl));
     float rDd = rAl - eiHW - eiKW; float rSt = 0.0;
     for (int k = 0; k < 5; k++) { float c0 = 2.9 + float(k) * 1.75; rSt += smoothstep(c0 - rAA, c0 + rAA, rDd) * (1.0 - smoothstep(c0 + 0.85 - rAA, c0 + 0.85 + rAA, rDd)); }
-    vec3 rTqC = mix(${v3(lin(RC[2] || RC[0]))}, ${v3(lin(RC[1]).lerp(lin(RC[0]), 0.35))}, rSt * (0.75 + 0.25 * rM1.g)) * (0.9 + 0.2 * rM2.r);
+    vec3 rTqC = mix(${v3(lin(RC[2] || RC[0]))}, ${v3(lin(RC[1]).lerp(lin(RC[0]), 0.35))}, rSt * (0.75 + 0.25 * rM1.g)) * (0.68 + 0.16 * rM2.r);
     rTqC = mix(rTqC, vec3(0.72, 0.72, 0.7), 1.0 - smoothstep(0.1, 0.1 + rAA, abs(rAl - rOuter + 0.55)));
     rCol = mix(rCol, mix(rTqC, rBase * 1.05, clamp(rWear * 0.5, 0.0, 0.6)), rTq);
     rGreen = max(rGreen, rTq);
