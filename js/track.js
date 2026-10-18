@@ -519,7 +519,7 @@ window.EI = window.EI || {};
         if (flip === null && Math.abs(b - a) > 1e-4) flip = b < a;
         const ya = this.y[ii] + (opts.ya ? opts.ya(ii) : y), yb = this.y[ii] + (opts.yb ? opts.yb(ii) : y);
         pos.push(this.x[ii] + this.nx[ii] * a, ya, this.z[ii] + this.nz[ii] * a, this.x[ii] + this.nx[ii] * b, yb, this.z[ii] + this.nz[ii] * b);
-        const v = (i * this.ds) / (opts.vScale || 8); uv.push(0, v, 1, v);
+        const v = opts.vFn ? opts.vFn(i) : (i * this.ds) / (opts.vScale || 8); uv.push(0, v, 1, v);
         const ca = opts.colorFn ? opts.colorFn(ii, 0) : color, cb = opts.colorFn ? opts.colorFn(ii, 1) : color; col.push(ca.r, ca.g, ca.b, cb.r, cb.g, cb.b);
         map[i] = vi; vi += 2;
       }
@@ -1021,7 +1021,15 @@ window.EI = window.EI || {};
         const isTyre = i => inCorner(i) && tyreCorners.indexOf(cornerAt(this.s[i])) >= 0 && (side < 0 ? kk[i] > 0 : kk[i] < 0);
         const isPanel = i => !armco && !isTyre(i) && (inCorner(i) || Math.abs(this.s[i] - this.sf) < 500);
         // concrete base + panels
-        const pg = toBand(this.ribbon(i => side * wall[i], i => side * wall[i], { mask: isPanel, ya: () => 0.5, yb: () => 1.2, vScale: 25.6 }), side < 0 ? 0 : 4);
+        // v along the wall's own length (not the centre line: no stretch in corners), each panel run scaled to a whole number of
+        // 5.12 m boards so no board is cut at a run end (<= half a board of error spread over the run; f1-BRAND)
+        const pv = (() => { const n = this.n, v = new Float32Array(n + 1), on = (i) => { const ii = i % n; return isPanel(ii) || isPanel((ii + n - 1) % n); };
+          const wx = (i) => this.x[i % n] + this.nx[i % n] * side * wall[i % n], wz = (i) => this.z[i % n] + this.nz[i % n] * side * wall[i % n];
+          for (let r0 = 0; r0 <= n;) { if (!on(r0)) { r0++; continue; } let r1 = r0; while (r1 + 1 <= n && on(r1 + 1)) r1++;
+            const arc = [0]; for (let i = r0 + 1; i <= r1; i++) arc.push(arc[arc.length - 1] + Math.hypot(wx(i) - wx(i - 1), wz(i) - wz(i - 1)));
+            const len = arc[arc.length - 1] || 1, sc = Math.max(1, Math.round(len / 5.12)) * 5.12 / len; for (let i = r0; i <= r1; i++) v[i] = arc[i - r0] * sc / 25.6; r0 = r1 + 1; }
+          return v; })();
+        const pg = toBand(this.ribbon(i => side * wall[i], i => side * wall[i], { mask: isPanel, ya: () => 0.5, yb: () => 1.2, vFn: (i) => pv[i] }), side < 0 ? 0 : 4);
         g.add(new THREE.Mesh(pg, barMat));
         const cg = toBand(this.ribbon(i => side * wall[i], i => side * wall[i], { mask: isPanel, ya: () => 0, yb: () => 0.5 }), 3);
         const cm = new THREE.Mesh(cg, barMat); cm.castShadow = true; g.add(cm);
@@ -1196,9 +1204,20 @@ window.EI = window.EI || {};
           let next = 1; for (let k = 1; k < run.length; k++) { while (next < arc[k]) { const f = (next - arc[k - 1]) / Math.max(0.01, arc[k] - arc[k - 1]); const ia = run[k - 1], ib = run[k]; const pa = P(ia, base(ia) + 0.16, 0), pb = P(ib, base(ib) + 0.16, 0); const q = [pa[0] + (pb[0] - pa[0]) * f, pa[1] + (pb[1] - pa[1]) * f, pa[2] + (pb[2] - pa[2]) * f];
             const m = EI.Env.frame(q[0], q[1], q[2], this.tx[ia], this.tz[ia], this.nx[ia] * side, this.nz[ia] * side); Rf.set('white', 0.5, 0.6); Rf.box(m, 0.15, 1.08, 0.1, 0, 0, 0, railPost); Rf.box(m, 0.1, 0.18, 0.14, 0, 0.7, -0.1, railPost); next += 2; } }
           // sleeves where the data lists them: boards read left to right from the road
-          for (let k = 1; k < run.length; k++) { const ia = run[k - 1], ib = run[k]; if (z.cover[ia] < 0 || z.cover[ib] < 0) continue; const kk = z.cover[ia];
-            const a = P(ia, base(ia) - 0.068, 0.12), b = P(ib, base(ib) - 0.068, 0.12), c = P(ib, base(ib) - 0.068, 1.0), d = P(ia, base(ia) - 0.068, 1.0); const u0 = side * arc[k - 1] / 8, u1 = side * arc[k] / 8;
-            Rm.set(sleeves[kk % sleeves.length], 0.5, 0.0); if (side > 0) Rm.quad(a, b, c, d, white, [u0, 0, u1, 0, u1, 1, u0, 1]); else Rm.quad(a, d, c, b, white, [u0, 0, u0, 1, u1, 1, u1, 0]); }
+          // each contiguous cover holds a whole number of 4 m boards, centred, so no board is cut at its ends (f1-BRAND)
+          const lerp3 = (p, q, t) => [p[0] + (q[0] - p[0]) * t, p[1] + (q[1] - p[1]) * t, p[2] + (q[2] - p[2]) * t];
+          for (let k0 = 1; k0 < run.length;) {
+            const kk = z.cover[run[k0 - 1]]; if (kk < 0 || z.cover[run[k0]] < 0) { k0++; continue; }
+            let k1 = k0; while (k1 + 1 < run.length && z.cover[run[k1]] === kk && z.cover[run[k1 + 1]] >= 0) k1++;
+            const nbd = Math.floor((arc[k1] - arc[k0 - 1]) / 4), cs0 = arc[k0 - 1] + (arc[k1] - arc[k0 - 1] - nbd * 4) / 2, cs1 = cs0 + nbd * 4;
+            if (nbd >= 1) for (let k = k0; k <= k1; k++) {
+              const ia = run[k - 1], ib = run[k], da = Math.max(1e-6, arc[k] - arc[k - 1]); const t0 = Math.max(0, (cs0 - arc[k - 1]) / da), t1 = Math.min(1, (cs1 - arc[k - 1]) / da); if (t1 <= t0) continue;
+              const a0 = P(ia, base(ia) - 0.068, 0.12), b0 = P(ib, base(ib) - 0.068, 0.12), c0 = P(ib, base(ib) - 0.068, 1.0), d0 = P(ia, base(ia) - 0.068, 1.0);
+              const a = lerp3(a0, b0, t0), b = lerp3(a0, b0, t1), c = lerp3(d0, c0, t1), d = lerp3(d0, c0, t0); const u0 = side * (arc[k - 1] + da * t0 - cs0) / 8, u1 = side * (arc[k - 1] + da * t1 - cs0) / 8;
+              Rm.set(sleeves[kk % sleeves.length], 0.5, 0.0); if (side > 0) Rm.quad(a, b, c, d, white, [u0, 0, u1, 0, u1, 1, u0, 1]); else Rm.quad(a, d, c, b, white, [u0, 0, u0, 1, u1, 1, u1, 0]);
+            }
+            k0 = k1 + 1;
+          }
         }
         // ---- debris fence: chain-link to 3.5 m behind the rail, the catch section leaning 0.75 m over the road; posts every ~4 m
         // wire tone: dark enough that the mesh reads as galvanised wire against the sky and the facades, not as a frosted sheet
@@ -1226,7 +1245,8 @@ window.EI = window.EI || {};
         // ---- partner boards hung on the debris fence above the block barriers at the corners: 4 m x 1 m panels, a plain grey back
         { let a = null, kb = side > 0 ? 0 : 2; for (let i = 0; i <= n; i++) { const ii = i % n; if (!z.tec[ii] || !fenceOn(ii)) { a = null; continue; } const p = P(ii, fl(ii) - 0.05, 1.45); if (!a) { a = [ii, p]; continue; } if (Math.hypot(p[0] - a[1][0], p[2] - a[1][2]) < 4.1) continue;
           const ia = a[0], A0 = a[1], B0 = p, B1 = P(ii, fl(ii) - 0.05, 2.45), A1 = P(ia, fl(ia) - 0.05, 2.45); Rd.set(sleeves[kb++ % sleeves.length], 0.5, 0);
-          if (side > 0) Rd.quad(A0, B0, B1, A1, white, [0, 0, 0.5, 0, 0.5, 1, 0, 1]); else Rd.quad(A0, A1, B1, B0, white, [0.5, 0, 0.5, 1, 0, 1, 0, 0]);
+          // a 4 x 1 m panel shows one 4 x 0.88 m sleeve half: the middle 88 % of its height keeps the design's aspect (f1-BRAND)
+          if (side > 0) Rd.quad(A0, B0, B1, A1, white, [0, 0.06, 0.5, 0.06, 0.5, 0.94, 0, 0.94]); else Rd.quad(A0, A1, B1, B0, white, [0.5, 0.06, 0.5, 0.94, 0, 0.94, 0, 0.06]);
           Rd.set('white', 0.6, 0.2); if (side > 0) Rd.quad(B0, A0, A1, B1, lin(0x6d7276)); else Rd.quad(A0, B0, B1, A1, lin(0x6d7276)); a = [ii, p]; } }
         // ---- pit road openings: orange foam end blocks and red / white marker poles
         for (let i = 0; i < n; i++) { const j = (i + 1) % n; if (railOn(i) === railOn(j)) continue; const k = railOn(i) ? i : j; const c = P(k, base(k) - 0.3, 0); const m = EI.Env.frame(c[0], c[1], c[2], this.tx[k], this.tz[k], this.nx[k], this.nz[k]); Rd.set('white', 0.7, 0); Rd.box(m, 1.2, 1.15, 0.6, 0, 0, 0, orange); Rd.box(m, 1.22, 0.1, 0.62, 0, 0.75, 0, dark); const q = P(k, base(k) + 0.6, 0); for (let h = 0; h < 1.6; h += 0.4) Rd.beam(I4, [q[0], q[1] + h, q[2]], [q[0], q[1] + h + 0.4, q[2]], 0.09, h % 0.8 < 0.2 ? red : white); }

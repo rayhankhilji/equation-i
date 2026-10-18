@@ -368,7 +368,9 @@ window.EI = window.EI || {};
       for (const car of this.cars) {
         const R = car.rules || (car.rules = { off: false, offT: 0, onT: 0, gain: 0, lost: false, hit: false, ahead: [], strikes: 0, give: null, blueBy: null, blueD: 0, bluePen: null, pd: car.dist });
         const prog = car.dist - R.pd; R.pd = car.dist;
-        const inPit = !!(car.pit && car.pit.active);
+        // the pit entry approach and the first seconds after the pit exit are not judged (the lane joins outside the white lines)
+        const pl = car.pit && EI.Pit && EI.Pit.layout ? EI.Pit.layout() : null;
+        const inPit = !!(car.pit && (car.pit.active || (car.pit.request && pl && U.mod(pl.sCap - car.trk.s, TL) < 250) || (car.pit.tOut != null && this.time - car.pit.tOut < 4)));
         if (car.finished || inPit) { R.off = false; R.offT = 0; R.give = null; R.blueBy = null; car.blueFlag = null; continue; }
         // ---- track limits: off when no part of the car is on the track (centre beyond the edge line by more than half the car)
         const out = Math.abs(car.trk.lat) > hw + OFF_W;

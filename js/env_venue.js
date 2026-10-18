@@ -302,7 +302,8 @@ window.EI = window.EI || {};
     // top half: sponsor boards (8 x 256 px); bottom half: fan banners (8 x 256 px)
     const [c, ctx] = Env.canvas(2048, 256);
     // the eight partner boards (EI.Ads.paintTile, 5:1 boards; one u period of the strips = all eight, 5 h each - f1-BRAND: was 5 h for all 8)
-    for (let k = 0; k < 8; k++) { const x = k * 256; EI.Ads.paintTile(ctx, k, x, 0, 256, 128); ctx.fillStyle = 'rgba(0,0,0,0.35)'; ctx.fillRect(x + 252, 0, 4, 128); }
+    // each design fills exactly the band the strips show (v 0.52..0.98 = rows 5..123), at 5:1
+    for (let k = 0; k < 8; k++) { const x = k * 256; ctx.fillStyle = '#2a2d31'; ctx.fillRect(x, 0, 256, 128); EI.Ads.paintTile(ctx, k, x, 5, 256, 118, 5); }
     const teams = EI.TEAMS || []; const tc = (k, f) => (teams[k % Math.max(1, teams.length)] || {})[f] || ['#c8102e', '#1a73e8', '#ff8000', '#00843d'][k % 4];
     const ban = (k, draw) => { ctx.save(); ctx.translate(k * 256, 128); ctx.beginPath(); ctx.rect(0, 0, 256, 128); ctx.clip(); draw(); ctx.restore(); };
     const text = (str, col, size, y, stroke) => { ctx.font = 'italic 900 ' + size + 'px Arial Black, Arial'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; if (stroke) { ctx.lineWidth = 6; ctx.strokeStyle = stroke; ctx.strokeText(str, 128, y); } ctx.fillStyle = col; ctx.fillText(str, 128, y); };
@@ -357,7 +358,7 @@ window.EI = window.EI || {};
         x2.fillStyle = grad; x2.beginPath(); if (x2.roundRect) x2.roundRect(6, 4, 52, 58, 12); else x2.rect(6, 4, 52, 58); x2.fill(); x2.fillStyle = 'rgba(255,255,255,0.18)'; x2.fillRect(10, 8, 44, 5);
         x2.fillStyle = '#2a5cb4'; x2.beginPath(); if (x2.roundRect) x2.roundRect(6, 66, 52, 56, 10); else x2.rect(6, 66, 52, 56); x2.fill(); x2.fillStyle = 'rgba(0,0,0,0.25)'; x2.fillRect(6, 112, 52, 8); },
         (x2, w, h) => { const g2 = x2.createLinearGradient(0, 0, 0, 64); g2.addColorStop(0, 'rgb(170,170,170)'); g2.addColorStop(1, 'rgb(100,100,100)'); x2.fillStyle = g2; x2.fillRect(6, 4, 52, 58); }, null, 'u');
-      sponR = SKx.Atlas.region('standSponsor', 1024, 64, (x2, w, h) => { for (let k = 0; k < 8; k++) { EI.Ads.paintTile(x2, k, k * 128, 0, 128, 64, 5); x2.fillStyle = 'rgba(0,0,0,0.35)'; x2.fillRect(k * 128 + 126, 0, 2, 64); } }, null, null, 'u');
+      sponR = SKx.Atlas.region('standSponsor', 1024, 64, (x2, w, h) => { for (let k = 0; k < 8; k++) EI.Ads.paintTile(x2, k, k * 128, 3, 128, 58, 5); }, null, null, 'u');
       Sb.set(seatR, 0.5, 0); Fr.set(sponR, 0.55, 0);
     }
     const H = new Env.Builder();     // hospitality, BRDC clubhouse, sheds (main layer)
@@ -407,7 +408,8 @@ window.EI = window.EI || {};
       const nrmW = (() => { const o = P(0, 0, 0), q = P(0, 0.55, -0.83); return [q[0] - o[0], q[1] - o[1], q[2] - o[2]]; })();
       // front wall + sponsor board, handrail along its top
       B.box(m, L, y0, 0.3, 0, 0, 0.15, conc);
-      const strip = (yb, h, zz) => { const g = new THREE.PlaneGeometry(L, h); g.rotateY(Math.PI); const suv = g.attributes.uv; const u0 = rng() * 8; for (let v = 0; v < suv.count; v++) suv.setXY(v, u0 + suv.getX(v) * L / (40 * h), 0.52 + suv.getY(v) * 0.46); g.translate(0, yb + h / 2, zz); g.applyMatrix4(m); fronts.push(g); };
+      // a whole number of 5h-long boards, centred (no board is cut at the ends or stretched; f1-BRAND)
+      const strip = (yb, h, zz) => { const nb = Math.floor(L / (5 * h)); if (nb < 1) return; const g = new THREE.PlaneGeometry(nb * 5 * h, h); g.rotateY(Math.PI); const suv = g.attributes.uv; const u0 = Math.floor(rng() * 8) / 8; for (let v = 0; v < suv.count; v++) suv.setXY(v, u0 + suv.getX(v) * nb / 8, 0.52 + suv.getY(v) * 0.46); g.translate(0, yb + h / 2, zz); g.applyMatrix4(m); fronts.push(g); };
       strip(0.22, 1.0, -0.02);
       for (let a = -hl + 0.2; a <= hl - 0.1; a += Math.max(2.8, (L - 0.3) / Math.max(1, Math.round((L - 0.3) / 3.3)))) MD.beam(m, [a, y0, 0.12], [a, y0 + 1.0, 0.12], 0.05, steelDark);
       MD.beam(m, [-hl, y0 + 1.0, 0.12], [hl, y0 + 1.0, 0.12], 0.07, steel); MD.beam(m, [-hl, y0 + 0.55, 0.12], [hl, y0 + 0.55, 0.12], 0.04, steelDark);
@@ -543,7 +545,7 @@ window.EI = window.EI || {};
           // base: white clad front wall below the first row (with a sponsor strip), grey underside of the decks
           B.box(m, L, y0, 0.25, 0, 0, 0.12, base); B.quad(P(-hl, y0 - 0.02, 0.26), P(hl, y0 - 0.02, 0.26), P(hl, 0.4, 0.26), P(-hl, 0.4, 0.26), baseD);
           if (style === 'water') for (let a = -hl + 1; a <= hl - 0.5; a += 3) M.box(m, 0.35, -yFoot + 0.4, 0.35, a, yFoot, 0.12, C(0xcfd2d4));
-          const strip = (yb, h, zz) => { const g = new THREE.PlaneGeometry(L, h); g.rotateY(Math.PI); const suv = g.attributes.uv; const u0 = rng() * 8; for (let v = 0; v < suv.count; v++) suv.setXY(v, u0 + suv.getX(v) * L / (40 * h), Fr ? 0.04 + suv.getY(v) * 0.92 : 0.52 + suv.getY(v) * 0.46); g.translate(0, yb + h / 2, zz); g.applyMatrix4(m); if (Fr) Fr.geo(g, null, C(0xffffff)); else fronts.push(g); };
+          const strip = (yb, h, zz) => { const nb = Math.floor(L / (5 * h)); if (nb < 1) return; const g = new THREE.PlaneGeometry(nb * 5 * h, h); g.rotateY(Math.PI); const suv = g.attributes.uv; const u0 = Math.floor(rng() * 8) / 8; for (let v = 0; v < suv.count; v++) suv.setXY(v, u0 + suv.getX(v) * nb / 8, Fr ? 0.04 + suv.getY(v) * 0.92 : 0.52 + suv.getY(v) * 0.46); g.translate(0, yb + h / 2, zz); g.applyMatrix4(m); if (Fr) Fr.geo(g, null, C(0xffffff)); else fronts.push(g); };
           strip(y0 - 1.2, 0.9, -0.01);
           // front rail (glass-less tube rail) on the first deck
           MD.beam(m, [-hl, y0 + 1.05, z0 - 0.2], [hl, y0 + 1.05, z0 - 0.2], 0.05, rail); MD.beam(m, [-hl, y0 + 0.55, z0 - 0.2], [hl, y0 + 0.55, z0 - 0.2], 0.035, rail);

@@ -114,6 +114,14 @@ window.EI = window.EI || {};
   };
   // Yas Marina: black sponsor boards with the partners' white logos (u2-u4), same layout (EI.Ads dark boards; Lumi / Intake as white lock-ups)
   Infra.hoardingAtlasDark = function () { return Infra.hoardingAtlas({ dark: true }); };
+  // the 4:1 boards (sponsor walls 3.8 x 0.95 m, advertising-gantry panels): their own designs laid out for 4:1, 4 x 2 cells of 512 x 128,
+  // so nothing is stretched or cropped (f1-BRAND)
+  Infra.boardAtlas4 = function (o) {
+    const [c, ctx] = canvas(2048, 256);
+    for (let k = 0; k < NBRANDS; k++) EI.Ads.paintTile(ctx, k, (k % 4) * 512, Math.floor(k / 4) * 128, 512, 128, 4, o);
+    return tex(c);
+  };
+  const boardAtlas4 = (cx) => cx.boardAtlas4 || (cx.boardAtlas4 = Infra.boardAtlas4(cx.desert ? { dark: true } : undefined));
   const hoardAtlas = (cx) => cx.hoardAtlas || (cx.hoardAtlas = cx.desert ? Infra.hoardingAtlasDark() : Infra.hoardingAtlas());
   function buildHoardings(cx) {
     const t = cx.t, rng = U.rng(901);
@@ -174,6 +182,7 @@ window.EI = window.EI || {};
     (cx.F.billboards || [330, 790, 1240, 1760, 2300, 2660, 3300, 3740, 4210, 4760, 5310, 5700]).forEach((s0, k) => {
       const i = t.idxAtS(s0 + 30); const side = cx.outsideSide(i);
       const p = cx.freeSpot(s0, side, 6.5, 6, 2.5); if (!p) return;
+      if (cx.isReserved(p.s - 5.5, side) || cx.isReserved(p.s + 5.5, side)) return;   // its 10.4 m panel must not overlap a big screen / another board (f1-BRAND)
       frame(_m, p.x, p.y, p.z, side, p.tx, p.tz); const m = _m.clone();
       for (const x of [-3.8, 3.8]) { box(geos, 0.34, 5.8, 0.34, x, 2.9, 0, steel, m); box(geos, 1.2, 0.3, 1.2, x, 0.15, 0, C(0x8e8e8a), m); }
       box(geos, 10.4, 3.9, 0.22, 0, 7.45, 0, dark, m);
@@ -451,9 +460,9 @@ window.EI = window.EI || {};
   function buildBroadcast(cx) {
     const t = cx.t, rng = U.rng(4545); const geos = [], boards = [];
     const tube = C(0xa3a8ae), plank = C(0x8a6d4a), cam = C(0x1a1b1e), dark = C(0x2a2d31);
-    const atlas = hoardAtlas(cx);
-    // a hoarding-atlas cell (2 x 4, see Infra.hoardingAtlas): u0..u1 of the 5:1 design, v over the painted band (0.082..0.98 of the cell)
-    const tile = (geo, brand, u0, u1) => { const uv = geo.attributes.uv; for (let v = 0; v < uv.count; v++) uv.setXY(v, ((brand % 2) + u0 + (u1 - u0) * uv.getX(v)) * 0.5, 0.75 - Math.floor(brand / 2) * 0.25 + (0.082 + uv.getY(v) * 0.898) * 0.25); };
+    const atlas = boardAtlas4(cx);
+    // a cell of the 4:1 board atlas (Infra.boardAtlas4); the board quads are exactly 4:1
+    const tile = (geo, brand) => { const uv = geo.attributes.uv; for (let v = 0; v < uv.count; v++) uv.setXY(v, ((brand % 4) + 0.004 + uv.getX(v) * 0.992) * 0.25, 0.5 - Math.floor(brand / 4) * 0.5 + (0.008 + uv.getY(v) * 0.984) * 0.5); };
     // camera scaffolds: tube towers ~2.6 m with a plank deck, rails, tripod camera, operator and an umbrella
     let scaff = 0;
     for (const s0 of cx.F.scaffolds || [610, 1130, 1960, 2470, 3470, 3790, 4230, 5290, 5560, 760, 2860]) {
@@ -498,7 +507,7 @@ window.EI = window.EI || {};
       // sponsor panels on both faces, one brand tile per 5 m
       const n = Math.max(1, Math.round((span + 2) / 5)); const pl = (span + 2) / n; const brand0 = Math.floor(rng() * 8);
       for (const v of [-0.68, 0.68]) for (let k = 0; k < n; k++) {
-        const g = new THREE.PlaneGeometry(pl - 0.05, 1.3); const fu = Math.min(1, 0.9 * (pl - 0.05) / 6.5); tile(g, (brand0 + k) % 8, 0.5 - fu / 2, 0.5 + fu / 2); const c0 = W(-1 + pl * (k + 0.5), yDeck + 0.8, v);
+        const g = new THREE.PlaneGeometry(pl - 0.05, (pl - 0.05) / 4); tile(g, (brand0 + k) % 8); const c0 = W(-1 + pl * (k + 0.5), yDeck + 0.8, v);
         const sg = v > 0 ? 1 : -1; const mm = new THREE.Matrix4().makeBasis(_x.set(sg * tz, 0, -sg * tx), _y.set(0, 1, 0), _z.set(sg * tx, 0, sg * tz)).setPosition(c0[0], c0[1], c0[2]); g.applyMatrix4(mm); boards.push(g);
       }
       cx.reserve(s, 1, 5); cx.reserve(s, -1, 5); gantries++;
@@ -512,11 +521,11 @@ window.EI = window.EI || {};
         const p = cx.at(s, side, 3.1); if (lp && Math.hypot(p.x - lp.x, p.z - lp.z) < 3.9) continue; if (cx.inObstacle(p.x, p.z)) { lp = null; continue; } lp = p;
         frame(_m, p.x, p.y, p.z, side, p.tx, p.tz); const m = _m.clone();
         box(geos, 4.0, 1.25, 0.35, 0, 0.625, 0, C(0xc9c9c4), m); box(geos, 4.0, 0.1, 0.45, 0, 1.27, 0, C(0xb0b0aa), m);
-        const g = new THREE.PlaneGeometry(3.9, 0.95); tile(g, Math.floor(s / 21) % 8, 0.13, 0.87); /* 3.9 x 0.95 m: the middle 74 % of the 5:1 design, unstretched */ g.translate(0, 0.62, 0.19); g.applyMatrix4(m); boards.push(g); walls++;
+        const g = new THREE.PlaneGeometry(3.8, 0.95); tile(g, Math.floor(s / 21) % 8); g.translate(0, 0.62, 0.19); g.applyMatrix4(m); boards.push(g); walls++;
       }
     }
     cx.static(geos, 0.5, 0.35, 'clutter', 'broadcast');
-    if (boards.length && !cx.textured(boards, atlas, 'hoardings', 1024, 256, 0.55)) { const bm = new THREE.Mesh(merge(boards), new THREE.MeshStandardMaterial({ map: atlas, roughness: 0.55, side: THREE.DoubleSide })); bm.receiveShadow = true; cx.add(bm, 'infraBoards'); }
+    if (boards.length && !cx.textured(boards, atlas, 'boards4', 1024, 128, 0.55)) { const bm = new THREE.Mesh(merge(boards), new THREE.MeshStandardMaterial({ map: atlas, roughness: 0.55, side: THREE.DoubleSide })); bm.receiveShadow = true; cx.add(bm, 'infraBoards'); }
     Object.assign(cx.stats, { cameraScaffolds: scaff, cranes, gantries, sponsorWalls: walls });
   }
 

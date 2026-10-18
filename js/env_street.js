@@ -118,10 +118,13 @@ window.EI = window.EI || {};
       // partner boards along the outer wall (1.3 - 3.1 m), 27 m long with 5 m gaps, clear of the portals
       { const lat = outer * (W - 0.04); const cur = [t.x[i] + t.nx[i] * lat, y, t.z[i] + t.nz[i] * lat, along];
         if (prev && dIn > 22 && Math.min(prev.s - s0, s1 - prev.s) > 22) {
-          const run = 32, bl = 27; const p0 = prev.p[3] % run, p1 = p0 + (along - prev.p[3]);
-          if (p1 <= bl) { const row = Math.floor(prev.p[3] / run) % 4; const b0 = BP.length / 3; const v0 = 1 - (row + 1) / 4 + 0.004, v1 = 1 - row / 4 - 0.004;
+          // each segment is clipped to the 27 m boards (and split where it crosses into the next one), so every board is complete (f1-BRAND)
+          const run = 32, bl = 27; const P0 = prev.p[3], P1 = along, base0 = Math.floor(P0 / run) * run;
+          for (let o = base0; o < P1; o += run) { const p0 = Math.max(0, P0 - o), p1 = Math.min(bl, P1 - o); if (p1 <= p0) continue;
+            const ta = (o + p0 - P0) / (P1 - P0), tb = (o + p1 - P0) / (P1 - P0); const L3 = (t) => [prev.p[0] + (cur[0] - prev.p[0]) * t, prev.p[1] + (cur[1] - prev.p[1]) * t, prev.p[2] + (cur[2] - prev.p[2]) * t];
+            const qa = L3(ta), qb = L3(tb); const row = Math.floor(o / run) % 4; const b0 = BP.length / 3; const v0 = 1 - (row + 1) / 4 + 0.004, v1 = 1 - row / 4 - 0.004;
             const u0 = outer < 0 ? 1 - p0 / bl : p0 / bl, u1 = outer < 0 ? 1 - p1 / bl : p1 / bl;
-            for (const [q, u, h] of [[prev.p, u0, 1.3], [cur, u1, 1.3], [cur, u1, 3.1], [prev.p, u0, 3.1]]) { BP.push(q[0], q[1] + h, q[2]); BU.push(u, h < 2 ? v0 : v1); const g = 0.82 * portalBoost; BC.push(g, g, g); }
+            for (const [q, u, h] of [[qa, u0, 1.3], [qb, u1, 1.3], [qb, u1, 3.1], [qa, u0, 3.1]]) { BP.push(q[0], q[1] + h, q[2]); BU.push(u, h < 2 ? v0 : v1); const g = 0.82 * portalBoost; BC.push(g, g, g); }
             BI.push(b0, b0 + 1, b0 + 2, b0, b0 + 2, b0 + 3); } }
         prev = { p: cur, s }; }
       // outer shell (top + sides), so nothing shows through from above
@@ -157,7 +160,7 @@ window.EI = window.EI || {};
   // the long partner boards on the outer tunnel wall: four rows (2048 x 128 each = two partner designs side by side, 27 m on the wall)
   function tunnelBoardTexture() {
     const [c, ctx] = EI.Env.canvas(2048, 512); ctx.fillStyle = '#1d2026'; ctx.fillRect(0, 0, 2048, 512);
-    if (EI.Ads && EI.Ads.paintTile) for (let r = 0; r < 4; r++) for (let h = 0; h < 2; h++) { try { EI.Ads.paintTile(ctx, r * 2 + h, h * 1024, r * 128, 1024, 128, 8); } catch (e) { } ctx.fillStyle = 'rgba(0,0,0,0.5)'; ctx.fillRect(h * 1024 + 1021, r * 128, 3, 128); }
+    if (EI.Ads && EI.Ads.paintTile) for (let r = 0; r < 4; r++) for (let h = 0; h < 2; h++) { try { EI.Ads.paintTile(ctx, r * 2 + h, h * 1024, r * 128, 1024, 128, 13.5 / 1.8); } catch (e) { } ctx.fillStyle = 'rgba(0,0,0,0.5)'; ctx.fillRect(h * 1024 + 1021, r * 128, 3, 128); }
     const tex = new THREE.CanvasTexture(c); tex.anisotropy = 8; return U.srgb(tex);
   }
   function tunnelTileTexture() {
