@@ -53,7 +53,7 @@ window.EI = window.EI || {};
     const d = c.driver || {}; if (d.code) return String(d.code).toUpperCase();
     const nm = String(d.name || c.name || '').trim().split(/\s+/).pop() || '???'; return nm.slice(0, 3).toUpperCase();
   }
-  const isYou = (c) => c && c.isPlayer && /^(YOU|P1|P2)$/i.test(String(c.name || ''));
+  const isYou = (c) => c && c.isPlayer && /^YOU$/i.test(String(c.name || ''));
 
   // ------------------------------------------------------------------ recorder + detector
   class Recorder {
