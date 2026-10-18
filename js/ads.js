@@ -207,7 +207,7 @@
     tgr: { n: 'TOYOTA GAZOO Racing' }, haasautomation: { n: 'HAAS', word: W_(F1W, 900, { up: 1, it: 1, ls: 0.02 }) }, ic: { n: 'IC', word: W_(SANS, 900, { up: 1 }) }, mgmresorts: { n: 'MGM Resorts', word: W_('Georgia, serif', 700, { up: 1, ls: 0.08 }) },
     playngo: { n: "Play'n GO", word: W_(SANS, 900) }, singha: { n: 'SINGHA', word: W_('Georgia, serif', 700, { up: 1, ls: 0.06 }) },
     audi: { n: 'Audi' }, revolut: { n: 'Revolut' }, visitqatar: { n: 'Visit Qatar', word: W_(SANS, 700) }, bp: { n: 'bp' }, castrol: { n: 'Castrol' }, nexo: { n: 'NEXO', word: W_(F1W, 800, { up: 1, ls: 0.1 }) },
-    atlassian: { n: 'Atlassian' }, barclays: { n: 'Barclays' }, komatsu: { n: 'KOMATSU' }, claude: { n: 'Claude' }, kraken: { n: 'Kraken', word: W_(SANS, 800, { ls: -0.02 }) }, bny: { n: 'BNY', word: W_('Georgia, serif', 700, { up: 1, ls: 0.04 }) },
+    atlassian: { n: 'Atlassian' }, barclays: { n: 'Barclays', word: W_(SANS, 700, { up: 1, ls: 0.05, col: '#00aeef' }) }, komatsu: { n: 'KOMATSU' }, claude: { n: 'Claude' }, kraken: { n: 'Kraken', word: W_(SANS, 800, { ls: -0.02 }) }, bny: { n: 'BNY', word: W_('Georgia, serif', 700, { up: 1, ls: 0.04 }) },
     gulf: { n: 'Gulf' }, duracell: { n: 'Duracell' }, maaden: { n: "Ma'aden", word: W_(SANS, 700, { up: 1, ls: 0.06 }) }, honda: { n: 'HONDA' }, coreweave: { n: 'CoreWeave' }, cognizant: { n: 'Cognizant' },
     valvoline: { n: 'Valvoline' }, glenfiddich: { n: 'Glenfiddich', word: W_('Georgia, serif', 700, { ls: 0.02 }) }, jcb: { n: 'JCB', word: W_(SANS, 900, { up: 1, it: 0 }) }, coinbase: { n: 'coinbase' },
     cadillac: { n: 'CADILLAC', word: W_(F1W, 600, { up: 1, ls: 0.32 }) }, tommyhilfiger: { n: 'TOMMY HILFIGER', word: W_(SANS, 700, { up: 1, ls: 0.06 }) }, jimbeam: { n: 'JIM BEAM', word: W_('Georgia, serif', 700, { up: 1, ls: 0.05 }) },
@@ -221,7 +221,7 @@
   const slug = (s) => String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]/g, '');
   Ads.partnerId = function (name) { const s = slug(name); return PARTNERS[s] ? s : ALIAS[s] || s; };
   // which ids have vector artwork in assets/brand/partners (filled in with the downloaded files; anything else uses its wordmark)
-  const ART = Ads.PARTNER_ART = new Set(['adidas', 'americanexpress', 'atlassian', 'att', 'audi', 'aws', 'barclays', 'bp', 'cashapp', 'castrol', 'cevalogistics', 'claro', 'claude', 'cognizant', 'coinbase', 'corescientific', 'coreweave', 'crowdstrike', 'dell', 'deloitte', 'dhl', 'dpworld', 'duracell', 'eni', 'etihadairways', 'ford', 'googlegemini', 'gulf', 'hardrock', 'heineken', 'honda', 'hp', 'ibm', 'ineos', 'komatsu', 'lenovo', 'louisvuitton', 'lvmh', 'mastercard', 'mercadolibre', 'microsoft', 'okx', 'oracle', 'petronas', 'pirelli', 'puma', 'qatarairways', 'redbull', 'revolut', 'salesforce', 'santander', 'tagheuer', 'tenneco', 'unicredit', 'valvoline', 'visa']);
+  const ART = Ads.PARTNER_ART = new Set(['adidas', 'americanexpress', 'atlassian', 'att', 'audi', 'aws', 'bp', 'cashapp', 'castrol', 'cevalogistics', 'claro', 'claude', 'cognizant', 'coinbase', 'corescientific', 'coreweave', 'crowdstrike', 'dell', 'deloitte', 'dhl', 'dpworld', 'duracell', 'eni', 'etihadairways', 'ford', 'googlegemini', 'gulf', 'hardrock', 'heineken', 'honda', 'hp', 'ibm', 'ineos', 'komatsu', 'lenovo', 'louisvuitton', 'lvmh', 'mastercard', 'mercadolibre', 'microsoft', 'okx', 'oracle', 'petronas', 'pirelli', 'puma', 'qatarairways', 'redbull', 'revolut', 'salesforce', 'santander', 'tagheuer', 'tenneco', 'unicredit', 'valvoline', 'visa']);
   // trimmed aspect (width / height) of each artwork, measured offline (the SVGs carry the same trimmed viewBox)
   Ads.PARTNER_DIR = Ads.BRAND_DIR + 'partners/';
   const PIMG = {};   // id -> decoded SVG image
@@ -267,8 +267,11 @@
     if (x1 < 0) return c; const w = x1 - x0 + 1, h = y1 - y0 + 1; const s = PH / h;
     const o = document.createElement('canvas'); o.width = Math.max(1, Math.min(4096, Math.round(w * s))); o.height = PH; const ox = o.getContext('2d', { willReadFrequently: true }); ox.imageSmoothingQuality = 'high'; ox.drawImage(c, x0, y0, w, h, 0, 0, o.width, o.height); return o;
   }
+  // logos drawn on their own filled plate (DHL's yellow bar, Pirelli's yellow box, TAG Heuer's shield, Ford's oval ...): a one-colour
+  // tone would turn them into a solid blob, so they always keep their own colours
+  const PLATE = Ads.PARTNER_PLATE = new Set(['dhl', 'pirelli', 'tagheuer', 'americanexpress', 'okx', 'ford', 'cashapp', 'gulf', 'claro', 'hardrock', 'mastercard', 'salesforce', 'lenovo']);
   function partnerRaster(id, tone) {
-    tone = tone || 'color'; const key = id + '|' + tone; let r = PRAS.get(key); if (r) return r;
+    tone = tone || 'color'; if (PLATE.has(id) && tone !== 'color' && tone !== 'rev') tone = 'color'; const key = id + '|' + tone; let r = PRAS.get(key); if (r) return r;
     let base = PRAS.get(id + '|color');
     if (!base) {
       const im = PIMG[id]; let c;
@@ -483,8 +486,8 @@
     const V = venue(); const items = [V.title || 'aramco', 'trylumi.co', 'aramco', 'intake.ink']; const sw = w / items.length;
     ctx.fillStyle = '#000'; ctx.fillRect(0, 0, w, h);
     items.forEach((it, i) => { const cx = sw * (i + 0.5);
-      if (it === 'trylumi.co') line(ctx, [[it, '#fff']], cx, h * 0.8, h * 0.78, LUMI.head, 800, sw * 0.86, 'center');
-      else if (it === 'intake.ink') line(ctx, [[it, '#fff']], cx, h * 0.78, h * 0.7, INTAKE.head, 800, sw * 0.86, 'center');
+      if (it === 'trylumi.co') line(ctx, [[it, '#fff']], cx, h * 0.68, h * 0.62, LUMI.head, 800, sw * 0.86, 'center');
+      else if (it === 'intake.ink') line(ctx, [[it, '#fff']], cx, h * 0.68, h * 0.56, INTAKE.head, 800, sw * 0.86, 'center');
       else Ads.drawPartner(ctx, it, cx, h * 0.5, sw * 0.8, h * 0.72, { tone: 'white' }); });
   };
 
@@ -650,7 +653,7 @@
   // the five wall panels of the venue (VENUES[track].barrier): painters (ctx, w, h) laid out in the panel's physical 5.12 x 0.7 frame.
   // Ads.barrierArt({ dark }) for Yas's black boards with white logos
   Ads.barrierArt = function (o) { o = o || {}; const V = venue(); const dark = o.dark != null ? o.dark : V.dark; return V.barrier.map((s) => (s === 'L' || s === 'I') ? (dark ? darkBrand(s) : slotPainter(s, 'barrier')) : (ctx, w, h) => partnerBoard(ctx, s, w, h, { dark, lh: 0.62, repeat: 1 })); };
-  function darkBrand(s) { return (ctx, w, h) => { ctx.fillStyle = '#0b0c0f'; ctx.fillRect(0, 0, w, h); Ads.lockupCentered(ctx, s === 'L' ? 'lumi' : 'intake', w / 2, h / 2, h * 0.6, w * 0.8, '#ffffff', true); }; }
+  function darkBrand(s) { return (ctx, w, h) => { ctx.fillStyle = '#0b0c0f'; ctx.fillRect(0, 0, w, h); Ads.lockupCentered(ctx, s === 'L' ? 'lumi' : 'intake', w / 2, h / 2, h * 0.6, w * 0.8, '#ffffff', s === 'L'); }; }
   Object.defineProperty(Ads, 'BARRIER', { get() { return Ads.barrierArt(); }, enumerable: true });
 
   // ---------------------------------------------------------------- car livery decals (carglb.js / teams.js fit these onto the body)
