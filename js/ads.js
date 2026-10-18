@@ -526,7 +526,7 @@
     const vw = h * (aspect || (trackW() + 6.8) / 2.1); const V = venue(); const slot = (V.bridge && V.bridge[which]) || which;
     ctx.save(); ctx.scale(w / vw, 1);
     if (slot === 'L' || slot === 'I') brandBridge(ctx, slot === 'L' ? (which === 'lumi2' ? 'lumi2' : 'lumi') : (which === 'intake' ? 'intake' : 'intake2'), vw, h);
-    else if (VENUES[EI.trackId] || slot !== which) partnerBoard(ctx, slot, vw, h, { dark: V.dark, lh: 0.58 });
+    else if (VENUES[EI.trackId] || slot !== which) partnerBoard(ctx, slot, vw, h, { lh: 0.58 });
     else brandBridge(ctx, which, vw, h);
     ctx.restore();
   };
@@ -724,7 +724,7 @@
   Ads.paintBillboard = function (ctx, k, x, y, w, h, aspect) {
     ctx.save(); ctx.beginPath(); ctx.rect(x, y, w, h); ctx.clip(); ctx.translate(x, y); const vw = h * (aspect || Ads.BILLBOARD_ASPECT); ctx.scale(w / vw, 1);
     const V = venue(); const slot = V.billboard[((k % 4) + 4) % 4];
-    if (slot[0] === 'L' || slot[0] === 'I') brandBillboard(ctx, slot.length > 1 ? +slot.slice(1) : 0, vw, h); else partnerBoard(ctx, slot, vw, h, { dark: V.dark, lh: 0.42, fill: 0.3 });
+    if (slot[0] === 'L' || slot[0] === 'I') brandBillboard(ctx, slot.length > 1 ? +slot.slice(1) : 0, vw, h); else partnerBoard(ctx, slot, vw, h, { lh: 0.42, fill: 0.3 });
     ctx.restore();
   };
   function brandBillboard(ctx, k, w, h) {
