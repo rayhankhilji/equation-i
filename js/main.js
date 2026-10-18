@@ -6,7 +6,7 @@ window.EI = window.EI || {};
   let renderer, scene, track, scenery, envMap, race = null, viewports = [], cameras = [], camModes = [], sun, hemi, lastT = 0, acc = 0, paused = false, hudT = 0;
   let engines = [], shake = 0, resultsShown = false;
   const tmp = new THREE.Vector3(), tmp2 = new THREE.Vector3(), tmp3 = new THREE.Vector3();
-  const CAM_MODES = ['chase', 'cockpit', 'tv'];
+  const CAM_MODES = ['chase', 'cockpit', 'tcam', 'tv'];   // tcam: the T-camera on top of the airbox (over the helmet and the halo)
 
   let composer = null, bloomPass = null, fxaaPass = null, speedPass = null, particles = null, skyMesh = null;
   // the race partners' logos in the menu footer (drawn with the same painters as the trackside boards)
@@ -476,6 +476,7 @@ window.EI = window.EI || {};
   const _f = new THREE.Vector3(), _l = new THREE.Vector3(), _tgt = new THREE.Vector3(), _look = new THREE.Vector3(), _q = new THREE.Quaternion();
   function camState(cam) { const u = cam.userData; if (!u.cs) u.cs = { yaw: null, roll: 0, lat: 0, fov: 60, sway: 0, dip: 0, shake: 0, blend: 0 }; return u.cs; }
   function surfaceShake(car) { const v = Math.abs(car.v); const base = { asphalt: 0, runoff: 0.001 * v, kerb: 0.035 + 0.001 * v, grass: 0.05 + 0.002 * v, gravel: 0.07 + 0.002 * v }[car.surface] || 0; return base * Math.min(1, v / 8); }
+  const _mirLite = []; function mirrorLite() { _mirLite.length = 0; if (scenery && scenery.group) _mirLite.push(scenery.group); return _mirLite; }
   function placeCamera(cam, car, k, snap, dt) {
     const mode = CAM_MODES[camModes[k] || 0]; const cs = camState(cam);
     const v = Math.abs(car.v); const cx = car.vx != null ? car.vx : cx, cy = car.vy != null ? car.vy : cy, cz = car.vz != null ? car.vz : cz, ch = car.vh != null ? car.vh : ch; const fx = Math.cos(ch), fz = Math.sin(ch); const lx = fz, lz = -fx;
@@ -506,7 +507,22 @@ window.EI = window.EI || {};
       cs.fov += ((61 + Math.min(v, 95) * 0.03 + (car.drsOpen ? 1 : 0)) - cs.fov) * (snap ? 1 : Math.min(1, dt * 3)); cam.fov = viewFov(cam, cs.fov, 6); cam.updateProjectionMatrix();
       cam.near = 0.04; cam.updateProjectionMatrix();
       // split screen: one low-res mirror render per frame at most, taking turns between the players
-      const mir = car.screen && car.screen.userData.mirrors; if (mir && !EI.debug.noMirrors && quality !== 'low' && (cameras.length < 2 || (frameNo & 1) === k)) mir.update(renderer, scene, cameras.length > 1 ? 2 : quality === 'high' ? 1 : 3);
+      // Low: a lite mirror (112 px target, scenery group hidden: road, barriers and the cars behind), one side every 2nd frame
+      const mir = car.screen && car.screen.userData.mirrors; if (mir && !EI.debug.noMirrors && (cameras.length < 2 || (frameNo & 1) === k)) mir.update(renderer, scene, cameras.length > 1 ? 2 : quality === 'high' ? 1 : 2, quality === 'low' ? mirrorLite() : null);
+      return;
+    }
+    if (mode === 'tcam') {
+      // T-camera: rigid on the airbox, just above the intake lip: the helmet top and the airbox edge at the bottom of the frame,
+      // the halo hoop (its top-face branding) below the horizon, nose and both front tyres ahead. Only vibration, kerb shake and
+      // a little roll with the car (it is bolted to the chassis, no head physics).
+      if (snap) { cs.roll = 0; cs.fov = 64; }
+      const vib = (0.0002 + car.rpm * 0.0005) * Math.sin(tN * 6.283 * (29 + car.rpm * 13)); const g = car.gradeNow || 0;
+      _tgt.set(cx - fx * 0.05, cy + 1.12 + vib + jy * 0.01, cz - fz * 0.05); cam.position.copy(_tgt);
+      const pitch = (cameras.length > 1 && cam.aspect > 1.6 ? -0.085 : -0.13) + g + jy * 0.01;
+      _look.set(_tgt.x + fx * 30 + lx * jx * 0.15, _tgt.y + pitch * 30, _tgt.z + fz * 30 + lz * jx * 0.15); cam.up.set(0, 1, 0); cam.lookAt(_look);
+      cs.roll += (U.clamp(-car.aLat * 0.0005, -0.012, 0.012) - cs.roll) * (snap ? 1 : 1 - Math.exp(-dt * 4)); cam.rotateZ(cs.roll);
+      cs.fov += ((63 + Math.min(v, 95) * 0.035) - cs.fov) * (snap ? 1 : Math.min(1, dt * 3)); cam.fov = viewFov(cam, cs.fov, 6); cam.near = 0.04; cam.updateProjectionMatrix();
+      const mir = car.screen && car.screen.userData.mirrors; if (mir && !EI.debug.noMirrors && (cameras.length < 2 || (frameNo & 1) === k)) mir.update(renderer, scene, cameras.length > 1 ? 2 : quality === 'high' ? 1 : 2, quality === 'low' ? mirrorLite() : null);
       return;
     }
     if (cam.near !== 0.25) { cam.near = 0.25; cam.updateProjectionMatrix(); }
@@ -576,11 +592,16 @@ window.EI = window.EI || {};
       _look.set(car.x, car.y + 0.55, car.z); cam.up.set(0, 1, 0); cam.lookAt(_look); cam.fov = 40; cam.updateProjectionMatrix();
     }
   }
-  // live steering-wheel display for the player's car (LED strip + multi-function display), redrawn at the HUD rate (~15 Hz)
+  // live steering-wheel display for the player's car, redrawn at the HUD rate (uploads capped at ~15 Hz by carglb.js).
+  // 2026 layout (512 x 320 canvas): shift-light LED row on top; status row (delta to best, position, lap); battery gauge (state of
+  // charge, harvesting / deploying) on the left, the gear big in the centre with the energy state under it, speed + RPM gauge on the
+  // right, tyre carcass temperatures beside the gear; bottom bar: OVERTAKE (2026 manual override) and the Straight Mode lamp.
+  const WS = { F: '"Titillium Web", Arial, sans-serif' };
   function drawWheelScreen(car, delta) {
     if (!car.screen || !car.screenTex || !car._cockpitT || performance.now() - car._cockpitT > 400) return;
-    const c = car.screen.userData.canvas, ctx = c.getContext('2d'), W = c.width, H = c.height; const F = '"Titillium Web", Arial, sans-serif';
+    const c = car.screen.userData.canvas, ctx = c.getContext('2d'), W = c.width, H = c.height, F = WS.F;
     const now = performance.now(); const dtS = U.clamp((now - (car._wsT || now)) / 1000, 0, 0.5); car._wsT = now;
+    ctx.save(); ctx.scale(W / 512, H / 320);
     // tyre carcass temperatures (FL, FR, RL, RR): load, braking, wheelspin and cornering side
     if (!car._tt) car._tt = [82, 82, 84, 84];
     const v = Math.abs(car.v), latL = Math.max(0, -car.aLat), latR = Math.max(0, car.aLat), surf = car.surface === 'grass' || car.surface === 'gravel' ? -6 : car.surface === 'kerb' ? 3 : 0;
@@ -590,44 +611,69 @@ window.EI = window.EI || {};
       car._tt[i] += (tgt - car._tt[i]) * (1 - Math.exp(-dtS / 2.5));
     }
     const tCol = (t) => t < 80 ? '#2f7bff' : t < 90 ? '#1fc9c2' : t < 104 ? '#21d06a' : t < 112 ? '#ffc400' : '#ff2a1c';
-    ctx.fillStyle = '#030405'; ctx.fillRect(0, 0, W, H);
-    // ---- LED strip: 5 green, 5 red, 5 blue; whole strip flashes blue at the limiter
-    const ledY = 22, n = 15, sp = (W - 44) / (n - 1); const lit = Math.round(car.rpm * n * 1.02); const limiter = car.rpm > 0.97 && car.gear > 0 && car.gear < 8; const blink = limiter && Math.floor(now / 70) % 2 === 0;
-    ctx.fillStyle = '#0b0c0f'; ctx.fillRect(0, 0, W, 44);
+    const txt = (t, x, y, size, col, al, wgt, it) => { ctx.font = (it ? 'italic ' : '') + (wgt || 700) + ' ' + size + 'px ' + F; ctx.fillStyle = col; ctx.textAlign = al || 'left'; ctx.fillText(t, x, y); };
+    ctx.textBaseline = 'alphabetic'; ctx.lineCap = 'butt';
+    // ---- energy state: deploying (boost), harvesting (braking / lift-off), overtake (extra energy this lap)
+    const otE = car.otEnergy || 0, otOn = otE > 0.005, otLive = otOn && car.ersActive, otNext = !!car.otNext && !otOn;
+    const harvest = !car.ersActive && car.ers < 0.999 && (car.brake > 0.05 || car.throttle < 0.2) && v > 3;
+    const eState = otLive ? 'OVERTAKE' : car.ersActive ? 'DEPLOY' : harvest ? 'HARVEST' : 'BALANCED';
+    const eCol = otLive ? '#ff3fd0' : car.ersActive ? '#ff8a1f' : harvest ? '#2fd6ff' : '#8a95a8';
+    // ---- shift lights: 5 green, 5 red, 5 blue; the whole row flashes blue at the limiter
+    ctx.fillStyle = '#020203'; ctx.fillRect(0, 0, 512, 320);
+    const n = 15, sp = 468 / (n - 1); const lit = Math.round(U.clamp((car.rpm - 0.42) / 0.55, 0, 1) * n); const limiter = car.rpm > 0.97 && car.gear > 0 && car.gear < 8; const blink = limiter && Math.floor(now / 70) % 2 === 0;
     for (let i = 0; i < n; i++) {
-      const on = limiter ? blink : i < lit; const col = i < 5 ? ['#22e26a', '#0e3a1d'] : i < 10 ? ['#ff2a2a', '#3d0e0e'] : ['#3d8dff', '#10224a'];
-      const x = 22 + i * sp; ctx.beginPath(); ctx.arc(x, ledY, 10, 0, 6.283); ctx.fillStyle = on ? (limiter ? '#3d8dff' : col[0]) : col[1]; ctx.fill();
-      if (on) { ctx.beginPath(); ctx.arc(x - 3, ledY - 3, 3.5, 0, 6.283); ctx.fillStyle = 'rgba(255,255,255,0.65)'; ctx.fill(); }
+      const on = limiter ? blink : i < lit; const col = i < 5 ? ['#2bff78', '#0b2a16'] : i < 10 ? ['#ff2d2d', '#2e0c0c'] : ['#4a8dff', '#0e1a38'];
+      const x = 22 + i * sp; ctx.beginPath(); ctx.arc(x, 18, 11, 0, 6.283); ctx.fillStyle = '#000'; ctx.fill();
+      ctx.beginPath(); ctx.arc(x, 18, 8.5, 0, 6.283); ctx.fillStyle = on ? (limiter ? '#4a8dff' : col[0]) : col[1]; ctx.fill();
+      if (on) { ctx.beginPath(); ctx.arc(x - 2.5, 15.5, 3, 0, 6.283); ctx.fillStyle = 'rgba(255,255,255,0.7)'; ctx.fill(); }
     }
-    // ---- display
-    const Y0 = 48; ctx.fillStyle = '#06080b'; ctx.fillRect(4, Y0, W - 8, H - Y0 - 4);
-    const lab = (t, x, y, al) => { ctx.font = '700 15px ' + F; ctx.fillStyle = '#8a95a8'; ctx.textAlign = al || 'left'; ctx.fillText(t, x, y); };
-    const val = (t, x, y, size, col, al, wgt) => { ctx.font = (wgt || 700) + ' ' + size + 'px ' + F; ctx.fillStyle = col; ctx.textAlign = al || 'left'; ctx.fillText(t, x, y); };
-    ctx.textBaseline = 'alphabetic';
-    // left column: delta / last / best
-    lab('DELTA', 16, Y0 + 22); val(delta == null ? '--.---' : (delta >= 0 ? '+' : '−') + Math.abs(delta).toFixed(3), 16, Y0 + 56, 34, delta == null ? '#9aa3b2' : delta < 0 ? '#22e26a' : '#ff4a3a', 'left', 900);
-    lab('LAST', 16, Y0 + 86); val(U.fmtTime(car.lastLap > 0 ? car.lastLap : null), 16, Y0 + 112, 24, '#f2f5f9');
-    lab('BEST', 16, Y0 + 140); val(U.fmtTime(car.bestLap > 0 ? car.bestLap : null), 16, Y0 + 166, 24, '#c58cff');
-    // centre: gear in a frame that lights up with the shift lights, speed underneath
-    const gx = 256, gTop = Y0 + 8; const shiftCol = limiter ? '#3d8dff' : car.rpm > 0.8 ? '#ff2a2a' : car.rpm > 0.55 ? '#22e26a' : '#2a303a';
-    ctx.strokeStyle = shiftCol; ctx.lineWidth = 4; ctx.strokeRect(gx - 62, gTop, 124, 150);
-    val(car.gear === 0 ? 'N' : car.v < -0.5 ? 'R' : String(car.gear), gx, gTop + 128, 140, car.gear === 0 ? '#ffc400' : '#ffffff', 'center', 900);
-    val(String(Math.round(car.speedKmh)), gx + 14, Y0 + 204, 40, '#ffffff', 'center', 900); lab('KPH', gx + 50, Y0 + 204, 'left');
-    // right column: tyre temperatures (2 x 2), brake bias, position / lap
-    const tx0 = 356, tw = 66, th = 40;
-    lab('TYRES °C', tx0, Y0 + 22);
-    for (let i = 0; i < 4; i++) { const x = tx0 + (i % 2) * (tw + 8), y = Y0 + 30 + Math.floor(i / 2) * (th + 6); const t = car._tt[i]; ctx.fillStyle = tCol(t); ctx.fillRect(x, y, tw, th); ctx.fillStyle = 'rgba(0,0,0,0.25)'; ctx.fillRect(x, y + th - 8, tw * U.clamp(1 - (car.wear || 0), 0, 1), 8); val(String(Math.round(t)), x + tw / 2, y + 29, 26, '#06080b', 'center', 900); }
-    lab('BB', tx0, Y0 + 148); val((car._bb || 56.5).toFixed(1) + '%', tx0 + 30, Y0 + 148, 22, '#ffb347');
-    val('P' + car.pos, tx0, Y0 + 176, 24, '#ffffff', 'left', 900); lab('LAP ' + Math.min(car.lap, race ? race.laps : car.lap) + '/' + (race ? race.laps : '-'), tx0 + 58, Y0 + 176);
-    // bottom: ERS store + deploy mode, DRS state
-    const by = Y0 + 222; lab('ERS', 16, by + 18); const bx = 62, bw = 300;
-    ctx.fillStyle = '#1a2230'; ctx.fillRect(bx, by + 2, bw, 20); ctx.fillStyle = car.ersActive ? '#ff8a1f' : '#ffc400'; ctx.fillRect(bx, by + 2, bw * U.clamp(car.ers, 0, 1), 20);
-    ctx.fillStyle = 'rgba(0,0,0,0.5)'; for (let i = 1; i < 10; i++) ctx.fillRect(bx + bw * i / 10 - 1, by + 2, 2, 20);
-    val(Math.round(car.ers * 100) + '%', bx + bw + 8, by + 20, 22, '#ffffff', 'left', 900);
-    lab(car.ersActive ? 'OVERTAKE' : 'BALANCED', bx, by + 44); if (car.ersActive) { ctx.fillStyle = '#ff8a1f'; ctx.fillRect(bx + 84, by + 34, 10, 10); }
-    const dOpen = car.drsOpen, dArm = car.drsEligible && !dOpen; const dx0 = 418, dw = 82, dy0 = by - 2, dh = 46;
-    ctx.lineWidth = 3; ctx.strokeStyle = dOpen || dArm ? '#22e26a' : '#3a414e'; ctx.fillStyle = dOpen ? '#22e26a' : '#06080b';
-    ctx.fillRect(dx0, dy0, dw, dh); ctx.strokeRect(dx0, dy0, dw, dh); val('DRS', dx0 + dw / 2, dy0 + 33, 28, dOpen ? '#04210f' : dArm ? '#22e26a' : '#4a515c', 'center', 900);
+    // ---- display glass
+    const Y0 = 38; ctx.fillStyle = '#05070b'; ctx.fillRect(2, Y0, 508, 280); ctx.strokeStyle = '#1b2230'; ctx.lineWidth = 2; ctx.strokeRect(3, Y0 + 1, 506, 278);
+    // ---- status row: delta | position | lap
+    const cell = (x, w, lab, val, col, vs) => { ctx.fillStyle = '#0d121a'; ctx.fillRect(x, Y0 + 6, w, 40); txt(lab, x + 6, Y0 + 19, 12, '#7f8a9c', 'left', 700); txt(val, x + w - 7, Y0 + 41, vs || 26, col, 'right', 900); };
+    const dTxt = delta == null ? '--.---' : (delta >= 0 ? '+' : '−') + Math.min(99.999, Math.abs(delta)).toFixed(3);
+    const dCol = delta == null ? '#9aa3b2' : delta < 0 ? '#2bff78' : '#ff4a3a';
+    const nCars = race ? race.cars.length : 22, laps = race ? race.laps : 0;
+    cell(8, 176, 'DELTA', dTxt, dCol, 28); cell(190, 132, 'POS', 'P' + (car.pos || '-') + (race ? '/' + nCars : ''), '#ffffff', 24); cell(328, 176, 'LAP', Math.max(1, Math.min(car.lap || 1, laps || 99)) + (laps ? '/' + laps : ''), '#ffffff', 26);
+    // ---- battery gauge (left): state of charge ring, 270 degrees, coloured by the energy state
+    const ring = (cx, cy, r, f, col, segs) => {
+      const a0 = Math.PI * 0.75, a1 = Math.PI * 2.25; ctx.lineWidth = 13; ctx.strokeStyle = '#141a24'; ctx.beginPath(); ctx.arc(cx, cy, r, a0, a1); ctx.stroke();
+      if (f > 0.003) { ctx.strokeStyle = col; ctx.beginPath(); ctx.arc(cx, cy, r, a0, a0 + (a1 - a0) * U.clamp(f, 0, 1)); ctx.stroke(); }
+      ctx.strokeStyle = '#05070b'; ctx.lineWidth = 2.5; for (let i = 1; i < segs; i++) { const a = a0 + (a1 - a0) * i / segs; ctx.beginPath(); ctx.moveTo(cx + Math.cos(a) * (r - 8), cy + Math.sin(a) * (r - 8)); ctx.lineTo(cx + Math.cos(a) * (r + 8), cy + Math.sin(a) * (r + 8)); ctx.stroke(); }
+    };
+    const soc = U.clamp(car.ers, 0, 1); const gy = Y0 + 140;
+    ring(84, gy, 58, soc, otLive ? '#ff3fd0' : car.ersActive ? '#ff8a1f' : soc < 0.2 ? '#ff4a3a' : '#c6ff1f', 20);
+    txt('BATT', 84, gy - 16, 14, '#9aa3b2', 'center', 700); txt(Math.round(soc * 100) + '%', 84, gy + 16, 32, '#ffffff', 'center', 900);
+    ctx.fillStyle = eCol; ctx.font = '900 13px ' + F; ctx.textAlign = 'center'; ctx.fillText(eState, 84, gy + 44);
+    // ---- speed + RPM gauge (right): rpm ring green -> red -> blue
+    const rpmN = U.clamp(car.rpm, 0, 1); const rCol = limiter ? '#4a8dff' : rpmN > 0.85 ? '#ff2d2d' : rpmN > 0.6 ? '#ffc400' : '#2bff78';
+    ring(428, gy, 58, rpmN, rCol, 15);
+    txt('KPH', 428, gy - 18, 13, '#9aa3b2', 'center', 700); txt(String(Math.round(car.speedKmh)), 428, gy + 14, 34, '#ffffff', 'center', 900);
+    txt(String(Math.round(4000 + rpmN * 11000)), 428, gy + 36, 15, '#c9d1dc', 'center', 700); txt('RPM', 428, gy + 50, 10, '#7f8a9c', 'center', 700);
+    // ---- gear, framed by the shift colour, the energy state under it
+    const gear = car.gear === 0 ? 'N' : car.v < -0.5 ? 'R' : String(car.gear);
+    const fCol = limiter ? '#4a8dff' : car.rpm > 0.85 ? '#ff2d2d' : car.rpm > 0.6 ? '#2bff78' : '#263040';
+    ctx.strokeStyle = fCol; ctx.lineWidth = 4; ctx.strokeRect(198, Y0 + 56, 116, 146);
+    txt(gear, 256, Y0 + 182, 148, car.gear === 0 ? '#ffc400' : '#ffffff', 'center', 900);
+    // tyre carcass temperatures beside the gear (FL / RL left, FR / RR right)
+    for (let i = 0; i < 4; i++) {
+      const x = i % 2 ? 322 : 152, y = Y0 + 60 + (i < 2 ? 0 : 74), t = car._tt[i];
+      const tc = tCol(t), wl = U.clamp(1 - (car.wear || 0), 0, 1); ctx.fillStyle = '#0d121a'; ctx.fillRect(x, y, 38, 64); ctx.fillStyle = tc; ctx.fillRect(x, y + 64 - 60 * wl, 5, 60 * wl);   // bar = tyre life left
+      txt(String(Math.round(t)), x + 22, y + 30, 18, tc, 'center', 900); txt(['FL', 'FR', 'RL', 'RR'][i], x + 22, y + 52, 11, '#7f8a9c', 'center', 700);
+    }
+    // ---- bottom bar: OVERTAKE (manual override) + Straight Mode
+    const by = Y0 + 214, bh = 56;
+    const blinkOT = Math.floor(now / 160) % 2 === 0;
+    ctx.fillStyle = otLive ? (blinkOT ? '#ff3fd0' : '#b0208f') : otOn ? '#1f7a3e' : '#0d121a'; ctx.fillRect(8, by, 362, bh);
+    if (otOn) { ctx.fillStyle = 'rgba(0,0,0,0.35)'; ctx.fillRect(14, by + bh - 12, 350, 7); ctx.fillStyle = otLive ? '#ffffff' : '#2bff78'; ctx.fillRect(14, by + bh - 12, 350 * U.clamp(otE / 0.5, 0, 1), 7); }
+    txt('OVERTAKE', 22, by + 34, 30, otOn ? '#ffffff' : otNext ? '#2bff78' : '#3e4756', 'left', 900, true);
+    txt(otLive ? 'ACTIVE' : otOn ? 'READY' : otNext ? 'NEXT LAP' : 'OFF', 360, by + 33, 18, otOn ? '#ffffff' : otNext ? '#2bff78' : '#3e4756', 'right', 900);
+    // Straight Mode (2026 active aero, the old DRS box): enabled = green outline that blinks, open = solid green
+    const smOpen = !!car.drsOpen, smArm = !!car.drsEligible && !smOpen; const sx = 378, sw = 126;
+    ctx.fillStyle = smOpen ? '#2bff78' : '#0d121a'; ctx.fillRect(sx, by, sw, bh);
+    if (smArm && Math.floor(now / 250) % 2 === 0) { ctx.strokeStyle = '#2bff78'; ctx.lineWidth = 4; ctx.strokeRect(sx + 2, by + 2, sw - 4, bh - 4); }
+    txt('STRAIGHT', sx + sw / 2, by + 24, 15, smOpen ? '#04210f' : smArm ? '#2bff78' : '#3e4756', 'center', 900); txt('MODE', sx + sw / 2, by + 46, 22, smOpen ? '#04210f' : smArm ? '#2bff78' : '#3e4756', 'center', 900);
+    ctx.restore();
     car.screenTex.needsUpdate = true;
   }
   function menuCamera(t) {
@@ -861,5 +907,6 @@ window.EI = window.EI || {};
   Object.defineProperty(EI.debug, 'resScale', { get: () => PIPE.sc });
   EI.debug.pipe = PIPE; EI.debug.viewState = () => viewState(); EI.debug.setRes = setRes; EI.debug.setAutoLevel = (lv) => { autoLv = lv; onResize(); };
   EI.debug.placeCam = (k, dt) => race && placeCamera(cameras[k], race.players[k], k, false, dt);   // test hook: one camera update
+  EI.debug.wheelScreen = (car) => drawWheelScreen(car, race ? race.deltaBest(car) : null);   // test hook: one wheel-display redraw
   window.addEventListener('DOMContentLoaded', () => { (EI.Ads ? EI.Ads.ready() : Promise.resolve()).then(() => setTimeout(init, 30)); });
 })();

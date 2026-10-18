@@ -91,21 +91,35 @@ window.EI = window.EI || {};
     m.customProgramCacheKey = () => 'ei-carbon';
     return m;
   }
-  // tyre sidewall branding: compound-coloured band + EQUATION lettering, painted in polar form for RingGeometry UVs
+  // tyre sidewall branding (Pirelli F1 style): two P ZERO marks in the compound colour and two PIRELLI wordmarks (the long-P bar
+  // over the word) in white, compound-colour stripe arcs between them near the rim; painted in polar form for RingGeometry UVs
   // RingGeometry(0.27, 0.335) UVs are planar, so the canvas is painted in polar form: R = 0.335 m
   function tyreWallTexture(tyre) {
     const key = '_tyre_' + tyre.name; if (shared[key]) return shared[key];
     const S = 1024, c = document.createElement('canvas'); c.width = c.height = S; const ctx = c.getContext('2d'); const R = S / 2, M = R / 0.335;
     ctx.translate(R, R);
-    ctx.strokeStyle = tyre.color; ctx.lineWidth = 0.007 * M; ctx.beginPath(); ctx.arc(0, 0, 0.3235 * M, 0, 6.283); ctx.stroke(); ctx.strokeStyle = 'rgba(255,255,255,0.10)'; ctx.lineWidth = 0.0015 * M; ctx.beginPath(); ctx.arc(0, 0, 0.2755 * M, 0, 6.283); ctx.stroke();
-    const words = ['EQUATION', tyre.name.toUpperCase(), 'EQUATION', tyre.name.toUpperCase()]; const rt = 0.2985 * M; const fs = 0.03 * M;
-    ctx.font = '900 ' + Math.round(fs) + 'px "Titillium Web", "Arial Black", sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    words.forEach((w, k) => {
-      const a0 = k * Math.PI / 2 + Math.PI / 4; ctx.fillStyle = k % 2 ? tyre.color : '#f2f2f2';
-      const ws = w.split('').map(ch => ctx.measureText(ch).width + fs * 0.12); const tot = ws.reduce((x, y) => x + y, 0);
-      let a = a0 - tot / rt / 2;
-      w.split('').forEach((ch, i) => { const da = ws[i] / rt; ctx.save(); ctx.rotate(a + da / 2); ctx.translate(0, -rt); ctx.fillText(ch, 0, 0); ctx.restore(); a += da; });
-    });
+    const col = tyre.color, rt = 0.3015 * M;
+    // moulded rim bead line + the compound stripe in four arcs between the wordmarks
+    ctx.strokeStyle = 'rgba(255,255,255,0.08)'; ctx.lineWidth = 0.0015 * M; ctx.beginPath(); ctx.arc(0, 0, 0.2755 * M, 0, 6.283); ctx.stroke();
+    ctx.strokeStyle = col; ctx.lineWidth = 0.0062 * M; ctx.lineCap = 'round';
+    for (let k = 0; k < 4; k++) { const m = k * Math.PI / 2; ctx.beginPath(); ctx.arc(0, 0, 0.3255 * M, m - 0.36, m + 0.36); ctx.stroke(); }
+    // letters set along the arc, centred on angle a0; returns [start, end] angles
+    const arcText = (w, a0, fs, fill, font, track) => {
+      ctx.font = font.replace('%', Math.round(fs)); ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillStyle = fill;
+      const ws = w.split('').map(ch => ch === ' ' ? fs * 0.32 : ctx.measureText(ch).width + fs * track); const tot = ws.reduce((x, y) => x + y, 0);
+      let a = a0 - tot / rt / 2; const s0 = a;
+      w.split('').forEach((ch, i) => { const da = ws[i] / rt; if (ch !== ' ') { ctx.save(); ctx.rotate(a + da / 2); ctx.translate(0, -rt); ctx.scale(1, 1.08); ctx.fillText(ch, 0, 0); ctx.restore(); } a += da; });
+      return [s0, a];
+    };
+    for (let k = 0; k < 4; k++) {
+      const a0 = k * Math.PI / 2 + Math.PI / 4 - Math.PI / 2;
+      if (k % 2 === 0) arcText('P ZERO', a0, 0.044 * M, col, 'italic 900 %px "Titillium Web", "Arial Black", sans-serif', 0.02);
+      else {
+        const fs = 0.037 * M; const [s0, s1] = arcText('PIRELLI', a0, fs, '#f4f4f4', '900 %px "Titillium Web", "Arial Black", sans-serif', 0.06);
+        // the long P: its bowl runs on as a bar over the whole word
+        ctx.strokeStyle = '#f4f4f4'; ctx.lineCap = 'butt'; ctx.lineWidth = fs * 0.13; ctx.beginPath(); ctx.arc(0, 0, rt + fs * 0.43, s0 + 0.004 - Math.PI / 2, s1 - 0.004 - Math.PI / 2); ctx.stroke();
+      }
+    }
     const tex = new THREE.CanvasTexture(c); tex.encoding = THREE.sRGBEncoding; tex.anisotropy = 8; shared[key] = tex; return tex;
   }
 
@@ -341,34 +355,11 @@ window.EI = window.EI || {};
   // engine-cover rear x -1.2..-1.8, y 0.2..0.7; rear-wing endplates x -1.9..-2.35, y 0.45..1.0; rear-wing top x -1.92..-2.28,
   // z +-0.55; front-wing outer flaps x 2.45..2.8, z +-0.55..1.0; nose top half-width 0.08 at x 2.4, 0.15 at x 1.6.
   const MM = 1000;
-  function sideKit(g, s) {   // drawing helpers for one side (s = -1 left side: tail to the right; +1 right side)
-    const X = (x) => s * x * MM, Y = (y) => -y * MM;
-    const path = (pts) => { g.beginPath(); pts.forEach(([x, y], i) => (i ? g.lineTo(X(x), Y(y)) : g.moveTo(X(x), Y(y)))); g.closePath(); };
-    // a smooth open curve through points (Catmull-Rom), as a stroke or as the top edge of a filled region down/up to yEdge
-    const curve = (pts, close) => {
-      g.beginPath(); g.moveTo(X(pts[0][0]), Y(pts[0][1]));
-      for (let i = 0; i < pts.length - 1; i++) { const p0 = pts[Math.max(0, i - 1)], p1 = pts[i], p2 = pts[i + 1], p3 = pts[Math.min(pts.length - 1, i + 2)];
-        g.bezierCurveTo(X(p1[0] + (p2[0] - p0[0]) / 6), Y(p1[1] + (p2[1] - p0[1]) / 6), X(p2[0] - (p3[0] - p1[0]) / 6), Y(p2[1] - (p3[1] - p1[1]) / 6), X(p2[0]), Y(p2[1])); }
-      if (close) for (const q of close) g.lineTo(X(q[0]), Y(q[1]));
-    };
-    return {
-      s, X, Y, path, curve,
-      poly(pts, col) { path(pts); g.fillStyle = col; g.fill(); },
-      // fill the region bounded by a curve and closing points (e.g. up to the top of the view)
-      region(pts, close, col) { curve(pts, close); g.closePath(); g.fillStyle = col; g.fill(); },
-      stroke(pts, w, col) { curve(pts); g.strokeStyle = col; g.lineWidth = w * MM; g.lineCap = 'round'; g.stroke(); },
-      at(x, y, fn) { g.save(); g.translate(X(x), Y(y)); fn(); g.restore(); },
-      // a decal (EI.Ads.drawDecal spec) centred at (x, y); cap = cap height (m), maxW (m)
-      decal(spec, x, y, cap, maxW) { g.save(); g.translate(X(x), Y(y)); Ads().drawDecal(g, spec, 0, 0, cap * MM, maxW * MM); g.restore(); },
-      text(str, x, y, cap, col, font, o) { o = o || {}; g.save(); g.translate(X(x), Y(y)); if (o.skew) g.transform(1, 0, -o.skew, 1, 0, 0); g.font = font.replace('%', (cap * MM).toFixed(1) + 'px'); if (Ads()) Ads().setLS(g, (o.ls || 0) * cap * MM); g.textAlign = o.align || 'center'; g.textBaseline = 'middle'; if (o.outline) { g.lineWidth = o.outline[0] * MM; g.strokeStyle = o.outline[1]; g.lineJoin = 'round'; g.strokeText(str, 0, 0); } g.fillStyle = col; g.fillText(str, 0, cap * MM * 0.04); if (Ads()) Ads().setLS(g, 0); g.restore(); },
-    };
-  }
+  const sideKit = (g, s) => EI.LIVERIES.sideKit(g, s);   // drawing helpers for one side view (js/liveries.js)
   const Ads = () => EI.Ads;
   CarGLB.sideKit = (g, s) => sideKit(g, s);   // used by teams.js (procedural sheet / menu preview) with the same team designs
   const lum = (h) => { const cc = new THREE.Color(h); return 0.2126 * cc.r + 0.7152 * cc.g + 0.0722 * cc.b; };
   const NUM_FONT = 'italic 900 % "Titillium Web", "Arial Black", Arial, sans-serif';
-  const LUMI_NUM = '800 % "Plus Jakarta Sans", "Titillium Web", Arial, sans-serif';
-  const INTAKE_NUM = '800 % "Unbounded", "Titillium Web", Arial, sans-serif';
   // the team graphics on the side (painted under the decals): curves through the landmarks above
   const UPPER_LINE = [[3.1, 0.3], [2.2, 0.47], [1.3, 0.6], [0.4, 0.7], [-0.5, 0.72], [-1.3, 0.66], [-2.0, 0.55]];
   const TOP_V = 1.4, LOW_V = -0.1;
@@ -381,9 +372,7 @@ window.EI = window.EI || {};
     const views = [];
     const side = (s) => (g) => {
       g.scale(1 / MM, 1 / MM); const k = sideKit(g, s);
-      if (id === 'lumi') lumiSide(g, k, team, num, code, o);
-      else if (id === 'intake') intakeSide(g, k, team, num, code, o);
-      else if (EI.LIVERIES && EI.LIVERIES.has(id)) EI.LIVERIES.side(g, k, team, num, code);   // the 2026 team designs (js/liveries.js)
+      if (EI.LIVERIES && EI.LIVERIES.has(id)) EI.LIVERIES.side(g, k, team, num, code);   // the team designs (js/liveries.js + js/liveries/<id>.js)
       else {
         teamSide(k, team, o);
         // partner decals: one consistent layout for every customer team
@@ -414,9 +403,7 @@ window.EI = window.EI || {};
       const dec = (spec, x, z, cap, maxW, rot) => at(x, z, () => Ads().drawDecal(g, spec, 0, 0, cap * MM, maxW * MM), rot);
       const rect = (x0, x1, z0, z1, col) => { g.fillStyle = col; g.fillRect(z0 * MM, -x1 * MM, (z1 - z0) * MM, (x1 - x0) * MM); };
       const poly = (pts, col) => { g.beginPath(); pts.forEach(([x, z], i) => (i ? g.lineTo(z * MM, -x * MM) : g.moveTo(z * MM, -x * MM))); g.closePath(); g.fillStyle = col; g.fill(); };
-      if (id === 'lumi') return lumiTop(g, { at, txt, dec, rect }, team, num, o);
-      if (id === 'intake') return intakeTop(g, { at, txt, dec, rect }, team, num, o);
-      if (EI.LIVERIES && EI.LIVERIES.has(id)) return EI.LIVERIES.top(g, { at, rect, poly }, team, num);
+      if (EI.LIVERIES && EI.LIVERIES.has(id)) return EI.LIVERIES.top(g, { at, txt, dec, rect, poly }, team, num);
       // customer teams: nose tip and centre stripe, number on the nose (reads from the front), partner on the rear wing
       rect(2.6, 3.2, -1, 1, S);
       txt(String(num), 2.2, 0, 0.13, NC, NUM_FONT, Math.PI);
@@ -425,82 +412,6 @@ window.EI = window.EI || {};
       txt('EQUATION I', 0.62, 0, 0.032, NC, '700 % "Titillium Web", Arial, sans-serif', 0, 0.2);   // ahead of the cockpit, under the halo
     } });
     return views;
-  }
-  // ---- Lumi Racing: cream car, plum sweep over the engine cover and rear, the mark's green and lilac quarter discs blown up on
-  //      the sidepods, the lock-up big on the engine cover, the mark on the airbox and nose, trylumi.co on the wings
-  const LUMI_SWEEP = [[2.3, 0.62], [1.4, 0.68], [0.55, 0.7], [-0.05, 0.6], [-0.55, 0.36], [-1.1, 0.16], [-1.6, 0.06]];
-  function quarter(g, cx, cy, r, col) { g.fillStyle = col; g.beginPath(); g.moveTo(cx, cy); g.lineTo(cx - r, cy); g.arc(cx, cy, r, Math.PI, Math.PI * 1.5); g.closePath(); g.fill(); }
-  function lumiSide(g, k, team, num, code, o) {
-    const L = Ads().LUMI; const plum = L.plum;
-    // plum sweep: everything above / behind the curve
-    k.region(LUMI_SWEEP, [[-2.6, -0.1], [-2.6, TOP_V], [2.3, TOP_V]], plum);
-    k.stroke(LUMI_SWEEP.map(([x, y]) => [x - 0.035, y - 0.035]), 0.022, L.lilac);
-    k.stroke(LUMI_SWEEP.map(([x, y]) => [x - 0.075, y - 0.075]), 0.012, L.markGreen);
-    // quarter discs from the mark, blown up on the cream sidepod (unmirrored, right angles bottom-right like the logo)
-    // (the mark's own geometry at 0.34 m: lilac corner at the origin, green above it, the plum dot to the right)
-    k.at(0.06, 0.16, () => { g.scale(0.78, 0.78); g.translate(60, 0); quarter(g, 0, 0, 177, L.markLilac); quarter(g, -7, -170, 170, L.markGreen); g.fillStyle = L.markPlum; g.beginPath(); g.arc(53, -143, 52, 0, Math.PI * 2); g.fill(); });
-    // title: the lock-up, big on the plum engine cover / sidepod rear (reversed: cream wordmark, cream dot)
-    k.at(-0.92, 0.5, () => Ads().lockupCentered(g, 'lumi', 0, 0, 175, 780, L.bg, true));
-    // the mark on the airbox flank
-    k.text('trylumi.co', -0.78, 0.885, 0.06, L.bg, '700 % "Plus Jakarta Sans", Arial, sans-serif', { ls: -0.02 });
-    // URL + strapline on the cream sidepod front
-    k.text('trylumi.co', 1.42, 0.43, 0.05, plum, '700 % "Plus Jakarta Sans", Arial, sans-serif', { ls: -0.02 });
-    // number plate: cream disc-cornered plate with the number in the brand face
-    k.at(-1.62, 0.56, () => { g.fillStyle = L.bg; Ads().rr(g, -120, -85, 240, 170, 46); g.fill(); g.font = '800 140px "Plus Jakarta Sans", Arial, sans-serif'; Ads().setLS(g, -6); g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillStyle = plum; g.fillText(String(num), 0, 8); Ads().setLS(g, 0); quarter(g, 120, -85, 34, L.markGreen); });
-    if (code) k.text(code, 1.42, 0.56, 0.08, plum, LUMI_NUM, { ls: -0.02 });
-    // rear-wing endplates (plum) and front-wing endplates
-    k.at(-2.13, 0.86, () => Ads().lumiMark(g, -60, -60, 120, null, true));
-    k.text('trylumi.co', -2.13, 0.68, 0.05, L.bg, '700 % "Plus Jakarta Sans", Arial, sans-serif', { ls: -0.02 });
-    k.text(String(num), -2.13, 0.54, 0.08, L.lilac, LUMI_NUM);
-    k.text('trylumi.co', 2.68, 0.18, 0.035, plum, '700 % "Plus Jakarta Sans", Arial, sans-serif');
-  }
-  function lumiTop(g, t, team, num, o) {
-    const L = Ads().LUMI;
-    t.rect(-3, -0.05, -1.1, 1.1, L.plum);                                          // plum engine cover and rear
-    t.rect(-0.05, 0.0, -1.1, 1.1, L.lilac); t.rect(0.0, 0.025, -1.1, 1.1, L.markGreen);
-    t.at(1.38, 0, () => Ads().lumiMark(g, -100, -100, 200));                          // the mark big on the nose
-    t.txt(String(num), 2.22, 0, 0.12, L.plum, LUMI_NUM, Math.PI);
-    t.at(-2.1, 0, () => Ads().lockupCentered(g, 'lumi', 0, 0, 175, 860, L.bg, true)); // rear-wing top
-  }
-  // ---- Intake Racing: sky-blue car with a cocoa "notebook cover" engine cover on dotted paper, the blue "i" big on it, the
-  //      lock-up on the sidepods, and the employers whose programmes are open as partner patches
-  const INTAKE_EDGE = [[0.25, TOP_V], [0.1, 0.95], [-0.15, 0.7], [-0.5, 0.36], [-0.7, 0.1], [-0.75, LOW_V]];
-  function intakeSide(g, k, team, num, code, o) {
-    const I = Ads().INTAKE;
-    k.path(INTAKE_EDGE.concat([[-2.6, LOW_V], [-2.6, TOP_V]])); g.fillStyle = I.ink; g.fill();
-    g.save(); k.path(INTAKE_EDGE.concat([[-2.6, LOW_V], [-2.6, TOP_V]])); g.clip(); g.fillStyle = 'rgba(255,248,236,0.16)';
-    for (let x = -2600; x <= 400; x += 34) for (let y = -1400; y <= 100; y += 34) { g.beginPath(); g.arc(x, y, 4.2, 0, Math.PI * 2); g.fill(); }
-    g.restore();
-    k.stroke(INTAKE_EDGE.slice(1, 5).map(([x, y]) => [x + 0.04, y]), 0.02, I.bg);
-    // the blue "i" big on the cover, the lock-up on the sidepod
-    k.at(-1.12, 0.47, () => Ads().intakeMark(g, -170, -170, 340));
-    k.at(0.0, 0.4, () => Ads().lockupCentered(g, 'intake', 0, 0, 125, 600, I.ink));
-    k.text('Win your degree apprenticeship.', 0.0, 0.295, 0.032, I.ink, '600 % "Instrument Sans", Arial, sans-serif');
-    k.text('intake.ink', -0.62, 0.885, 0.06, I.bg, '600 % "Instrument Sans", Arial, sans-serif');
-    // employer partner patches (cream plates): sidepod lower row, chassis, engine-cover rear
-    const pat = (id, x, y, cap, maxW) => k.decal({ emp: id, bg: I.bg }, x, y, cap, maxW);
-    pat('goldman-sachs', 0.3, 0.205, 0.042, 0.25); pat('kpmg', 0.02, 0.205, 0.042, 0.25); pat('rolls-royce', -0.24, 0.205, 0.042, 0.2);
-    pat('bank-of-england', 1.74, 0.47, 0.04, 0.16); pat('jp-morgan', 1.4, 0.43, 0.034, 0.28);
-    pat('bae-systems', -1.12, 0.22, 0.028, 0.32);
-    // number plate: cream plate, cocoa number in the brand face
-    k.at(-1.62, 0.6, () => { g.fillStyle = I.bg; Ads().rr(g, -125, -80, 250, 160, 40); g.fill(); g.font = '800 118px "Unbounded", Arial, sans-serif'; Ads().setLS(g, -5); g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillStyle = I.ink; g.fillText(String(num), 0, 8); Ads().setLS(g, 0); });
-    if (code) k.text(code, 1.42, 0.56, 0.065, I.ink, INTAKE_NUM, { ls: -0.03 });
-    // rear-wing endplates (cocoa) and front-wing endplates
-    k.at(-2.13, 0.86, () => Ads().intakeMark(g, -60, -60, 120));
-    k.text('intake.ink', -2.13, 0.68, 0.05, I.bg, '600 % "Instrument Sans", Arial, sans-serif');
-    k.text(String(num), -2.13, 0.54, 0.075, I.blue, INTAKE_NUM);
-    k.text('intake.ink', 2.68, 0.18, 0.035, I.ink, '600 % "Instrument Sans", Arial, sans-serif');
-  }
-  function intakeTop(g, t, team, num, o) {
-    const I = Ads().INTAKE;
-    t.rect(-3, -0.2, -1.1, 1.1, I.ink);
-    g.save(); g.beginPath(); g.rect(-1100, 200, 2200, 3000); g.clip(); g.fillStyle = 'rgba(255,248,236,0.16)';
-    for (let z = -1100; z <= 1100; z += 34) for (let x = 200; x <= 3200; x += 34) { g.beginPath(); g.arc(z, x, 4.2, 0, Math.PI * 2); g.fill(); }
-    g.restore();
-    t.rect(-0.2, -0.17, -1.1, 1.1, I.bg);
-    t.at(1.38, 0, () => Ads().intakeMark(g, -100, -100, 200, null, true));           // reversed icon big on the blue nose
-    t.txt(String(num), 2.22, 0, 0.11, I.ink, INTAKE_NUM, Math.PI);
-    t.at(-2.1, 0, () => Ads().lockupCentered(g, 'intake', 0, 0, 150, 860, I.bg));     // rear-wing top (cocoa)
   }
   // the driver's 3-letter code (players: from their name unless they drive a real seat with a code)
   function carCode(car) {
@@ -595,8 +506,8 @@ window.EI = window.EI || {};
   const FONT = '"Titillium Web", "Arial Narrow", Arial, sans-serif';
   // wheel buttons / knobs (u, v in metres) shared by the 3D parts and the painted labels
   const BUTTONS = [
-    [-0.089, 0.041, '#ffc400', 'N'], [-0.089, 0.018, '#2f7bff', 'PL'], [-0.089, -0.005, '#f2f2f2', 'R'], [-0.089, -0.028, '#21d06a', 'OT'],
-    [0.089, 0.041, '#ff2a1c', 'PIT'], [0.089, 0.018, '#ff8a1f', 'DRS'], [0.089, -0.005, '#9b59ff', 'BOX'], [0.089, -0.028, '#18c7d8', 'MARK'],
+    [-0.089, 0.041, '#ffc400', 'N'], [-0.089, 0.018, '#2f7bff', 'PL'], [-0.089, -0.005, '#f2f2f2', 'RAD'], [-0.089, -0.028, '#ff3fd0', 'OT'],
+    [0.089, 0.041, '#ff2a1c', 'PIT'], [0.089, 0.018, '#21d06a', 'SM'], [0.089, -0.005, '#9b59ff', 'BOX'], [0.089, -0.028, '#18c7d8', 'MARK'],
     [-0.052, 0.058, '#2b2e35', 'TALK'], [0.052, 0.058, '#2b2e35', 'ACK'],
   ];
   const KNOBS = [[-0.036, -0.06, 0.0105, '#ff8a1f', 'BB'], [0.036, -0.06, 0.0105, '#2f7bff', 'DIFF'], [-0.071, -0.05, 0.0078, '#21d06a', 'ERS'], [0.071, -0.05, 0.0078, '#ffc400', 'ENG']];
@@ -617,7 +528,7 @@ window.EI = window.EI || {};
     ctx.strokeStyle = 'rgba(160,170,185,0.55)'; ctx.lineWidth = 2; ctx.stroke();
     // team stripe + badge along the bottom edge
     ctx.fillStyle = team.primary; roundRect(ctx, X(-0.02), Y(-0.072), 0.04 * M, 0.006 * M, 4); ctx.fill();
-    ctx.fillStyle = 'rgba(235,240,246,0.85)'; ctx.font = '900 ' + Math.round(0.0062 * M) + 'px ' + FONT; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('EQUATION', X(0), Y(-0.082));
+    ctx.fillStyle = 'rgba(235,240,246,0.85)'; ctx.font = '900 ' + Math.round(0.0062 * M) + 'px ' + FONT; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(String(team.brand || team.short || 'EQUATION').toUpperCase(), X(0), Y(-0.082));
     // button labels (above each button)
     ctx.font = '700 ' + Math.round(0.0042 * M) + 'px ' + FONT; ctx.fillStyle = '#e8edf3';
     for (const [u, v, col, lab] of BUTTONS) { ctx.fillText(lab, X(u), Y(v + 0.0098)); ctx.strokeStyle = 'rgba(0,0,0,0.6)'; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(X(u), Y(v), 0.0072 * M, 0, 6.283); ctx.stroke(); }
@@ -635,15 +546,18 @@ window.EI = window.EI || {};
     const tex = new THREE.CanvasTexture(c); tex.encoding = THREE.sRGBEncoding; tex.anisotropy = 8; shared[key] = tex; return tex;
   }
   // glove back-of-hand logo and race-suit sleeve textures
-  function gloveLogoTexture(team) {
-    const key = '_glove_' + team.id; if (shared[key]) return shared[key];
+  function gloveLogoTexture(team, num) {
+    const key = '_glove_' + team.id + ':' + (num || ''); if (shared[key]) return shared[key];
     const c = document.createElement('canvas'); c.width = 256; c.height = 128; const ctx = c.getContext('2d');
     ctx.clearRect(0, 0, 256, 128); ctx.fillStyle = 'rgba(240,242,246,0.95)'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    const sp = (team.sponsors && team.sponsors[0] && team.sponsors[0].n) || 'EQUATION';
-    ctx.font = 'italic 900 58px ' + FONT; ctx.fillText('EI', 128, 46); ctx.font = '700 26px ' + FONT; ctx.fillText(sp, 128, 96);
+    // the driver's number large (italic) over the team wordmark, a team-colour bar under it
+    const brand = String(team.brand || team.short || 'EQUATION').toUpperCase();
+    ctx.font = 'italic 900 62px ' + FONT; ctx.fillText(num != null ? String(num) : 'EI', 128, 46);
+    let fs = 26; ctx.font = '700 ' + fs + 'px ' + FONT; const tw = ctx.measureText(brand).width; if (tw > 220) { fs *= 220 / tw; ctx.font = '700 ' + fs.toFixed(1) + 'px ' + FONT; } ctx.fillText(brand, 128, 96);
     ctx.fillStyle = team.primary; ctx.fillRect(70, 118, 116, 6);
     const tex = new THREE.CanvasTexture(c); tex.encoding = THREE.sRGBEncoding; tex.anisotropy = 4; shared[key] = tex; return tex;
   }
+
   // team kit colours: race suit (team.suit or primary) and gloves (team.glove, else the secondary when dark, else a dark
   // tint of it) with team-coloured accents (padding, strap) so the hands never read as bright blobs
   const lumOf = (h) => { const c = new THREE.Color(h); return 0.2126 * c.r + 0.7152 * c.g + 0.0722 * c.b; };
@@ -759,10 +673,9 @@ window.EI = window.EI || {};
     const screenTex = new THREE.CanvasTexture(sc); screenTex.encoding = THREE.sRGBEncoding; screenTex.anisotropy = 4;
     const screen = new THREE.Mesh(new THREE.PlaneGeometry(0.134, 0.0838), new THREE.MeshBasicMaterial({ map: screenTex, toneMapped: false }));
     screen.position.set(0, 0.0012, WHEEL.faceW + 0.0007); screen.userData.canvas = sc; frame.add(screen);
-    // the wheel display is redrawn by main.js at the HUD rate; cap its texture uploads at ~15 Hz and skip mipmaps
-    screenTex.generateMipmaps = false; screenTex.minFilter = THREE.LinearFilter;
-    // the DRS lamp is painted over the finished frame just before each upload (off / armed: blinking outline / open: solid green)
-    let upT = 0; Object.defineProperty(screenTex, 'needsUpdate', { configurable: true, set(v) { if (!v) return; const t = performance.now(); if (t - upT < 64) return; upT = t; drawDrsLamp(sc, car, t); this.version++; } });
+    // the wheel display is redrawn by main.js at the HUD rate; cap its texture uploads at ~15 Hz
+    screenTex.generateMipmaps = true; screenTex.minFilter = THREE.LinearMipmapLinearFilter;   // ~3x minified on screen: mips keep the small type from shimmering
+    let upT = 0; Object.defineProperty(screenTex, 'needsUpdate', { configurable: true, set(v) { if (!v) return; const t = performance.now(); if (t - upT < 64) return; upT = t; this.version++; } });
     // ---- gloved hands at quarter-to-three: padded back of the hand, knuckle pads, three-segment fingers curled round the grip
     //      (suede tips), thumb resting on the face, gauntlet + team strap. Dark glove with team-colour accents.
     const kit = kitColours(team); const grain = gloveGrain();
@@ -770,7 +683,7 @@ window.EI = window.EI || {};
     const padMat = new THREE.MeshStandardMaterial({ color: kit.accent, roughness: 0.55, metalness: 0.0, envMapIntensity: 0.5 });
     const palmMat = new THREE.MeshStandardMaterial({ color: kit.palm.clone().multiplyScalar(0.6), roughness: 1.6, metalness: 0.0, envMapIntensity: 0.15, roughnessMap: grain });
     const cuffMat = new THREE.MeshStandardMaterial({ color: 0x07080a, roughness: 0.85, envMapIntensity: 0.18 });
-    const logoMat = new THREE.MeshBasicMaterial({ map: gloveLogoTexture(team), transparent: true, depthWrite: false, toneMapped: true, polygonOffset: true, polygonOffsetFactor: -2 });
+    const logoMat = new THREE.MeshBasicMaterial({ map: gloveLogoTexture(team, car.num), transparent: true, depthWrite: false, toneMapped: true, polygonOffset: true, polygonOffsetFactor: -2 });
     const wrists = []; const hands = { base: [], pads: [], palm: [], cuffs: [], logos: [] };   // both hands merged per material
     const ell = (c, a, b, d, seg) => ({ geo: new THREE.SphereGeometry(1, seg || 20, Math.round((seg || 20) * 0.7)), m: new THREE.Matrix4().makeScale(a, b, d).setPosition(c) });
     const cap = (p0, p1, r0, r1, rad, side) => ({ geo: capsuleGeo(r0, r1, p0.distanceTo(p1), rad || 10, 3), m: segMatrix(p0, p1, side || V(0, 0, 1), null, true) });
@@ -836,10 +749,10 @@ window.EI = window.EI || {};
     });
     // shoulders, chest and HANS collar (mostly hidden in the tub; they fill the gap at the arm roots in outside views)
     const torso = [ell(V(-0.02, 0.5, 0), 0.12, 0.17, 0.2, 20)]; for (const sh0 of shoulder) torso.push(ell(sh0, 0.062, 0.058, 0.064, 16));
-    body.add(new THREE.Mesh(mergeGeos(torso), plainSuit));
+    const torsoMesh = new THREE.Mesh(mergeGeos(torso), plainSuit); body.add(torsoMesh);
     const hans = new THREE.TorusGeometry(0.088, 0.017, 8, 22, Math.PI * 1.25); hans.rotateX(Math.PI / 2); hans.rotateY(Math.PI * 0.375 + Math.PI); hans.translate(0.07, 0.69, 0);
     const hansMat = carbonMaterial({ dark: 0x020203, light: 0x0c0d10, clearcoat: 0.5, env: 0.35, ckMask: 0 });
-    body.add(new THREE.Mesh(hans, hansMat));
+    const hansMesh = new THREE.Mesh(hans, hansMat); body.add(hansMesh);
     const _w = new THREE.Vector3(), _e = new THREE.Vector3(), _d0 = new THREE.Vector3(), _pole = new THREE.Vector3(), _inv = new THREE.Matrix4();
     const _A = new THREE.Vector3(), _B = new THREE.Vector3(), _P = new THREE.Vector3(), _T = new THREE.Vector3(), _top = new THREE.Vector3(), _side = new THREE.Vector3(), _q0 = new THREE.Vector3(), _q1 = new THREE.Vector3();
     // radius profile along normalised arc length (eE = elbow position)
@@ -887,7 +800,7 @@ window.EI = window.EI || {};
       arms.forEach((arm, k) => { _w.setFromMatrixPosition(wrists[k].matrixWorld).applyMatrix4(_inv); shapeArm(arm, shoulder[k], _w); });
     };
     animate(0);
-    return { steer, spin, screen, screenTex, animate };
+    return { steer, spin, screen, screenTex, animate, hide: [steer, torsoMesh, hansMesh].concat(arms.map(a => a.mesh)) };
   }
 
   // live rear-view mirrors: a small render target per mirror, rendered alternately from the glass along the reflected eye ray.
@@ -937,17 +850,22 @@ window.EI = window.EI || {};
     };
     return {
       sides,
-      update(renderer, scene, every) {
+      // lite (Low): an array of extra objects to hide (main.js passes the whole scenery group): road, barriers, kerbs and the cars
+      // behind only, in a 112 px target with a 150 m far plane
+      update(renderer, scene, every, lite) {
         frameN++; if (every > 1 && frameN % every) return;
         if (!hideList || ++scanN % 600 === 0) scan(scene);
         const sd = sides[(sideN++) % sides.length]; const cam = sd.cam;
-        const W = every <= 1 ? 160 : 128, H = Math.max(40, Math.min(80, Math.round(W / sd.ar))); if (sd.rt.width !== W || sd.rt.height !== H) sd.rt.setSize(W, H);
+        const W = lite ? 112 : every <= 1 ? 160 : 128, H = Math.max(lite ? 36 : 40, Math.min(80, Math.round(W / sd.ar))); if (sd.rt.width !== W || sd.rt.height !== H) sd.rt.setSize(W, H);
+        const far = lite ? 150 : 260; if (cam.far !== far) { cam.far = far; cam.updateProjectionMatrix(); }
         body.updateWorldMatrix(true, false);
         _p.copy(cam.userData.local).applyMatrix4(body.matrixWorld); _d.copy(cam.userData.dir).transformDirection(body.matrixWorld); _u.set(0, 1, 0).transformDirection(body.matrixWorld);
         cam.position.copy(_p); cam.up.copy(_u); cam.lookAt(_p.add(_d)); cam.updateMatrixWorld();
         hidden.length = 0;
         for (const o of hideList) if (o.visible) { o.visible = false; hidden.push(o); }
-        const R2 = 150 * 150; for (const o of carList) if (o.visible && o.position.distanceToSquared(cam.position) > R2) { o.visible = false; hidden.push(o); }
+        if (lite) for (const o of lite) if (o && o.visible) { o.visible = false; hidden.push(o); }
+        if (swap && swap.ck) for (const o of swap.ck) if (o.visible) { o.visible = false; hidden.push(o); }   // wheel, arms, torso: never in a rear view
+        const R2 = lite ? 120 * 120 : 150 * 150; for (const o of carList) if (o.visible && o.position.distanceToSquared(cam.position) > R2) { o.visible = false; hidden.push(o); }
         for (const s of sides) s.plane.visible = false;
         // the car's own bodywork renders from the lo LOD in the mirrors (~35k instead of ~130k triangles)
         if (swap) { for (const m of swap.hi) m.visible = false; for (const m of swap.lo) m.visible = true; }
@@ -960,19 +878,90 @@ window.EI = window.EI || {};
     };
   }
 
-  // DRS lamp on the wheel display (512 x 320 canvas). Armed: a green outline round the DRS box that blinks once the car is in the
-  // zone (press now). Open: the box fills green with OPEN under it and a green frame lights round the whole display.
-  function drawDrsLamp(sc, car, now) {
-    const ctx = sc.getContext('2d'), W = sc.width, H = sc.height; const open = !!car.drsOpen, ready = !!car.drsEligible && !open;
-    if (!open && !ready) return;
-    const x0 = 420, y0 = 262, w = 84, h = 54; const F = '"Titillium Web", Arial, sans-serif';
-    ctx.save(); ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
-    ctx.fillStyle = '#06080b'; ctx.fillRect(x0 - 2, y0 - 2, w + 4, h + 4);
-    // ready: the DRS box lights green; open: it fills bright green and a green frame lights round the display
-    if (open) { ctx.lineWidth = 6; ctx.strokeStyle = '#22e26a'; ctx.strokeRect(3, 47, W - 6, H - 50); }
-    ctx.shadowColor = '#22e26a'; ctx.shadowBlur = open ? 16 : 8; ctx.fillStyle = open ? '#3dff86' : '#1fbf5a'; ctx.fillRect(x0, y0, w, h); ctx.shadowBlur = 0;
-    ctx.fillStyle = '#04210f'; ctx.font = 'italic 900 32px ' + F; ctx.fillText('DRS', x0 + w / 2, y0 + 38);
-    ctx.restore();
+  // halo branding seen from the cockpit / T-cam (player cars only): one decal mesh over halo_main with its own UVs along the hoop.
+  // u = angle round the hoop (left rear leg -> front -> right rear leg, so text reads left to right from inside the car), the top
+  // row of the atlas maps across the hoop's top face (inner edge -> outer edge), the bottom row up its inner face (bottom -> top).
+  // Top: the team handle over the front, the halo partners on the sides; inner face: the partners again, small, in white.
+  // Data: EI.LIVERIES.designs[team].halo = { top, partners:[ids] } when a team file gives it, else HALO_TAG + EI.SEASON partners
+  // whose position mentions the halo. 1 draw call, the atlas is painted once per team.
+  const HALO_TAG = { mercedes: '@MercedesAMGF1', ferrari: '@ScuderiaFerrari', mclaren: '@McLarenF1', redbull: '@redbullracing', racingbulls: '@visacashapprb', alpine: '@AlpineF1Team', haas: '@HaasF1Team', audi: 'AUDI F1 TEAM', williams: '@WilliamsRacing', astonmartin: '@AstonMartinF1', cadillac: 'CADILLAC F1 TEAM', lumi: 'trylumi.co', intake: 'intake.ink' };
+  const HALO_C = 0.45, HALO_TH = 2.6, HALO_XMAX = 0.8, HALO_BINS = 48;
+  function haloBrand(team) {
+    const id = team.entry && !(team.id === 'lumi' || team.id === 'intake') ? team.entry : team.id;
+    const d = EI.LIVERIES && EI.LIVERIES.designs && EI.LIVERIES.designs[team.id]; if (d && d.halo) return d.halo;
+    let partners = [];
+    if (team.id !== 'lumi' && team.id !== 'intake' && EI.SEASON && EI.SEASON.teams) { const st = EI.SEASON.teams.find(t => t.id === id); if (st && st.partners) { partners = st.partners.filter(p => /halo/i.test(p.where || '')).map(p => p.name); if (!partners.length) partners = st.partners.filter(p => p.tier !== 'title').slice(0, 2).map(p => p.name); } }
+    if (team.id === 'lumi') partners = ['Lumi']; if (team.id === 'intake') partners = ['Intake'];
+    return { top: HALO_TAG[team.id] || HALO_TAG[id] || String(team.brand || team.name || '').toUpperCase(), partners: partners.slice(0, 3) };
+  }
+  function buildHaloDecal(haloMeshes, body, team, haloCol) {
+    // collect the hoop triangles (body space) that face up (top row) or in towards the cockpit (inner row)
+    const tri = [], a = new THREE.Vector3(), b = new THREE.Vector3(), c = new THREE.Vector3(), n = new THREE.Vector3(), e = new THREE.Vector3();
+    const thOf = (p) => Math.atan2(p.z, p.x - HALO_C);
+    for (const o of haloMeshes) {
+      const g = nonIndexed(o.geometry.clone()); g.applyMatrix4(o.matrixWorld); const p = g.attributes.position;
+      for (let i = 0; i < p.count; i += 3) {
+        a.fromBufferAttribute(p, i); b.fromBufferAttribute(p, i + 1); c.fromBufferAttribute(p, i + 2);
+        if (Math.max(a.x, b.x, c.x) > HALO_XMAX) continue;
+        n.subVectors(b, a).cross(e.subVectors(c, a)); if (n.lengthSq() < 1e-14) continue; n.normalize();
+        const mx = (a.x + b.x + c.x) / 3 - HALO_C, mz = (a.z + b.z + c.z) / 3, ml = Math.hypot(mx, mz) || 1;
+        const inward = -(n.x * mx + n.z * mz) / ml;
+        const row = n.y > 0.55 ? 1 : (inward > 0.45 && Math.abs(n.y) < 0.8 ? 0 : -1); if (row < 0) continue;
+        if (Math.abs(thOf(a)) > HALO_TH || Math.abs(thOf(b)) > HALO_TH || Math.abs(thOf(c)) > HALO_TH) continue;
+        tri.push({ v: [a.clone(), b.clone(), c.clone()], n: n.clone(), row });
+      }
+    }
+    if (tri.length < 8) return null;
+    // per angle bin: radial extent of the top face and height extent of the inner face
+    const bin = (th) => Math.min(HALO_BINS - 1, Math.max(0, Math.floor((th + HALO_TH) / (2 * HALO_TH) * HALO_BINS)));
+    const ext = [0, 1].map(() => Array.from({ length: HALO_BINS }, () => [1e9, -1e9]));
+    for (const t of tri) for (const p of t.v) { const k = bin(thOf(p)), q = t.row ? Math.hypot(p.x - HALO_C, p.z) : p.y, E = ext[t.row][k]; E[0] = Math.min(E[0], q); E[1] = Math.max(E[1], q); }
+    for (const E of ext) for (let k = 0; k < HALO_BINS; k++) if (E[k][0] > E[k][1]) { const j = E.findIndex(x => x[0] <= x[1]); E[k] = j >= 0 ? E[j].slice() : [0, 1]; }
+    // hoop length along the top face centre line, face widths -> texel aspect of each row
+    let L = 0, prev = null; const mid = (k) => (ext[1][k][0] + ext[1][k][1]) / 2;
+    for (let k = 0; k < HALO_BINS; k++) { const th = -HALO_TH + (k + 0.5) / HALO_BINS * 2 * HALO_TH, r = mid(k); const p = [HALO_C + Math.cos(th) * r, Math.sin(th) * r]; if (prev) L += Math.hypot(p[0] - prev[0], p[1] - prev[1]); prev = p; }
+    const med = (E) => E.map(x => x[1] - x[0]).sort((x, y) => x - y)[HALO_BINS >> 1];
+    const wTop = Math.max(0.02, med(ext[1])), hIn = Math.max(0.02, med(ext[0]));
+    const pos = [], nrm = [], uv = [];
+    for (const t of tri) for (const p of t.v) {
+      const th = thOf(p), k = bin(th), E = ext[t.row][k], q = t.row ? Math.hypot(p.x - HALO_C, p.z) : p.y;
+      const f = Math.min(1, Math.max(0, (q - E[0]) / Math.max(1e-4, E[1] - E[0])));
+      pos.push(p.x + t.n.x * 0.0009, p.y + t.n.y * 0.0009, p.z + t.n.z * 0.0009); nrm.push(t.n.x, t.n.y, t.n.z); uv.push((th + HALO_TH) / (2 * HALO_TH), t.row ? 0.5 + f * 0.5 : f * 0.5);
+    }
+    const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); geo.setAttribute('normal', new THREE.Float32BufferAttribute(nrm, 3)); geo.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+    const mat = new THREE.MeshStandardMaterial({ map: haloAtlas(team, haloCol, L, wTop, hIn), transparent: true, depthWrite: false, roughness: 0.45, metalness: 0.0, envMapIntensity: 0.4, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
+    const mesh = new THREE.Mesh(geo, mat); mesh.name = 'halo_decal'; mesh.renderOrder = 1; body.add(mesh); return mesh;
+  }
+  // the atlas: 2048 x 256, top row = top face, bottom row = inner face; x = u along the hoop (L metres)
+  function haloAtlas(team, haloCol, L, wTop, hIn) {
+    const key = '_halo_' + team.id + ':' + (team.entry || ''); if (shared[key]) return shared[key];
+    const W = 2048, H = 256, RH = 128, c = document.createElement('canvas'); c.width = W; c.height = H; const ctx = c.getContext('2d');
+    const pxm = W / L;   // px per metre along the hoop; each row is squeezed to RH px across its face, so draw with sy
+    const light = (() => { try { return lumOf(haloCol || '#111111') > 0.55; } catch (e) { return false; } })();
+    const ink = light ? '#111214' : '#f4f5f7', tone = light ? 'black' : 'white';
+    const hb = haloBrand(team); const th2u = (th) => (th + HALO_TH) / (2 * HALO_TH) * W;
+    // one row: y0 = row top (px), face = face width (m); items drawn centred at angle th, width w (m), height h (m)
+    const put = (row, th, w, h, draw) => {
+      const face = row ? wTop : hIn, y0 = row ? 0 : RH, sy = RH / face / pxm;
+      ctx.save(); ctx.translate(th2u(th), y0 + RH / 2); ctx.scale(1, sy); draw(w * pxm, h * pxm); ctx.restore();
+    };
+    const text = (str, w, h, wgt, it) => (pw, ph) => {
+      ctx.font = (it ? 'italic ' : '') + (wgt || 800) + ' 100px "Titillium Web", Arial, sans-serif'; const tw = ctx.measureText(str).width / 100;
+      const fs = Math.min(ph, pw / Math.max(0.1, tw)); ctx.font = (it ? 'italic ' : '') + (wgt || 800) + ' ' + fs.toFixed(1) + 'px "Titillium Web", Arial, sans-serif';
+      ctx.fillStyle = ink; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(str, 0, fs * 0.04);
+    };
+    const logo = (id) => (pw, ph) => {
+      if (EI.Ads && EI.Ads.drawPartner) EI.Ads.drawPartner(ctx, id, 0, 0, pw, ph, { tone }); else text(String(id).toUpperCase(), 0, 0, 800)(pw, ph);
+    };
+    const P = hb.partners || [];
+    // top face: handle over the front (where the hoop meets the pillar), partners on the side bars
+    put(1, 0, 0.3, wTop * 0.62, text(hb.top, 0, 0, 700));
+    if (P[0]) { put(1, -1.05, 0.2, wTop * 0.6, logo(P[0])); put(1, 1.05, 0.2, wTop * 0.6, logo(P[0])); }
+    if (P[1]) { put(1, -1.75, 0.16, wTop * 0.55, logo(P[1])); put(1, 1.75, 0.16, wTop * 0.55, logo(P[1])); }
+    // inner face: handle across the front, partners on the side bars, a little smaller
+    put(0, 0, 0.24, hIn * 0.5, text(hb.top, 0, 0, 700));
+    const pin = P[2] || P[1] || P[0]; if (pin) { put(0, -1.2, 0.15, hIn * 0.5, logo(pin)); put(0, 1.2, 0.15, hIn * 0.5, logo(pin)); }
+    const tex = new THREE.CanvasTexture(c); tex.encoding = THREE.sRGBEncoding; tex.anisotropy = 8; shared[key] = tex; return tex;
   }
 
   // ---------------------------------------------------------------- shared per-LOD templates + one LOD material per car
@@ -1056,12 +1045,13 @@ window.EI = window.EI || {};
       if (o.material && o.material.name === 'tyre') pv.tyreHalfW = Math.max(Math.abs(tmpBox.min.z), Math.abs(tmpBox.max.z));
     }
     const seat = {}; for (const c of CORNERS) { const pv = piv[c]; seat[c] = new THREE.Vector3(pv.p.x, pv.bb.isEmpty() ? pv.p.y : -pv.bb.min.y - 0.005, pv.p.z); }
-    const lists = { paint: [], carbon: [], floor: [], lod: [], all: [] }, mirrorGlass = [];
+    const lists = { paint: [], carbon: [], floor: [], lod: [], all: [] }, mirrorGlass = [], haloMeshes = [];
     const strip = (g) => { const out = new THREE.BufferGeometry(); out.setAttribute('position', g.attributes.position.clone()); if (g.attributes.normal) out.setAttribute('normal', g.attributes.normal.clone()); else { out.setAttribute('normal', g.attributes.position.clone()); } if (g.attributes.uv) out.setAttribute('uv', g.attributes.uv.clone()); if (g.index) out.setIndex(g.index.clone()); if (!g.attributes.normal) out.computeVertexNormals(); return out; };
     for (const o of meshes) {
       const n = o.name || '', mname = o.material && o.material.name;
       if (detailed && n.startsWith('driver_wheel')) continue;   // replaced by the procedural steering wheel
       if (detailed && n === 'mirror_glass') mirrorGlass.push(o);
+      if (detailed && n === 'halo_main') haloMeshes.push(o);   // cockpit halo branding decal (buildHaloDecal)
       let g = 0, M = o.matrixWorld; const w = /^wheel_(fl|fr|rl|rr)_/.exec(n);
       if (w) { const c = w[1], pv = piv[c].p, st = seat[c]; g = G_WHEEL + CORNERS.indexOf(c); M = new THREE.Matrix4().makeTranslation(st.x - pv.x, st.y - pv.y, st.z - pv.z).multiply(o.matrixWorld); }
       else if (n.startsWith('drsflap_')) { g = G_FLAP; M = new THREE.Matrix4().makeTranslation(hinge[0], hinge[1], 0); }   // flap geometry is local to its hinge
@@ -1072,6 +1062,8 @@ window.EI = window.EI || {};
       else if (g === 0 && (mname === 'carbon' || mname === 'paint')) (mname === 'carbon' && FLOOR_RE.test(n) ? lists.floor : lists.carbon).push(it);
       else lists.lod.push(it);
     }
+    // T-cam on top of the airbox (slot 5: black on a team's first car, fluorescent yellow on the second, uTcam)
+    { const tc = new THREE.BoxGeometry(0.15, 0.045, 0.075, 1, 1, 1); tc.translate(-0.05, 1.112, 0); const it = { geo: tc, lp: { s: 5, m: 0.1, r: 0.45, c: 1, col: [1, 1, 1] }, g: 0 }; lists.lod.push(it); lists.all.push(it); }
     // tyre walls (compound stripe + lettering, slot 4) just proud of each tyre's own width; brake-glow rings for the glow mesh
     const glow = [];
     CORNERS.forEach((c, k) => {
@@ -1084,7 +1076,7 @@ window.EI = window.EI || {};
     });
     const T = {
       paint: mergeIndexed(lists.paint), carbon: mergeIndexed(lists.carbon), floor: mergeIndexed(lists.floor), lod: mergeIndexed(lists.lod, true), glow: mergeIndexed(glow),
-      wheels: CORNERS.map((c) => seat[c].clone()), hinge: new THREE.Vector2(hinge[0], hinge[1]), mirrorGlass,
+      wheels: CORNERS.map((c) => seat[c].clone()), hinge: new THREE.Vector2(hinge[0], hinge[1]), mirrorGlass, haloMeshes,
     };
     if (lod === 'lo') { const all = mergeIndexed(lists.all, true); T.mid = clusterGeo(all, CarGLB.midCell || MID_CELL); T.far = clusterGeo(all, CarGLB.farCell || FAR_CELL); if (CarGLB.keepAll) T.all = all; else all.dispose(); }
     for (const it of lists.all) it.geo.dispose();
@@ -1098,7 +1090,7 @@ window.EI = window.EI || {};
     const m = new THREE.MeshPhysicalMaterial({ map: tex, vertexColors: true, metalness: 1, roughness: 1, clearcoat: 1, clearcoatRoughness: 0.04, envMapIntensity: 0.55, side: THREE.DoubleSide });
     const u = m.userData.u = {
       uBody: { value: new THREE.Matrix4() }, uSpin: { value: 0 }, uSteer: { value: 0 }, uFlap: { value: 0 }, uHelm: { value: 0 }, uHelmVis: { value: 1 },
-      uWheel: { value: T.wheels }, uHinge: { value: T.hinge }, uAccent: { value: new THREE.Color((car.driver && car.driver.helmet) || car.team.helmet || car.team.accent) }, uLed: { value: 0.6 }, uTyre: { value: tyreWallTexture(car.tyre) },
+      uWheel: { value: T.wheels }, uHinge: { value: T.hinge }, uAccent: { value: new THREE.Color((car.driver && car.driver.helmet) || car.team.helmet || car.team.accent) }, uTcam: { value: new THREE.Color(car.team && car.team.drivers && car.team.drivers.indexOf(car.driver) === 1 ? 0xf2e600 : 0x0c0c0e) }, uLed: { value: 0.6 }, uTyre: { value: tyreWallTexture(car.tyre) },
     };
     m.onBeforeCompile = (sh) => {
       Object.assign(sh.uniforms, u);
@@ -1116,11 +1108,12 @@ window.EI = window.EI || {};
           'objectNormal = lodR * objectNormal; if (lodB > 0.5) objectNormal = mat3(uBody) * objectNormal;'].join('\n'))
           .replace('#include <begin_vertex>', ['#include <begin_vertex>',
             'transformed = lodC + lodR * (transformed - lodC); if (lodB > 0.5) transformed = (uBody * vec4(transformed, 1.0)).xyz; transformed *= lodH;'].join('\n'));
-      sh.fragmentShader = 'varying vec4 vLodk;\nuniform vec3 uAccent;\nuniform float uLed;\nuniform sampler2D uTyre;\n' + sh.fragmentShader
+      sh.fragmentShader = 'varying vec4 vLodk;\nuniform vec3 uAccent;\nuniform vec3 uTcam;\nuniform float uLed;\nuniform sampler2D uTyre;\n' + sh.fragmentShader
         .replace('#include <map_fragment>', [
           'float lodS = vLodk.x; vec3 lodCol = vColor;',
           'if (lodS > 0.5 && lodS < 1.5) lodCol = mapTexelToLinear(texture2D(map, vUv)).rgb;',
           'else if (lodS > 2.5 && lodS < 3.5) lodCol = uAccent;',
+          'else if (lodS > 4.5) lodCol = uTcam;',
           'else if (lodS > 3.5) { vec4 lodT = mapTexelToLinear(texture2D(uTyre, vUv)); lodCol = mix(vColor, lodT.rgb, lodT.a); }',
           'diffuseColor.rgb *= lodCol;'].join('\n'))
         .replace('#include <color_fragment>', '')
@@ -1178,13 +1171,17 @@ window.EI = window.EI || {};
   // ---------------------------------------------------------------- build
   // returns the EI.CarModel.build shape plus: lodMat, pose(spin, steerAngle, flapRot, body), mid / far meshes (bots) and the
   // shadow proxy geometry. Player cars ('hi') also get the cockpit, the live mirrors and the wheel display.
+  const LIVERY_RES = CarGLB.LIVERY_RES = { low: [1024, 2048], medium: [1536, 2048], high: [2048, 4096] };
   function build(car, lod) {
     if (!CarGLB.ready) return EI.CarModel.build(car);
     const lo = lod === 'lo'; const detailed = !lo && car.isPlayer !== false;
     const T = template(lo ? 'lo' : 'hi', detailed), TL = template('lo', false);
     const code = carCode(car);
-    const full = lo ? 1024 : 2048; let tex = texCache[liveryKey(car.team, car.num, code, full)];
-    if (!tex) tex = composeLivery(car.team, car.num, code, lo && !CarGLB.syncLiveries ? 512 : full);
+    // livery resolution per quality: [bots, player cars]. Bots start on a 512 sheet and are upgraded in the background (pump);
+    // player cars start at <= 2048 and a 4096 sheet (High) follows the same way, so the race build never stalls on it.
+    const res = LIVERY_RES[EI.quality] || LIVERY_RES.medium; const full = lo ? res[0] : res[1];
+    let tex = texCache[liveryKey(car.team, car.num, code, full)];
+    if (!tex) tex = composeLivery(car.team, car.num, code, lo && !CarGLB.syncLiveries ? 512 : Math.min(full, 2048));
     const paint = paintMaterial(tex), lm = lodMaterial(tex, car, T), U = lm.userData.u;
     if (tex.image.width < liverySize(car.team, full)) {
       jobs.push({ car, code, size: full, apply: (t) => { paint.map = t; lm.map = t; } });
@@ -1205,7 +1202,8 @@ window.EI = window.EI || {};
       // lo-LOD copy of the bodywork, shown only while the mirrors render
       const loBody = [mk(TL.paint, paint, body, 'car_paint_lo'), mk(TL.carbon, shared.carbon, body, 'car_carbon_lo'), mk(TL.floor, shared._floor, body, 'car_floor_lo')];
       for (const m of loBody) m.visible = false;
-      if (T.mirrorGlass.length) { const mir = buildMirrors(T.mirrorGlass, body, g, { hi: hiBody, lo: loBody }); if (mir) screen.userData.mirrors = mir; }
+      if (T.mirrorGlass.length) { const mir = buildMirrors(T.mirrorGlass, body, g, { hi: hiBody, lo: loBody, ck: cockpit.hide }); if (mir) screen.userData.mirrors = mir; }
+      if (T.haloMeshes && T.haloMeshes.length) { try { buildHaloDecal(T.haloMeshes, body, car.team, EI.LIVERIES && EI.LIVERIES.partColours ? EI.LIVERIES.partColours(car.team).halo : null); } catch (e) { console.warn('halo decal', e); } }
     }
     // brake glow: hot discs show through the gap between the rim lip and the wheel cover (outer face) and on the inner face
     const glowMat = new THREE.MeshBasicMaterial({ color: 0xff6a1c, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });

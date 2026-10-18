@@ -25,6 +25,17 @@ window.EI = window.EI || {};
     g.fillStyle = col; g.fillText(str, 0, cap * MM * 0.04);
     if (EI.Ads && EI.Ads.setLS) EI.Ads.setLS(g, 0); g.restore();
   }
+  // text along a polyline pts (canvas units, mm), centred on the path length; letters upright on the path's left-hand normal
+  function textOnPath(g, str, pts, cap, col, st) {
+    st = st || {}; g.save(); g.font = (st.it ? 'italic ' : '') + (st.w || 700) + ' ' + (cap * MM).toFixed(1) + 'px ' + (st.ff || '"Titillium Web", Arial, sans-serif');
+    g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillStyle = col;
+    const seg = []; let L = 0; for (let i = 1; i < pts.length; i++) { const d = Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]); seg.push(d); L += d; }
+    const sp = (st.ls || 0.02) * cap * MM; const ws = Array.from(str).map(ch => g.measureText(ch).width + sp); let tw = ws.reduce((a, b) => a + b, 0) - sp;
+    const sc = tw > L * 0.96 ? L * 0.96 / tw : 1; let d = (L - tw * sc) / 2;
+    const at = (dd) => { let i = 0; while (i < seg.length - 1 && dd > seg[i]) { dd -= seg[i]; i++; } const a = pts[i], b = pts[i + 1], f = Math.min(1, dd / seg[i]); return [a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f, Math.atan2(b[1] - a[1], b[0] - a[0])]; };
+    Array.from(str).forEach((ch, i) => { const w = ws[i] * sc; const p = at(d + (w - sp * sc) / 2); g.save(); g.translate(p[0], p[1]); g.rotate(p[2]); g.scale(sc, sc); g.fillText(ch, 0, cap * MM * 0.04); g.restore(); d += w; });
+    g.restore();
+  }
   // partner logo centred on the current origin inside w x h (metres). tone: 'white' | 'black' | 'color' | 'mono:#hex'
   const FALLBACK = {   // styled-text stand-ins (used only when f1-BRAND has no artwork for the id)
     petronas: { n: 'PETRONAS', w: 900, col: '#00a19c' }, hp: { n: 'hp', w: 700, it: 1, col: '#0096d6' }, mastercard: { mc: 1 },
@@ -51,6 +62,29 @@ window.EI = window.EI || {};
     // fit the wordmark inside w x h
     g.save(); g.font = (f.it ? 'italic ' : '') + f.w + ' 100px "Titillium Web", Arial, sans-serif'; const tw = g.measureText(f.n).width * (1 + (f.ls || 0) * 0.5) / 100;
     const cap = Math.min(h * 0.82, w * 0.95 / Math.max(0.1, tw)); styledText(g, f.n, cap, toneCol(tone, f.col), { w: f.w, it: f.it, ls: f.ls }); g.restore();
+  }
+  // the side-view drawing kit (metres -> mm canvas units): used by carglb.js, teams.js and the team files as L.k
+  function sideKit(g, s) {   // drawing helpers for one side (s = -1 left side: tail to the right; +1 right side)
+    const X = (x) => s * x * MM, Y = (y) => -y * MM;
+    const path = (pts) => { g.beginPath(); pts.forEach(([x, y], i) => (i ? g.lineTo(X(x), Y(y)) : g.moveTo(X(x), Y(y)))); g.closePath(); };
+    // a smooth open curve through points (Catmull-Rom), as a stroke or as the top edge of a filled region down/up to yEdge
+    const curve = (pts, close) => {
+      g.beginPath(); g.moveTo(X(pts[0][0]), Y(pts[0][1]));
+      for (let i = 0; i < pts.length - 1; i++) { const p0 = pts[Math.max(0, i - 1)], p1 = pts[i], p2 = pts[i + 1], p3 = pts[Math.min(pts.length - 1, i + 2)];
+        g.bezierCurveTo(X(p1[0] + (p2[0] - p0[0]) / 6), Y(p1[1] + (p2[1] - p0[1]) / 6), X(p2[0] - (p3[0] - p1[0]) / 6), Y(p2[1] - (p3[1] - p1[1]) / 6), X(p2[0]), Y(p2[1])); }
+      if (close) for (const q of close) g.lineTo(X(q[0]), Y(q[1]));
+    };
+    return {
+      s, X, Y, path, curve,
+      poly(pts, col) { path(pts); g.fillStyle = col; g.fill(); },
+      // fill the region bounded by a curve and closing points (e.g. up to the top of the view)
+      region(pts, close, col) { curve(pts, close); g.closePath(); g.fillStyle = col; g.fill(); },
+      stroke(pts, w, col) { curve(pts); g.strokeStyle = col; g.lineWidth = w * MM; g.lineCap = 'round'; g.stroke(); },
+      at(x, y, fn) { g.save(); g.translate(X(x), Y(y)); fn(); g.restore(); },
+      // a decal (EI.Ads.drawDecal spec) centred at (x, y); cap = cap height (m), maxW (m)
+      decal(spec, x, y, cap, maxW) { g.save(); g.translate(X(x), Y(y)); EI.Ads.drawDecal(g, spec, 0, 0, cap * MM, maxW * MM); g.restore(); },
+      text(str, x, y, cap, col, font, o) { o = o || {}; g.save(); g.translate(X(x), Y(y)); if (o.skew) g.transform(1, 0, -o.skew, 1, 0, 0); g.font = font.replace('%', (cap * MM).toFixed(1) + 'px'); if (EI.Ads) EI.Ads.setLS(g, (o.ls || 0) * cap * MM); g.textAlign = o.align || 'center'; g.textBaseline = 'middle'; if (o.outline) { g.lineWidth = o.outline[0] * MM; g.strokeStyle = o.outline[1]; g.lineJoin = 'round'; g.strokeText(str, 0, 0); } g.fillStyle = col; g.fillText(str, 0, cap * MM * 0.04); if (EI.Ads) EI.Ads.setLS(g, 0); g.restore(); },
+    };
   }
   // ---------------------------------------------------------------- team emblems (procedural, simplified)
   function rings(g, w, col) {   // Audi four rings, w = overall width (m)
@@ -90,258 +124,22 @@ window.EI = window.EI || {};
     sp: [-0.2, 0.43, 0.82, 0.17], spLow: [-0.15, 0.27, 0.62, 0.075], spFront: [0.72, 0.47, 0.38, 0.1], ec: [-0.62, 0.885, 0.95, 0.11],
     ecRear: [-1.5, 0.52, 0.5, 0.16], noseSide: [2.0, 0.39, 0.55, 0.075], cockpit: [1.3, 0.62, 0.36, 0.06], airbox: [-0.12, 0.93, 0.28, 0.07],
     rwEnd: [-2.13, 0.84, 0.36, 0.13], rwEndLow: [-2.13, 0.6, 0.36, 0.1], fwEnd: [2.68, 0.18, 0.36, 0.1], floor: [0.6, 0.155, 0.6, 0.04],
+    haloSide: [0.6, 0.885, 0.6, 0.035], haloPillar: [1.12, 0.78, 0.08, 0.1], mirror: [0.8, 0.72, 0.2, 0.05],
   };
-  const TOP = { noseTop: [1.62, 0, 0.17, 0.22], rwTop: [-2.1, 0, 0.9, 0.12], spTop: [0.35, 0.4, 0.42, 0.13, 1], ecTop: [-0.9, 0, 0.2, 0.5, 1], fwTop: [2.75, 0.62, 0.42, 0.1] };
+  const TOP = { noseTop: [1.62, 0, 0.17, 0.22], rwTop: [-2.1, 0, 0.9, 0.12], spTop: [0.35, 0.4, 0.42, 0.13, 1], ecTop: [-0.9, 0, 0.2, 0.5, 1], fwTop: [2.75, 0.62, 0.42, 0.1],
+    haloFront: [0.76, 0, 0.12, 0.07], mirrorTop: [0.8, 0.52, 0.16, 0.08] };
+  // centre line of the halo's top bar (x, |z|), rear mount -> front pillar (measured from the model)
+  const HALO_ARM = [[0.02, 0.32], [0.2, 0.32], [0.34, 0.295], [0.45, 0.245], [0.54, 0.17], [0.61, 0.09], [0.67, 0.02]];
+  // Paintable areas (all carry the livery sheet): body, halo (top bar / sides / front pillar), mirrors, front-wing endplates + flaps,
+  // rear-wing endplates / main plane / flap, fins. The T-cam on the airbox is not on the sheet: it is black on a team's first car and
+  // fluorescent yellow on the second (carglb.js uTcam).
 
   // ---------------------------------------------------------------- per-team designs
   // L (side): { g, k, s, P, S, A, num, code, team, partner(id, slot, tone), emblem(name, x, y, ...args), number(x, y, cap, col),
   //             codeText(x, y, cap, col) }
   // L (top):  { g, t: { at, rect, poly }, partner(id, slot, tone), number(x, z, cap, col), emblem(name, x, z, ...args) }
   const W = '#ffffff';
-  const D = {};
-  // Mercedes-AMG Petronas F1 Team, W17: silver front / black rear split by a downward Petronas-teal flow line, AMG diamond panels
-  D.mercedes = {   // W17: black car, silver nose spine and cockpit shoulders, a Petronas-teal flow line down the side
-    parts: { body: '#0e0f11', fwFlap: '#0e0f11', fwEnd: '#0e0f11', fwTip: '#00a19c', rwMain: '#0e0f11', rwEnd: '#0e0f11', rwFlap: '#0e0f11', halo: '#0e0f11', mirror: '#0e0f11', fin: '#0e0f11' },
-    num: { ff: '"Titillium Web", Arial, sans-serif', w: 700, ls: 0.02 },
-    side(L) {
-      const { k, g } = L; const SIL = '#c5c9ce', TEAL = '#00a19c';
-      // silver shoulder over the cockpit side / airbox, fading into the black towards the rear
-      const gr = g.createLinearGradient(k.X(1.2), 0, k.X(-1.3), 0); gr.addColorStop(0, SIL); gr.addColorStop(0.55, '#8d9298'); gr.addColorStop(1, 'rgba(14,15,17,0)');
-      k.region([[1.6, 0.56], [0.9, 0.64], [0.2, 0.7], [-0.6, 0.74], [-1.4, 0.66]], [[-1.4, TOP_V], [1.6, TOP_V]], gr);
-      g.save(); g.globalAlpha = 0.5; for (let i = 0; i < 7; i++) for (let j = 0; j < 3; j++) { const x = 0.05 - i * 0.13 - (j % 2) * 0.065, y = 0.76 + j * 0.055; k.poly([[x, y + 0.025], [x + 0.05, y], [x, y - 0.025], [x - 0.05, y]], '#0e0f11'); } g.restore();   // AMG diamonds
-      const FLOW = [[3.05, 0.2], [2.2, 0.31], [1.4, 0.4], [0.7, 0.47], [0.0, 0.46], [-0.7, 0.38], [-1.5, 0.3]];
-      k.stroke(FLOW, 0.032, TEAL); k.stroke(FLOW.map(([x, y]) => [x, y + 0.035]), 0.008, SIL);
-      L.mark('mercedes', -1.05, 0.55, 0.15, 0.15, 'mono:#c5c9ce', 'star', 0.075, SIL);
-      L.wordmark('PETRONAS', -0.2, 0.44, 0.085, W, { w: 900, ls: 0.06 }); L.partnerAt('petronas', 0.42, 0.44, 0.1, 0.1, 'color'); L.partner('microsoft', 'airbox', 'black'); L.partner('ineos', 'spLow', 'white');
-      L.partner('crowdstrike', 'rwEnd', 'white'); L.partner('microsoft', 'fwEnd', 'white'); L.partner('teamviewer', 'noseSide', 'white');
-      L.number(1.05, 0.56, 0.08, '#0e0f11'); L.codeText(1.3, 0.69, 0.045, '#0e0f11');
-      L.number(-2.13, 0.62, 0.11, W);
-    },
-    top(L) {
-      const { t, g } = L; const SIL = '#c5c9ce';
-      t.poly([[3.05, -0.05], [3.05, 0.05], [1.0, 0.12], [0.3, 0.2], [-0.4, 0.14], [-0.4, -0.14], [0.3, -0.2], [1.0, -0.12]], SIL);   // nose spine + cockpit shoulders
-      for (const s of [-1, 1]) t.poly([[3.0, s * 0.055], [3.0, s * 0.07], [1.0, s * 0.14], [1.0, s * 0.125]], '#00a19c');
-      L.mark('mercedes', 2.6, 0, 0.09, 0.09, 'black', 'star', 0.045, '#0e0f11');
-      L.number(2.2, 0, 0.09, '#0e0f11'); L.wordmark('PETRONAS', -2.1, 0, 0.09, W, { w: 900, ls: 0.06 }); L.partner('petronas', 'spTop', 'color');
-    },
-  };
-
-  // Scuderia Ferrari HP, SF-26: bright gloss red, big white airbox / engine-cover spine, blue HP on the white, black floor edge
-  D.ferrari = {   // SF-26: bright gloss red, white panels around the cockpit and over the engine cover, black lower floor edge
-    parts: { body: '#e10a17', fwFlap: '#e10a17', fwEnd: '#e10a17', fwTip: '#ffffff', rwMain: '#e10a17', rwEnd: '#e10a17', rwFlap: '#16171a', halo: '#16171a', mirror: '#e10a17', fin: '#e10a17' },
-    num: { ff: '"Titillium Web", Arial, sans-serif', w: 900, it: 1, sx: 0.92 },
-    side(L) {
-      const { k } = L;
-      k.region([[1.05, 1.3], [1.0, 0.72], [0.4, 0.74], [-0.3, 0.76], [-0.9, 0.72], [-1.4, 0.64], [-2.0, 0.56]], [[-2.6, 0.56], [-2.6, TOP_V], [1.05, TOP_V]], W);
-      k.stroke([[1.0, 0.7], [0.4, 0.72], [-0.3, 0.74], [-0.9, 0.7], [-1.4, 0.62]], 0.012, '#16171a');
-      k.region([[3.2, 0.14], [1.0, 0.16], [-0.6, 0.18], [-2.0, 0.22]], [[-2.4, LOW_V], [3.2, LOW_V]], '#16171a');
-      L.partner('hp', 'ec', 'color'); L.partner('hp', 'sp', 'white'); L.partner('shell', 'ecRear', 'color'); L.partner('unicredit', 'noseSide', 'white');
-      L.partner('ibm', 'spLow', 'white'); L.partner('hp', 'fwEnd', 'white'); L.partner('shell', 'rwEnd', 'color');
-      L.mark('ferrari', 0.62, 0.6, 0.12, 0.13, 'color', 'shield', 0.1, '#fff200', true);
-      L.number(1.25, 0.5, 0.085, W); L.codeText(1.3, 0.62, 0.045, W); L.number(-2.13, 0.62, 0.11, W);
-    },
-    top(L) {
-      const { t } = L;
-      for (const s of [-1, 1]) t.poly([[1.0, s * 0.1], [1.0, s * 0.3], [0.2, s * 0.55], [-0.6, s * 0.4], [-1.3, s * 0.14], [-1.3, s * 0.06], [0.2, s * 0.12]], W);
-      t.poly([[0.25, -0.08], [0.25, 0.08], [-1.4, 0.06], [-1.4, -0.06]], W);
-      t.rect(-3.2, -1.5, -1.2, 1.2, '#16171a');
-      L.mark('ferrari', 2.5, 0, 0.1, 0.12, 'color', 'shield', 0.11, '#fff200', true); L.number(2.12, 0, 0.13, W);
-      L.partner('hp', 'rwTop', 'white'); L.partner('hp', 'ecTop', 'color');
-    },
-  };
-
-  // McLaren Mastercard F1 Team, MCL40: papaya top, anthracite lower body / undercut / rear, dark green airbox and mirrors
-  D.mclaren = {
-    parts: { body: '#ff8000', fwFlap: '#ff8000', fwEnd: '#2b2d31', fwTip: '#ff8000', rwMain: '#2b2d31', rwEnd: '#ff8000', rwFlap: '#2b2d31', halo: '#2b2d31', mirror: '#0f3d2e', fin: '#2b2d31' },
-    num: { ff: '"Plus Jakarta Sans", "Titillium Web", Arial, sans-serif', w: 800, ls: -0.02 },
-    side(L) {
-      const { k } = L; const AN = '#2b2d31';
-      const LINE = [[3.2, 0.2], [2.2, 0.27], [1.2, 0.31], [0.3, 0.3], [-0.5, 0.36], [-1.2, 0.5], [-1.9, 0.7], [-2.4, 0.9]];
-      k.region(LINE, [[-2.6, LOW_V], [3.2, LOW_V]], AN);
-      k.stroke(LINE.map(([x, y]) => [x, y + 0.012]), 0.008, '#47c7fc');
-      k.poly([[0.02, 1.2], [0.02, 0.84], [-0.34, 0.84], [-0.4, 1.2]], '#0f3d2e');   // Allwyn airbox
-      L.emblem('speedmark', 2.15, 0.45, 0.26, AN);
-      L.partnerAt('mastercard', -0.15, 0.44, 0.42, 0.15, 'color', '#2b2d31'); L.partner('okx', 'spLow', 'white'); L.partner('allwyn', 'airbox', 'white'); L.partner('gemini', 'ec', 'black');
-      L.partner('etihad', 'rwEnd', 'black'); L.partner('dell', 'cockpit', 'black'); L.partner('deloitte', 'fwEnd', 'white');
-      L.number(1.0, 0.48, 0.09, AN); L.codeText(1.3, 0.62, 0.05, AN); L.number(-2.13, 0.62, 0.11, AN);
-    },
-    top(L) {
-      const { t } = L; t.rect(-3.2, -1.25, -1.2, 1.2, '#2b2d31'); t.rect(-0.36, 0.02, -0.09, 0.09, '#0f3d2e');
-      L.number(2.15, 0, 0.13, '#2b2d31'); L.partnerTop('mastercard', 1.62, 0, 0.15, 0.1, 'color', 0, '#2b2d31'); L.partner('etihad', 'rwTop', 'white'); L.partner('mastercard', 'spTop', 'black');
-    },
-  };
-  // Oracle Red Bull Racing, RB22: gloss navy with a woven sheen, black lower body, heritage white panel behind the bull
-  D.redbull = {   // RB22: gloss dark Red Bull blue with a woven sheen, black lower body, red nose tip, the sun-and-bull big on the cover
-    parts: { body: '#1b2554', fwFlap: '#1b2554', fwEnd: '#db0a40', fwTip: '#db0a40', rwMain: '#1b2554', rwEnd: '#1b2554', rwFlap: '#0b0c12', halo: '#0b0c12', mirror: '#1b2554', fin: '#0b0c12' },
-    num: { ff: '"Titillium Web", Arial, sans-serif', w: 900, it: 1, sx: 0.84, skew: 0.12 },
-    side(L) {
-      const { k, g } = L;
-      g.save(); g.globalAlpha = 0.08; for (let x = -2.6; x < 3.2; x += 0.05) k.stroke([[x, -0.1], [x + 0.6, 1.3]], 0.012, '#9fb4ff'); g.restore();   // jacquard sheen
-      const LINE = [[3.2, 0.19], [2.0, 0.24], [1.0, 0.27], [0.0, 0.28], [-0.9, 0.36], [-1.6, 0.5], [-2.3, 0.7]];
-      k.region(LINE, [[-2.6, LOW_V], [3.2, LOW_V]], '#0b0c12'); k.stroke(LINE.map(([x, y]) => [x, y + 0.012]), 0.014, '#db0a40');
-      k.poly([[3.2, 0.1], [3.2, 0.4], [2.75, 0.4], [2.6, 0.1]], '#db0a40');
-      L.emblem('bullMark', -0.95, 0.68, 0.5); L.partnerAt('redbull', -0.95, 0.5, 0.5, 0.09, 'color');
-      L.partner('oracle', 'sp', 'white'); L.partner('ford', 'spFront', 'color'); L.partner('mobil1', 'spLow', 'white');
-      L.partner('oracle', 'rwEnd', 'white'); L.partner('att', 'noseSide', 'white'); L.partner('tagheuer', 'cockpit', 'white'); L.partner('hardrock', 'fwEnd', 'white');
-      L.number(1.25, 0.5, 0.085, W); L.codeText(1.3, 0.62, 0.045, W); L.number(-2.13, 0.62, 0.11, W);
-    },
-    top(L) {
-      const { t } = L; t.rect(2.62, 3.2, -1, 1, '#db0a40'); L.emblem('bullMark', -0.95, 0, 0.34);
-      L.emblem('bullMark', 2.35, 0, 0.18); L.number(1.98, 0, 0.11, W); L.partner('oracle', 'rwTop', 'white'); L.partner('oracle', 'spTop', 'white');
-    },
-  };
-
-  // Visa Cash App Racing Bulls, VCARB 03: white car, deep blue sweep along the flank and over the rear, red pinline
-  D.racingbulls = {   // VCARB 03: white car, deep blue band along the nose and cockpit sides sweeping up over the engine cover
-    parts: { body: '#f4f6fa', fwFlap: '#1634cc', fwEnd: '#1634cc', fwTip: '#e10600', rwMain: '#1634cc', rwEnd: '#1634cc', rwFlap: '#f4f6fa', halo: '#16171a', mirror: '#f4f6fa', fin: '#1634cc' },
-    num: { ff: '"Unbounded", "Titillium Web", Arial, sans-serif', w: 800, sx: 0.8 },
-    side(L) {
-      const { k } = L; const B = '#1634cc';
-      const UP = [[3.2, 0.33], [2.2, 0.44], [1.2, 0.56], [0.4, 0.66], [-0.4, 0.82], [-1.0, 1.0], [-1.4, 1.2]];
-      const LO = [[3.2, 0.22], [2.2, 0.3], [1.2, 0.36], [0.4, 0.4], [-0.4, 0.48], [-1.2, 0.6], [-2.0, 0.75]];
-      k.curve(UP.concat(LO.slice().reverse())); L.g.fillStyle = B; L.g.fill();
-      k.region(UP, [[-2.6, TOP_V], [-2.6, 0.9]], B);
-      k.stroke(LO.map(([x, y]) => [x, y - 0.012]), 0.012, '#e10600');
-      k.region([[3.2, 0.13], [1.0, 0.15], [0, 0.16]], [[0, LOW_V], [3.2, LOW_V]], '#16171a');
-      L.partner('visa', 'sp', 'color'); L.partner('cashapp', 'spFront', 'color'); L.partner('visa', 'ec', 'white'); L.partner('mobil1', 'spLow', 'color');
-      L.partner('visa', 'rwEnd', 'white'); L.partner('cashapp', 'fwEnd', 'white'); L.emblem('bullMark', -1.45, 0.55, 0.4);
-      L.number(1.3, 0.48, 0.07, W); L.codeText(1.3, 0.62, 0.045, W); L.number(-2.13, 0.62, 0.11, W);
-    },
-    top(L) {
-      const { t } = L; t.rect(-3.2, -1.3, -1.2, 1.2, '#1634cc');
-      for (const s of [-1, 1]) t.poly([[3.0, s * 0.05], [1.0, s * 0.12], [0.2, s * 0.2], [-1.3, s * 0.12], [-1.3, s * 0.18], [0.2, s * 0.27], [1.0, s * 0.17], [3.0, s * 0.08]], '#1634cc');
-      L.emblem('bullMark', -0.75, 0, 0.3); L.emblem('bullMark', 2.4, 0, 0.15);
-      L.number(2.05, 0, 0.1, '#1634cc'); L.partner('visa', 'rwTop', 'white'); L.partner('cashapp', 'spTop', 'color');
-    },
-  };
-
-  // BWT Alpine F1 Team, A526: gloss Alpine blue body, pink BWT blocks on the sidepod tops and endplates, navy lower body and rear
-  D.alpine = {   // A526: gloss Alpine blue front, BWT pink over the sidepods and engine cover, navy floor edge
-    parts: { body: '#0a63c4', fwFlap: '#0a5fc0', fwEnd: '#0a5fc0', fwTip: '#ff5fa8', rwMain: '#ff5fa8', rwEnd: '#0a5fc0', rwFlap: '#0a5fc0', halo: '#0b1630', mirror: '#ff5fa8', fin: '#0b1630' },
-    num: { ff: '"Titillium Web", Arial, sans-serif', w: 700, it: 1, ls: 0.02 },
-    side(L) {
-      const { k, g } = L; const NV = '#0b1630', PK = '#ff5fa8';
-      const gr = g.createLinearGradient(k.X(0.95), 0, k.X(0.35), 0); gr.addColorStop(0, 'rgba(255,95,168,0)'); gr.addColorStop(1, PK);
-      k.poly([[0.95, TOP_V], [0.95, LOW_V], [-2.6, LOW_V], [-2.6, TOP_V]], gr);
-      k.region([[3.2, 0.16], [1.0, 0.18], [-0.6, 0.2], [-2.0, 0.24]], [[-2.4, LOW_V], [3.2, LOW_V]], NV);
-      L.emblem('alpineA', 2.1, 0.43, 0.08, W); L.emblem('alpineA', -1.05, 0.66, 0.13, W);
-      L.partner('bwt', 'sp', 'white'); L.partner('msccruises', 'ec', 'white'); L.partner('mercadolibre', 'spFront', 'color'); L.partner('eni', 'spLow', 'white');
-      L.partner('bwt', 'rwEnd', 'white'); L.partner('bwt', 'fwEnd', 'white');
-      L.number(1.3, 0.48, 0.075, W); L.codeText(1.3, 0.62, 0.045, W); L.number(-2.13, 0.62, 0.11, W);
-    },
-    top(L) {
-      const { t, g } = L; t.poly([[0.6, -1.2], [0.6, 1.2], [-3.2, 1.2], [-3.2, -1.2]], '#ff5fa8');
-      L.emblem('alpineA', 2.45, 0, 0.1, W); L.number(2.12, 0, 0.12, W); L.partner('bwt', 'spTop', 'white'); L.partner('bwt', 'rwTop', 'white'); L.partner('msccruises', 'ecTop', 'white');
-    },
-  };
-
-  // TGR Haas F1 Team, VF-26: white upper body, big black lower / rear, red slash, giant GR on the airbox / fin
-  D.haas = {   // VF-26: white car, black lower body and rear, red nose / front wing, the giant GR on the engine cover
-    parts: { body: '#ffffff', fwFlap: '#e6002b', fwEnd: '#16181c', fwTip: '#ffffff', rwMain: '#16181c', rwEnd: '#ffffff', rwFlap: '#e6002b', halo: '#16181c', mirror: '#ffffff', fin: '#16181c' },
-    num: { ff: '"Titillium Web", Arial, sans-serif', w: 900, sx: 0.86 },
-    side(L) {
-      const { k } = L; const BK = '#16181c', RD = '#e6002b';
-      const LINE = [[3.2, 0.24], [2.2, 0.3], [1.2, 0.36], [0.4, 0.42], [-0.4, 0.46], [-1.1, 0.56], [-1.7, 0.74], [-2.2, 0.92]];
-      k.region(LINE, [[-2.6, LOW_V], [3.2, LOW_V]], BK);
-      k.poly([[3.2, 0.1], [3.2, 0.42], [2.55, 0.42], [2.4, 0.1]], RD);
-      k.stroke(LINE.map(([x, y]) => [x, y + 0.02]), 0.016, RD);
-      L.partnerAt('tgr-emblem', -0.85, 0.72, 0.62, 0.3, 'color'); L.partnerAt('haas', 0.05, 0.53, 0.8, 0.14, 'black');
-      L.partner('moneygram', 'spLow', 'white'); L.partner('tgr', 'rwEnd', 'black'); L.partner('haas', 'fwEnd', 'white'); L.partner('tgr', 'noseSide', 'white');
-      L.number(1.3, 0.5, 0.08, BK); L.codeText(1.3, 0.62, 0.045, BK); L.number(-2.13, 0.62, 0.11, BK);
-    },
-    top(L) {
-      const { t } = L; t.rect(-3.2, -1.2, -1.2, 1.2, '#16181c'); t.rect(2.62, 3.2, -1.2, 1.2, '#e6002b');
-      L.number(2.15, 0, 0.12, '#16181c'); L.partnerTop('tgr-emblem', -0.7, 0, 0.28, 0.4, 'color', -Math.PI / 2); L.partner('haas', 'rwTop', 'white'); L.partner('haas', 'spTop', 'black');
-    },
-  };
-
-  // Audi Revolut F1 Team, R26: titanium front and sides, geometric Audi-red block on the flanks, carbon-black rear with the rings
-  D.audi = {   // R26: titanium silver front and sides, a big Audi-red block on the flanks / engine cover, carbon-black tail
-    parts: { body: '#c8ced4', fwFlap: '#151515', fwEnd: '#151515', fwTip: '#c8ced4', rwMain: '#151515', rwEnd: '#151515', rwFlap: '#f50537', halo: '#151515', mirror: '#c8ced4', fin: '#151515' },
-    num: { ff: '"Instrument Sans", "Titillium Web", Arial, sans-serif', w: 600, ls: 0.04 },
-    side(L) {
-      const { k } = L; const BK = '#151515', RD = '#f03c14';
-      k.poly([[0.35, 0.92], [0.55, 0.2], [-1.25, 0.2], [-1.25, 0.82], [-0.3, 1.02]], RD);              // Audi red block, geometric cut
-      k.poly([[-1.25, TOP_V], [-1.25, LOW_V], [-2.6, LOW_V], [-2.6, TOP_V]], BK);                    // carbon-black tail
-      k.region([[3.2, 0.14], [1.4, 0.16], [0.55, 0.2]], [[0.55, LOW_V], [3.2, LOW_V]], BK);
-      L.partner('audi', 'ecRear', 'white');
-      L.partner('revolut', 'sp', 'white'); L.partner('revolut', 'ec', 'white'); L.partner('bp', 'noseSide', 'color'); L.partner('castrol', 'spLow', 'white');
-      L.partner('visitqatar', 'rwEnd', 'white'); L.partner('revolut', 'fwEnd', 'white'); L.partner('nexo', 'cockpit', 'black');
-      L.number(1.3, 0.5, 0.08, BK); L.codeText(1.3, 0.62, 0.045, BK); L.number(-2.13, 0.62, 0.11, W);
-    },
-    top(L) {
-      const { t } = L; t.poly([[0.5, -0.14], [0.5, 0.14], [-1.25, 0.14], [-1.25, -0.14]], '#f03c14');
-      for (const s of [-1, 1]) t.poly([[0.45, s * 0.42], [0.45, s * 0.62], [-1.25, s * 0.62], [-1.25, s * 0.3]], '#f03c14');
-      t.rect(-3.2, -1.25, -1.2, 1.2, '#151515');
-      L.partnerTop('audi', 2.25, 0, 0.17, 0.08, 'mono:#f03c14'); L.partnerTop('audi', -0.6, 0, 0.24, 0.1, 'white', -Math.PI / 2);
-      L.number(1.92, 0, 0.1, '#151515'); L.partner('revolut', 'rwTop', 'white'); L.partner('revolut', 'spTop', 'white');
-    },
-  };
-
-  // Atlassian Williams F1 Team, FW48: gloss blue, navy sweep from the chassis side through the rear with a white / red keyline,
-  // light-blue partner panel, white blocks on the wings
-  D.williams = {
-    parts: { body: '#1a5bd8', fwFlap: '#ffffff', fwEnd: '#0a1433', fwTip: '#1a5bd8', rwMain: '#0a1433', rwEnd: '#1a5bd8', rwFlap: '#ffffff', halo: '#0a1433', mirror: '#1a5bd8', fin: '#0a1433' },
-    num: { ff: '"Unbounded", "Titillium Web", Arial, sans-serif', w: 700, sx: 0.88 },
-    side(L) {
-      const { k } = L; const NV = '#0a1433';
-      const LINE = [[3.2, 0.15], [1.7, 0.2], [0.9, 0.28], [0.2, 0.45], [-0.4, 0.68], [-0.9, 0.95], [-1.3, 1.3]];
-      k.region(LINE, [[-2.6, TOP_V], [-2.6, LOW_V], [3.2, LOW_V]], NV);
-      k.stroke(LINE.map(([x, y]) => [x + 0.02, y + 0.03]), 0.016, W); k.stroke(LINE.map(([x, y]) => [x + 0.035, y + 0.055]), 0.01, '#e4002b');
-      k.poly([[0.55, 0.5], [0.45, 0.33], [-0.75, 0.36], [-0.65, 0.53]], '#00aeef');   // light-blue partner panel on the sidepod
-      L.emblem('williamsW', 1.95, 0.45, 0.07, W);
-      L.partnerAt('barclays', -0.1, 0.435, 0.95, 0.1, 'white'); L.partner('atlassian', 'ec', 'white'); L.partner('duracell', 'airbox', 'white'); L.partner('komatsu', 'ecRear', 'white');
-      L.partner('kraken', 'rwEnd', 'white'); L.partner('gulf', 'fwEnd', 'color'); L.partner('claude', 'noseSide', 'white'); L.partner('bny', 'spLow', 'white');
-      L.number(1.05, 0.5, 0.085, W); L.codeText(1.3, 0.63, 0.05, W); L.number(-2.13, 0.62, 0.11, W);
-    },
-    top(L) {
-      const { t } = L; t.poly([[-0.1, -1.2], [-0.1, 1.2], [-3.2, 1.2], [-3.2, -1.2]], '#0a1433'); t.rect(-0.1, -0.04, -1.2, 1.2, W); t.rect(-0.04, 0.0, -1.2, 1.2, '#e4002b');
-      L.emblem('williamsW', 2.45, 0, 0.06, W); L.number(2.12, 0, 0.12, W); L.partner('atlassian', 'rwTop', 'white'); L.partner('atlassian', 'spTop', 'white');
-    },
-  };
-  // Aston Martin Aramco F1 Team, AMR26: satin British racing green, lime pinlines, black airbox, light-blue rear-wing element
-  D.astonmartin = {
-    parts: { body: '#004c41', fwFlap: '#004c41', fwEnd: '#004c41', fwTip: '#cedc00', rwMain: '#004c41', rwEnd: '#004c41', rwFlap: '#6cc4e8', halo: '#0d1a17', mirror: '#004c41', fin: '#0d1a17' },
-    num: { ff: '"Titillium Web", Arial, sans-serif', w: 600, ls: 0.06 },
-    side(L) {
-      const { k } = L; const LM = '#cedc00';
-      k.region([[3.2, 0.14], [1.0, 0.16], [-0.6, 0.18], [-2.0, 0.22]], [[-2.4, LOW_V], [3.2, LOW_V]], '#0d1a17');
-      k.stroke([[3.1, 0.17], [1.0, 0.19], [-0.6, 0.21], [-1.9, 0.25]], 0.018, LM);
-      k.stroke([[1.05, 0.64], [0.98, 0.42], [1.0, 0.25]], 0.02, LM);   // sidepod inlet edge
-      k.poly([[0.02, 1.2], [0.02, 0.83], [-0.36, 0.83], [-0.42, 1.2]], '#111111');
-      L.wordmark('ASTON MARTIN', 2.05, 0.42, 0.04, W, { w: 600, ls: 0.35 });
-      L.partner('aramco', 'sp', 'white'); L.partner('honda', 'ec', 'white'); L.partner('maaden', 'spLow', 'white'); L.partner('cognizant', 'cockpit', 'white');
-      L.partner('aramco', 'rwEnd', 'white'); L.partner('glenfiddich', 'fwEnd', 'white'); L.partner('coreweave', 'ecRear', 'white');
-      L.number(1.05, 0.5, 0.085, W); L.codeText(1.3, 0.63, 0.05, LM); L.number(-2.13, 0.62, 0.11, LM);
-    },
-    top(L) {
-      const { t } = L; t.rect(-0.38, 0.02, -0.09, 0.09, '#111111'); for (const s of [-1, 1]) t.poly([[3.0, s * 0.05], [3.0, s * 0.065], [1.0, s * 0.135], [1.0, s * 0.12]], '#cedc00');
-      L.wordmark('ASTON MARTIN', 2.45, 0, 0.035, W, { w: 600, ls: 0.25 }); L.number(2.1, 0, 0.12, W);
-      L.partner('aramco', 'rwTop', 'white'); L.partner('aramco', 'spTop', 'white'); L.partner('honda', 'noseTop', 'white');
-    },
-  };
-  // Cadillac Formula 1 Team, MAC-26 (since round 8): white upper body / nose / sidepods over black, wide-spaced wordmark, crest
-  D.cadillac = {
-    parts: { body: '#f2f2f2', fwFlap: '#0b0b0b', fwEnd: '#0b0b0b', fwTip: '#f2f2f2', rwMain: '#0b0b0b', rwEnd: '#0b0b0b', rwFlap: '#0b0b0b', halo: '#0b0b0b', mirror: '#f2f2f2', fin: '#0b0b0b' },
-    num: { ff: '"Titillium Web", Arial, sans-serif', w: 700, ls: 0.12 },
-    side(L) {
-      const { k } = L; const BK = '#0b0b0b';
-      const LINE = [[3.2, 0.3], [2.0, 0.38], [1.0, 0.45], [0.0, 0.47], [-1.0, 0.5], [-1.8, 0.58], [-2.4, 0.68]];
-      k.region(LINE, [[-2.6, LOW_V], [3.2, LOW_V]], BK); k.stroke(LINE.map(([x, y]) => [x, y + 0.01]), 0.006, '#b8975a');
-      k.poly([[-1.3, 1.2], [-1.3, 0.45], [-2.6, 0.45], [-2.6, 1.2]], BK);
-      L.wordmark('CADILLAC', -0.3, 0.36, 0.065, W, { w: 700, ls: 0.45 });
-      L.emblem('cadCrest', -0.95, 0.88, 0.09, BK);
-      L.partner('twgai', 'sp', 'black'); L.partner('tommyhilfiger', 'ec', 'black'); L.partner('jimbeam', 'ecRear', 'white'); L.partner('ifs', 'fwEnd', 'white');
-      L.partner('claro', 'rwEnd', 'white'); L.partner('coreScientific', 'cockpit', 'black');
-      L.number(1.05, 0.52, 0.085, BK); L.codeText(1.3, 0.64, 0.05, BK); L.number(-2.13, 0.62, 0.11, W);
-    },
-    top(L) {
-      const { t } = L; t.rect(-3.2, -1.3, -1.2, 1.2, '#0b0b0b');
-      L.emblem('cadCrest', 2.42, 0, 0.1, '#0b0b0b'); L.number(2.12, 0, 0.12, '#0b0b0b'); L.wordmark('CADILLAC', -0.6, 0, 0.05, '#0b0b0b', { w: 600, ls: 0.3 }, true);
-      L.partner('tommyhilfiger', 'rwTop', 'white'); L.partner('twgai', 'spTop', 'black');
-    },
-  };
-
+  const D = {};   // team designs, registered by js/liveries/<teamId>.js (one file per team, loaded after this core)
   // ---------------------------------------------------------------- the painter API used by carglb.js
   // part keys (colour roles of the model's painted parts) and their defaults from the team colours
   const PART_KEYS = ['body', 'fwFlap', 'fwEnd', 'fwTip', 'rwMain', 'rwEnd', 'rwFlap', 'halo', 'mirror', 'fin'];
@@ -362,6 +160,8 @@ window.EI = window.EI || {};
       number(x, y, cap, col) { at(x, y, () => styledText(g, String(num), cap, col, st)); },
       codeText(x, y, cap, col) { if (code) at(x, y, () => styledText(g, code, cap, col, { ff: st.ff, w: st.w, it: st.it, sx: st.sx, skew: st.skew, ls: 0.06 })); },
       wordmark(str, x, y, cap, col, o) { at(x, y, () => styledText(g, str, cap, col, o)); },
+      // text along the halo side (e.g. a team / driver handle), fitted to the bar
+      haloSide(str, col, o) { const b = SIDE.haloSide; at(b[0], b[1], () => styledText(g, str, b[3] * 0.8, col, Object.assign({ w: 700, ls: 0.02 }, o))); },
     };
   }
   function helpersTop(g, t, team, num) {
@@ -375,13 +175,19 @@ window.EI = window.EI || {};
       mark(id, x, z, w, h, tone, name, ...args) { t.at(x, z, () => (EI.Ads && EI.Ads.hasPartner && EI.Ads.hasPartner(id) ? partner(g, id, w, h, tone) : EMBLEM[name](g, ...args))); },
       number(x, z, cap, col) { t.at(x, z, () => styledText(g, String(num), cap, col, st), Math.PI); },   // reads from the front
       wordmark(str, x, z, cap, col, o, along) { t.at(x, z, () => styledText(g, str, cap, col, o), along ? -Math.PI / 2 : 0); },
+      // text along one arm of the halo's top bar, reading from the cockpit with the letters' tops outward (side -1 left arm,
+      // +1 right arm), e.g. a team / driver handle like '@McLarenF1'; cap = letter height (m, the bar is ~0.07 wide)
+      haloTop(str, col, side, o, cap) { const pts = HALO_ARM.map(([x, z]) => [z * (side < 0 ? -1 : 1) * MM, -x * MM]); if (side > 0) pts.reverse(); textOnPath(g, str, pts, cap || 0.04, col, o); },
+      haloFront(id, tone) { const b = TOP.haloFront; t.at(b[0], b[1], () => partner(g, id, b[2], b[3], tone)); },
     };
   }
   // the faces the numbers / wordmarks use must be loaded before the first livery is painted (Ads.ready() awaits Ads.FONTS)
   if (EI.Ads && Array.isArray(EI.Ads.FONTS)) ['900 24px "Titillium Web"', '700 24px "Titillium Web"', '600 24px "Titillium Web"', 'italic 900 24px "Titillium Web"', 'italic 700 24px "Titillium Web"']
     .forEach(f => { if (EI.Ads.FONTS.indexOf(f) < 0) EI.Ads.FONTS.push(f); });
   EI.LIVERIES = {
-    has: (id) => !!D[id], designs: D, PART_KEYS, partColours, slug, styledText, partner, EMBLEM,
+    register(id, design) { D[id] = design; },
+    K: { TOP_V, LOW_V, W, MM, SIDE, TOP },
+    sideKit, has: (id) => !!D[id], designs: D, PART_KEYS, partColours, slug, styledText, textOnPath, partner, EMBLEM,
     side(g, k, team, num, code) { const d = D[team.id]; if (d) d.side(helpersSide(g, k, team, num, code)); },
     top(g, t, team, num) { const d = D[team.id]; if (d) d.top(helpersTop(g, t, team, num)); },
     numStyle: (team) => (D[team.id] && D[team.id].num) || {},

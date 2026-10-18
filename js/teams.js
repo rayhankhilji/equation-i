@@ -104,7 +104,9 @@ window.EI = window.EI || {};
       const at = (x, z, fn, rot) => { ctx.save(); ctx.translate(z * 1000, -x * 1000); if (rot) ctx.rotate(rot); fn(); ctx.restore(); };
       const rect = (x0, x1, z0, z1, col) => { ctx.fillStyle = col; ctx.fillRect(z0 * 1000, -x1 * 1000, (z1 - z0) * 1000, (x1 - x0) * 1000); };
       const poly = (pts, col) => { ctx.beginPath(); pts.forEach(([x, z], i) => (i ? ctx.lineTo(z * 1000, -x * 1000) : ctx.moveTo(z * 1000, -x * 1000))); ctx.closePath(); ctx.fillStyle = col; ctx.fill(); };
-      EI.LIVERIES.top(ctx, { at, rect, poly }, team, driverNum); ctx.restore();
+      const txt = (str, x, z, cap, col, font, rot, ls) => at(x, z, () => { ctx.font = font.replace('%', (cap * 1000).toFixed(1) + 'px'); if (EI.Ads && EI.Ads.setLS) EI.Ads.setLS(ctx, (ls || 0) * cap * 1000); ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillStyle = col; ctx.fillText(str, 0, cap * 40); if (EI.Ads && EI.Ads.setLS) EI.Ads.setLS(ctx, 0); }, rot);
+      const dec = (spec, x, z, cap, maxW, rot) => at(x, z, () => EI.Ads && EI.Ads.drawDecal(ctx, spec, 0, 0, cap * 1000, maxW * 1000), rot);
+      EI.LIVERIES.top(ctx, { at, txt, dec, rect, poly }, team, driverNum); ctx.restore();
       // side views (mm, X = -x, Y = -y), uniform scale so logos keep their aspect: u = 512 + 0.16 X (nose left), v = y0 + 184 + 0.16 Y (y 1.15 .. -0.45 m)
       for (let k = 0; k < 2; k++) {
         const y0 = 512 + k * 256; ctx.save(); ctx.beginPath(); ctx.rect(0, y0, 1024, 256); ctx.clip(); ctx.setTransform(0.16, 0, 0, 0.16, 512, y0 + 184);
