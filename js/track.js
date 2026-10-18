@@ -156,7 +156,7 @@ window.EI = window.EI || {};
     float rSpill = (1.0 - smoothstep(0.0, 1.6, rGS - rAl)) * step(rAl, rGS + 0.2) * step(0.3, rSp.b);
     rCol = mix(rCol, vec3(0.30, 0.27, 0.225) * eiGT * (0.8 + 0.4 * rSp.r), rSpill * 0.85);
     float rDust = smoothstep(rOuter - 1.6, rOuter, rAl) * (1.0 - rMask) * 0.35;
-    rCol = mix(rCol, vec3(0.25, 0.21, 0.15) * eiGT, rDust);
+    rCol = mix(rCol, vec3(0.25, 0.21, 0.15), rDust);
     diffuseColor.rgb = rCol;
   `;
   const RUNOFF_ROUGH = `

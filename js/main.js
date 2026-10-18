@@ -52,7 +52,7 @@ window.EI = window.EI || {};
     const LOOKS = { monaco: { elev: 52, azim: 338, turb: 1.9, ray: 1.5, mie: 0.003, horizon: 0xbcd3ea, sky: [0.34, 1.2], fog: [550, 2400], fogLow: [320, 1400], hemi: [0xa8cdf2, 0x8a7a66, 0.42], sun: [0xfff3e0, 2.65],
         // the cyan sky in the reflections tinted the shaded asphalt teal: a greyer environment, a little less saturation boost and
         // more contrast for the hard May sun; the Tete de Chien / Mont Agel ridge painted into the sky to the north (west to east-north-east)
-        envSat: 0.4, grade: { sat: 1.3, con: 1.12, warm: [1.03, 1.0, 0.975] }, ridge: [-3.05, -0.3, 0.2] },
+        envSat: 0.4, grade: { sat: 1.3, con: 1.12, warm: [1.03, 1.0, 0.975] }, ridge: [-3.05, -0.3, 0.3] },
       // Yas Marina: the race starts at sunset - the sun low over the Gulf in the west-south-west, warm haze, long shadows
       // Yas Marina: a night race under floodlights (js/night.js: night sky, the light map, glows); the 'sun' is dim moonlight from
       // high up so the cars keep their contact shadows
