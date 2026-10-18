@@ -178,8 +178,8 @@
     f1: { n: 'Formula 1', board: { bg: '#15151e', tone: 'color' } },
     aramco: { n: 'aramco', board: { bg: '#ffffff', tone: 'color' }, word: W_('"Plus Jakarta Sans", Arial, sans-serif', 800, { col: '#0a7dc1', ls: -0.03 }) },
     aws: { n: 'AWS', board: { bg: '#232f3e', tone: 'rev' } },
-    dhl: { n: 'DHL', board: { bg: '#ffcc00', tone: 'color' }, word: W_(F1W, 900, { it: 1, col: '#d40511', up: 1 }) },
-    heineken: { n: 'Heineken', board: { bg: '#00792b', tone: 'white' } },
+    dhl: { n: 'DHL', board: { bg: '#fecc00', tone: 'color' }, word: W_(F1W, 900, { it: 1, col: '#d40511', up: 1 }) },
+    heineken: { n: 'Heineken', board: { bg: '#00843d', tone: 'whiteKeepRed' } },
     lenovo: { n: 'Lenovo', board: { bg: '#e1140a', tone: 'color' } },
     lvmh: { n: 'LVMH', board: { bg: '#111111', tone: 'white' } },
     louisvuitton: { n: 'Louis Vuitton', board: { bg: '#2b2420', tone: 'white' }, word: W_('Georgia, "Times New Roman", serif', 400, { up: 1, ls: 0.18 }) },
@@ -240,9 +240,11 @@
   const PRAS = new Map(); const PH = 256;
   function toneCanvas(src, tone) {
     const c = document.createElement('canvas'); c.width = src.width; c.height = src.height; const x = c.getContext('2d', { willReadFrequently: true }); x.drawImage(src, 0, 0);
-    if (tone === 'rev') {   // dark ink -> white, colours kept (AWS's black "aws" over its orange smile, on a dark board)
-      const d = x.getImageData(0, 0, c.width, c.height); const p = d.data;
-      for (let i = 0; i < p.length; i += 4) { const l = (0.2126 * p[i] + 0.7152 * p[i + 1] + 0.0722 * p[i + 2]) / 255, s = Math.max(p[i], p[i + 1], p[i + 2]) - Math.min(p[i], p[i + 1], p[i + 2]); if (l < 0.42 && s < 60) { p[i] = p[i + 1] = p[i + 2] = 255; } }
+    if (tone === 'rev' || tone === 'whiteKeepRed') {   // rev: dark ink -> white, colours kept (AWS's "aws" over its orange smile, on a dark board);
+      // whiteKeepRed: everything white except the red (Heineken's white lettering with the red star on its green boards)
+      const d = x.getImageData(0, 0, c.width, c.height); const p = d.data; const rev = tone === 'rev';
+      for (let i = 0; i < p.length; i += 4) { const l = (0.2126 * p[i] + 0.7152 * p[i + 1] + 0.0722 * p[i + 2]) / 255, s = Math.max(p[i], p[i + 1], p[i + 2]) - Math.min(p[i], p[i + 1], p[i + 2]);
+        if (rev ? (l < 0.42 && s < 60) : !(p[i] > 150 && p[i + 1] < 90 && p[i + 2] < 90)) { p[i] = p[i + 1] = p[i + 2] = 255; } }
       x.putImageData(d, 0, 0); return c;
     }
     const col = tone === 'white' ? '#ffffff' : tone === 'black' ? '#111111' : tone.slice(0, 5) === 'mono:' ? tone.slice(5) : null;

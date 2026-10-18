@@ -9,25 +9,26 @@ window.EI = window.EI || {};
   //   gapMul  = share of the real relative gaps kept (1 = the real qualifying gaps; < 1 = the same order, a slightly closer field)
   //   form    = race-to-race form, one standard deviation of lap time (seeded per race and driver)
   //   formMul = scales the lap-to-lap drift (consistency); noise = steering error; reaction = start reaction range (s)
-  //   speed   = level index used for the mistake rate
-  // The corner speed of each driver is solved from these (see paceFor) so the lap time hits the target whatever the braking style.
+  //   speed   = level index used for the mistake rate; brakeMargin stays 1 (pace lives in the profile, never on the straights)
+  // The corner speed of each driver is solved from these (gripFor, in derive()) so the lap time hits the target whatever the braking style.
   // There is no speed cap anywhere: straights and corner exits are driven at full throttle with the car's full power at every level.
   const DIFF = {
-    veryeasy: { lapLoss: 0.21 , brake: 0.8  ,  gapMul: 0.8,  form: 0.0016, formMul: 0.4 ,  speed: 0.93,  brakeMargin: 1, aggression: 0.6,  noise: 0.012,  reaction: [0.42, 0.85] },
-    easy:     { lapLoss: 0.155, brake: 0.85 ,  gapMul: 0.84, form: 0.0015, formMul: 0.37, speed: 0.945, brakeMargin: 1, aggression: 0.7,  noise: 0.009, reaction: [0.34, 0.7] },
-    average:  { lapLoss: 0.11 , brake: 0.89 ,  gapMul: 0.88, form: 0.0014, formMul: 0.34,  speed: 0.96,  brakeMargin: 1, aggression: 0.8,  noise: 0.007, reaction: [0.27, 0.55] },
-    above:    { lapLoss: 0.075, brake: 0.93 , gapMul: 0.92, form: 0.0013, formMul: 0.31, speed: 0.97,  brakeMargin: 1, aggression: 0.87, noise: 0.005,  reaction: [0.22, 0.42] },
-    hard:     { lapLoss: 0.045, brake: 0.96 , gapMul: 0.95, form: 0.0012, formMul: 0.29, speed: 0.98,  brakeMargin: 1, aggression: 0.93, noise: 0.003, reaction: [0.17, 0.32] },
-    veryhard: { lapLoss: 0.02 , brake: 0.98 , gapMul: 0.98, form: 0.0011, formMul: 0.27, speed: 0.99,  brakeMargin: 1, aggression: 0.97, noise: 0.0015, reaction: [0.13, 0.25] },
-    ultra:    { lapLoss: 0,     brake: 1,     gapMul: 1,    form: 0.001,  formMul: 0.25, speed: 1.0,   brakeMargin: 1, aggression: 1.0,  noise: 0    ,   reaction: [0.1, 0.2], frontier: true },
+    veryeasy: { lapLoss: 0.21,  brake: 0.8,  gapMul: 0.8,  form: 0.0016, formMul: 0.4,  speed: 0.93,  brakeMargin: 1, aggression: 0.6,  noise: 0.012,  reaction: [0.42, 0.85] },
+    easy:     { lapLoss: 0.155, brake: 0.85, gapMul: 0.84, form: 0.0015, formMul: 0.37, speed: 0.945, brakeMargin: 1, aggression: 0.7,  noise: 0.009,  reaction: [0.34, 0.7] },
+    average:  { lapLoss: 0.11,  brake: 0.89, gapMul: 0.88, form: 0.0014, formMul: 0.34, speed: 0.96,  brakeMargin: 1, aggression: 0.8,  noise: 0.007,  reaction: [0.27, 0.55] },
+    above:    { lapLoss: 0.075, brake: 0.93, gapMul: 0.92, form: 0.0013, formMul: 0.31, speed: 0.97,  brakeMargin: 1, aggression: 0.87, noise: 0.005,  reaction: [0.22, 0.42] },
+    hard:     { lapLoss: 0.045, brake: 0.96, gapMul: 0.95, form: 0.0012, formMul: 0.29, speed: 0.98,  brakeMargin: 1, aggression: 0.93, noise: 0.003,  reaction: [0.17, 0.32] },
+    veryhard: { lapLoss: 0.02,  brake: 0.98, gapMul: 0.98, form: 0.0011, formMul: 0.27, speed: 0.99,  brakeMargin: 1, aggression: 0.97, noise: 0.0015, reaction: [0.13, 0.25] },
+    ultra:    { lapLoss: 0,     brake: 1,    gapMul: 1,    form: 0.001,  formMul: 0.25, speed: 1.0,   brakeMargin: 1, aggression: 1.0,  noise: 0,      reaction: [0.1, 0.2], frontier: true },
     // legacy names
     rookie: null, pro: null, legend: null,
   };
   DIFF.rookie = DIFF.easy; DIFF.pro = DIFF.average; DIFF.legend = DIFF.veryhard;
   // corner-grip scale of the profile for the fastest car + driver at ultra, per circuit: the limit of the car. The racing-line
   // profile at grip 1 is conservative (the car's actual path through a corner is straighter than the line's curvature), so the
-  // limit sits above 1: the highest scale at which a bot still laps within the track limits lap after lap (headless sim, solo and
-  // in traffic). Above it the cars run wide (Silverstone from ~1.18, Yas from ~1.24); Monaco is steering-lock limited.
+  // limit sits above 1: just below the scale at which a bot starts to leave the track limits (headless sim on the full-width
+  // racing line: Silverstone runs wide from ~1.15, Yas from ~1.25; Monaco is steering-lock limited and clean beyond 1.3).
+  // Re-measure (swarm/f1/personality/sweep.sh) when a circuit's geometry or the driving core changes.
   const C_LIMIT = { silverstone: 1.1, monaco: 1.25, abudhabi: 1.16 }, C_LIMIT_DEFAULT = 1.1;
   // lap time a late braker gains over an early one on top of the profile (trail-braking carry, later lift: update()), per unit of
   // the braking trait, measured in the headless sim. The corner grip is solved against it so braking style never changes the pace.
