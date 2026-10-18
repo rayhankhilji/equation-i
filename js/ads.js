@@ -475,6 +475,16 @@
     return (ctx, w, h) => partnerBoard(ctx, slot, w, h, o);
   }
   Ads.slotPainter = slotPainter;
+  // single-colour (white mask on black) lettering band painted on the run-off along a straight (track.js brandStripTexture): the venue's
+  // title partner and Aramco in white, with the two race partners' URLs between them; w x h covers 2 x `seg` metres per partner
+  Ads.paintMaskStrip = function (ctx, w, h) {
+    const V = venue(); const items = [V.title || 'aramco', 'trylumi.co', 'aramco', 'intake.ink']; const sw = w / items.length;
+    ctx.fillStyle = '#000'; ctx.fillRect(0, 0, w, h);
+    items.forEach((it, i) => { const cx = sw * (i + 0.5);
+      if (it === 'trylumi.co') line(ctx, [[it, '#fff']], cx, h * 0.8, h * 0.78, LUMI.head, 800, sw * 0.86, 'center');
+      else if (it === 'intake.ink') line(ctx, [[it, '#fff']], cx, h * 0.78, h * 0.7, INTAKE.head, 800, sw * 0.86, 'center');
+      else Ads.drawPartner(ctx, it, cx, h * 0.5, sw * 0.8, h * 0.72, { tone: 'white' }); });
+  };
 
 
   // ---------------------------------------------------------------- bridges and the start gantry banner (very wide formats)
