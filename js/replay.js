@@ -423,7 +423,7 @@ window.EI = window.EI || {};
 
     // per frame (main.js): pose the cars at the playhead, place the camera
     update(dt) {
-      if (!this.playing) return; this.pollPad();
+      if (!this.playing) return; this.nf = (this.nf || 0) + 1; this.pollPad();
       const c = this.clips[this.ci]; if (!c) { this.stop(); return; }
       const slow = (c.type === 'contact' || c.type === 'spin' || c.type === 'nearmiss' || c.type === 'wall') && Math.abs(this.pt - c.key) < 0.9 ? 0.45 : 1;
       const step = this.paused ? 0 : dt * slow; this.pt += step;

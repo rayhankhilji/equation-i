@@ -266,9 +266,8 @@ window.EI = window.EI || {};
   function brandStripTexture() {
     if (brandStripTex) return brandStripTex;
     const W = 1024, H = 128; const c = document.createElement('canvas'); c.width = W; c.height = H; const ctx = c.getContext('2d');
-    ctx.fillStyle = '#000'; ctx.fillRect(0, 0, W, H); ctx.fillStyle = '#fff'; ctx.textBaseline = 'middle'; ctx.textAlign = 'center';
-    ctx.font = '800 92px "Plus Jakarta Sans", Arial, sans-serif'; ctx.fillText('trylumi.co', W * 0.25, H * 0.53);
-    ctx.font = '800 86px "Unbounded", Arial, sans-serif'; ctx.fillText('intake.ink', W * 0.75, H * 0.55);
+    // the venue's partners + the two race partners' URLs (EI.Ads.paintMaskStrip), laid out in the band's 16 x 1.8 m frame (f1-BRAND)
+    const VW = Math.round(H * 16 / 1.8); ctx.save(); ctx.scale(W / VW, 1); EI.Ads.paintMaskStrip(ctx, VW, H); ctx.restore();
     brandStripTex = canvasTex(c, true); return brandStripTex;
   }
   function canvasTex(c, wrap) { const t = new THREE.CanvasTexture(c); if (wrap) t.wrapS = t.wrapT = THREE.RepeatWrapping; t.anisotropy = 8; return t; }
@@ -980,6 +979,7 @@ window.EI = window.EI || {};
     // wall panel artwork: the partners' boards; Yas Marina's walls carry black boards with the white lock-ups and URLs (u3 / u4)
     barrierArt() {
       const A = EI.Ads; const desert = !!(this.scenery && this.scenery.env && this.scenery.env.data.kind === 'desert'); if (!desert) return A.BARRIER;
+      if (A.barrierArt) return A.barrierArt({ dark: true });   // Yas: black boards, the venue's partners in white (f1-BRAND)
       const txt = (t, font) => (ctx, w, h) => { ctx.fillStyle = '#0b0c0f'; ctx.fillRect(0, 0, w, h); ctx.fillStyle = '#ffffff'; ctx.font = '800 ' + Math.round(h * 0.56) + 'px ' + font; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(t, w / 2, h * 0.53); };
       const lock = (brand) => (ctx, w, h) => { ctx.fillStyle = '#0b0c0f'; ctx.fillRect(0, 0, w, h); A.lockupCentered(ctx, brand, w / 2, h / 2, h * 0.6, w * 0.8, '#ffffff', true); };
       const F = '"Plus Jakarta Sans", Arial, sans-serif';
@@ -991,9 +991,11 @@ window.EI = window.EI || {};
       // sponsor wall panels (concrete wall with advertising) in corners, Armco on straights, tyre walls at the big stops.
       // One atlas for all four: each is a band across u (0 = bottom of the wall, 1 = top) and repeats along v (the lap distance);
       // a second texture with the same layout carries roughness (G) and metalness (B)
-      const AW = 640, AH = 1024;
+      // AH 2048 (f1-BRAND): 80 px per metre along the wall for the partner panels (was 40 px/m: text blurred along the wall); the
+      // roughness / metalness canvas is uniform along v, so it stays 1024 high
+      const AW = 640, AH = 2048;
       const ca = document.createElement('canvas'); ca.width = AW; ca.height = AH; const cx = ca.getContext('2d');
-      const cr = document.createElement('canvas'); cr.width = AW; cr.height = AH; const rx = cr.getContext('2d');
+      const cr = document.createElement('canvas'); cr.width = AW; cr.height = 1024; const rx = cr.getContext('2d');
       const band = (k, rough, metal) => { rx.fillStyle = 'rgb(255,' + Math.round(rough * 255) + ',' + Math.round(metal * 255) + ')'; rx.fillRect(k * 128, 0, 128, AH); };
       // panels: 5 partner boards along 25.6 m, text running along the wall (drawn rotated: canvas y is the lap direction).
       // Band 0 reads left to right along +s (left-hand wall), band 4 is the same art flipped along the lap for the right-hand wall
@@ -1136,8 +1138,13 @@ window.EI = window.EI || {};
       }, (x, w, h) => { const r = U.rng(3); for (let i = 0; i < 700; i++) { const v = 100 + r() * 70 | 0; x.fillStyle = 'rgb(' + v + ',' + v + ',' + v + ')'; x.fillRect(r() * w, r() * h, 2 + r() * 6, 3 + r() * 20); } }, 'v');
       // partner sleeves (8 m repeat): single strong colours with white lettering, as the real ones (street.covers [s0, s1, side, design])
       const SLV = [['#4a2a4c', 'lumi'], ['#1f5f9e', 'intake.ink'], ['#141416', 'trylumi.co'], ['#d8343a', 'Ask Lumi.']];
-      const sleeves = SLV.map(([bg, txt], k) => AT.region('armSleeve' + k, 512, 64, (x, w, h) => { x.fillStyle = bg; x.fillRect(0, 0, w, h); x.fillStyle = 'rgba(255,255,255,0.10)'; x.fillRect(0, 2, w, 2); x.fillStyle = 'rgba(0,0,0,0.22)'; x.fillRect(0, h - 4, w, 4);
-        for (let j = 0; j < 2; j++) { const cx = w / 4 + j * w / 2; if (txt === 'lumi' && EI.Ads) EI.Ads.lockupCentered(x, 'lumi', cx, h * 0.5, h * 0.62, w * 0.4, '#ffffff', true);
+      // the venue's partner panels (EI.Ads.barrierArt: TAG Heuer / Louis Vuitton / MSC + Lumi and Intake) when available, each 4 x 0.88 m half
+      // laid out at its true aspect (f1-BRAND); the hand-set lettering below is the fallback
+      const BA = EI.Ads && EI.Ads.barrierArt ? EI.Ads.barrierArt() : null; const SLA = BA && BA.length >= 5 ? [[BA[0], BA[0]], [BA[2], BA[2]], [BA[3], BA[3]], [BA[1], BA[4]]] : null;
+      const sleeves = SLV.map(([bg, txt], k) => AT.region('armSleeve' + k, 512, 64, (x, w, h) => { x.fillStyle = bg; x.fillRect(0, 0, w, h);
+        if (SLA) for (let j = 0; j < 2; j++) { x.save(); x.beginPath(); x.rect(j * w / 2, 0, w / 2, h); x.clip(); x.translate(j * w / 2, 0); const vw = h * 4.55; x.scale((w / 2) / vw, 1); SLA[k][j](x, vw, h); x.restore(); }
+        x.fillStyle = 'rgba(255,255,255,0.10)'; x.fillRect(0, 2, w, 2); x.fillStyle = 'rgba(0,0,0,0.22)'; x.fillRect(0, h - 4, w, 4);
+        if (!SLA) for (let j = 0; j < 2; j++) { const cx = w / 4 + j * w / 2; if (txt === 'lumi' && EI.Ads) EI.Ads.lockupCentered(x, 'lumi', cx, h * 0.5, h * 0.62, w * 0.4, '#ffffff', true);
           else { x.fillStyle = '#ffffff'; x.font = '800 ' + Math.round(h * 0.5) + 'px "Plus Jakarta Sans", "Titillium Web", Arial, sans-serif'; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText(txt, cx, h * 0.54, w * 0.42); } }
         weather(x, w, h, 61 + k, 70); }, (x, w, h) => { x.fillStyle = 'rgb(120,120,120)'; x.fillRect(0, 0, w, 3); x.fillRect(0, h - 3, w, 3); }, null, 'u'));
       const chain = AT.region('chain', 64, 64, (x, w, h) => { x.clearRect(0, 0, w, h); x.strokeStyle = 'rgba(204,208,212,0.72)'; x.lineWidth = 1.0; for (let k = -64; k <= 128; k += 8) { x.beginPath(); x.moveTo(k, 0); x.lineTo(k + 64, 64); x.stroke(); x.beginPath(); x.moveTo(k, 64); x.lineTo(k + 64, 0); x.stroke(); } }, null, (x, w, h) => { x.fillStyle = 'rgb(110,110,110)'; x.fillRect(0, 0, w, h); }, 'uv');

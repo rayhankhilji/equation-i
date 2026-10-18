@@ -102,28 +102,18 @@ window.EI = window.EI || {};
   }
 
   // ---------------------------------------------------------------- 1. advertising hoardings
-  // the eight board designs are the race partners' ads (EI.Ads.TILES: four Lumi, four Intake), 512 x 128 each in a 4 x 2 atlas
+  // the eight board designs are the venue's partner boards (EI.Ads.paintTile: real F1 partners + the occasional Lumi / Intake), 1024 x 256
+  // cells in a 2 x 4 atlas; the design fills the band the 5 x 1 m face shows (v 0.08..0.98 of the cell = rows 5..235) at its true 5:1
+  // aspect, the cell's bottom strip is the dark frame (f1-BRAND: was 512 x 128 with the 5:1 design stretched 11 % and its descenders cut)
   const NBRANDS = 8;
-  Infra.hoardingAtlas = function () {
-    const [c, ctx] = canvas(2048, 256);
-    for (let k = 0; k < NBRANDS; k++) { const x = (k % 4) * 512, y = Math.floor(k / 4) * 128; EI.Ads.paintTile(ctx, k, x, y, 512, 128); ctx.fillStyle = '#2a2d31'; ctx.fillRect(x, y + 120, 512, 8); }
+  const HCELL = (k) => [(k % 2) * 1024, Math.floor(k / 2) * 256];
+  Infra.hoardingAtlas = function (o) {
+    const [c, ctx] = canvas(2048, 1024);
+    for (let k = 0; k < NBRANDS; k++) { const [x, y] = HCELL(k); ctx.fillStyle = '#2a2d31'; ctx.fillRect(x, y, 1024, 256); EI.Ads.paintTile(ctx, k, x, y + 5, 1024, 230, 5, o); }
     return tex(c);
   };
-  // Yas Marina: black sponsor boards with the partners' white lock-ups and URLs (u2-u4), same 4 x 2 layout. Painted in the
-  // boards' 5:1 frame squeezed into the 4:1 tiles
-  Infra.hoardingAtlasDark = function () {
-    const [c, ctx] = canvas(2048, 256); const A = EI.Ads;
-    for (let k = 0; k < NBRANDS; k++) {
-      const x = (k % 4) * 512, y = Math.floor(k / 4) * 128; ctx.save(); ctx.beginPath(); ctx.rect(x, y, 512, 128); ctx.clip(); ctx.translate(x, y); ctx.scale(512 / 640, 1);
-      ctx.fillStyle = k === 6 ? '#f2f1ec' : '#0b0c0f'; ctx.fillRect(0, 0, 640, 128); const ink = k === 6 ? '#0b0c0f' : '#ffffff';
-      const brand = k % 2 ? 'intake' : 'lumi';
-      if (k < 2 || k >= 6) { if (A && A.lockupCentered) A.lockupCentered(ctx, brand, 320, 62, 58, 560, ink, k !== 6); }
-      else if (k < 4) { ctx.fillStyle = ink; ctx.font = '800 66px "Plus Jakarta Sans", Arial, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(brand === 'lumi' ? 'trylumi.co' : 'intake.ink', 320, 66); }
-      else { if (A) { if (brand === 'lumi') A.lumiMark(ctx, 36, 22, 84, null, true); else A.intakeMark(ctx, 36, 22, 84); } ctx.fillStyle = ink; ctx.font = '800 54px "Plus Jakarta Sans", Arial, sans-serif'; ctx.textAlign = 'left'; ctx.textBaseline = 'middle'; ctx.fillText(brand === 'lumi' ? 'Ask Lumi.' : 'Get paid to learn.', 150, 66); }
-      ctx.restore(); ctx.fillStyle = '#2a2d31'; ctx.fillRect(x, y + 120, 512, 8);
-    }
-    return tex(c);
-  };
+  // Yas Marina: black sponsor boards with the partners' white logos (u2-u4), same layout (EI.Ads dark boards; Lumi / Intake as white lock-ups)
+  Infra.hoardingAtlasDark = function () { return Infra.hoardingAtlas({ dark: true }); };
   const hoardAtlas = (cx) => cx.hoardAtlas || (cx.hoardAtlas = cx.desert ? Infra.hoardingAtlasDark() : Infra.hoardingAtlas());
   function buildHoardings(cx) {
     const t = cx.t, rng = U.rng(901);
@@ -141,7 +131,7 @@ window.EI = window.EI || {};
     }
     const mat = stdMat({ map: atlas, vertexColors: false, roughness: 0.55, metalness: 0.0 });
     mat.onBeforeCompile = (sh) => {
-      sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nattribute vec2 tileOff;').replace('#include <uv_vertex>', '#include <uv_vertex>\n#ifdef USE_UV\n\tvUv = vUv * vec2(0.25, 0.5) + tileOff;\n#endif');
+      sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nattribute vec2 tileOff;').replace('#include <uv_vertex>', '#include <uv_vertex>\n#ifdef USE_UV\n\tvUv = vUv * vec2(0.5, 0.25) + tileOff;\n#endif');
     };
     mat.customProgramCacheKey = () => 'hoarding';
     // night races: the boards are LED panels, lit from within
@@ -163,7 +153,7 @@ window.EI = window.EI || {};
       _m.multiply(new THREE.Matrix4().makeTranslation(0, 1.5, 0)); inst.setMatrixAt(k, _m);
       // brands come in runs of 3-6 identical boards, like real sponsor blocks
       if (run-- <= 0) { brand = Math.floor(rng() * NBRANDS); run = 1 + Math.floor(rng() * 4); }
-      tiles[k * 2] = (brand % 4) * 0.25; tiles[k * 2 + 1] = 0.5 - Math.floor(brand / 4) * 0.5;
+      tiles[k * 2] = (brand % 2) * 0.5; tiles[k * 2 + 1] = 0.75 - Math.floor(brand / 2) * 0.25;
     });
     geo.setAttribute('tileOff', new THREE.InstancedBufferAttribute(tiles, 2));
     inst.castShadow = true; inst.receiveShadow = true; posts.castShadow = true;
@@ -321,7 +311,7 @@ window.EI = window.EI || {};
       });
       // right-hand side: the partners' panel in the picture slot
       EI.Ads.paintTimingSlot(ctx, 560, 100, 424, 300);
-      ctx.fillStyle = '#fff'; ctx.font = '700 30px Arial'; ctx.textAlign = 'left'; ctx.fillText('SILVERSTONE  ·  GRAND PRIX', 560, 450); ctx.fillStyle = '#9fb3d1'; ctx.font = '500 24px Arial'; ctx.fillText('DRS ENABLED   ·   TRACK TEMP 31°C', 560, 495);
+      ctx.fillStyle = '#fff'; ctx.font = '700 30px Arial'; ctx.textAlign = 'left'; ctx.fillText(((EI.TRACKS && EI.TRACKS[EI.trackId] && EI.TRACKS[EI.trackId].name) || 'Silverstone').toUpperCase() + '  ·  GRAND PRIX', 560, 450); ctx.fillStyle = '#9fb3d1'; ctx.font = '500 24px Arial'; ctx.fillText('DRS ENABLED   ·   TRACK TEMP 31°C', 560, 495);
     } else {
       // full-screen partner ad ('lumi' or 'intake')
       EI.Ads.paintScreen(ctx, kind, 1024, 576);
@@ -462,7 +452,8 @@ window.EI = window.EI || {};
     const t = cx.t, rng = U.rng(4545); const geos = [], boards = [];
     const tube = C(0xa3a8ae), plank = C(0x8a6d4a), cam = C(0x1a1b1e), dark = C(0x2a2d31);
     const atlas = hoardAtlas(cx);
-    const tile = (geo, brand, u0, u1) => { const uv = geo.attributes.uv; for (let v = 0; v < uv.count; v++) uv.setXY(v, ((brand % 4) + u0 + (u1 - u0) * uv.getX(v)) * 0.25, 0.5 - Math.floor(brand / 4) * 0.5 + 0.06 + uv.getY(v) * 0.4); };
+    // a hoarding-atlas cell (2 x 4, see Infra.hoardingAtlas): u0..u1 of the 5:1 design, v over the painted band (0.082..0.98 of the cell)
+    const tile = (geo, brand, u0, u1) => { const uv = geo.attributes.uv; for (let v = 0; v < uv.count; v++) uv.setXY(v, ((brand % 2) + u0 + (u1 - u0) * uv.getX(v)) * 0.5, 0.75 - Math.floor(brand / 2) * 0.25 + (0.082 + uv.getY(v) * 0.898) * 0.25); };
     // camera scaffolds: tube towers ~2.6 m with a plank deck, rails, tripod camera, operator and an umbrella
     let scaff = 0;
     for (const s0 of cx.F.scaffolds || [610, 1130, 1960, 2470, 3470, 3790, 4230, 5290, 5560, 760, 2860]) {
@@ -507,7 +498,7 @@ window.EI = window.EI || {};
       // sponsor panels on both faces, one brand tile per 5 m
       const n = Math.max(1, Math.round((span + 2) / 5)); const pl = (span + 2) / n; const brand0 = Math.floor(rng() * 8);
       for (const v of [-0.68, 0.68]) for (let k = 0; k < n; k++) {
-        const g = new THREE.PlaneGeometry(pl - 0.05, 1.3); tile(g, (brand0 + k) % 8, 0, 1); const c0 = W(-1 + pl * (k + 0.5), yDeck + 0.8, v);
+        const g = new THREE.PlaneGeometry(pl - 0.05, 1.3); const fu = Math.min(1, 0.9 * (pl - 0.05) / 6.5); tile(g, (brand0 + k) % 8, 0.5 - fu / 2, 0.5 + fu / 2); const c0 = W(-1 + pl * (k + 0.5), yDeck + 0.8, v);
         const sg = v > 0 ? 1 : -1; const mm = new THREE.Matrix4().makeBasis(_x.set(sg * tz, 0, -sg * tx), _y.set(0, 1, 0), _z.set(sg * tx, 0, sg * tz)).setPosition(c0[0], c0[1], c0[2]); g.applyMatrix4(mm); boards.push(g);
       }
       cx.reserve(s, 1, 5); cx.reserve(s, -1, 5); gantries++;
@@ -521,11 +512,11 @@ window.EI = window.EI || {};
         const p = cx.at(s, side, 3.1); if (lp && Math.hypot(p.x - lp.x, p.z - lp.z) < 3.9) continue; if (cx.inObstacle(p.x, p.z)) { lp = null; continue; } lp = p;
         frame(_m, p.x, p.y, p.z, side, p.tx, p.tz); const m = _m.clone();
         box(geos, 4.0, 1.25, 0.35, 0, 0.625, 0, C(0xc9c9c4), m); box(geos, 4.0, 0.1, 0.45, 0, 1.27, 0, C(0xb0b0aa), m);
-        const g = new THREE.PlaneGeometry(3.9, 0.95); tile(g, Math.floor(s / 21) % 8, 0, 1); g.translate(0, 0.62, 0.19); g.applyMatrix4(m); boards.push(g); walls++;
+        const g = new THREE.PlaneGeometry(3.9, 0.95); tile(g, Math.floor(s / 21) % 8, 0.13, 0.87); /* 3.9 x 0.95 m: the middle 74 % of the 5:1 design, unstretched */ g.translate(0, 0.62, 0.19); g.applyMatrix4(m); boards.push(g); walls++;
       }
     }
     cx.static(geos, 0.5, 0.35, 'clutter', 'broadcast');
-    if (boards.length && !cx.textured(boards, atlas, 'hoardings', 1024, 128, 0.55)) { const bm = new THREE.Mesh(merge(boards), new THREE.MeshStandardMaterial({ map: atlas, roughness: 0.55, side: THREE.DoubleSide })); bm.receiveShadow = true; cx.add(bm, 'infraBoards'); }
+    if (boards.length && !cx.textured(boards, atlas, 'hoardings', 1024, 256, 0.55)) { const bm = new THREE.Mesh(merge(boards), new THREE.MeshStandardMaterial({ map: atlas, roughness: 0.55, side: THREE.DoubleSide })); bm.receiveShadow = true; cx.add(bm, 'infraBoards'); }
     Object.assign(cx.stats, { cameraScaffolds: scaff, cranes, gantries, sponsorWalls: walls });
   }
 

@@ -814,7 +814,7 @@ window.EI = window.EI || {};
     const H = EI.Replay; H.update(dt); if (!H.playing) return;   // the reel ended this frame: the results card is back
     const cam = cameras[0], f = H.focus, cp = cam.position;
     updateCarLod(); particles.update(dt);
-    if (scenery.setEye) { scenery.update(dt, cp.x, cp.z, f.x, f.z); scenery.setEye(cp.x, cp.z); } else scenery.update(dt, f.x, f.z);
+    scenery.update(dt, cp.x, cp.z); if (scenery.setEye) scenery.setEye(cp.x, cp.z);   // level of detail around the camera (TV towers, the helicopter)
     if (skyMesh) skyMesh.position.set(cp.x, 0, cp.z);
     sunFollow(f.x, f.z); tunnelLight(0, H.eye, dt);
     const A = H.audio; engines.forEach((e, k) => EI.Audio.setEngine(e, A.rpm, A.thr, k === 0 ? A.vol : 0, A.gear));

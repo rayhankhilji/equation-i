@@ -42,6 +42,7 @@ window.EI = window.EI || {};
     // f1-BRAND's artwork (aspect kept); it draws a wordmark itself for unknown ids, except where a drawn emblem below reads better
     if (A && A.drawPartner && (!(f0 && !f0.n) || (A.hasPartner && A.hasPartner(id)))) { A.drawPartner(g, id, 0, 0, w * MM, h * MM, { tone: tone || 'color', plate: plate || null }); return; }
     id = sid; const f = f0 || { n: id.toUpperCase(), w: 800, col: '#ffffff' };
+    if (plate) { g.fillStyle = plate; const pw = w * MM, ph = h * MM; if (EI.Ads && EI.Ads.rr) EI.Ads.rr(g, -pw / 2, -ph / 2, pw, ph, ph * 0.2); else { g.beginPath(); g.rect(-pw / 2, -ph / 2, pw, ph); } g.fill(); w *= 0.84; h *= 0.72; }
     if (f.mc) { const r = Math.min(h * 0.5, w * 0.31) * MM; g.globalAlpha = 1; g.fillStyle = tone === 'white' || tone === 'black' ? toneCol(tone) : '#eb001b'; g.beginPath(); g.arc(-r * 0.62, 0, r, 0, 7); g.fill(); g.fillStyle = tone === 'white' || tone === 'black' ? toneCol(tone) : '#f79e1b'; g.beginPath(); g.arc(r * 0.62, 0, r, 0, 7); g.fill(); if (!tone || tone === 'color') { g.fillStyle = '#ff5f00'; g.beginPath(); g.arc(-r * 0.62, 0, r, -1.02, 1.02); g.arc(r * 0.62, 0, r, Math.PI - 1.02, Math.PI + 1.02); g.fill(); } return; }
     if (f.rings) { rings(g, Math.min(w, h * 3.2), toneCol(tone, '#ffffff')); return; }
     if (f.star) { star(g, Math.min(w, h) * 0.5, toneCol(tone, '#c9ccd1')); return; }
@@ -111,7 +112,7 @@ window.EI = window.EI || {};
       const FLOW = [[3.05, 0.2], [2.2, 0.31], [1.4, 0.4], [0.7, 0.47], [0.0, 0.46], [-0.7, 0.38], [-1.5, 0.3]];
       k.stroke(FLOW, 0.032, TEAL); k.stroke(FLOW.map(([x, y]) => [x, y + 0.035]), 0.008, SIL);
       L.mark('mercedes', -1.05, 0.55, 0.15, 0.15, 'mono:#c5c9ce', 'star', 0.075, SIL);
-      L.partner('petronas', 'sp', 'white'); L.partner('microsoft', 'airbox', 'black'); L.partner('ineos', 'spLow', 'white');
+      L.wordmark('PETRONAS', -0.2, 0.44, 0.085, W, { w: 900, ls: 0.06 }); L.partnerAt('petronas', 0.42, 0.44, 0.1, 0.1, 'color'); L.partner('microsoft', 'airbox', 'black'); L.partner('ineos', 'spLow', 'white');
       L.partner('crowdstrike', 'rwEnd', 'white'); L.partner('microsoft', 'fwEnd', 'white'); L.partner('teamviewer', 'noseSide', 'white');
       L.number(1.05, 0.56, 0.08, '#0e0f11'); L.codeText(1.3, 0.69, 0.045, '#0e0f11');
       L.number(-2.13, 0.62, 0.11, W);
@@ -121,7 +122,7 @@ window.EI = window.EI || {};
       t.poly([[3.05, -0.05], [3.05, 0.05], [1.0, 0.12], [0.3, 0.2], [-0.4, 0.14], [-0.4, -0.14], [0.3, -0.2], [1.0, -0.12]], SIL);   // nose spine + cockpit shoulders
       for (const s of [-1, 1]) t.poly([[3.0, s * 0.055], [3.0, s * 0.07], [1.0, s * 0.14], [1.0, s * 0.125]], '#00a19c');
       L.mark('mercedes', 2.6, 0, 0.09, 0.09, 'black', 'star', 0.045, '#0e0f11');
-      L.number(2.2, 0, 0.09, '#0e0f11'); L.partner('petronas', 'rwTop', 'white'); L.partner('petronas', 'spTop', 'white');
+      L.number(2.2, 0, 0.09, '#0e0f11'); L.wordmark('PETRONAS', -2.1, 0, 0.09, W, { w: 900, ls: 0.06 }); L.partner('petronas', 'spTop', 'color');
     },
   };
 

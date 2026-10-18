@@ -126,7 +126,11 @@ window.EI = window.EI || {};
     // the dark glass band of the control towers
     const towerG = AT.region('yasTowerGlass', 128, 64, (x, w, h) => { const night = isNight(); x.fillStyle = night ? '#203a66' : '#14203a'; x.fillRect(0, 0, w, h); x.fillStyle = night ? 'rgba(170,210,255,0.55)' : 'rgba(150,180,220,0.25)'; for (let i = 0; i < w; i += 16) x.fillRect(i, 0, 2, h); x.fillStyle = night ? '#9fd0ff' : '#33507a'; x.fillRect(0, h * 0.42, w, 3); });
     // the bridge's sign panel: our partners, white on dark navy
+    // f1-BRAND: the start gantry beam (16 x 1.5 m per repeat) and its raised panel (18.4 x 3.8 m) carry the F1 event branding from EI.Ads
+    // (F1 logo, Etihad Airways, Abu Dhabi Grand Prix, TAG Heuer), each region at its own aspect; the hand-set lettering is the fallback
+    const signP = EI.Ads && EI.Ads.paintEventPanel ? AT.region('yasGantryPanel', 512, 106, (x, w, h) => EI.Ads.paintEventPanel(x, w, h, 18.4 / 3.8), null, null, 'none') : null;
     const sign = AT.region('yasBridgeSign', 512, 64, (x, w, h) => {
+      if (EI.Ads && EI.Ads.paintBanner) { EI.Ads.paintBanner(x, w, h, 16 / 1.5); return; }
       x.fillStyle = '#0b0c0f'; x.fillRect(0, 0, w, h); const A = EI.Ads;
       // chequered flag ends
       for (const x0 of [0, w - 40]) for (let i = 0; i < 5; i++) for (let j = 0; j < 8; j++) if ((i + j) % 2) { x.fillStyle = '#f2f2f0'; x.fillRect(x0 + i * 8, j * 8, 8, 8); }
@@ -141,7 +145,7 @@ window.EI = window.EI || {};
       x.fillStyle = '#4b5159'; for (let i = 0; i < 4; i++) x.fillRect(i * 64, 0, 6, h);
       for (let i = 0; i < 8; i++) for (let j = 0; j < 4; j++) { const cx = i * 32 + 19, cy = j * 32 + 16; const g = x.createRadialGradient(cx, cy, 0, cx, cy, 9); g.addColorStop(0, 'rgba(255,246,222,1)'); g.addColorStop(0.35, 'rgba(255,236,200,0.95)'); g.addColorStop(1, 'rgba(255,230,190,0)'); x.fillStyle = g; x.fillRect(cx - 9, cy - 9, 18, 18); }
     });
-    RG = { glassN, marina, shutter, towerG, sign, soffit }; return RG;
+    RG = { glassN, marina, shutter, towerG, sign, signP, soffit }; return RG;
   }
 
   // ---------------------------------------------------------------- membrane: a tensile fabric surface over a local rectangle,
@@ -604,7 +608,7 @@ window.EI = window.EI || {};
     B.set(Rr.sign, 0.5, 0.1, night ? 0.9 : 0.15); const span = wl + wr; const rep = Math.max(1, Math.round(span / 16));
     for (const a of [-0.92, 0.92]) signQ(-wl + 0.2, wr - 0.2, 9.15, 10.65, a, rep, a < 0);
     B.set('white', 0.55, 0.3); boxL(-9.5, 9.5, 10.9, 15.2, -0.55, 0.55, black, ['top', 'left', 'right', 'front', 'back']);
-    B.set(Rr.sign, 0.5, 0.1, night ? 1.0 : 0.2); for (const a of [-0.57, 0.57]) signQ(-9.2, 9.2, 11.15, 14.95, a, 1, a < 0);
+    B.set(Rr.signP || Rr.sign, 0.5, 0.1, night ? 1.0 : 0.2); for (const a of [-0.57, 0.57]) signQ(-9.2, 9.2, 11.15, 14.95, a, 1, a < 0);
     // trim lines and columns
     B.set('white', 0.5, 0.4); for (const a of [-0.92, 0.92]) { boxL(-wl - 0.6, wr + 0.6, 10.9, 11.05, a - 0.04, a + 0.04, trim); boxL(-wl - 0.6, wr + 0.6, 8.75, 8.9, a - 0.04, a + 0.04, trim); }
     for (const lat of [-wl - 0.6, wr + 0.6]) boxL(lat - 0.7, lat + 0.7, -0.5, 8.9, -0.7, 0.7, black, ['left', 'right', 'front', 'back']);

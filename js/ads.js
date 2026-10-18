@@ -530,6 +530,17 @@
     else brandBridge(ctx, which, vw, h);
     ctx.restore();
   };
+  // a tall event panel (the raised sign over a start gantry, ~4.8:1): the F1 logo, the event title and the title partner, centred
+  Ads.paintEventPanel = function (ctx, w, h, aspect) {
+    const vw = h * (aspect || 4.85); ctx.save(); ctx.scale(w / vw, 1); w = vw; const V = venue();
+    ctx.fillStyle = '#15151e'; ctx.fillRect(0, 0, w, h); ctx.fillStyle = '#e10600'; ctx.fillRect(0, h * 0.94, w, h * 0.06);
+    const f1 = Ads.drawF1(ctx, w * 0.25, h * 0.47, w * 0.36, h * 0.5);
+    ctx.fillStyle = 'rgba(255,255,255,0.18)'; ctx.fillRect(w * 0.25 + f1[0] / 2 + h * 0.2, h * 0.2, Math.max(1, h * 0.02), h * 0.56);
+    const x0 = w * 0.25 + f1[0] / 2 + h * 0.42, tw = w - x0 - h * 0.3;
+    if (PARTNERS[V.title]) { const r = Ads.drawPartner(ctx, V.title, -9999, -9999, tw, h * 0.3, { tone: 'white' }); Ads.drawPartner(ctx, V.title, x0 + r[0] / 2, h * 0.33, tw, h * 0.3, { tone: 'white' }); }
+    line(ctx, [[V.event.toUpperCase(), '#ffffff']], x0, h * 0.72, h * 0.2, F1W, 800, tw, 'left', 0.01);
+    ctx.restore();
+  };
   // the Lumi + Intake co-branded banner (the old start gantry design; kept for surfaces that want both race partners)
   Ads.paintPartnersBanner = function (ctx, w, h) { brandBanner(ctx, w, h); };
   // start gantry banner: both partners side by side
