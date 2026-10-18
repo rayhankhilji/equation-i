@@ -298,15 +298,16 @@ window.EI = window.EI || {};
   function weather(ctx, w, h, seed, n, x0, y0) { const r = U.rng(seed); x0 = x0 || 0; y0 = y0 || 0; ctx.globalCompositeOperation = 'destination-out'; for (let i = 0; i < n; i++) { ctx.fillStyle = 'rgba(0,0,0,' + (0.15 + r() * 0.55).toFixed(2) + ')'; ctx.fillRect(x0 + r() * (w - 3), y0 + r() * (h - 3), 1 + r() * 3, 1 + r() * 3); } ctx.globalCompositeOperation = 'source-over'; }
   // sub-rectangle of a canvas atlas (canvas pixels, y down) -> function mapping the sub-texture's own (u, v) (v up) to atlas uv; 2 px inset
   function atlasRect(W, H, x, y, w, h) { const p = 2; return (u, v) => [(x + p + u * (w - 2 * p)) / W, 1 - (y + p + (1 - v) * (h - 2 * p)) / H]; }
-  // painted markings atlas (2048 x 1024, transparent ground): grid slots (5 x 4 cells: number ahead of the front line, bracket going back),
+  // painted markings atlas (2048 x 1024, transparent ground): grid slots (5 x 5 cells: number ahead of the front line, bracket going back),
   // four rows of run-off paint logos (the race partners), the start / finish chequer band and a solid white cell for plain lines
+  const GRID_SLOTS = 22;   // painted grid boxes: the full 2026 field
   function paintAtlas() {
     const W = 2048, H = 1024; const c = document.createElement('canvas'); c.width = W; c.height = H; const ctx = c.getContext('2d'); ctx.clearRect(0, 0, W, H);
-    const cw = 204.8, ch = 256;
-    for (let p = 0; p < 20; p++) {
-      const x0 = (p % 5) * cw, y0 = Math.floor(p / 5) * ch; ctx.fillStyle = '#efeeea';
+    const cw = 204.8, ch = 256, sq = 0.8;   // 5 x 5 cells of 204.8 x 204.8, each painted as a 204.8 x 256 cell squashed by 0.8
+    for (let p = 0; p < GRID_SLOTS; p++) {
+      ctx.save(); ctx.translate((p % 5) * cw, Math.floor(p / 5) * ch * sq); ctx.scale(1, sq); const x0 = 0, y0 = 0; ctx.fillStyle = '#efeeea';
       const fy = y0 + ch * 0.306; ctx.fillRect(x0 + cw * 0.06, fy, cw * 0.88, 7); ctx.fillRect(x0 + cw * 0.06, fy, 6, 80); ctx.fillRect(x0 + cw * 0.94 - 6, fy, 6, 80);
-      ctx.font = 'italic 900 64px Arial Black, Arial'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(String(p + 1), x0 + cw / 2, y0 + ch * 0.16);
+      ctx.font = 'italic 900 64px Arial Black, Arial'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(String(p + 1), x0 + cw / 2, y0 + ch * 0.16); ctx.restore();
     }
     weather(ctx, 1024, 1024, 77, 9000, 0, 0);
     for (let k = 0; k < 4; k++) EI.Ads.paintRunoff(ctx, k, 1024, k * 128, 1024, 128, '#f2f1ec');
@@ -432,6 +433,18 @@ window.EI = window.EI || {};
         this.wallL[i] = l; this.wallR[i] = r;
       }
       this.wallL = this.smooth(this.wallL, 30); this.wallR = this.smooth(this.wallR, 30);
+      // measured barrier positions (data.wallProfile = [[s, L, R], ...], metres from the centre line, from aerial imagery) replace the generic model
+      const WP = this.data.wallProfile;
+      if (WP && WP.length > 2) {
+        const L = this.length, sc = L / this.data.lapLength; let j = 0;
+        for (let i = 0; i < n; i++) {
+          const s = this.s[i]; while (j < WP.length - 1 && WP[j + 1][0] * sc <= s) j++;
+          const a = WP[j], b = WP[(j + 1) % WP.length], sa = a[0] * sc, sb = j + 1 < WP.length ? b[0] * sc : L + b[0] * sc;
+          const f = s < sa ? 0 : U.clamp((s - sa) / ((sb - sa) || 1), 0, 1);
+          this.wallL[i] = Math.max(hw + 2, U.lerp(a[1], b[1], f)); this.wallR[i] = Math.max(hw + 2, U.lerp(a[2], b[2], f));
+        }
+        this.wallL = this.smooth(this.wallL, 6); this.wallR = this.smooth(this.wallR, 6);
+      }
       // street circuits: barriers a fixed distance off the kerbs everywhere, run-off only where the data lists it ([s0, s1, 'out' | 'in', width])
       const WD = this.data.walls;
       if (WD) {
@@ -838,10 +851,10 @@ window.EI = window.EI || {};
       // start / finish: chequered band (48 squares across, 4 along)
       this.addDecal(b, sf - 0.6, sf + 0.6, -hw + 0.2, hw - 0.2, (fs, fl) => A.cheq(fl, fs), 2);
       // grid: F1-style white slot brackets with painted position numbers
-      for (let p = 0; p < 20; p++) {
-        const s = sf - 10 - p * 8, side = (p % 2 === 0 ? -1 : 1) * 2.6; const cu = (p % 5) / 5, cv = Math.floor(p / 5) / 4;
+      for (let p = 0; p < GRID_SLOTS; p++) {
+        const s = sf - 10 - p * 8, side = (p % 2 === 0 ? -1 : 1) * 2.6; const cu = (p % 5) / 5, cv = Math.floor(p / 5) / 5;
         // cell covers 3.6 m across x 7.2 m along, front of the slot 3.1 m ahead of the car's centre
-        this.addDecal(b, s + 3.1 - 7.2 + 2.2, s + 3.1 + 2.2, side - 1.8, side + 1.8, (fs, fl) => A.grid(cu + (1 - fl) * 0.2, 1 - (cv + (1 - fs) * 0.25)), 3);
+        this.addDecal(b, s + 3.1 - 7.2 + 2.2, s + 3.1 + 2.2, side - 1.8, side + 1.8, (fs, fl) => A.grid(cu + (1 - fl) * 0.2, 1 - (cv + (1 - fs) * 0.2)), 3);
       }
       // DRS detection and activation lines across the track
       const wh = () => A.white(0.5, 0.5);

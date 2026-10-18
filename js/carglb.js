@@ -176,15 +176,19 @@ window.EI = window.EI || {};
   }
 
   // ---------------------------------------------------------------- livery composition
-  const PART_ROLES = {   // material-ID colour class -> colour role per atlas part
-    body: { red: 'primary', yellow: 'primary', orange: 'primary', green: 'carbon', blue: 'carbon' },
-    front_wing: { red: 'carbon', blue: 'secondary', yellow: 'primary', green: 'carbon', orange: 'primary' },   // carbon main plane, painted flaps / endplates
-    rear_wing: { green: 'primary', orange: 'secondary', blue: 'secondary', yellow: 'secondary', red: 'secondary' },
-    mirrors: { red: 'primary', yellow: 'primary', orange: 'primary', green: 'primary', blue: 'primary' },
-    winglets: { blue: 'secondary', green: 'secondary', red: 'carbon', orange: 'carbon' },
+  // material-ID colour class -> colour role per atlas part. The painted roles (body .. fin) take each team's part colours
+  // (EI.LIVERIES.partColours: body, wings, endplates, halo, mirrors, fins); 'carbon' / 'foam' stay bare.
+  const PART_ROLES = {
+    body: { red: 'body', yellow: 'body', orange: 'body', green: 'halo', blue: 'carbon' },
+    front_wing: { red: 'carbon', blue: 'fwFlap', yellow: 'fwTip', green: 'carbon', orange: 'fwEnd' },   // carbon main plane, painted flaps / endplates
+    rear_wing: { green: 'rwMain', orange: 'rwFlap', blue: 'rwEnd', yellow: 'rwEnd', red: 'rwEnd' },
+    mirrors: { red: 'mirror', yellow: 'mirror', orange: 'mirror', green: 'mirror', blue: 'mirror' },
+    winglets: { blue: 'fin', green: 'fin', red: 'carbon', orange: 'carbon' },
     cockpit_foam: { green: 'foam' },
   };
-  const DARK_BODIES = { rossa: 1, verdant: 1 };   // teams whose wings look better in primary
+  const ROLE_NAMES = ['none', 'body', 'fwFlap', 'fwEnd', 'fwTip', 'rwMain', 'rwEnd', 'rwFlap', 'halo', 'mirror', 'fin', 'carbon', 'foam'];
+  const PAINT_ROLES = 10;   // roles 1..10 are painted (decals land on them)
+  const PAINTED = (o) => o.isMesh && o.material && (o.material.name === 'paint' || o.name === 'halo_main');   // the halo is livery-painted too
   function hexRgb(h) { const c = new THREE.Color(h); return [Math.round(c.r * 255), Math.round(c.g * 255), Math.round(c.b * 255)]; }
   function classify(r, g, b) {
     if (r < 60 && g < 60 && b < 60) return 'none';
@@ -204,7 +208,7 @@ window.EI = window.EI || {};
     if (posMaps[M] !== undefined) return posMaps[M];
     const meshes = []; if (!cache.hi) return null;
     cache.hi.updateMatrixWorld(true);
-    cache.hi.traverse((o) => { if (o.isMesh && o.material && o.material.name === 'paint' && o.geometry && o.geometry.attributes.uv) meshes.push(o); });
+    cache.hi.traverse((o) => { if (PAINTED(o) && o.geometry && o.geometry.attributes.uv) meshes.push(o); });
     if (!meshes.length) return (posMaps[M] = null);
     const pos = new Int16Array(M * M * 3), cls = new Uint8Array(M * M);
     const v = new THREE.Vector3(), nm = new THREE.Matrix3();
@@ -302,7 +306,7 @@ window.EI = window.EI || {};
     for (let n = 0; n < idx.length; n++) {
       if ((n & 2047) === 2047) yield;
       const k = idx[n]; const c = cls[k]; const vws = byCls[c]; if (!vws.length) continue;
-      if (roleMap) { const r = roleMap[k]; if (r < 1 || r > 3) continue; }
+      if (roleMap) { const r = roleMap[k]; if (r < 1 || r > PAINT_ROLES) continue; }
       const mi = k % M, mj = (k - mi) / M; if (mi < 1 || mj < 1 || mi >= M - 1 || mj >= M - 1) continue;
       // early reject against every view's content box using the texel centre
       const xc = pos[k * 3] * inv, yc = pos[k * 3 + 1] * inv, zc = pos[k * 3 + 2] * inv; let any = false;
@@ -360,30 +364,16 @@ window.EI = window.EI || {};
     };
   }
   const Ads = () => EI.Ads;
+  CarGLB.sideKit = (g, s) => sideKit(g, s);   // used by teams.js (procedural sheet / menu preview) with the same team designs
   const lum = (h) => { const cc = new THREE.Color(h); return 0.2126 * cc.r + 0.7152 * cc.g + 0.0722 * cc.b; };
   const NUM_FONT = 'italic 900 % "Titillium Web", "Arial Black", Arial, sans-serif';
   const LUMI_NUM = '800 % "Plus Jakarta Sans", "Titillium Web", Arial, sans-serif';
   const INTAKE_NUM = '800 % "Unbounded", "Titillium Web", Arial, sans-serif';
   // the team graphics on the side (painted under the decals): curves through the landmarks above
   const UPPER_LINE = [[3.1, 0.3], [2.2, 0.47], [1.3, 0.6], [0.4, 0.7], [-0.5, 0.72], [-1.3, 0.66], [-2.0, 0.55]];
-  const SWEEP = [[3.0, 0.24], [2.1, 0.33], [1.2, 0.36], [0.3, 0.33], [-0.6, 0.42], [-1.3, 0.6], [-2.0, 0.78]];
   const TOP_V = 1.4, LOW_V = -0.1;
-  function teamSide(k, team, o) {
-    const { P, S, A } = o;
-    const below = (line, col, dy) => k.region(line.map(([x, y]) => [x, y + (dy || 0)]), [[-2.4, LOW_V], [3.2, LOW_V]], col);
-    const above = (line, col, dy) => k.region(line.map(([x, y]) => [x, y + (dy || 0)]), [[-2.4, TOP_V], [3.2, TOP_V]], col);
-    const rearOf = (x0, x1, col) => k.poly([[x0, TOP_V], [x1, LOW_V], [-2.5, LOW_V], [-2.5, TOP_V]], col);
-    switch (team.id) {
-      case 'rossa': above(UPPER_LINE, S, 0.02); k.stroke(UPPER_LINE.map(([x, y]) => [x, y + 0.005]), 0.022, A); below([[3.1, 0.14], [0, 0.17], [-2, 0.2]], S); break;
-      case 'argent': below(SWEEP, S); k.stroke(SWEEP.map(([x, y]) => [x, y + 0.03]), 0.03, A); above(UPPER_LINE, '#1a1b20', 0.05); break;
-      case 'taurus': below(SWEEP.map(([x, y]) => [x, y - 0.04]), S); k.stroke(SWEEP.map(([x, y]) => [x, y - 0.015]), 0.025, A); k.poly([[3.1, 0.18], [2.4, 0.42], [2.25, 0.42], [2.9, 0.14]], A); break;
-      case 'papaya': below([[3.1, 0.2], [1.2, 0.27], [0, 0.3], [-1.0, 0.42], [-2.0, 0.6]], S); k.stroke([[3.1, 0.22], [1.2, 0.29], [0, 0.32], [-1.0, 0.44], [-2.0, 0.62]], 0.02, A); rearOf(-1.35, -1.0, S); break;
-      case 'verdant': k.stroke(SWEEP.map(([x, y]) => [x, y + 0.06]), 0.035, S); below([[3.1, 0.13], [0, 0.16], [-2, 0.19]], '#0b2f2a'); break;
-      case 'alpenne': rearOf(-0.55, -0.2, S); k.poly([[-0.2, TOP_V], [0.15, LOW_V], [0.05, LOW_V], [-0.3, TOP_V]], A); break;
-      case 'kinetik': k.region([[3.1, 0.3], [2.0, 0.46], [1.1, 0.5]], [[0.7, LOW_V], [3.2, LOW_V]], S); k.stroke(SWEEP.map(([x, y]) => [x, y + 0.02]), 0.02, S); break;
-      case 'vector': below([[3.1, 0.18], [1.2, 0.24], [0, 0.3], [-1.2, 0.36], [-2.0, 0.5]], S); k.stroke([[3.1, 0.21], [1.2, 0.27], [0, 0.33], [-1.2, 0.39], [-2.0, 0.53]], 0.022, A); above(UPPER_LINE, S, 0.08); break;
-      default: above(UPPER_LINE, S, 0.04);
-    }
+  function teamSide(k, team, o) {   // generic scheme for a team without a design in js/liveries.js
+    k.region(UPPER_LINE.map(([x, y]) => [x, y + 0.04]), [[-2.4, TOP_V], [3.2, TOP_V]], o.S);
   }
   function liveryViews(team, num, code, o) {
     const { P, S, A, NC, SC, sp, works } = o; const id = team.id;
@@ -393,6 +383,7 @@ window.EI = window.EI || {};
       g.scale(1 / MM, 1 / MM); const k = sideKit(g, s);
       if (id === 'lumi') lumiSide(g, k, team, num, code, o);
       else if (id === 'intake') intakeSide(g, k, team, num, code, o);
+      else if (EI.LIVERIES && EI.LIVERIES.has(id)) EI.LIVERIES.side(g, k, team, num, code);   // the 2026 team designs (js/liveries.js)
       else {
         teamSide(k, team, o);
         // partner decals: one consistent layout for every customer team
@@ -420,20 +411,12 @@ window.EI = window.EI || {};
       const txt = (str, x, z, cap, col, font, rot, ls) => at(x, z, () => { g.font = font.replace('%', (cap * MM).toFixed(1) + 'px'); Ads().setLS(g, (ls || 0) * cap * MM); g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillStyle = col; g.fillText(str, 0, cap * MM * 0.04); Ads().setLS(g, 0); }, rot);
       const dec = (spec, x, z, cap, maxW, rot) => at(x, z, () => Ads().drawDecal(g, spec, 0, 0, cap * MM, maxW * MM), rot);
       const rect = (x0, x1, z0, z1, col) => { g.fillStyle = col; g.fillRect(z0 * MM, -x1 * MM, (z1 - z0) * MM, (x1 - x0) * MM); };
+      const poly = (pts, col) => { g.beginPath(); pts.forEach(([x, z], i) => (i ? g.lineTo(z * MM, -x * MM) : g.moveTo(z * MM, -x * MM))); g.closePath(); g.fillStyle = col; g.fill(); };
       if (id === 'lumi') return lumiTop(g, { at, txt, dec, rect }, team, num, o);
       if (id === 'intake') return intakeTop(g, { at, txt, dec, rect }, team, num, o);
+      if (EI.LIVERIES && EI.LIVERIES.has(id)) return EI.LIVERIES.top(g, { at, rect, poly }, team, num);
       // customer teams: nose tip and centre stripe, number on the nose (reads from the front), partner on the rear wing
-      switch (id) {
-        case 'rossa': rect(-3, 0.25, -0.03, 0.03, A); rect(2.6, 3.2, -1, 1, S); break;
-        case 'argent': rect(-3, 3.2, -0.05, 0.05, S); rect(-3, 3.2, -0.012, 0.012, A); break;
-        case 'taurus': rect(2.55, 3.2, -1, 1, A); rect(-3, 0.25, -0.04, 0.04, S); break;
-        case 'papaya': rect(2.6, 3.2, -1, 1, S); rect(-3, -0.9, -1, 1, S); break;
-        case 'verdant': rect(-3, 3.2, -0.02, 0.02, S); break;
-        case 'alpenne': rect(-3, -0.3, -1, 1, S); rect(-0.3, -0.2, -1, 1, A); break;
-        case 'kinetik': rect(1.7, 3.2, -1, 1, S); break;
-        case 'vector': rect(2.6, 3.2, -1, 1, S); rect(-3, 0.25, -0.035, 0.035, A); break;
-        default: rect(2.6, 3.2, -1, 1, S);
-      }
+      rect(2.6, 3.2, -1, 1, S);
       txt(String(num), 2.2, 0, 0.13, NC, NUM_FONT, Math.PI);
       dec(sp(2, { bg: null, fg: NC }), 1.62, 0, 0.045, 0.22);
       dec(sp(0, { bg: sp(0).bg || null, fg: sp(0).bg ? sp(0).fg : SC }), -2.1, 0, 0.09, 0.85);       // rear-wing top: title partner
@@ -517,6 +500,12 @@ window.EI = window.EI || {};
     t.txt(String(num), 2.22, 0, 0.11, I.ink, INTAKE_NUM, Math.PI);
     t.at(-2.1, 0, () => Ads().lockupCentered(g, 'intake', 0, 0, 150, 860, I.bg));     // rear-wing top (cocoa)
   }
+  // the driver's 3-letter code (players: from their name unless they drive a real seat with a code)
+  function carCode(car) {
+    if (EI.carCode) return EI.carCode(car.driver, car.isPlayer ? car.name : null, car.team);
+    return (car.isPlayer && car.name ? car.name : (car.driver && car.driver.name) || car.team.short).replace(/^[A-Z]\. ?/, '').slice(0, 3).toUpperCase();
+  }
+  CarGLB.carCode = carCode;
   function composeLivery(team, num, code, size) { return runGen(composeLiveryGen(team, num, code, size)); }
   function liverySize(team, size) { size = size || 2048; return (team.id === 'lumi' || team.id === 'intake') && size >= 1024 && size < 2048 ? 2048 : size; }   // the works liveries always get crisp lettering (the 512 stand-in excepted)
   function liveryKey(team, num, code, size) { return team.id + ':' + num + ':' + (code || '') + ':' + liverySize(team, size); }
@@ -529,9 +518,11 @@ window.EI = window.EI || {};
     const c0 = document.createElement('canvas'); c0.width = base; c0.height = base; const ctx0 = c0.getContext('2d', { willReadFrequently: true });
     let im; if (!roleMaps[base]) { ctx0.imageSmoothingEnabled = false; ctx0.drawImage(cache.idImg, 0, 0, base, base); im = ctx0.getImageData(0, 0, base, base); } else im = ctx0.createImageData(base, base);
     const d = im.data;
-    const roles = { primary: hexRgb(team.primary), secondary: hexRgb(team.secondary), accent: hexRgb(team.accent), carbon: [30, 31, 34], foam: [28, 28, 30], none: [26, 27, 30] };
+    const roles = { carbon: [30, 31, 34], foam: [28, 28, 30], none: [26, 27, 30] };
+    const parts = EI.LIVERIES ? EI.LIVERIES.partColours(team) : { body: team.primary, fwFlap: team.secondary, fwEnd: team.primary, fwTip: team.primary, rwMain: team.primary, rwEnd: team.secondary, rwFlap: team.secondary, mirror: team.primary, fin: team.secondary };
+    for (const n of ROLE_NAMES) if (parts[n]) roles[n] = hexRgb(parts[n]); for (const n of ROLE_NAMES) if (!roles[n]) roles[n] = roles.carbon;
+    if (CarGLB.debugRoles) ROLE_NAMES.forEach((n, i) => { if (i >= 1 && i <= PAINT_ROLES) roles[n] = hexRgb(['', '#999999', '#ff0000', '#00ff00', '#0000ff', '#ffff00', '#ff00ff', '#00ffff', '#ff8800', '#8800ff', '#ffffff'][i]); });
     // per-pixel colour role, from the ID atlas (team independent, cached per resolution)
-    const ROLE_NAMES = ['none', 'primary', 'secondary', 'accent', 'carbon', 'foam'];
     if (!roleMaps[base]) {
       const src = new Uint8ClampedArray(d); const rm = new Uint8Array(base * base);
       const fill = (x0, y0, w, h, table) => { for (let y = y0; y < y0 + h; y++) for (let x = x0; x < x0 + w; x++) { const i = y * base + x; const cls = classify(src[i * 4], src[i * 4 + 1], src[i * 4 + 2]); rm[i] = Math.max(0, ROLE_NAMES.indexOf((table && table[cls]) || 'none')); } };
@@ -999,7 +990,7 @@ window.EI = window.EI || {};
   const FLOOR_RE = /^(floor_|body_gearbox|misc_rearled)/;
   function lodParams(mat, node) {
     const n = (mat && mat.name) || '';
-    if (n === 'paint' && !node.startsWith('body_cockpit')) return { s: 1, m: 0.18, r: 0.42, c: 1, col: [1, 1, 1] };
+    if ((n === 'paint' && !node.startsWith('body_cockpit')) || node === 'halo_main') return { s: 1, m: 0.18, r: 0.42, c: 1, col: [1, 1, 1] };
     if (n === 'paint' || n === 'carbon') return FLOOR_RE.test(node) && n === 'carbon' ? { s: 0, m: 0.2, r: 0.55, c: 0.18, col: FLOOR_AVG } : { s: 0, m: 0.2, r: 0.5, c: 0.45, col: CARBON_AVG };
     if (n === 'helmet') return { s: 3, m: 0.1, r: 0.35, c: 1, col: [1, 1, 1] };
     if (n === 'led') return { s: 2, m: 0, r: 0.4, c: 0, col: [1, 0.1, 0.1] };
@@ -1075,7 +1066,7 @@ window.EI = window.EI || {};
       else if (n.startsWith('helmet_')) g = G_HELMET;
       const geo = strip(o.geometry); geo.applyMatrix4(M); const lp = lodParams(o.material, n); const it = { geo, lp, g };
       lists.all.push(it);
-      if (g === 0 && mname === 'paint' && !n.startsWith('body_cockpit')) lists.paint.push(it);
+      if (g === 0 && ((mname === 'paint' && !n.startsWith('body_cockpit')) || n === 'halo_main')) lists.paint.push(it);
       else if (g === 0 && (mname === 'carbon' || mname === 'paint')) (mname === 'carbon' && FLOOR_RE.test(n) ? lists.floor : lists.carbon).push(it);
       else lists.lod.push(it);
     }
@@ -1105,7 +1096,7 @@ window.EI = window.EI || {};
     const m = new THREE.MeshPhysicalMaterial({ map: tex, vertexColors: true, metalness: 1, roughness: 1, clearcoat: 1, clearcoatRoughness: 0.04, envMapIntensity: 0.55, side: THREE.DoubleSide });
     const u = m.userData.u = {
       uBody: { value: new THREE.Matrix4() }, uSpin: { value: 0 }, uSteer: { value: 0 }, uFlap: { value: 0 }, uHelm: { value: 0 }, uHelmVis: { value: 1 },
-      uWheel: { value: T.wheels }, uHinge: { value: T.hinge }, uAccent: { value: new THREE.Color(car.team.accent) }, uLed: { value: 0.6 }, uTyre: { value: tyreWallTexture(car.tyre) },
+      uWheel: { value: T.wheels }, uHinge: { value: T.hinge }, uAccent: { value: new THREE.Color((car.driver && car.driver.helmet) || car.team.helmet || car.team.accent) }, uLed: { value: 0.6 }, uTyre: { value: tyreWallTexture(car.tyre) },
     };
     m.onBeforeCompile = (sh) => {
       Object.assign(sh.uniforms, u);
@@ -1189,7 +1180,7 @@ window.EI = window.EI || {};
     if (!CarGLB.ready) return EI.CarModel.build(car);
     const lo = lod === 'lo'; const detailed = !lo && car.isPlayer !== false;
     const T = template(lo ? 'lo' : 'hi', detailed), TL = template('lo', false);
-    const code = (car.isPlayer && car.name ? car.name : (car.driver && car.driver.name) || car.team.short).replace(/^[A-Z]\. ?/, '').slice(0, 3).toUpperCase();
+    const code = carCode(car);
     const full = lo ? 1024 : 2048; let tex = texCache[liveryKey(car.team, car.num, code, full)];
     if (!tex) tex = composeLivery(car.team, car.num, code, lo && !CarGLB.syncLiveries ? 512 : full);
     const paint = paintMaterial(tex), lm = lodMaterial(tex, car, T), U = lm.userData.u;

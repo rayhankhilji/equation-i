@@ -306,8 +306,8 @@ window.EI = window.EI || {};
           '  float rD = max(0.09, fw * 0.7); float dt = mix(band(dn, rD, fw * 0.8) * min(1.0, 0.0081 / (rD * rD) + 0.3), 0.05, smoothstep(0.35, 0.8, fw));',
           '  float hue = uT * 0.012 + vW.x * 0.0011 + vW.z * 0.0007 + vW.y * 0.0035;',
           '  vec3 c = pal(hue); float wave = 0.85 + 0.15 * sin(vW.x * 0.021 - vW.z * 0.013 - uT * 0.35);',
-          '  vec3 panel = mix(vec3(0.9, 0.9, 0.98), c, 0.8) * (0.12 + 0.18 * mix(exp(-dn * dn * 6.0), 0.35, smoothstep(0.25, 0.6, fw)));',  // white panes washed by the LEDs
-          '  vec3 col = mix(panel, c * 0.03, gap) * wave + mix(c, vec3(1.0), 0.55) * 3.4 * dt;',
+          '  vec3 panel = mix(vec3(0.9, 0.9, 0.98), c, 0.4) * (0.2 + 0.22 * mix(exp(-dn * dn * 6.0), 0.35, smoothstep(0.25, 0.6, fw)));',  // white panes washed by the LEDs
+          '  vec3 col = mix(panel, vec3(0.07, 0.07, 0.08), gap) * wave + mix(c, vec3(1.0), 0.3) * 3.4 * dt;',
           '  if (!gl_FrontFacing) col *= 0.85;',
           '  gl_FragColor = vec4(col, 1.0);',
           '#include <tonemapping_fragment>', '#include <encodings_fragment>', '#include <fog_fragment>', '}'].join('\n'),

@@ -33,43 +33,53 @@ window.EI = window.EI || {};
         for (const t of TR) { const v = ai.traits[t.id]; h += '<span class="fd-t" title="' + esc(t.name + ' ' + v.toFixed(2)) + '"><b style="width:' + Math.round(v * 100) + '%"></b><em>' + v.toFixed(2) + '</em></span>'; }
         h += '</div>';
       }
+      if (this.gridInfo) h = '<div class="fd-row fd-grid" style="display:block;opacity:.8;font-size:12px;padding:2px 0 6px">Grid: ' + esc(this.gridInfo.label) + '</div>' + h;
       el.innerHTML = h;
     }
 
     buildGrid() {
       const cfg = this.cfg, track = this.track, rng = this.rng;
-      const teams = EI.TEAMS;
       let id = 0;
-      // players
-      const takenDrivers = new Set();
+      // every seat of the field (11 entries x 2 = 22); a player takes a seat and replaces that real driver. A player on an own team
+      // (Lumi / Intake) takes over a real entry (Race.lineup), keeping its other driver and its grid slots
+      const LU = Race.lineup(cfg.players); this.entries = LU.entries; this.takeovers = LU.takeovers;
+      const seats = LU.seats, playerSeat = LU.playerSeats;
+      const takenDrivers = new Set(playerSeat.map(st => st.key));
+      // the 2026 grid mode: a real qualifying / starting grid from a race already run this season
+      const real = cfg.grid === 'season' ? Race.seasonGrid(rng, seats, cfg.gridRound) : null;
+      this.gridInfo = real ? { label: real.label, round: real.round, race: real.race } : null;
+      // bots: the top of the real grid (season mode), otherwise the strongest seats first (average real grid slot this season,
+      // or the team's skill without season data) with a little shuffle
+      let pool = seats.filter(st => !takenDrivers.has(st.key));
+      if (real) pool = real.order.filter(st => !takenDrivers.has(st.key));
+      else {
+        const avg = Race.seasonAverage(seats);
+        const w = new Map(pool.map(st => [st, avg ? -(avg.get(st) || 23) + (rng() - 0.5) * 6 : st.team.skill + (rng() - 0.5) * 0.02]));
+        pool.sort((a, b) => w.get(b) - w.get(a));
+      }
+      const nb = Math.min(cfg.bots, pool.length);
       cfg.players.forEach((p, pi) => {
-        const team = teams[p.teamIndex];
-        const driver = team.drivers[takenDrivers.has(team.id + ':0') ? 1 : 0]; takenDrivers.add(team.id + ':' + team.drivers.indexOf(driver));
-        const car = new EI.Car({ id: id++, team, driver, name: p.name, num: driver.num, isPlayer: true, playerIndex: pi, tyre: p.tyre, assist: cfg.assist, envMap: cfg.envMap });
-        car.input = { throttle: 0, brake: 0, steer: 0, drs: false, ers: false };
+        const st = playerSeat[pi];
+        const car = new EI.Car({ id: id++, team: st.team, driver: st.driver, name: p.name, num: st.driver.num, isPlayer: true, playerIndex: pi, tyre: p.tyre, assist: cfg.assist, envMap: cfg.envMap });
+        car.seat = st; car.input = { throttle: 0, brake: 0, steer: 0, drs: false, ers: false };
         this.cars.push(car); this.players.push(car);
       });
-      // bots: fill from the grid of teams, skipping drivers the players took
-      const pool = [];
-      for (const t of teams) t.drivers.forEach((d, di) => { if (!takenDrivers.has(t.id + ':' + di)) pool.push({ team: t, driver: d }); });
-      // sort pool by team skill so the strongest teams come first, then take the number needed
-      pool.sort((a, b) => b.team.skill - a.team.skill + (rng() - 0.5) * 0.02);
-      const nb = Math.min(cfg.bots, pool.length);
-      const tyreChoices = ['soft', 'medium', 'medium', 'hard'];
       for (let i = 0; i < nb; i++) {
         const e = pool[i];
-        const car = new EI.Car({ id: id++, team: e.team, driver: e.driver, tyre: tyreChoices[Math.floor(rng() * tyreChoices.length)], assist: 'full', skill: e.team.skill, envMap: cfg.envMap });
-        this.cars.push(car);
+        const car = new EI.Car({ id: id++, team: e.team, driver: e.driver, tyre: 'medium', assist: 'full', skill: e.team.skill, envMap: cfg.envMap });
+        car.seat = e; this.cars.push(car);
         // personality: seeded from the race seed and the seat, so the same seed always gives the same field; teammates
         // never share an archetype
         const mate = this.ais.find(a => a.car.team === e.team);
-        this.ais.push(new EI.AIDriver(car, track, cfg.difficulty, rng, { seed: this.seed, slot: e.team.index * 2 + e.team.drivers.indexOf(e.driver), avoid: mate ? [mate.archetype.id] : null }));
+        this.ais.push(new EI.AIDriver(car, track, cfg.difficulty, rng, { seed: this.seed, slot: e.team.index * 2 + e.di, avoid: mate && mate.archetype ? [mate.archetype.id] : null }));
       }
       // grid order
       let order = this.cars.slice();
       const bots = order.filter(c => !c.isPlayer), players = order.filter(c => c.isPlayer);
-      const botsByPace = bots.slice().sort((a, b) => (this.aiFor(b).paceIndex() + rng() * 0.012) - (this.aiFor(a).paceIndex() + rng() * 0.012));
-      if (cfg.grid === 'front') order = players.concat(botsByPace);
+      const pace = new Map(bots.map(c => [c, this.aiFor(c).paceIndex()]));   // (the day's form is inside paceIndex)
+      const botsByPace = bots.slice().sort((a, b) => pace.get(b) - pace.get(a));
+      if (real) { const at = new Map(real.order.map((st, i) => [st, i])); order = this.cars.slice().sort((a, b) => at.get(a.seat) - at.get(b.seat)); }   // the real order (players in their driver's slot), closed up
+      else if (cfg.grid === 'front') order = players.concat(botsByPace);
       else if (cfg.grid === 'back') order = botsByPace.concat(players);
       else if (cfg.grid === 'random') { order = this.cars.slice(); for (let i = order.length - 1; i > 0; i--) { const j = Math.floor(rng() * (i + 1)); [order[i], order[j]] = [order[j], order[i]]; } }
       else { // qualifying: players slot in at a position matching the bot difficulty (mid-grid)
@@ -292,6 +302,94 @@ window.EI = window.EI || {};
       });
     }
   }
+  // ------------------------------------------------------------------ the field: 11 real entries, own teams taking one over
+  const entryOf = (t) => t.entry || t.id;
+  // constructors' standings, leader first: EI.SEASON.standings (team ids), else the EI.TEAMS order
+  function standings() {
+    const S = EI.SEASON, raw = S && (S.constructorsOrder || (S.standings && (Array.isArray(S.standings) ? S.standings : S.standings.constructors)));
+    const ids = Array.isArray(raw) ? raw.map(x => Array.isArray(x) ? x[0] : typeof x === 'object' ? x.team || x.id : x) : null;
+    const T = EI.TEAMS.slice(); if (!ids) return T;
+    const r = (t) => { const i = ids.indexOf(t.id); return i < 0 ? 99 + t.index : i; }; return T.sort((a, b) => r(a) - r(b));
+  }
+  Race.ownTeams = () => EI.OWN_TEAMS || [];
+  // the team a player config picks: { own: 'lumi' } for an own team, else EI.TEAMS[teamIndex]
+  const ownOf = (p) => p && p.own ? Race.ownTeams().find(t => t.id === p.own) || null : null;
+  // players -> { entries (EI.TEAMS order, taken-over entries replaced by the own team's per-race clone), seats, playerSeats, takeovers }
+  Race.lineup = function (players) {
+    const real = EI.TEAMS, entries = real.slice(), takeovers = [];
+    const driven = new Set(); players.forEach(p => { if (!ownOf(p)) { const t = real[p.teamIndex] || real[0]; driven.add(t.id); } });
+    const byOwn = {};
+    players.forEach(p => {
+      const own = ownOf(p); if (!own || byOwn[own.id]) return;
+      const low = standings().reverse().find(t => !driven.has(t.id)); if (!low) return;   // lowest team in the standings no player drives for
+      driven.add(low.id);
+      const c = Object.assign({}, own, { entry: low.id, entryName: low.name, index: low.index, skill: low.skill, drivers: low.drivers.slice(), takeover: low });
+      entries[low.index] = c; byOwn[own.id] = c; takeovers.push({ own: own.id, entry: low.id, team: c });
+    });
+    const seats = []; entries.forEach((t) => t.drivers.forEach((d, di) => seats.push({ team: t, driver: d, di, key: entryOf(t) + ':' + di })));
+    const taken = new Set();
+    const playerSeats = players.map((p) => {
+      const own = ownOf(p); const team = own ? byOwn[own.id] : entries[(real[p.teamIndex] || real[0]).index];
+      let di = p.seat != null ? U.clamp(p.seat | 0, 0, team.drivers.length - 1) : 0;
+      if (taken.has(entryOf(team) + ':' + di)) di = team.drivers.findIndex((d, j) => !taken.has(entryOf(team) + ':' + j));
+      const st = di >= 0 ? seats.find(x => x.key === entryOf(team) + ':' + di) : seats.find(x => !taken.has(x.key));   // both players on one team: next free seat
+      taken.add(st.key); return st;
+    });
+    return { entries, seats, playerSeats, takeovers };
+  };
+  // ------------------------------------------------------------------ real 2026 grids (EI.SEASON.grids, from js/data/season2026.js)
+  // a driver of a grid entry: 'VER' / 1 / { code, num, team } ; matched to a seat by code, then number, then the team's free seat
+  const codeOf = (d) => String(d.code || String(d.name || '').split(' ').pop().slice(0, 3)).toUpperCase();
+  function gridList() {
+    const S = EI.SEASON; const g = S && (S.grids || S.qualifying); if (!Array.isArray(g)) return [];
+    const now = Date.now();
+    return g.filter(x => x && Array.isArray(gridOf(x)) && gridOf(x).length >= 10 && !(x.date && Date.parse(x.date) > now));
+  }
+  // the starting grid of a round, mapped onto today's line-up (gridNow: stand-ins swapped back to the race seats), else as raced
+  const gridOf = (x) => x.gridNow || x.order || x.grid || x.quali;
+  const entryCode = (e) => String(e && typeof e === 'object' ? (e.code || e.driver || e.id || '') : e).toUpperCase();
+  // the team a grid entry drove for: given on the entry (or a parallel grid.teams list), else the driver's team in EI.SEASON
+  function teamOfEntry(e, k, grid) {
+    if (e && typeof e === 'object' && e.team) return e.team;
+    if (grid && Array.isArray(grid.teams) && grid.teams[k]) return grid.teams[k];
+    const S = EI.SEASON, code = entryCode(e); if (!S) return null;
+    for (const t of S.teams || []) for (const d of t.drivers || []) if (String(d.code || '').toUpperCase() === code) return t.id;
+    for (const d of (S.drivers || []).concat(S.reserves || [])) if (String(d.code || '').toUpperCase() === code) return d.team;
+    return null;
+  }
+  function seatOrder(grid, seats) {
+    const left = seats.slice(), out = [], pend = [];
+    const list = gridOf(grid);
+    list.forEach((e, k) => {
+      const code = entryCode(e), num = e && typeof e === 'object' ? e.num : (typeof e === 'number' ? e : null);
+      const tid = e && typeof e === 'object' && e.team ? e.team : (Array.isArray(grid.teams) ? grid.teams[k] : null);
+      // the driver in his own seat (a driver who raced that weekend for another team stands in for that team's car instead)
+      const st = left.find(s => codeOf(s.driver) === code && (!tid || entryOf(s.team) === tid)) || (num != null && !code ? left.find(s => s.driver.num === num) : null);
+      if (st) { left.splice(left.indexOf(st), 1); out.push(st); } else pend.push([out.length, e, k]);
+    });
+    // stand-ins and replaced drivers: the free seat of the team they drove for, else any free seat, at their real position
+    const fill = [];
+    for (const [at, e, k] of pend) {
+      const tid = teamOfEntry(e, k, grid); let st = left.find(s => tid && entryOf(s.team) === tid);
+      if (!st) st = left[0]; if (!st) continue; left.splice(left.indexOf(st), 1); fill.push([at, st]);
+    }
+    for (let k = fill.length - 1; k >= 0; k--) out.splice(Math.min(fill[k][0], out.length), 0, fill[k][1]);
+    return out.concat(left);   // anyone the grid did not list starts from the back
+  }
+  Race.seasonGrid = function (rng, seats, round) {
+    const L = gridList(); if (!L.length) return null;
+    let g = round != null ? L.find(x => String(x.round) === String(round) || x.id === round) : null; if (!g) g = L[Math.floor(rng() * L.length) % L.length];
+    const race = String(g.race || g.gp || g.name || ('Round ' + g.round)).replace(/Grand Prix/i, 'GP');
+    const sess = g.session || g.type || (g.gridNow || g.grid ? 'starting grid' : 'qualifying');
+    return { order: seatOrder(g, seats), round: g.round, race, label: g.label || ((EI.SEASON.season || EI.SEASON.year || 2026) + ' ' + race + ' ' + sess) };
+  };
+  // each seat's average real grid slot over the season (null without data): picks the strongest bots for the other grid modes
+  Race.seasonAverage = function (seats) {
+    const L = gridList(); if (!L.length) return null;
+    const sum = new Map(); for (const g of L) seatOrder(g, seats).forEach((st, i) => sum.set(st, (sum.get(st) || 0) + i + 1));
+    for (const [k, v] of sum) sum.set(k, v / L.length); return sum;
+  };
+  Race.gridCount = () => gridList().length;
   EI.Race = Race;
   // refresh the Field card (current running order) every time the pause overlay opens
   let lastRace = null;

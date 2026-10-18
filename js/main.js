@@ -52,7 +52,7 @@ window.EI = window.EI || {};
     const LOOKS = { monaco: { elev: 52, azim: 338, turb: 1.9, ray: 1.5, mie: 0.003, horizon: 0xbcd3ea, sky: [0.34, 1.2], fog: [550, 2400], fogLow: [320, 1400], hemi: [0xa8cdf2, 0x8a7a66, 0.42], sun: [0xfff3e0, 2.65],
         // the cyan sky in the reflections tinted the shaded asphalt teal: a greyer environment, a little less saturation boost and
         // more contrast for the hard May sun; the Tete de Chien / Mont Agel ridge painted into the sky to the north (west to east-north-east)
-        envSat: 0.4, grade: { sat: 1.3, con: 1.12, warm: [1.03, 1.0, 0.975] }, ridge: [-3.05, -0.3, 0.3] },
+        envSat: 0.4, grade: { sat: 1.3, con: 1.12, warm: [1.03, 1.0, 0.975] }, ridge: [-3.05, -0.3, 0.38] },
       // Yas Marina: the race starts at sunset - the sun low over the Gulf in the west-south-west, warm haze, long shadows
       // Yas Marina: a night race under floodlights (js/night.js: night sky, the light map, glows); the 'sun' is dim moonlight from
       // high up so the cars keep their contact shadows
@@ -77,7 +77,7 @@ window.EI = window.EI || {};
       ' float rh = ' + f(R[2]) + ' * rmk * (0.6 + 0.2 * sin(rph * 3.1 + 0.7) + 0.13 * sin(rph * 7.7 + 2.1) + 0.06 * sin(rph * 19.3 + 0.4) + 0.025 * sin(rph * 47.0 + 1.3) + 0.012 * sin(rph * 113.0));' +
       ' float ra = (1.0 - smoothstep(rh - 0.0022, rh, direction.y)) * step(0.004, rh);' +
       ' if (ra > 0.0) { float rd = clamp(direction.y / max(rh, 0.001), 0.0, 1.0); float rn = 0.5 + 0.5 * sin(rph * 260.0 + direction.y * 90.0) * sin(rph * 97.0 - direction.y * 160.0);' +
-      ' vec3 rc = hz0 * uSkyGain * mix(vec3(0.86, 0.9, 0.92), vec3(0.5, 0.56, 0.54), smoothstep(0.0, 1.0, rd)) * (0.9 + 0.2 * rn);' +
+      ' vec3 rc = hz0 * uSkyGain * mix(vec3(0.74, 0.78, 0.8), vec3(0.36, 0.42, 0.37), smoothstep(0.0, 0.8, rd)) * (0.82 + 0.36 * rn);' +
       ' retColor = mix(retColor, rc, ra); }'; })();
     { const SG = LK.sky || [0.62, 0.35]; su.uSkyGain = { value: SG[0] }; su.uSkyDeep = { value: SG[1] };
       skyMesh.material.onBeforeCompile = (sh) => { sh.uniforms.uSkyGain = su.uSkyGain; sh.uniforms.uSkyDeep = su.uSkyDeep;
@@ -146,7 +146,7 @@ window.EI = window.EI || {};
   }
   function renderView(cam, usePost, rect) {
     if (!(usePost && composer && quality === 'high')) { pipeDraw(cam, rect); return; }
-    { composer.passes[0].camera = cam; if (speedPass && race) { const car = race.players[0]; const v = Math.abs(car.v); speedPass.uniforms.strength.value = U.clamp((v - 35) / 60, 0, 1) * (CAM_MODES[camModes[0]] === 'cockpit' ? 0.5 : 0.9); } composer.render(); }
+    { composer.passes[0].camera = cam; if (speedPass && race) { const car = hlCams ? { v: 0 } : race.players[0]; const v = Math.abs(car.v); speedPass.uniforms.strength.value = U.clamp((v - 35) / 60, 0, 1) * (CAM_MODES[camModes[0]] === 'cockpit' ? 0.5 : 0.9); } composer.render(); }
   }
   // pixel ratio per tier: the device ratio capped (low 1, medium 1.25, high 1.5) and held to a pixel budget, so a large or dense
   // screen does not multiply the fill cost (low ~1.6 Mpx, medium ~3.2 Mpx, high ~4.6 Mpx; 1080p at ratio 1 is 2.1 Mpx)
@@ -173,12 +173,25 @@ window.EI = window.EI || {};
   function setupMenu() {
     const teamSel = [$('p1-team'), $('p2-team')];
     teamSel.forEach((sel, k) => { EI.TEAMS.forEach((t, i) => { const o = document.createElement('option'); o.value = i; o.textContent = t.name; sel.appendChild(o); }); sel.value = k === 0 ? 0 : 3; });
-    const refresh = () => {
-      [0, 1].forEach(k => { const t = EI.TEAMS[+teamSel[k].value]; EI.drawLiveryPreview($('p' + (k + 1) + '-preview'), t, t.drivers[0].num, $('p' + (k + 1) + '-name').value || 'YOU'); });
-      $('out-laps').textContent = $('opt-laps').value; $('p2-setup').classList.toggle('hidden', $('opt-players').value !== '2'); if ($('split-field')) $('split-field').classList.toggle('hidden', $('opt-players').value !== '2');
-      const maxBots = 20 - (+$('opt-players').value); $('opt-bots').max = maxBots; if (+$('opt-bots').value > maxBots) $('opt-bots').value = maxBots; $('out-bots').textContent = $('opt-bots').value;
+    // own teams (Lumi / Intake): listed after the 11 entries; a player on one takes over the lowest-standing entry no player drives for
+    const OWN = EI.Race && EI.Race.ownTeams ? EI.Race.ownTeams() : [];
+    if (OWN.length) teamSel.forEach((sel) => { const g = document.createElement('optgroup'); g.label = 'Own team (takes over an entry)'; OWN.forEach(t => { const o = document.createElement('option'); o.value = 'own:' + t.id; o.textContent = t.name; g.appendChild(o); }); sel.appendChild(g); });
+    // seat: the driver the player replaces (their car number, and their slot on a real 2026 grid); two players never share a seat
+    const seatSel = [$('p1-seat'), $('p2-seat')];
+    const pick = (k) => { const v = teamSel[k].value; return /^own:/.test(v) ? { own: v.slice(4) } : { teamIndex: +v }; };
+    const lineupFor = (k) => { const np = +$('opt-players').value; const ks = k < np ? [0, 1].slice(0, np) : [k]; const LU = EI.Race.lineup(ks.map(j => Object.assign(pick(j), { seat: seatSel[j] ? +seatSel[j].value || 0 : 0 }))); return LU.playerSeats[ks.indexOf(k)]; };
+    const fillSeats = (k) => {
+      const sel = seatSel[k]; if (!sel) return; const st = lineupFor(k), t = st.team, key = t.id + ':' + (t.entry || '');
+      if (sel._key !== key) { const was = sel.value; sel._key = key; sel.innerHTML = ''; t.drivers.forEach((d, j) => { const o = document.createElement('option'); o.value = j; o.textContent = d.name + ' · ' + d.num + (t.entry ? ' (' + t.entryName + ')' : ''); sel.appendChild(o); }); sel.value = was && +was < t.drivers.length ? was : '0'; }
     };
-    ['p1-team', 'p2-team', 'p1-name', 'p2-name', 'opt-laps', 'opt-bots', 'opt-players'].forEach(id => $(id).addEventListener('input', refresh)); refresh();
+    const refresh = () => {
+      fillSeats(0); fillSeats(1);
+      if ($('opt-players').value === '2' && seatSel[1] && teamSel[0].value === teamSel[1].value && seatSel[0].value === seatSel[1].value) seatSel[1].value = String(1 - (+seatSel[0].value || 0));
+      [0, 1].forEach(k => { const st = lineupFor(k); EI.drawLiveryPreview($('p' + (k + 1) + '-preview'), st.team, st.driver.num, $('p' + (k + 1) + '-name').value || 'YOU'); });
+      $('out-laps').textContent = $('opt-laps').value; $('p2-setup').classList.toggle('hidden', $('opt-players').value !== '2'); if ($('split-field')) $('split-field').classList.toggle('hidden', $('opt-players').value !== '2');
+      const maxBots = EI.TEAMS.reduce((n, t) => n + t.drivers.length, 0) - (+$('opt-players').value); $('opt-bots').max = maxBots; if (+$('opt-bots').value > maxBots) $('opt-bots').value = maxBots; $('out-bots').textContent = $('opt-bots').value;
+    };
+    ['p1-team', 'p2-team', 'p1-seat', 'p2-seat', 'p1-name', 'p2-name', 'opt-laps', 'opt-bots', 'opt-players'].forEach(id => $(id) && $(id).addEventListener('input', refresh)); refresh();
     const sp = $('opt-split'); if (sp) { sp.value = splitPref; sp.addEventListener('change', () => { splitPref = sp.value; try { localStorage.setItem('ei-split', splitPref); } catch (e) { } onResize(); }); }
     if ($('opt-quality')) { $('opt-quality').value = savedQ; $('opt-quality').addEventListener('change', () => { try { localStorage.setItem('ei-quality', $('opt-quality').value); } catch (e) { } }); }
     $('btn-start').addEventListener('click', () => { EI.Audio.resume(); setQuality($('opt-quality').value); try { localStorage.setItem('ei-quality', $('opt-quality').value); } catch (e) { } startRace(readConfig()); });
@@ -224,7 +237,7 @@ window.EI = window.EI || {};
     const np = +$('opt-players').value; const players = [];
     // two players on the default names: P1 / P2 (otherwise player 2's own tower and tags call the other car "YOU")
     const nm = (k) => { const v = ($('p' + (k + 1) + '-name').value || (k ? 'RIVAL' : 'YOU')).toUpperCase(); return np > 1 && v === (k ? 'RIVAL' : 'YOU') ? 'P' + (k + 1) : v; };
-    for (let k = 0; k < np; k++) players.push({ name: nm(k), teamIndex: +$('p' + (k + 1) + '-team').value, tyre: $('p' + (k + 1) + '-tyre').value });
+    for (let k = 0; k < np; k++) players.push({ name: nm(k), teamIndex: /^own:/.test($('p' + (k + 1) + '-team').value) ? 0 : +$('p' + (k + 1) + '-team').value, own: /^own:/.test($('p' + (k + 1) + '-team').value) ? $('p' + (k + 1) + '-team').value.slice(4) : null, seat: $('p' + (k + 1) + '-seat') ? +$('p' + (k + 1) + '-seat').value || 0 : 0, tyre: $('p' + (k + 1) + '-tyre').value });
     return { players, bots: +$('opt-bots').value, laps: +$('opt-laps').value, difficulty: $('opt-diff').value, grid: $('opt-grid').value, assist: $('opt-assist').value, seed: (Math.random() * 1e9) | 0, envMap };
   }
   function setPaused(p) { paused = p; $('pause').classList.toggle('hidden', !p); if (!p) lastT = performance.now(); }
@@ -233,6 +246,7 @@ window.EI = window.EI || {};
   function startRace(cfg) {
     endRace(); cfg.envMap = envMap;
     race = new EI.Race(track, cfg);
+    if (EI.Replay) EI.Replay.attach(race);   // post-race highlights: records the race (js/replay.js)
     for (const c of race.cars) scene.add(c.group);
     viewports = race.players.map((car, k) => EI.HUD.makeViewport(k, car, race.players.length));
     // split screen: each view shows its player's keys while the cars wait on the grid (and for a few seconds after the start)
@@ -249,11 +263,12 @@ window.EI = window.EI || {};
     resultsShown = false; paused = false; lastT = performance.now(); acc = 0; introT = 0; autopilots = []; tunF[0] = tunF[1] = 0;   // (a race quit inside the tunnel must not start the next one over-exposed) applySplitTier(race.players.length > 1); onResize();
     if (document.activeElement && document.activeElement.blur) document.activeElement.blur();   // Enter / Space must not press a menu button
     race.players.forEach((car, k) => placeCamera(cameras[k], car, k, true, 0));
-    EI.HUD.banner('EQUATION I · ' + track.name.toUpperCase() + ' GP', 2400);
+    EI.HUD.banner('EQUATION I · ' + track.name.toUpperCase() + ' GP', race.gridInfo ? 3400 : 2400, null, race.gridInfo ? 'Grid: ' + race.gridInfo.label : null);
     introLen = race.players.length === 1 ? 8.2 : 2.8;
     raceRenderSetup();
   }
   function endRace() {
+    if (EI.Replay) EI.Replay.detach();
     if (race) for (const c of race.cars) scene.remove(c.group);
     if (contactShadows) { scene.remove(contactShadows.mesh); contactShadows.mesh.geometry.dispose(); contactShadows = null; }
     if (race && race.players.length > 1) applySplitTier(false);
@@ -638,6 +653,7 @@ window.EI = window.EI || {};
       renderer.setScissorTest(false); renderer.setViewport(0, 0, window.innerWidth, window.innerHeight);   // CSS pixels: three scales by the pixel ratio itself
       sunFollow(cameras[0].position.x, cameras[0].position.z); particles.update(dt); if (EI.Night && EI.Night.on) EI.Night.frame(dt, now / 1000); renderView(cameras[0], true, null); pipeResolve(); return;
     }
+    if (EI.Replay && EI.Replay.playing) { if (EI.Night && EI.Night.on) EI.Night.frame(dt, now / 1000); hlFrame(dt, gl2); return; }   // the highlights reel
     if (paused) dt = 0;
     if (EI.Night && EI.Night.on) EI.Night.frame(dt, now / 1000);
     // input is sampled here, right before the physics steps that use it
@@ -659,7 +675,7 @@ window.EI = window.EI || {};
     race.players.forEach((car, k) => { if (k === 0 && EI.debug.freeCam) { const f = EI.debug.freeCam; cameras[0].position.set(f.pos[0], f.pos[1], f.pos[2]); cameras[0].lookAt(f.look[0], f.look[1], f.look[2]); cameras[0].fov = f.fov || 50; cameras[0].updateProjectionMatrix(); } else placeCamera(cameras[k], car, k, false, dt); if (k === hudK) { viewports[k].update(race, 0.05); updateTags(k, cameras[k], viewports[k]); drawWheelScreen(car, race.deltaBest(car)); } if (engines[k]) { const idleBlip = !race.started ? (Math.sin(performance.now() * 0.004 + k) > 0.6 ? 0.5 : 0.08) : 0; EI.Audio.setEngine(engines[k], race.started ? car.rpm : 0.15 + idleBlip * 0.8, race.started ? car.throttle : idleBlip, paused ? 0 : (CAM_MODES[camModes[k]] === 'cockpit' ? 1.3 : 1), car.gear); } });
     if (hudDue) hudT = 0;
     for (const vp of viewports) if (vp.keyChip) { const on = !race.started || race.time < 4; if (on !== vp.keyChipOn) { vp.keyChipOn = on; vp.keyChip.classList.toggle('show', on); } }
-    if (race.over && !resultsShown && race.classified) { resultsShown = true; EI.HUD.showResults(race); if (race.players.length > 1) markResultPlayers(); }
+    if (race.over && !resultsShown && race.classified) { resultsShown = true; EI.HUD.showResults(race); if (race.players.length > 1) markResultPlayers(); if (EI.Replay) EI.Replay.onResults(race); }
     const split = cameras.length > 1;
     if (!split) {
       if (splitShadow) { renderer.shadowMap.autoUpdate = splitShadow.auto; splitShadow = null; }
@@ -771,6 +787,36 @@ window.EI = window.EI || {};
     SHC.movers = [];
     scene.traverse((o) => { if (o.castShadow && (o.userData.shadowMover || (o.isInstancedMesh && /^pit-/.test(o.name || '') && o.instanceMatrix.usage === THREE.DynamicDrawUsage))) { const box = new THREE.Box3(); if (o.parent && o.parent !== scene) box.setFromObject(o.parent); if (box.isEmpty()) box.set(new THREE.Vector3(-1e5, -1e5, -1e5), new THREE.Vector3(1e5, 1e5, 1e5)); box.expandByScalar(90); SHC.movers.push({ o, box }); } });
   }
+
+  // ------------------------------------------------------------------ post-race highlights (js/replay.js)
+  // The reel takes over the screen with one full-screen camera (one and two players); the race is frozen meanwhile (no physics
+  // steps) and replay.js poses the cars through car.updateVisual. Scenery / shadows / sky follow the camera and the action.
+  let hlCams = null;
+  function hlEnter(cam) {
+    if (hlCams) return; hlCams = cameras; cameras = [cam]; fitFarPlane();
+    if (race && race.players.length > 1) applySplitTier(false);
+    if (splitShadow) { renderer.shadowMap.autoUpdate = splitShadow.auto; splitShadow = null; }
+    onResize(); invalidateShadowCache();
+  }
+  function hlExit() {
+    if (!hlCams) return; cameras = hlCams; hlCams = null;
+    if (race && race.players.length > 1) applySplitTier(true);
+    for (const e of engines) EI.Audio.setEngine(e, 0.15, 0, 0, 0);
+    onResize(); invalidateShadowCache(); lastT = performance.now(); acc = 0;
+    if (race) race.players.forEach((car, k) => placeCamera(cameras[k], car, k, true, 0));
+  }
+  function hlFrame(dt, gl2) {
+    const H = EI.Replay; H.update(dt); if (!H.playing) return;   // the reel ended this frame: the results card is back
+    const cam = cameras[0], f = H.focus, cp = cam.position;
+    updateCarLod(); particles.update(dt);
+    if (scenery.setEye) { scenery.update(dt, cp.x, cp.z, f.x, f.z); scenery.setEye(cp.x, cp.z); } else scenery.update(dt, f.x, f.z);
+    if (skyMesh) skyMesh.position.set(cp.x, 0, cp.z);
+    sunFollow(f.x, f.z); tunnelLight(0, H.eye, dt);
+    const A = H.audio; engines.forEach((e, k) => EI.Audio.setEngine(e, A.rpm, A.thr, k === 0 ? A.vol : 0, A.gear));
+    renderer.setScissorTest(false); renderer.setViewport(0, 0, window.innerWidth, window.innerHeight);
+    renderView(cam, true, null); pipeResolve(); pushFence(gl2);
+  }
+  if (EI.Replay && EI.Replay.bind) EI.Replay.bind({ enter: hlEnter, exit: hlExit, get scenery() { return scenery; } });
 
   // two players: P1 / P2 chips in the colours of their HUDs on the classification rows
   function markResultPlayers() {

@@ -5,38 +5,81 @@
 // to LIVERY_PNGS below (only listed ids are requested, so missing sheets never log 404s).
 window.EI = window.EI || {};
 (function () {
+  // ---- the 2026 grid: 11 entries in constructors' championship order (after round 17, Singapore). Identity, colours and kit
+  // live here; js/liveries.js holds each team's livery design. Driver names / numbers / codes are refreshed from EI.SEASON
+  // (js/data/season2026.js) when it is loaded. helmet = the driver's main helmet colour (the model's helmet is one colour).
+  // primary = the team's broadcast colour (HUD, timing tower, pit boards, fans); the car's real paint is in js/liveries.js.
+  const D = (name, num, code, helmet) => ({ name, num, code, helmet });
   const TEAMS = [
-    { id: 'rossa',   name: 'Scuderia Rossa',     short: 'ROS', primary: '#d8141a', secondary: '#1b1b1b', accent: '#ffffff', numberColor: '#ffffff', skill: 0.98, drivers: [{ name: 'L. Moretti', num: 16 }, { name: 'K. Hale', num: 44 }] },
-    { id: 'argent',  name: 'Argent Arrows',      short: 'ARG', primary: '#0f0f12', secondary: '#c6c9cf', accent: '#00d2be', numberColor: '#ffffff', skill: 0.97, drivers: [{ name: 'G. Rossi', num: 63 }, { name: 'A. Nilsen', num: 12 }] },
-    { id: 'taurus',  name: 'Taurus Energy',      short: 'TAU', primary: '#1e2a6b', secondary: '#c8102e', accent: '#ffc906', numberColor: '#ffffff', skill: 0.99, drivers: [{ name: 'M. Verhoeven', num: 1 }, { name: 'Y. Tsukada', num: 22 }] },
-    { id: 'papaya',  name: 'Papaya Racing',      short: 'PAP', primary: '#f26d00', secondary: '#101010', accent: '#47c7fc', numberColor: '#101010', skill: 0.99, drivers: [{ name: 'L. Norrington', num: 4 }, { name: 'O. Piastro', num: 81 }] },
-    { id: 'verdant', name: 'Verdant Aramco',     short: 'VER', primary: '#00594f', secondary: '#cedc00', accent: '#ffffff', numberColor: '#cedc00', skill: 0.94, drivers: [{ name: 'F. Alonzo', num: 14 }, { name: 'L. Strode', num: 18 }] },
-    { id: 'alpenne', name: 'Alpenne',            short: 'ALP', primary: '#0b1d4f', secondary: '#ff4fa3', accent: '#2a8af6', numberColor: '#ffffff', skill: 0.93, drivers: [{ name: 'P. Gasly', num: 10 }, { name: 'F. Colapinto', num: 43 }] },
-    { id: 'intake',  name: 'Intake Racing',      short: 'INT', primary: '#5bbcff', secondary: '#2b211c', accent: '#fff8ec', numberColor: '#2b211c', skill: 0.94, drivers: [{ name: 'A. Albon', num: 23 }, { name: 'C. Sainz', num: 55 }] },
-    { id: 'lumi',    name: 'Lumi Racing',        short: 'LUM', primary: '#fffaf2', secondary: '#5e3a5f', accent: '#7fcf9b', numberColor: '#5e3a5f', skill: 0.92, drivers: [{ name: 'E. Ocon', num: 31 }, { name: 'O. Bearman', num: 87 }] },
-    { id: 'kinetik', name: 'Kinetik Sauber',     short: 'KIN', primary: '#0e0e0e', secondary: '#00e701', accent: '#ffffff', numberColor: '#00e701', skill: 0.91, drivers: [{ name: 'N. Hulk', num: 27 }, { name: 'G. Bortoleto', num: 5 }] },
-    { id: 'vector',  name: 'Vector RB',          short: 'VRB', primary: '#f5f5f7', secondary: '#1434cb', accent: '#c8102e', numberColor: '#1434cb', skill: 0.93, drivers: [{ name: 'I. Hadjar', num: 6 }, { name: 'L. Lawson', num: 30 }] },
+    { id: 'mercedes', name: 'Mercedes-AMG Petronas F1 Team', brand: 'Mercedes', short: 'MER', primary: '#27f4d2', secondary: '#0e0e10', accent: '#00a19c', numberColor: '#0e0e10', skill: 0.99,
+      drivers: [D('Andrea Kimi Antonelli', 12, 'ANT', '#e9edf2'), D('George Russell', 63, 'RUS', '#1f4fb8')] },
+    { id: 'ferrari', name: 'Scuderia Ferrari HP', brand: 'Ferrari', short: 'FER', primary: '#e8002d', secondary: '#ffffff', accent: '#16171a', numberColor: '#ffffff', skill: 0.984,
+      drivers: [D('Charles Leclerc', 16, 'LEC', '#f2f2f2'), D('Lewis Hamilton', 44, 'HAM', '#ffd400')] },
+    { id: 'mclaren', name: 'McLaren Mastercard F1 Team', brand: 'McLaren', short: 'MCL', primary: '#ff8000', secondary: '#2b2d31', accent: '#47c7fc', numberColor: '#2b2d31', skill: 0.983,
+      drivers: [D('Lando Norris', 1, 'NOR', '#d7ff1e'), D('Oscar Piastri', 81, 'PIA', '#f4f6fa')] },
+    { id: 'redbull', name: 'Oracle Red Bull Racing', brand: 'Red Bull Racing', short: 'RBR', primary: '#3671c6', secondary: '#0b0c12', accent: '#db0a40', numberColor: '#ffffff', skill: 0.988,
+      drivers: [D('Max Verstappen', 3, 'VER', '#16245c'), D('Isack Hadjar', 6, 'HAD', '#f2f2f2')] },
+    { id: 'racingbulls', name: 'Visa Cash App Racing Bulls F1 Team', brand: 'Racing Bulls', short: 'VRB', primary: '#6692ff', secondary: '#1634cc', accent: '#e10600', numberColor: '#1634cc', skill: 0.964,
+      drivers: [D('Liam Lawson', 30, 'LAW', '#121212'), D('Arvid Lindblad', 41, 'LIN', '#ff7a1a')] },
+    { id: 'alpine', name: 'BWT Alpine F1 Team', brand: 'Alpine', short: 'ALP', primary: '#0093cc', secondary: '#ff87bc', accent: '#0b1630', numberColor: '#ffffff', skill: 0.965,
+      drivers: [D('Pierre Gasly', 10, 'GAS', '#0b1d4f'), D('Franco Colapinto', 43, 'COL', '#79c2ff')] },
+    { id: 'haas', name: 'TGR Haas F1 Team', brand: 'Haas', short: 'HAA', primary: '#b6babd', secondary: '#16181c', accent: '#e6002b', numberColor: '#16181c', skill: 0.949,
+      drivers: [D('Esteban Ocon', 31, 'OCO', '#ff5aa5'), D('Oliver Bearman', 87, 'BEA', '#e6002b')] },
+    { id: 'audi', name: 'Audi Revolut F1 Team', brand: 'Audi', short: 'AUD', primary: '#f03c14', secondary: '#151515', accent: '#f50537', numberColor: '#151515', skill: 0.959,
+      drivers: [D('Nico Hülkenberg', 27, 'HUL', '#ffd200'), D('Gabriel Bortoleto', 5, 'BOR', '#13a24b')] },
+    { id: 'williams', name: 'Atlassian Williams F1 Team', brand: 'Williams', short: 'WIL', primary: '#64c4ff', secondary: '#0a1433', accent: '#e4002b', numberColor: '#ffffff', skill: 0.942,
+      drivers: [D('Alexander Albon', 23, 'ALB', '#0aa4e6'), D('Carlos Sainz', 55, 'SAI', '#d1001c')] },
+    { id: 'astonmartin', name: 'Aston Martin Aramco F1 Team', brand: 'Aston Martin', short: 'AMR', primary: '#229971', secondary: '#cedc00', accent: '#6cc4e8', numberColor: '#ffffff', skill: 0.924,
+      drivers: [D('Fernando Alonso', 14, 'ALO', '#1d3fa8'), D('Lance Stroll', 18, 'STR', '#f2f2f2')] },
+    { id: 'cadillac', name: 'Cadillac Formula 1 Team', brand: 'Cadillac', short: 'CAD', primary: '#c9ccd1', secondary: '#0b0b0b', accent: '#b8975a', numberColor: '#0b0b0b', skill: 0.91,
+      drivers: [D('Sergio Pérez', 11, 'PER', '#0f7a3c'), D('Valtteri Bottas', 77, 'BOT', '#1e5bc6')] },
   ];
-  // car sponsors: the race partners (Lumi on the even grid slots, Intake on the odd ones). Title sponsor first (engine cover,
-  // rear wing), then sidepod / nose / chassis partners. n = name, fg/bg = text / optional box colour, w = weight, ff = font family
+  // the player-only works teams (they take over a real entry for the race, see race.js): their own brand liveries
+  const OWN_TEAMS = [
+    { id: 'lumi', name: 'Lumi Racing', brand: 'Lumi Racing', short: 'LUM', primary: '#fffaf2', secondary: '#5e3a5f', accent: '#7fcf9b', numberColor: '#5e3a5f', skill: 0.95, own: true, drivers: [] },
+    { id: 'intake', name: 'Intake Racing', brand: 'Intake Racing', short: 'INT', primary: '#5bbcff', secondary: '#2b211c', accent: '#fff8ec', numberColor: '#2b211c', skill: 0.95, own: true, drivers: [] },
+  ];
+  // refresh names / numbers / codes from the season data (mid-season seat changes land there)
+  const S = EI.SEASON;
+  if (S && Array.isArray(S.teams)) {
+    const byCode = {}; (S.drivers || []).concat(S.reserves || []).forEach(d => { if (d && d.code) byCode[d.code] = d; });
+    TEAMS.forEach(t => {
+      const st = S.teams.find(x => x && x.id === t.id); if (!st) return;
+      if (st.full) t.name = st.full; if (st.name) t.brand = st.name;
+      const list = (st.drivers || []).map(d => (typeof d === 'string' ? byCode[d] : d)).filter(Boolean);
+      list.slice(0, 2).forEach((d, j) => {
+        const cur = t.drivers[j] || (t.drivers[j] = { helmet: t.accent }); const code = d.code || cur.code;
+        const old = t.drivers.find(x => x.code === code); if (old && old !== cur) { const h = old.helmet; old.helmet = cur.helmet; cur.helmet = h; }
+        cur.code = code; cur.name = d.name || ((d.first ? d.first + ' ' : '') + (d.last || '')) || cur.name; cur.num = +(d.number || d.num || cur.num);
+      });
+    });
+    const order = S.constructorsOrder || (S.standings && S.standings.constructors && S.standings.constructors.map(c => c[0]));
+    if (Array.isArray(order)) TEAMS.sort((a, b) => (order.indexOf(a.id) + 1 || 99) - (order.indexOf(b.id) + 1 || 99));
+  }
+  // car sponsors: the real teams carry their own partners (drawn by js/liveries.js); the works teams their own brand
   const lumOf = (hex) => { const c = parseInt(hex.slice(1), 16); return (0.2126 * (c >> 16) + 0.7152 * ((c >> 8) & 255) + 0.0722 * (c & 255)) / 255; };
-  TEAMS.forEach((t, k) => { t.sponsors = EI.Ads ? EI.Ads.sponsorsFor(k, lumOf(t.primary) > 0.55, t.id) : [{ n: 'EQUATION', fg: '#ffffff' }]; });
+  TEAMS.forEach((t) => { t.sponsors = []; });
+  OWN_TEAMS.forEach((t, k) => { t.sponsors = EI.Ads ? EI.Ads.sponsorsFor(k, lumOf(t.primary) > 0.55, t.id) : [{ n: 'EQUATION', fg: '#ffffff' }]; });
   // driver kit seen from the cockpit: race suit, suit underside panel, gloves and glove accent (padding / strap).
   // Gloves stay dark with team accents so the hands never read as bright blobs on the wheel.
   const KIT = {
-    rossa:   { suit: '#c8141a', suitPanel: '#1b1b1b', glove: '#17171a', gloveAccent: '#d8141a' },
-    argent:  { suit: '#141418', suitPanel: '#2a2c31', glove: '#16171a', gloveAccent: '#00d2be' },
-    taurus:  { suit: '#1e2a6b', suitPanel: '#141a40', glove: '#141a3a', gloveAccent: '#c8102e' },
-    papaya:  { suit: '#ef6a00', suitPanel: '#101010', glove: '#141414', gloveAccent: '#f26d00' },
-    verdant: { suit: '#00594f', suitPanel: '#0f2b27', glove: '#0f1d1b', gloveAccent: '#cedc00' },
-    alpenne: { suit: '#0b1d4f', suitPanel: '#ff4fa3', glove: '#0d1530', gloveAccent: '#ff4fa3' },
-    intake:  { suit: '#5bbcff', suitPanel: '#2b211c', glove: '#1a1512', gloveAccent: '#5bbcff' },
-    lumi:    { suit: '#fffaf2', suitPanel: '#5e3a5f', glove: '#2d1a3b', gloveAccent: '#7fcf9b' },
-    kinetik: { suit: '#101010', suitPanel: '#1c1c1c', glove: '#121212', gloveAccent: '#00e701' },
-    vector:  { suit: '#f2f2f4', suitPanel: '#1434cb', glove: '#14183a', gloveAccent: '#1434cb' },
+    mercedes:    { suit: '#141418', suitPanel: '#c5c9ce', glove: '#121316', gloveAccent: '#00a19c' },
+    ferrari:     { suit: '#d40d17', suitPanel: '#f2f2f2', glove: '#17171a', gloveAccent: '#e10a17' },
+    mclaren:     { suit: '#ff7a00', suitPanel: '#2b2d31', glove: '#1a1b1e', gloveAccent: '#ff8000' },
+    redbull:     { suit: '#1c2a5a', suitPanel: '#0f1630', glove: '#121a3a', gloveAccent: '#db0a40' },
+    racingbulls: { suit: '#f2f4f8', suitPanel: '#1634cc', glove: '#14183a', gloveAccent: '#1634cc' },
+    alpine:      { suit: '#0a5fbd', suitPanel: '#ff87bc', glove: '#0d1530', gloveAccent: '#ff87bc' },
+    haas:        { suit: '#f4f4f4', suitPanel: '#16181c', glove: '#141414', gloveAccent: '#e6002b' },
+    audi:        { suit: '#1a1a1a', suitPanel: '#c8ced4', glove: '#121212', gloveAccent: '#f50537' },
+    williams:    { suit: '#1452c8', suitPanel: '#0a1433', glove: '#0c1430', gloveAccent: '#00aeef' },
+    astonmartin: { suit: '#00594f', suitPanel: '#0f2b27', glove: '#0f1d1b', gloveAccent: '#cedc00' },
+    cadillac:    { suit: '#121212', suitPanel: '#f2f2f2', glove: '#111111', gloveAccent: '#b8975a' },
+    lumi:        { suit: '#fffaf2', suitPanel: '#5e3a5f', glove: '#2d1a3b', gloveAccent: '#7fcf9b' },
+    intake:      { suit: '#5bbcff', suitPanel: '#2b211c', glove: '#1a1512', gloveAccent: '#5bbcff' },
   };
-  TEAMS.forEach((t) => Object.assign(t, KIT[t.id] || {}));
+  TEAMS.concat(OWN_TEAMS).forEach((t) => Object.assign(t, KIT[t.id] || {}));
   TEAMS.forEach((t, i) => { t.index = i; });
+  OWN_TEAMS.forEach((t, i) => { t.index = TEAMS.length + i; });
 
   // ---- livery painter -----------------------------------------------------------------------------
   // Canvas layout (1024 x 1024):
@@ -46,12 +89,30 @@ window.EI = window.EI || {};
   const CACHE = {};
   const LIVERY_PNGS = [];   // team ids that ship an assets/liveries/<id>.png decal sheet
   function paintLivery(team, driverNum, playerName, driver) {
-    const key = team.id + ':' + driverNum + ':' + (playerName || '');
-    const code = (playerName || (driver && driver.name) || team.short).replace(/^[A-Z]\. ?/, '').slice(0, 3).toUpperCase();
+    const code = carCode(driver, playerName, team);
+    const key = team.id + ':' + driverNum + ':' + code;
     if (CACHE[key]) return CACHE[key];
     const c = document.createElement('canvas'); c.width = 1024; c.height = 1024;
     const ctx = c.getContext('2d');
     const P = team.primary, S = team.secondary, A = team.accent;
+    // the 2026 teams: the same design functions as the GLB livery (js/liveries.js), drawn into this sheet's top / side views
+    if (EI.LIVERIES && EI.LIVERIES.has(team.id) && EI.CarGLB && EI.CarGLB.sideKit) {
+      const parts = EI.LIVERIES.partColours(team);
+      ctx.fillStyle = parts.body; ctx.fillRect(0, 0, 1024, 1024);
+      // top view (mm, X = z, Y = -x) -> u = 512 + 0.16 Y (nose left), v = 256 - 0.2327 X
+      ctx.save(); ctx.beginPath(); ctx.rect(0, 0, 1024, 512); ctx.clip(); ctx.setTransform(0, -0.2327, 0.16, 0, 512, 256);
+      const at = (x, z, fn, rot) => { ctx.save(); ctx.translate(z * 1000, -x * 1000); if (rot) ctx.rotate(rot); fn(); ctx.restore(); };
+      const rect = (x0, x1, z0, z1, col) => { ctx.fillStyle = col; ctx.fillRect(z0 * 1000, -x1 * 1000, (z1 - z0) * 1000, (x1 - x0) * 1000); };
+      const poly = (pts, col) => { ctx.beginPath(); pts.forEach(([x, z], i) => (i ? ctx.lineTo(z * 1000, -x * 1000) : ctx.moveTo(z * 1000, -x * 1000))); ctx.closePath(); ctx.fillStyle = col; ctx.fill(); };
+      EI.LIVERIES.top(ctx, { at, rect, poly }, team, driverNum); ctx.restore();
+      // side views (mm, X = -x, Y = -y): u = 512 + 0.16 X (nose left), v = y0 + 235.5 + 0.2048 Y (y 1.15 .. -0.1 m)
+      for (let k = 0; k < 2; k++) {
+        const y0 = 512 + k * 256; ctx.save(); ctx.beginPath(); ctx.rect(0, y0, 1024, 256); ctx.clip(); ctx.setTransform(0.16, 0, 0, 0.2048, 512, y0 + 235.5);
+        EI.LIVERIES.side(ctx, EI.CarGLB.sideKit(ctx, -1), team, driverNum, code); ctx.restore();
+      }
+      const tex = new THREE.CanvasTexture(c); tex.anisotropy = 8; tex.flipY = false; tex.encoding = THREE.sRGBEncoding;
+      return (CACHE[key] = tex);
+    }
 
     // base
     ctx.fillStyle = P; ctx.fillRect(0, 0, 1024, 1024);
@@ -80,28 +141,6 @@ window.EI = window.EI || {};
 
     // ---- team-specific pattern on the top view ----
     switch (team.id) {
-      case 'rossa':
-        band(0, 512, P); band(200, 312, S, 420, 1024, 0); band(0, 40, S, 0, 1024); band(472, 512, S, 0, 1024);
-        band(220, 292, A, 0, 300, 0);
-        break;
-      case 'argent':
-        band(0, 512, P); band(130, 190, S, 0, 1024, 0); band(320, 380, S, 0, 1024, 0); band(236, 276, A, 0, 1024, 0);
-        band(0, 512, S, 760, 1024, 0); band(0, 512, A, 980, 1024, 0);
-        break;
-      case 'taurus':
-        band(0, 512, P); band(60, 150, S, 0, 1024, 60); band(360, 450, S, 0, 1024, -60);
-        band(230, 282, A, 0, 1024, 0); band(0, 512, S, 0, 120, 0);
-        break;
-      case 'papaya':
-        band(0, 512, P); band(0, 512, S, 820, 1024, 0); band(0, 512, S, 0, 90, 0);
-        band(60, 120, A, 200, 820, 20); band(392, 452, A, 200, 820, -20);
-        break;
-      case 'verdant':
-        band(0, 512, P); band(180, 332, S, 0, 160, 0); band(0, 512, S, 900, 1024, 0); band(236, 276, S, 160, 900, 0);
-        break;
-      case 'alpenne':
-        band(0, 512, P); band(0, 512, S, 0, 1024); band(0, 512, P, 140, 1024, 0); band(0, 512, A, 700, 1024, 0); band(0, 512, P, 860, 1024, 0);
-        break;
       case 'intake':   // sky-blue car, cocoa engine cover on dotted paper, cream edge stripe
         band(0, 512, P); band(0, 512, S, 560, 1024, 0); band(0, 512, A, 548, 560, 0);
         ctx.fillStyle = 'rgba(255,248,236,0.16)'; for (let x = 572; x < 1024; x += 14) for (let y = 7; y < 512; y += 14) { ctx.beginPath(); ctx.arc(x, y, 1.8, 0, 7); ctx.fill(); }
@@ -110,12 +149,6 @@ window.EI = window.EI || {};
       case 'lumi':     // cream car, plum rear, the mark's lilac and green as pinstripes
         band(0, 512, P); band(0, 512, S, 600, 1024, 0); band(0, 512, '#e6c8ff', 584, 596, 0); band(0, 512, A, 570, 578, 0);
         if (EI.Ads) EI.Ads.lumiMark(ctx, 700, 196, 120, null, true);
-        break;
-      case 'kinetik':
-        band(0, 512, P); band(0, 512, S, 0, 130, 0); band(0, 512, S, 540, 700, 0); band(0, 512, S, 930, 1024, 0);
-        break;
-      case 'vector':
-        band(0, 512, P); band(0, 512, S, 0, 200, 0); band(0, 512, S, 900, 1024, 0); band(236, 276, A, 200, 900, 0);
         break;
       default:
         band(0, 512, P); band(0, 512, S, 0, 180, 0);
@@ -163,9 +196,17 @@ window.EI = window.EI || {};
     return tex;
   }
 
-  // small preview for the menu (top view)
-  function drawPreview(canvas, team, num, name) {
-    const tex = paintLivery(team, num, name);
+  // the 3-letter code painted on the car: the driver's code, or the player's own name when they typed one
+  function carCode(driver, playerName, team) {
+    const nm = playerName && !/^(YOU|P\d|PLAYER ?\d?)$/i.test(playerName.trim()) && !(driver && playerName === driver.name) ? playerName : null;
+    if (!nm && driver && driver.code) return driver.code;
+    return (nm || (driver && driver.name) || team.short).replace(/^[A-Z]\. ?/, '').replace(/[^A-Za-z]/g, '').slice(0, 3).toUpperCase();
+  }
+  // small preview for the menu: side view of the car (nose left) in the team livery, with wheels and wings
+  function drawPreview(canvas, team, num, name, driver) {
+    driver = driver || (team.drivers || []).find(d => d.num === num) || null;
+    if (EI.LIVERIES && EI.LIVERIES.has(team.id) && EI.CarGLB && EI.CarGLB.sideKit) return drawSidePreview(canvas, team, num, name, driver);
+    const tex = paintLivery(team, num, name, driver);
     const ctx = canvas.getContext('2d');
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     ctx.fillStyle = '#0e1016'; ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -184,7 +225,40 @@ window.EI = window.EI || {};
     ctx.fillStyle = team.secondary; ctx.fillRect(w * 0.02, h * 0.1, w * 0.05, h * 0.8); ctx.fillRect(w * 0.93, h * 0.14, w * 0.05, h * 0.72);
   }
 
+  function drawSidePreview(canvas, team, num, name, driver) {
+    const tex = paintLivery(team, num, name, driver); const parts = EI.LIVERIES.partColours(team);
+    const ctx = canvas.getContext('2d'), w = canvas.width, h = canvas.height;
+    ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.clearRect(0, 0, w, h); ctx.fillStyle = '#0e1016'; ctx.fillRect(0, 0, w, h);
+    const ppm = Math.min(w / 6.1, h / 1.55), X = (x) => w / 2 - (x - 0.3) * ppm, Y = (y) => h * 0.86 - y * ppm;
+    const shape = (pts) => { ctx.beginPath(); pts.forEach(([x, y], i) => (i ? ctx.lineTo(X(x), Y(y)) : ctx.moveTo(X(x), Y(y)))); ctx.closePath(); };
+    // floor shadow + carbon floor
+    ctx.fillStyle = 'rgba(0,0,0,0.5)'; ctx.beginPath(); ctx.ellipse(X(0.2), Y(0.0), 2.9 * ppm, 0.06 * ppm, 0, 0, 7); ctx.fill();
+    ctx.fillStyle = '#1b1c20'; shape([[2.2, 0.06], [-1.95, 0.06], [-1.95, 0.12], [2.2, 0.12]]); ctx.fill();
+    // bodywork silhouette, filled with the side view of the livery sheet (u = 512 - 160 x, v = 747.5 - 204.8 y)
+    const BODY = [[3.06, 0.17], [2.9, 0.27], [2.4, 0.4], [1.7, 0.53], [1.15, 0.64], [1.0, 0.72], [0.55, 0.74], [0.3, 0.8], [0.12, 0.98], [-0.08, 1.04], [-0.42, 0.98], [-0.9, 0.84], [-1.4, 0.68], [-1.82, 0.52], [-1.9, 0.3], [-1.85, 0.12], [-0.9, 0.12], [0.9, 0.14], [2.0, 0.15], [2.6, 0.13]];
+    ctx.save(); shape(BODY); ctx.clip();
+    ctx.drawImage(tex.image, 512 - 160 * 3.2, 747.5 - 204.8 * 1.15, 160 * 5.9, 204.8 * 1.3, X(3.2), Y(1.15), 5.9 * ppm, 1.3 * ppm);
+    const sh = ctx.createLinearGradient(0, Y(1.05), 0, Y(0.1)); sh.addColorStop(0, 'rgba(255,255,255,0.18)'); sh.addColorStop(0.45, 'rgba(255,255,255,0)'); sh.addColorStop(1, 'rgba(0,0,0,0.25)'); ctx.fillStyle = sh; ctx.fillRect(0, 0, w, h);
+    ctx.restore();
+    // halo + helmet
+    ctx.strokeStyle = parts.halo || '#1e1f22'; ctx.lineWidth = 0.045 * ppm; ctx.lineCap = 'round'; ctx.beginPath(); ctx.moveTo(X(1.12), Y(0.7)); ctx.quadraticCurveTo(X(0.95), Y(0.9), X(0.55), Y(0.9)); ctx.lineTo(X(0.2), Y(0.86)); ctx.stroke();
+    ctx.fillStyle = (driver && driver.helmet) || team.accent; ctx.beginPath(); ctx.ellipse(X(0.62), Y(0.8), 0.13 * ppm, 0.11 * ppm, 0, 0, 7); ctx.fill();
+    // wings: front-wing endplate / flaps, rear-wing endplate / main plane
+    ctx.fillStyle = parts.fwEnd; shape([[3.0, 0.05], [2.45, 0.05], [2.45, 0.3], [2.75, 0.3], [3.0, 0.16]]); ctx.fill();
+    ctx.fillStyle = parts.fwFlap; shape([[2.95, 0.2], [2.5, 0.27], [2.5, 0.31], [2.9, 0.25]]); ctx.fill();
+    ctx.fillStyle = parts.rwEnd; shape([[-1.9, 0.42], [-2.36, 0.42], [-2.36, 1.0], [-1.95, 1.0]]); ctx.fill();
+    ctx.fillStyle = parts.rwMain; shape([[-1.92, 0.88], [-2.34, 0.92], [-2.34, 1.0], [-1.94, 0.97]]); ctx.fill();
+    // wheels
+    for (const x of [1.75, -1.85]) { ctx.fillStyle = '#0b0b0c'; ctx.beginPath(); ctx.arc(X(x), Y(0.36), 0.36 * ppm, 0, 7); ctx.fill(); ctx.strokeStyle = '#ffd200'; ctx.lineWidth = 0.03 * ppm; ctx.beginPath(); ctx.arc(X(x), Y(0.36), 0.3 * ppm, 0, 7); ctx.stroke(); ctx.fillStyle = '#2a2c31'; ctx.beginPath(); ctx.arc(X(x), Y(0.36), 0.2 * ppm, 0, 7); ctx.fill(); }
+    // team + driver caption
+    ctx.fillStyle = '#ffffff'; ctx.font = '700 ' + Math.round(h * 0.11) + 'px "Titillium Web", Arial, sans-serif'; ctx.textAlign = 'left'; ctx.textBaseline = 'top';
+    ctx.fillText(team.brand || team.name, w * 0.03, h * 0.04); ctx.fillStyle = 'rgba(255,255,255,0.7)'; ctx.font = '600 ' + Math.round(h * 0.09) + 'px "Titillium Web", Arial, sans-serif';
+    if (driver) ctx.fillText('#' + num + '  ' + driver.name, w * 0.03, h * 0.17);
+  }
+  EI.carCode = carCode;
   EI.TEAMS = TEAMS;
+  EI.OWN_TEAMS = OWN_TEAMS;
+  EI.TEAM_BY_ID = {}; TEAMS.concat(OWN_TEAMS).forEach(t => { EI.TEAM_BY_ID[t.id] = t; });
   EI.paintLivery = paintLivery;
   EI.drawLiveryPreview = drawPreview;
   EI.TYRES = {

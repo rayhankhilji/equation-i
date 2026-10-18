@@ -4,7 +4,8 @@ window.EI = window.EI || {};
   const U = EI.U; const $ = (id) => document.getElementById(id);
   const TYRE_LETTER = { soft: 'S', medium: 'M', hard: 'H' };
   const fmt = (t) => U.fmtTime(t);
-  const shortName = (o) => o.isPlayer ? o.name : o.driver.name.split(' ').pop().toUpperCase();
+  // tower: the player's name, a bot's 3-letter code (VER, NOR...)
+  const shortName = (o) => o.isPlayer ? o.name : (o.driver.code || o.driver.name.split(' ').pop().slice(0, 3)).toUpperCase();
   // add a class for one animation cycle, re-triggering if it is already running
   function flash(el, cls, ms) { el.classList.remove(cls); void el.offsetWidth; el.classList.add(cls); clearTimeout(el['_t_' + cls]); el['_t_' + cls] = setTimeout(() => el.classList.remove(cls), ms || 900); }
   function setText(el, s) { if (el._v !== s) { el._v = s; el.textContent = s; } }
@@ -210,10 +211,10 @@ window.EI = window.EI || {};
     for (const r of live) if (r.split && r.el.isConnected) { r.el.classList.toggle('lights-on', n >= 0); r.el.querySelectorAll('.sp-lights .light-col').forEach((c, i) => c.classList.toggle('on', i < n)); }
   }
   const splitLive = () => live.filter(r => r.split && r.el.isConnected);
-  function banner(text, ms, color) {
+  function banner(text, ms, color, sub) {
     const b = $('banner'); const parts = String(text).split(' · ');
     const kicker = parts.length > 1 ? parts.slice(0, -1).join(' · ') : ''; const main = parts[parts.length - 1];
-    b.innerHTML = (kicker ? '<div class="bn-kicker">' + kicker + '</div>' : '') + '<div class="bn-text" style="color:' + (color || '#fff') + '">' + main + '</div>';
+    b.innerHTML = (kicker ? '<div class="bn-kicker">' + kicker + '</div>' : '') + '<div class="bn-text" style="color:' + (color || '#fff') + '">' + main + '</div>' + (sub ? '<div class="bn-kicker" style="margin:8px 0 0;letter-spacing:3px">' + sub + '</div>' : '');
     b.classList.remove('hidden'); clearTimeout(banner._t); if (ms) banner._t = setTimeout(() => b.classList.add('hidden'), ms);
     // split screen: the same banner centred in each view
     for (const r of splitLive()) { r.bannerEl.innerHTML = b.innerHTML; r.bannerEl.classList.remove('show'); void r.bannerEl.offsetWidth; r.bannerEl.classList.add('show'); }
@@ -249,7 +250,7 @@ window.EI = window.EI || {};
       html += '<tr class="' + (c.isPlayer ? 'player' : '') + (dnf ? ' dnf' : '') + '"><td class="pos">' + r.pos + '</td><td class="drv"><span class="c" style="background:' + c.team.primary + '"></span>' + c.name + (c.penalty ? ' <span class="pen">+' + c.penalty + 's</span>' : '') + (ai ? '<span class="arch-tag arch-' + ai.archetype.id + '">' + ai.archetype.name + '</span>' : '') + '</td><td class="team">' + c.team.name + '</td><td><span class="ty ' + c.tyreKey + '">' + (TYRE_LETTER[c.tyreKey] || '?') + '</span></td><td class="num">' + gap + '</td><td class="num' + (isFl ? ' fl' : '') + '">' + U.fmtTime(c.bestLap, '—') + '</td></tr>';
     });
     tb.innerHTML = html; const w = res[0].car;
-    $('results-sub').textContent = w.name + ' wins the ' + race.track.name + ' Grand Prix' + (race.fastest.car ? ' · Fastest lap ' + race.fastest.car.name + ' ' + U.fmtTime(race.fastest.time) : '');
+    $('results-sub').textContent = w.name + ' wins the ' + race.track.name + ' Grand Prix' + (race.fastest.car ? ' · Fastest lap ' + race.fastest.car.name + ' ' + U.fmtTime(race.fastest.time) : '') + (race.gridInfo ? ' · Grid: ' + race.gridInfo.label : '');
     $('results').classList.remove('hidden');
   }
   function drawTrackPreview(track, canvas) {

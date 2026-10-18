@@ -71,7 +71,7 @@
           <h2>Race settings</h2>
           <div class="settings">
             <label class="field wide"><span class="fl">Laps</span><input type="range" id="opt-laps" min="1" max="15" value="3"><output id="out-laps">3</output></label>
-            <label class="field wide"><span class="fl">Bots</span><input type="range" id="opt-bots" min="0" max="19" value="9"><output id="out-bots">9</output></label>
+            <label class="field wide"><span class="fl">Bots</span><input type="range" id="opt-bots" min="0" max="21" value="9"><output id="out-bots">9</output></label>
             <label class="field"><span class="fl">Bot skill</span>
               <select id="opt-diff">
                 <option value="veryeasy">Very easy</option>
@@ -85,7 +85,8 @@
             </label>
             <label class="field"><span class="fl">Grid</span>
               <select id="opt-grid">
-                <option value="quali" selected>Qualifying order</option>
+                <option value="season" selected>2026 grid (a real race)</option>
+                <option value="quali">Qualifying order</option>
                 <option value="front">Players at the front</option>
                 <option value="back">Players at the back</option>
                 <option value="random">Random</option>
@@ -142,6 +143,7 @@
             <div class="ps-head"><div class="ps-title">Player 1</div><div class="keys"><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> &middot; <kbd>L.Shift</kbd>DRS &middot; <kbd>Space</kbd>ERS &middot; <kbd>C</kbd>camera</div></div>
             <label class="field name"><span class="fl">Name</span><input type="text" id="p1-name" maxlength="14" value="YOU" placeholder="Name"></label>
             <label class="field"><span class="fl">Team</span><select id="p1-team"></select></label>
+            <label class="field" title="The seat you take: you replace this driver (and start from their slot on a 2026 grid)"><span class="fl">Seat</span><select id="p1-seat"></select></label>
             <label class="field"><span class="fl">Tyre</span>
               <select id="p1-tyre">
                 <option value="soft">Soft (grip, wears)</option>
@@ -155,6 +157,7 @@
             <div class="ps-head"><div class="ps-title">Player 2</div><div class="keys"><kbd>&#8593;</kbd><kbd>&#8592;</kbd><kbd>&#8595;</kbd><kbd>&#8594;</kbd> &middot; <kbd>R.Shift</kbd>DRS &middot; <kbd>Enter</kbd>ERS &middot; <kbd>/</kbd>camera</div></div>
             <label class="field name"><span class="fl">Name</span><input type="text" id="p2-name" maxlength="14" value="RIVAL" placeholder="Name"></label>
             <label class="field"><span class="fl">Team</span><select id="p2-team"></select></label>
+            <label class="field" title="The seat you take: you replace this driver (and start from their slot on a 2026 grid)"><span class="fl">Seat</span><select id="p2-seat"></select></label>
             <label class="field"><span class="fl">Tyre</span>
               <select id="p2-tyre">
                 <option value="soft">Soft (grip, wears)</option>
@@ -299,8 +302,10 @@
 <script src="js/data/monaco.js"></script>
 <script src="js/data/abudhabi.js"></script>
 <script src="js/util.js"></script>
+<script src="js/data/season2026.js"></script>
 <script src="js/ads.js"></script>
 <script src="js/teams.js"></script>
+<script src="js/liveries.js"></script>
 <script src="js/track.js"></script>
 <script src="js/scenery.js"></script>
 <script src="js/data/silverstone_env.js"></script>
@@ -328,6 +333,7 @@
 <script src="js/input.js"></script>
 <script src="js/hud.js"></script>
 <script src="js/race.js"></script>
+<script src="js/replay.js"></script>
 <script src="js/pit.js"></script>
 <script src="js/main.js"></script>
 </body>

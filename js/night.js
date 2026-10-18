@@ -257,7 +257,7 @@ window.EI = window.EI || {};
     Night.spills.slice(0, 4).forEach((sp, i) => UNI.uNSp.value[i].set(sp.x, sp.y, sp.z, sp.r));
     const air = EI.look && EI.look.nightAir; if (air) UNI.uNAir.value.set(air[0], air[1], air[2], air[3]);
     // the racing surfaces turn smoother at night (specular streaks under the floods)
-    if (track.group) track.group.traverse(o => { if (!o.material || Array.isArray(o.material)) return; const k = { asphalt: 0.55, runoff: 0.45, kerb: 0.4, pitLane: 0.45, paint: 0.4 }[o.name]; if (k) o.material.userData.nightGloss = k; });
+    if (track.group) track.group.traverse(o => { if (!o.material || Array.isArray(o.material)) return; const k = { asphalt: 0.55, runoff: 0.2, kerb: 0.3, pitLane: 0.45, paint: 0.25 }[o.name]; if (k) o.material.userData.nightGloss = k; });
     if (scenery) { if (scenery.clouds) scenery.clouds.visible = false; if (scenery.clouds2) scenery.clouds2.visible = false; }   // a clear desert night
     Night.patchScene(scene);
   };

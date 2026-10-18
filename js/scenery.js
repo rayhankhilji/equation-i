@@ -133,8 +133,9 @@ window.EI = window.EI || {};
       for (let y = 0; y < 512; y++) for (let x = 0; x < 512; x++) {
         const fx = x / 512, fy = y / 512; const u = fx * T, v = fy * T;
         const f = (nz(u, v) * (1 - fx) * (1 - fy) + nz(u - T, v) * fx * (1 - fy) + nz(u, v - T) * (1 - fx) * fy + nz(u - T, v - T) * fx * fy);
-        const a = U.clamp((f - 0.56) * 9, 0, 1); const i = (y * 512 + x) * 4; const shade = 215 + U.clamp((f - 0.5) * 220, -30, 40);
-        d[i] = Math.min(255, shade + 20); d[i + 1] = Math.min(255, shade + 20); d[i + 2] = Math.min(255, shade + 28); d[i + 3] = a * 255;
+        // cumulus seen from below: bright sunlit fringes, the thick middles a flat blue-grey base
+        const a = U.clamp((f - 0.56) * 9, 0, 1); const i = (y * 512 + x) * 4; const base = U.clamp((f - 0.6) * 5, 0, 1); const shade = 252 - 74 * Math.pow(base, 0.8);
+        d[i] = shade; d[i + 1] = Math.min(255, shade + 3); d[i + 2] = Math.min(255, shade + 3 + 12 * base); d[i + 3] = a * 255;
       }
       ctx.putImageData(img, 0, 0);
       const cloudTex = new THREE.CanvasTexture(c); cloudTex.wrapS = cloudTex.wrapT = THREE.RepeatWrapping; cloudTex.repeat.set(4, 4);
