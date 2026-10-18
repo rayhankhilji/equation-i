@@ -65,7 +65,9 @@
   Ads.ready = function () {
     if (readyP) return readyP;
     const fonts = (!document.fonts || !document.fonts.load) ? Promise.resolve() : Promise.all(Ads.FONTS.map(f => document.fonts.load(f).catch(() => null)));
-    readyP = Promise.all([fonts.catch(() => null), loadImages().catch(() => null)]).then(() => null, () => null);
+    const t0 = Promise.all([loadF1Font(), loadPartners()]).then(() => (document.fonts && document.fonts.load ? document.fonts.load('800 24px "F1 Wide"').catch(() => null) : null));
+    const parts = Promise.race([t0, new Promise((res) => setTimeout(res, 12000))]);
+    readyP = Promise.all([fonts.catch(() => null), loadImages().catch(() => null), parts.catch(() => null)]).then(() => null, () => null);
     return readyP;
   };
 
@@ -160,6 +162,133 @@
     let lh = Math.min(h, ww / a, Math.sqrt(ww * h * (fill || 0.42) / a)); const lw = lh * a;
     const x0 = align === 'center' ? x - lw / 2 : align === 'right' ? x - lw : x;
     drawImg(ctx, im, x0, y + (h - lh) / 2, lw, lh); return lw;
+  };
+
+
+  // ---------------------------------------------------------------- real partner logos (F1 global partners trackside, team partners on the cars)
+  // The artwork is each company's official vector logo from Wikimedia Commons (assets/brand/partners/<id>.svg, trimmed to the painted
+  // bounds, see assets/brand/SOURCES.md). A partner without a clean vector is set as a wordmark in code (PARTNERS[id].word). Every
+  // logo is rasterised once per tone (colour / white / black / reversed) at 256 px high and drawn through the box-filtered mip chain,
+  // always contain-fitted: a logo is never stretched.
+  // board: the partner's trackside board (ground colour + logo tone), as on the real F1 boards; word: the fallback wordmark style
+  const W_ = (ff, w, o) => Object.assign({ ff, w }, o || {});
+  const F1W = '"F1 Wide", "Titillium Web", Arial, sans-serif', TIT = '"Titillium Web", Arial, sans-serif', SANS = 'Arial, Helvetica, sans-serif';
+  const PARTNERS = Ads.PARTNERS = {
+    // Formula 1 and its 2026 global / official partners (trackside)
+    f1: { n: 'Formula 1', board: { bg: '#15151e', tone: 'color' } },
+    aramco: { n: 'aramco', board: { bg: '#ffffff', tone: 'color' }, word: W_('"Plus Jakarta Sans", Arial, sans-serif', 800, { col: '#0a7dc1', ls: -0.03 }) },
+    aws: { n: 'AWS', board: { bg: '#232f3e', tone: 'rev' } },
+    dhl: { n: 'DHL', board: { bg: '#ffcc00', tone: 'color' }, word: W_(F1W, 900, { it: 1, col: '#d40511', up: 1 }) },
+    heineken: { n: 'Heineken', board: { bg: '#00792b', tone: 'white' } },
+    lenovo: { n: 'Lenovo', board: { bg: '#e1140a', tone: 'color' } },
+    lvmh: { n: 'LVMH', board: { bg: '#111111', tone: 'white' } },
+    louisvuitton: { n: 'Louis Vuitton', board: { bg: '#2b2420', tone: 'white' }, word: W_('Georgia, "Times New Roman", serif', 400, { up: 1, ls: 0.18 }) },
+    tagheuer: { n: 'TAG Heuer', board: { bg: '#0d0d0d', tone: 'color' } },
+    msccruises: { n: 'MSC Cruises', board: { bg: '#0b2a55', tone: 'white' } },
+    pirelli: { n: 'Pirelli', board: { bg: '#0d0d0d', tone: 'color' }, word: W_(SANS, 900, { up: 1, it: 1, col: '#e30613' }) },
+    qatarairways: { n: 'Qatar Airways', board: { bg: '#5c0632', tone: 'white' } },
+    salesforce: { n: 'Salesforce', board: { bg: '#ffffff', tone: 'color' } },
+    cryptocom: { n: 'Crypto.com', board: { bg: '#0b1c40', tone: 'white' }, word: W_(SANS, 700, { col: '#ffffff', ls: -0.01 }) },
+    santander: { n: 'Santander', board: { bg: '#ec0000', tone: 'white' } },
+    americanexpress: { n: 'American Express', board: { bg: '#006fcf', tone: 'color' } },
+    moetchandon: { n: 'Moët & Chandon', board: { bg: '#111111', tone: 'white' } },
+    liquimoly: { n: 'Liqui Moly', board: { bg: '#ffffff', tone: 'color' } },
+    globant: { n: 'Globant', board: { bg: '#ffffff', tone: 'color' } },
+    etihadairways: { n: 'Etihad Airways', board: { bg: '#2b2522', tone: 'color' } },
+    // team partners on the cars (season2026.json teams[].partners); the board entries double as their plate colours
+    petronas: { n: 'PETRONAS', board: { bg: '#00a19c', tone: 'white' } }, microsoft: { n: 'Microsoft' }, crowdstrike: { n: 'CrowdStrike' }, ineos: { n: 'INEOS', word: W_(SANS, 900, { up: 1, ls: 0.04 }) },
+    snapdragon: { n: 'Snapdragon', word: W_(SANS, 700, { ls: -0.01 }) }, adidas: { n: 'adidas' }, teamviewer: { n: 'TeamViewer', word: W_(SANS, 700) }, ubs: { n: 'UBS', word: W_('Georgia, serif', 700, { up: 1, ls: 0.05 }) },
+    hp: { n: 'HP' }, shell: { n: 'Shell' }, unicredit: { n: 'UniCredit' }, ibm: { n: 'IBM' }, puma: { n: 'PUMA' }, cevalogistics: { n: 'CEVA Logistics' },
+    philipmorrisinternational: { n: 'PMI', word: W_(SANS, 700, { up: 1 }) }, bingx: { n: 'BingX', word: W_(SANS, 800) }, whoop: { n: 'WHOOP', word: W_(F1W, 900, { up: 1, ls: 0.04 }) },
+    mastercard: { n: 'Mastercard' }, okx: { n: 'OKX', word: W_(SANS, 900, { up: 1 }) }, allwyn: { n: 'Allwyn', word: W_(SANS, 800, { ls: -0.02 }) }, googlegemini: { n: 'Gemini' },
+    dell: { n: 'Dell' }, dpworld: { n: 'DP World' }, deloitte: { n: 'Deloitte' }, oracle: { n: 'ORACLE' }, ford: { n: 'Ford' }, redbull: { n: 'Red Bull' }, mobil1: { n: 'Mobil 1', word: W_(SANS, 900, { col1: '#e4002b' }) },
+    visa: { n: 'VISA' }, rokt: { n: 'Rokt', word: W_(SANS, 800, { ls: -0.02 }) }, hardrock: { n: 'Hard Rock' }, att: { n: 'AT&T' }, cashapp: { n: 'Cash App' },
+    bwt: { n: 'BWT', board: { bg: '#ec008c', tone: 'white' } }, mercadolibre: { n: 'Mercado Libre' }, eni: { n: 'eni' }, hmosercie: { n: 'H. Moser & Cie.', word: W_('Georgia, serif', 400, { ls: 0.02 }) },
+    tgr: { n: 'TOYOTA GAZOO Racing' }, haasautomation: { n: 'HAAS', word: W_(F1W, 900, { up: 1, it: 1, ls: 0.02 }) }, ic: { n: 'IC', word: W_(SANS, 900, { up: 1 }) }, mgmresorts: { n: 'MGM Resorts', word: W_('Georgia, serif', 700, { up: 1, ls: 0.08 }) },
+    playngo: { n: "Play'n GO", word: W_(SANS, 900) }, singha: { n: 'SINGHA', word: W_('Georgia, serif', 700, { up: 1, ls: 0.06 }) },
+    audi: { n: 'Audi' }, revolut: { n: 'Revolut' }, visitqatar: { n: 'Visit Qatar', word: W_(SANS, 700) }, bp: { n: 'bp' }, castrol: { n: 'Castrol' }, nexo: { n: 'NEXO', word: W_(F1W, 800, { up: 1, ls: 0.1 }) },
+    atlassian: { n: 'Atlassian' }, barclays: { n: 'Barclays' }, komatsu: { n: 'KOMATSU' }, claude: { n: 'Claude' }, kraken: { n: 'Kraken', word: W_(SANS, 800, { ls: -0.02 }) }, bny: { n: 'BNY', word: W_('Georgia, serif', 700, { up: 1, ls: 0.04 }) },
+    gulf: { n: 'Gulf' }, duracell: { n: 'Duracell' }, maaden: { n: "Ma'aden", word: W_(SANS, 700, { up: 1, ls: 0.06 }) }, honda: { n: 'HONDA' }, coreweave: { n: 'CoreWeave' }, cognizant: { n: 'Cognizant' },
+    valvoline: { n: 'Valvoline' }, glenfiddich: { n: 'Glenfiddich', word: W_('Georgia, serif', 700, { ls: 0.02 }) }, jcb: { n: 'JCB', word: W_(SANS, 900, { up: 1, it: 0 }) }, coinbase: { n: 'coinbase' },
+    cadillac: { n: 'CADILLAC', word: W_(F1W, 600, { up: 1, ls: 0.32 }) }, tommyhilfiger: { n: 'TOMMY HILFIGER', word: W_(SANS, 700, { up: 1, ls: 0.06 }) }, jimbeam: { n: 'JIM BEAM', word: W_('Georgia, serif', 700, { up: 1, ls: 0.05 }) },
+    ifs: { n: 'IFS', word: W_(SANS, 900, { up: 1 }) }, corescientific: { n: 'Core Scientific' }, claro: { n: 'Claro' }, tenneco: { n: 'Tenneco' }, twgai: { n: 'TWG AI', word: W_(SANS, 800, { up: 1, ls: 0.04 }) },
+    mercedes: { n: 'Mercedes-Benz' }, tgremblem: { n: 'TGR', word: W_(F1W, 900, { up: 1, it: 1, col: '#eb0a1e' }) }, moneygram: { n: 'MoneyGram', word: W_(SANS, 800, { col: '#da291c', ls: -0.02 }) }, mobil: { n: 'Mobil' }, ferrari: { n: 'Ferrari' }, pepsico: { n: 'PepsiCo' }, kitkat: { n: 'KitKat' }, paramountplus: { n: 'Paramount+' }, standardchartered: { n: 'Standard Chartered' }, qualcomm: { n: 'Qualcomm' },
+  };
+  // id lookup by any spelling of the name ('Google (Gemini)', 'Mobil 1', 'TAG Heuer', 'MSC Cruises' ...)
+  const ALIAS = { gemini: 'googlegemini', google: 'googlegemini', msc: 'msccruises', etihad: 'etihadairways', qatar: 'qatarairways', amex: 'americanexpress', moet: 'moetchandon', mobil: 'mobil1',
+    toyotagazooracing: 'tgr', tgrhaas: 'tgr', haas: 'haasautomation', moser: 'hmosercie', hmoser: 'hmosercie', ceva: 'cevalogistics', pmi: 'philipmorrisinternational', lv: 'louisvuitton',
+    mgm: 'mgmresorts', twg: 'twgai', formula1: 'f1', formulaone: 'f1', petronasl: 'petronas', redbullracing: 'redbull', attinc: 'att', cryptocomarena: 'cryptocom', tommy: 'tommyhilfiger', saudiaramco: 'aramco', heineken00: 'heineken' };
+  const slug = (s) => String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]/g, '');
+  Ads.partnerId = function (name) { const s = slug(name); return PARTNERS[s] ? s : ALIAS[s] || s; };
+  // which ids have vector artwork in assets/brand/partners (filled in with the downloaded files; anything else uses its wordmark)
+  const ART = Ads.PARTNER_ART = new Set(['adidas', 'atlassian', 'att', 'audi', 'aws', 'cashapp', 'castrol', 'cevalogistics', 'claro', 'claude', 'cognizant', 'coinbase', 'corescientific', 'coreweave', 'crowdstrike', 'dell', 'deloitte', 'dhl', 'eni', 'etihadairways', 'ford', 'googlegemini', 'gulf', 'hardrock', 'heineken', 'honda', 'hp', 'ibm', 'komatsu', 'lenovo', 'louisvuitton', 'mastercard', 'mercadolibre', 'microsoft', 'oracle', 'petronas', 'pirelli', 'puma', 'redbull', 'revolut', 'tagheuer', 'tenneco', 'unicredit', 'valvoline', 'visa']);
+  // trimmed aspect (width / height) of each artwork, measured offline (the SVGs carry the same trimmed viewBox)
+  Ads.PARTNER_DIR = Ads.BRAND_DIR + 'partners/';
+  const PIMG = {};   // id -> decoded SVG image
+  function loadPartners() {
+    if (typeof location !== 'undefined' && location.protocol === 'file:') return Promise.resolve();
+    const one = (id) => new Promise((res) => { const im = new Image(); im.decoding = 'async'; im.onload = () => { if (im.naturalWidth > 0) PIMG[id] = im; res(); }; im.onerror = () => res(); im.src = Ads.PARTNER_DIR + id + '.svg'; });
+    const f1 = new Promise((res) => { const im = new Image(); im.onload = () => { if (im.naturalWidth > 0) PIMG.f1 = im; res(); }; im.onerror = () => res(); im.src = Ads.BRAND_DIR + 'f1/f1-logo.svg'; });
+    return Promise.all([f1].concat([...ART].map(one)));
+  }
+  // the F1-style display face (Saira, OFL, at its widest setting) for the F1 / event branding and the fallback wordmarks
+  function loadF1Font() {
+    if (typeof FontFace === 'undefined' || !document.fonts) return Promise.resolve();
+    try { const ff = new FontFace('F1 Wide', 'url(' + Ads.BRAND_DIR + 'f1/Saira-wdth.woff2) format("woff2")', { weight: '100 900', stretch: '125%' }); document.fonts.add(ff); return ff.load().catch(() => null); } catch (e) { return Promise.resolve(); }
+  }
+  // rasters: id + tone -> { c: canvas (256 px high), a: aspect }
+  const PRAS = new Map(); const PH = 256;
+  function toneCanvas(src, tone) {
+    const c = document.createElement('canvas'); c.width = src.width; c.height = src.height; const x = c.getContext('2d', { willReadFrequently: true }); x.drawImage(src, 0, 0);
+    if (tone === 'rev') {   // dark ink -> white, colours kept (AWS's black "aws" over its orange smile, on a dark board)
+      const d = x.getImageData(0, 0, c.width, c.height); const p = d.data;
+      for (let i = 0; i < p.length; i += 4) { const l = (0.2126 * p[i] + 0.7152 * p[i + 1] + 0.0722 * p[i + 2]) / 255, s = Math.max(p[i], p[i + 1], p[i + 2]) - Math.min(p[i], p[i + 1], p[i + 2]); if (l < 0.42 && s < 60) { p[i] = p[i + 1] = p[i + 2] = 255; } }
+      x.putImageData(d, 0, 0); return c;
+    }
+    const col = tone === 'white' ? '#ffffff' : tone === 'black' ? '#111111' : tone.slice(0, 5) === 'mono:' ? tone.slice(5) : null;
+    if (col) { x.globalCompositeOperation = 'source-in'; x.fillStyle = col; x.fillRect(0, 0, c.width, c.height); x.globalCompositeOperation = 'source-over'; }
+    return c;
+  }
+  // the wordmark of a partner without artwork, set in code on a transparent 256 px-high canvas, trimmed
+  function wordRaster(id) {
+    const P = PARTNERS[id] || { n: id }; const o = P.word || W_(F1W, 800, { up: 1 }); const txt = o.up ? String(P.n).toUpperCase() : String(P.n);
+    const c = document.createElement('canvas'); const x = c.getContext('2d', { willReadFrequently: true }); const fs = PH * 0.78;
+    const font = (o.it ? 'italic ' : '') + o.w + ' ' + fs + 'px ' + o.ff; x.font = font; setLS(x, (o.ls || 0) * fs); const tw = Math.ceil(x.measureText(txt).width + fs * Math.abs(o.ls || 0) + fs * 0.2);
+    c.width = Math.min(4096, tw); c.height = PH; x.font = font; setLS(x, (o.ls || 0) * fs); x.textBaseline = 'alphabetic'; x.textAlign = 'left'; x.fillStyle = o.col || '#111111';
+    if (c.width < tw) { x.scale(c.width / tw, 1); }
+    x.fillText(txt, fs * 0.1, PH * 0.8); setLS(x, 0);
+    return trimCanvas(c);
+  }
+  function trimCanvas(c) {
+    const x = c.getContext('2d', { willReadFrequently: true }); const d = x.getImageData(0, 0, c.width, c.height).data; let x0 = c.width, y0 = c.height, x1 = -1, y1 = -1;
+    for (let y = 0; y < c.height; y++) for (let xx = 0; xx < c.width; xx++) if (d[(y * c.width + xx) * 4 + 3] > 8) { if (xx < x0) x0 = xx; if (xx > x1) x1 = xx; if (y < y0) y0 = y; if (y > y1) y1 = y; }
+    if (x1 < 0) return c; const w = x1 - x0 + 1, h = y1 - y0 + 1; const s = PH / h;
+    const o = document.createElement('canvas'); o.width = Math.max(1, Math.min(4096, Math.round(w * s))); o.height = PH; const ox = o.getContext('2d', { willReadFrequently: true }); ox.imageSmoothingQuality = 'high'; ox.drawImage(c, x0, y0, w, h, 0, 0, o.width, o.height); return o;
+  }
+  function partnerRaster(id, tone) {
+    tone = tone || 'color'; const key = id + '|' + tone; let r = PRAS.get(key); if (r) return r;
+    let base = PRAS.get(id + '|color');
+    if (!base) {
+      const im = PIMG[id]; let c;
+      if (im) { const a = im.naturalWidth / im.naturalHeight; let h = PH, w = Math.round(h * a); if (w > 4096) { w = 4096; h = Math.round(w / a); } c = document.createElement('canvas'); c.width = w; c.height = h; const x = c.getContext('2d', { willReadFrequently: true }); x.drawImage(im, 0, 0, w, h); }
+      else c = wordRaster(id);
+      base = { c, a: c.width / c.height, art: !!im }; PRAS.set(id + '|color', base);
+    }
+    if (tone === 'color') return base;
+    r = { c: toneCanvas(base.c, tone), a: base.a, art: base.art }; PRAS.set(key, r); return r;
+  }
+  Ads.partnerReady = function () { return Ads.ready(); };
+  Ads.hasPartner = function (idOrName) { const id = Ads.partnerId(idOrName); return !!PIMG[id]; };
+  Ads.partnerInfo = function (idOrName) { const id = Ads.partnerId(idOrName); const P = PARTNERS[id] || { n: idOrName }; const r = partnerRaster(id); return { id, name: P.n, aspect: r.a, art: r.art, board: P.board || null }; };
+  // contain-fit the logo in maxW x maxH centred on (cx, cy); o = { tone, plate: '#hex' (rounded plate behind), pad (plate padding, x height), fill (optical
+  // area share: wide wordmarks and square badges get the same visual weight; 1 = plain contain) }. Returns [w, h] of the logo
+  Ads.drawPartner = function (ctx, idOrName, cx, cy, maxW, maxH, o) {
+    o = o || {}; const id = Ads.partnerId(idOrName); if (!PARTNERS[id]) PARTNERS[id] = { n: String(idOrName) };
+    const r = partnerRaster(id, o.tone || 'color'); const pad = o.plate ? (o.pad != null ? o.pad : 0.16) : 0;
+    const bw = maxW / (1 + pad * 2 / Math.max(1e-3, maxH / maxW)), bh = maxH;   // keep room for the plate
+    let h = Math.min(bh / (1 + pad * 2), maxW / (r.a + pad * 2)); if (o.fill && o.fill < 1) h = Math.min(h, Math.sqrt(maxW * maxH * o.fill / r.a)); const w = h * r.a;
+    if (o.plate) { const p = h * pad; ctx.fillStyle = o.plate; rr(ctx, cx - w / 2 - p, cy - h / 2 - p, w + p * 2, h + p * 2, Math.min(h, w) * 0.18 + p * 0.6); ctx.fill(); }
+    drawImg(ctx, r.c, cx - w / 2, cy - h / 2, w, h); void bw; return [w, h];
   };
 
   // ---------------------------------------------------------------- type helpers
@@ -278,11 +407,76 @@
       rows(ctx, w, h, { logo: 'intake', logoCol: '#ffffff', head: [['Applications close faster ', '#ffffff'], ['than Copse.', INTAKE.blue]], headFont: INTAKE.head, pill: ['intake.ink', INTAKE.blue, INTAKE.ink, INTAKE.body, 600] }); } },
   ];
   // paint tile k into the pixel box (x, y, w, h); `aspect` is the board's physical width / height (default 5:1)
-  Ads.paintTile = function (ctx, k, x, y, w, h, aspect) { const vw = h * (aspect || 5); ctx.save(); ctx.beginPath(); ctx.rect(x, y, w, h); ctx.clip(); ctx.translate(x, y); ctx.scale(w / vw, 1); TILES[k % TILES.length].paint(ctx, vw, h); ctx.restore(); };
+  // Each slot k (0-7) is the venue's k-th board (VENUES[track].tiles): real F1 partners with Lumi / Intake as about one board in four.
+  // The layout is done in the board's physical proportions (vw = h * aspect) and squeezed into the pixel box, so on the mesh, whose
+  // face is `aspect` times as wide as it is tall, nothing is stretched. o.dark: Yas's black boards (white logos)
+  Ads.paintTile = function (ctx, k, x, y, w, h, aspect, o) {
+    const vw = h * (aspect || 5); const V = venue(); const slot = V.tiles[((k % 8) + 8) % 8];
+    ctx.save(); ctx.beginPath(); ctx.rect(x, y, w, h); ctx.clip(); ctx.translate(x, y); ctx.scale(w / vw, 1); slotPainter(slot, 'tile', o)(ctx, vw, h); ctx.restore();
+  };
+  // a Lumi / Intake design by its own index (0-3 Lumi, 4-7 Intake), for surfaces that carry the race partners only
+  Ads.paintBrandTile = function (ctx, k, x, y, w, h, aspect) { const vw = h * (aspect || 5); ctx.save(); ctx.beginPath(); ctx.rect(x, y, w, h); ctx.clip(); ctx.translate(x, y); ctx.scale(w / vw, 1); TILES[k % TILES.length].paint(ctx, vw, h); ctx.restore(); };
+
+  // ---------------------------------------------------------------- the venue mix: real F1 trackside partners + the occasional Lumi / Intake board
+  // F1's 2026 global partners (Aramco, AWS, DHL, Heineken, Lenovo, LVMH: Louis Vuitton / TAG Heuer, MSC Cruises, Pirelli, Qatar Airways,
+  // Salesforce) carry the trackside boards at every race, official partners (Crypto.com, Santander, ...) at selected ones, and each
+  // event adds its title partner (Qatar Airways British GP, Louis Vuitton GP de Monaco, Etihad Airways Abu Dhabi GP). TAG Heuer is the
+  // official timekeeper since 2025 (it replaced Rolex): the start gantry carries the F1 logo, the event title and the TAG Heuer clock.
+  // Slots: a partner id, or 'L<n>' / 'I<n>' = Lumi / Intake design n. Every format keeps Lumi and Intake to about one board in four.
+  const VENUES = Ads.VENUES = {
+    silverstone: { title: 'qatarairways', event: 'British Grand Prix', dark: false,
+      tiles: ['aramco', 'qatarairways', 'L0', 'dhl', 'heineken', 'pirelli', 'I4', 'msccruises'],
+      barrier: ['aramco', 'L', 'qatarairways', 'dhl', 'I'], billboard: ['qatarairways', 'L0', 'aramco', 'I1'],
+      runoff: ['aramco', 'L', 'pirelli', 'I'], bridge: { lumi: 'L', intake: 'qatarairways', lumi2: 'aramco', intake2: 'I' } },
+    monaco: { title: 'louisvuitton', event: 'Grand Prix de Monaco', dark: false,
+      tiles: ['tagheuer', 'louisvuitton', 'L1', 'aramco', 'msccruises', 'heineken', 'I5', 'dhl'],
+      barrier: ['tagheuer', 'L', 'louisvuitton', 'msccruises', 'I'], billboard: ['louisvuitton', 'L2', 'tagheuer', 'I3'],
+      runoff: ['aramco', 'L', 'pirelli', 'I'], bridge: { lumi: 'L', intake: 'louisvuitton', lumi2: 'tagheuer', intake2: 'I' } },
+    abudhabi: { title: 'etihadairways', event: 'Abu Dhabi Grand Prix', dark: true,
+      tiles: ['etihadairways', 'aramco', 'L1', 'dhl', 'heineken', 'aws', 'I7', 'pirelli'],
+      barrier: ['etihadairways', 'L', 'aramco', 'aws', 'I'], billboard: ['etihadairways', 'L2', 'aramco', 'I3'],
+      runoff: ['aramco', 'L', 'pirelli', 'I'], bridge: { lumi: 'L', intake: 'etihadairways', lumi2: 'aramco', intake2: 'I' } },
+  };
+  const venue = Ads.venue = () => VENUES[EI.trackId] || VENUES.silverstone;
+  // a partner board in a (w x h) frame that already has the board's physical proportions (the callers pre-squeeze, see paintTile).
+  // Real LED / vinyl boards are flat: the brand ground and the logo, repeated on the very long formats. o.dark: Yas's black boards
+  function partnerBoard(ctx, id, w, h, o) {
+    o = o || {}; const P = PARTNERS[id] || {}; const b = P.board || { bg: '#ffffff', tone: 'color' };
+    const dark = o.dark && id !== 'f1'; const bg = dark ? '#0b0c0f' : (o.bg || b.bg); const tone = dark ? (b.tone === 'color' && isLightRaster(id) ? 'color' : 'white') : (o.tone || b.tone);
+    ctx.fillStyle = bg; ctx.fillRect(0, 0, w, h);
+    const asp = w / h; const n = o.repeat || (asp > 7.5 ? Math.max(2, Math.round(asp / 4.6)) : 1); const cw = w / n;
+    const lh = h * (o.lh || 0.6), lw = cw * 0.78;
+    for (let i = 0; i < n; i++) Ads.drawPartner(ctx, id, cw * (i + 0.5), h * 0.5, lw, lh, { tone, fill: o.fill || 0.36 });
+    if (n > 1 && o.dividers !== false) { ctx.fillStyle = dark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.07)'; for (let i = 1; i < n; i++) ctx.fillRect(cw * i - h * 0.01, h * 0.18, h * 0.02, h * 0.64); }
+  }
+  Ads.partnerBoard = partnerBoard;
+  // a colour logo that is mostly light already reads on black (e.g. TAG Heuer's shield, Etihad's gold): keep its colours on the dark boards
+  const LIGHT_RASTER = { tagheuer: 1, etihadairways: 1, f1: 1 };
+  function isLightRaster(id) { return !!LIGHT_RASTER[id]; }
+  // the F1 logo (official artwork, assets/brand/f1) in a box; falls back to the word "F1" in the display face
+  Ads.drawF1 = function (ctx, cx, cy, maxW, maxH, col) {
+    const tone = col ? (col === '#ffffff' ? 'white' : 'mono:' + col) : 'color';
+    if (PIMG.f1 || ART.has('f1')) return Ads.drawPartner(ctx, 'f1', cx, cy, maxW, maxH, { tone });
+    ctx.font = 'italic 900 ' + maxH + 'px ' + F1W; ctx.fillStyle = col || '#e10600'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('F1', cx, cy, maxW); return [maxW, maxH];
+  };
+  // slot -> painter (ctx, w, h) for the given format; Lumi / Intake keep their own designs
+  function slotPainter(slot, fmt, o) {
+    if (slot[0] === 'L' || slot[0] === 'I') {
+      const lumi = slot[0] === 'L', k = slot.length > 1 ? +slot.slice(1) : 0;
+      if (fmt === 'tile') return (ctx, w, h) => TILES[k % TILES.length].paint(ctx, w, h);
+      if (fmt === 'billboard') return (ctx, w, h) => brandBillboard(ctx, k, w, h);
+      if (fmt === 'barrier') return lumi ? BRAND_BARRIER[0] : BRAND_BARRIER[3];
+      if (fmt === 'runoff') return null;
+      if (fmt === 'bridge') return (ctx, w, h) => brandBridge(ctx, lumi ? 'lumi' : 'intake2', w, h);
+    }
+    return (ctx, w, h) => partnerBoard(ctx, slot, w, h, o);
+  }
+  Ads.slotPainter = slotPainter;
+
 
   // ---------------------------------------------------------------- bridges and the start gantry banner (very wide formats)
-  Ads.paintBridge = function (ctx, which, w, h, aspect) {
-    const vw = h * (aspect || 10.4); ctx.save(); ctx.scale(w / vw, 1); w = vw;
+  function brandBridge(ctx, which, w, h) {
+    ctx.save();
     if (which === 'lumi') {
       lumiFrame(ctx, w, h, LUMI.bg, ['rgba(230,200,255,0.6)', 'rgba(220,238,209,0.7)']);
       const lw = Ads.lumiLogo(ctx, h * 0.2, h * 0.22, h * 0.5);
@@ -307,9 +501,21 @@
       const x0 = h * 3.6; chipRow(ctx, x0, h * 0.1, w - pw - h * 0.5 - x0, h * 0.8, 6, { tag: false, gap: h * 0.14, stroke: false, fill: 0.55 });
     }
     ctx.restore();
+  }
+  // the sponsor bridges over the track: `which` is the bridge's name in the track data ('lumi', 'intake', 'lumi2', 'intake2'); the venue
+  // maps it to a partner (VENUES[track].bridge) - one Lumi and one Intake bridge stay, the others carry the event's partners
+  Ads.paintBridge = function (ctx, which, w, h, aspect) {
+    const vw = h * (aspect || 10.4); const V = venue(); const slot = (V.bridge && V.bridge[which]) || which;
+    ctx.save(); ctx.scale(w / vw, 1);
+    if (slot === 'L' || slot === 'I') brandBridge(ctx, slot === 'L' ? (which === 'lumi2' ? 'lumi2' : 'lumi') : (which === 'intake' ? 'intake' : 'intake2'), vw, h);
+    else if (VENUES[EI.trackId] || slot !== which) partnerBoard(ctx, slot, vw, h, { dark: V.dark, lh: 0.58 });
+    else brandBridge(ctx, which, vw, h);
+    ctx.restore();
   };
+  // the Lumi + Intake co-branded banner (the old start gantry design; kept for surfaces that want both race partners)
+  Ads.paintPartnersBanner = function (ctx, w, h) { brandBanner(ctx, w, h); };
   // start gantry banner: both partners side by side
-  Ads.paintBanner = function (ctx, w, h) {
+  function brandBanner(ctx, w, h) {
     ctx.fillStyle = LUMI.bg; ctx.fillRect(0, 0, w / 2, h); ctx.fillStyle = INTAKE.bg; ctx.fillRect(w / 2, 0, w / 2, h);
     haze(ctx, w * 0.1, 0, w * 0.2, h, 'rgba(230,200,255,0.6)'); dots(ctx, w / 2, 0, w / 2, h, 'rgba(43,33,28,0.10)', h * 0.2);
     ctx.fillStyle = 'rgba(0,0,0,0.12)'; ctx.fillRect(w / 2 - 2, 0, 4, h);
@@ -319,6 +525,23 @@
     lw = Ads.intakeLogo(ctx, w / 2 + h * 0.2, h * 0.21, h * 0.58);
     line(ctx, [['Win your degree ', INTAKE.ink], ['apprenticeship.', INTAKE.blueDeep]], w / 2 + h * 0.2 + lw + h * 0.5, h * 0.72, h * 0.44, INTAKE.head, 800, w / 2 - lw - h * 3.4, 'left');
     line(ctx, [['intake.ink', INTAKE.blueDeep]], w - h * 0.3, h * 0.68, h * 0.32, INTAKE.body, 600, 0, 'right');
+  }
+  // the start gantry: F1 black, the official F1 logo, the event title ("FORMULA 1 QATAR AIRWAYS BRITISH GRAND PRIX 2026" with the title
+  // partner's logo) and the TAG Heuer timing panel at both ends, as on the 2025-26 gantries. aspect = physical width / height of the banner
+  Ads.paintBanner = function (ctx, w, h, aspect) {
+    const vw = aspect ? h * aspect : w; ctx.save(); ctx.scale(w / vw, 1); w = vw;
+    const V = venue(); ctx.fillStyle = '#15151e'; ctx.fillRect(0, 0, w, h);
+    ctx.fillStyle = '#e10600'; ctx.fillRect(0, h * 0.9, w, h * 0.1);
+    // TAG Heuer panels at both ends
+    const tp = Math.min(w * 0.16, h * 3.4);
+    for (const x0 of [0, w - tp]) { ctx.fillStyle = '#0a0a0c'; ctx.fillRect(x0, 0, tp, h * 0.9); Ads.drawPartner(ctx, 'tagheuer', x0 + tp / 2, h * 0.45, tp * 0.8, h * 0.66, { fill: 0.5 }); }
+    // centre: F1 logo + title partner + event name
+    const cx0 = tp + h * 0.5, cw = w - 2 * tp - h; let x = cx0;
+    const f1 = Ads.drawF1(ctx, x + h * 1.1, h * 0.45, h * 2.2, h * 0.5); x += h * 1.1 + f1[0] / 2 + h * 0.45;
+    const tl = PARTNERS[V.title] ? Ads.drawPartner(ctx, V.title, 0, -9999, h * 3.6, h * 0.56, { tone: 'white' }) : [0, 0];
+    if (tl[0]) { Ads.drawPartner(ctx, V.title, x + tl[0] / 2, h * 0.45, h * 3.6, h * 0.56, { tone: 'white' }); x += tl[0] + h * 0.45; }
+    line(ctx, [[V.event.toUpperCase() + ' 2026', '#ffffff']], x, h * 0.63, h * 0.44, F1W, 800, cx0 + cw - x, 'left', 0.02);
+    ctx.restore();
   };
 
   // ---------------------------------------------------------------- big screens (16:9) and the pit-garage monitors
@@ -381,26 +604,39 @@
   };
 
   // ---------------------------------------------------------------- white paint on the run-off (single colour)
+  // row k (0-3) of the run-off paint: the venue's VENUES[track].runoff[k] - a partner logo painted in its colours on its plate, or Lumi /
+  // Intake (their lock-ups on a cream plate). aspect = the painted patch's length / width on the ground
   Ads.paintRunoff = function (ctx, k, x, y, w, h, col, aspect) {
     ctx.save(); ctx.beginPath(); ctx.rect(x, y, w, h); ctx.clip(); ctx.translate(x, y); const vw = h * (aspect || 5); ctx.scale(w / vw, 1); w = vw;
+    const slot = venue().runoff[k & 3];
+    if (slot === 'L' || slot === 'I') brandRunoff(ctx, slot === 'L' ? 0 : 1, w, h, col);
+    else { const P = PARTNERS[slot] || {}; const b = P.board || { bg: '#ffffff', tone: 'color' }; const r = partnerRaster(slot, b.tone); const lh = h * 0.56; const lw = Math.min(w * 0.8, lh * r.a); const lh2 = lw / r.a;
+      ctx.fillStyle = b.bg; rr(ctx, (w - lw) / 2 - h * 0.3, h * 0.06, lw + h * 0.6, h * 0.88, h * 0.2); ctx.fill(); Ads.drawPartner(ctx, slot, w / 2, h / 2, lw, lh2, { tone: b.tone }); }
+    ctx.restore();
+  };
+  function brandRunoff(ctx, k, w, h, col) {
     const mono = col || '#f2f1ec';
     // rows 0 / 1: full-colour lock-ups on a painted cream plate; rows 2 / 3: the URLs in plain white paint
     if (k === 0) { const lh = h * 0.56, lw = Ads.lumiLogoW(ctx, lh); ctx.fillStyle = LUMI.bg; rr(ctx, (w - lw) / 2 - h * 0.3, h * 0.06, lw + h * 0.6, h * 0.88, h * 0.2); ctx.fill(); Ads.lumiLogo(ctx, (w - lw) / 2, h * 0.21, lh); }
     else if (k === 1) { const lh = h * 0.56, lw = Ads.intakeLogoW(ctx, lh); ctx.fillStyle = INTAKE.bg; rr(ctx, (w - lw) / 2 - h * 0.3, h * 0.06, lw + h * 0.6, h * 0.88, h * 0.2); ctx.fill(); Ads.intakeLogo(ctx, (w - lw) / 2, h * 0.22, lh); }
     else if (k === 2) line(ctx, [['trylumi.co', mono]], w / 2, h * 0.78, h * 0.78, LUMI.head, 800, w * 0.96, 'center');
     else line(ctx, [['intake.ink', mono]], w / 2, h * 0.76, h * 0.7, INTAKE.head, 800, w * 0.96, 'center');
-    ctx.restore();
-  };
+  }
 
   // ---------------------------------------------------------------- barrier panels (5.12 m x 0.7 m, repeating along the wall)
   Ads.BARRIER_ASPECT = 5.12 / 0.7;
-  Ads.BARRIER = [
+  const BRAND_BARRIER = Ads.BRAND_BARRIER = [
     (ctx, w, h) => { ctx.fillStyle = LUMI.bg; ctx.fillRect(0, 0, w, h); Ads.lumiLogo(ctx, (w - Ads.lumiLogoW(ctx, h * 0.66)) / 2, h * 0.16, h * 0.66); },
     (ctx, w, h) => { ctx.fillStyle = INTAKE.blue; ctx.fillRect(0, 0, w, h); line(ctx, [['intake.ink', INTAKE.ink]], w / 2, h * 0.74, h * 0.6, INTAKE.head, 800, w * 0.92, 'center'); },
     (ctx, w, h) => { ctx.fillStyle = LUMI.plum; ctx.fillRect(0, 0, w, h); line(ctx, [['Ask Lumi.', '#ffffff']], w / 2, h * 0.76, h * 0.68, LUMI.head, 800, w * 0.92, 'center'); },
     (ctx, w, h) => { ctx.fillStyle = INTAKE.bg; ctx.fillRect(0, 0, w, h); Ads.intakeLogo(ctx, (w - Ads.intakeLogoW(ctx, h * 0.68)) / 2, h * 0.16, h * 0.68); },
     (ctx, w, h) => { ctx.fillStyle = LUMI.bg; ctx.fillRect(0, 0, w, h); line(ctx, [['trylumi.co', LUMI.plum]], w / 2, h * 0.75, h * 0.66, LUMI.head, 800, w * 0.92, 'center'); },
   ];
+  // the five wall panels of the venue (VENUES[track].barrier): painters (ctx, w, h) laid out in the panel's physical 5.12 x 0.7 frame.
+  // Ads.barrierArt({ dark }) for Yas's black boards with white logos
+  Ads.barrierArt = function (o) { o = o || {}; const V = venue(); const dark = o.dark != null ? o.dark : V.dark; return V.barrier.map((s) => (s === 'L' || s === 'I') ? (dark ? darkBrand(s) : slotPainter(s, 'barrier')) : (ctx, w, h) => partnerBoard(ctx, s, w, h, { dark, lh: 0.62, repeat: 1 })); };
+  function darkBrand(s) { return (ctx, w, h) => { ctx.fillStyle = '#0b0c0f'; ctx.fillRect(0, 0, w, h); Ads.lockupCentered(ctx, s === 'L' ? 'lumi' : 'intake', w / 2, h / 2, h * 0.6, w * 0.8, '#ffffff', true); }; }
+  Object.defineProperty(Ads, 'BARRIER', { get() { return Ads.barrierArt(); }, enumerable: true });
 
   // ---------------------------------------------------------------- car livery decals (carglb.js / teams.js fit these onto the body)
   // A decal is { n: text, fg, bg (optional plate colour), w: weight, ff: font family } or, with lk: 'lumi' | 'intake', the brand's
@@ -411,9 +647,31 @@
   // the two works teams carry their own brand (their full livery graphics are drawn by the livery composer)
   const LUMI_TEAM = [{ lk: 'lumi', n: 'lumi', fg: '#ffffff', w: 700, ff: LUMI.head }, { n: 'trylumi.co', fg: LUMI.plum, w: 700, ff: LUMI.body }, { n: 'Ask Lumi.', fg: '#ffffff', w: 800, ff: LUMI.head }, { n: 'Learn anything.', fg: LUMI.plum, w: 800, ff: LUMI.head }];
   const INTAKE_TEAM = [{ lk: 'intake', n: 'intake', fg: INTAKE.bg, w: 700, ff: INTAKE.head }, { n: 'intake.ink', fg: INTAKE.ink, w: 600, ff: INTAKE.body }, { n: 'intake.ink', fg: INTAKE.bg, w: 600, ff: INTAKE.body }, { n: 'Get paid to get a degree.', fg: INTAKE.ink, w: 600, ff: INTAKE.body }];
+  // the real teams' 2026 car partners, most prominent first (EI.SEASON teams[].partners; f1-RESEARCH), for the default decal slots
+  // 0 title (engine cover, rear wing, endplates), 1 sidepod, 2 nose, 3 lower sidepod. Lumi / Intake are only on their own teams' cars
+  const TEAM_PARTNERS = Ads.TEAM_PARTNERS = {
+    mercedes: ['petronas', 'microsoft', 'crowdstrike', 'ineos', 'snapdragon', 'adidas', 'teamviewer', 'ubs'],
+    ferrari: ['hp', 'shell', 'unicredit', 'ibm', 'aws', 'puma', 'cevalogistics', 'bingx', 'whoop'],
+    mclaren: ['mastercard', 'okx', 'allwyn', 'etihadairways', 'googlegemini', 'dell', 'dpworld', 'deloitte'],
+    redbull: ['oracle', 'ford', 'mobil1', 'visa', 'tagheuer', 'rokt', 'hardrock', 'att'],
+    racingbulls: ['visa', 'cashapp', 'ford', 'mobil1'],
+    alpine: ['bwt', 'msccruises', 'mercadolibre', 'eni', 'hmosercie'],
+    haas: ['tgr', 'haasautomation', 'ic', 'mgmresorts', 'playngo', 'singha'],
+    audi: ['revolut', 'audi', 'visitqatar', 'bp', 'castrol', 'adidas', 'nexo'],
+    williams: ['atlassian', 'barclays', 'komatsu', 'claude', 'kraken', 'bny', 'gulf', 'duracell'],
+    astonmartin: ['aramco', 'maaden', 'honda', 'coreweave', 'cognizant', 'valvoline', 'glenfiddich', 'jcb', 'coinbase'],
+    cadillac: ['tommyhilfiger', 'jimbeam', 'ifs', 'corescientific', 'claro', 'tenneco', 'twgai'],
+  };
+  Ads.teamPartners = function (teamId) {
+    const S = EI.SEASON && EI.SEASON.teams && EI.SEASON.teams.find((t) => t.id === teamId);
+    if (S && S.partners && S.partners.length) return S.partners.map((p) => Ads.partnerId(p.name)).filter((id) => id !== teamId);
+    return (TEAM_PARTNERS[teamId] || []).slice();
+  };
   Ads.sponsorsFor = function (k, light, id) {
     if (id === 'lumi') return LUMI_TEAM.map(s => Object.assign({}, s));
     if (id === 'intake') return INTAKE_TEAM.map(s => Object.assign({}, s));
+    // real teams: their real partners' logos (white on dark paint, the logo's own colours on light paint)
+    if (TEAM_PARTNERS[id]) return Ads.teamPartners(id).slice(0, 4).map((pid) => ({ partner: pid, n: (PARTNERS[pid] || { n: pid }).n, tone: light ? 'color' : 'white', fg: light ? '#111111' : '#ffffff' }));
     // on light liveries the white partner text flips to the brand inks
     const set = (k % 2 ? INTAKE_SET : LUMI_SET).map(s => Object.assign({}, s));
     if (light) for (const s of set) if (!s.bg && s.fg === '#ffffff') s.fg = s.ff === LUMI.head || s.ff === LUMI.body ? LUMI.plum : INTAKE.ink;
@@ -421,6 +679,7 @@
   };
   // draw one decal centred on (x, y) at cap height fs, fitted into maxW; returns the width used. Used by the livery composers.
   Ads.drawDecal = function (ctx, sp, x, y, fs, maxW) {
+    if (sp.partner) { const r = Ads.drawPartner(ctx, sp.partner, x, y, maxW, fs * 1.5, { tone: sp.tone || 'white', plate: sp.bg || null, fill: 0.5 }); return r[0]; }
     if (sp.lk) {
       const mh = fs * 1.25; let w = sp.lk === 'lumi' ? Ads.lumiLogoW(ctx, mh) : Ads.intakeLogoW(ctx, mh); const pad = sp.bg ? mh * 0.42 : 0;
       let s = 1; if (w + pad * 2 > maxW) s = maxW / (w + pad * 2); const h = mh * s; w *= s;
@@ -444,9 +703,14 @@
   // ---------------------------------------------------------------- billboards (10 m x 3.5 m on posts behind the fences)
   // the big, mostly visual formats: the logo at full height, one line of copy, the URL
   Ads.BILLBOARD_ASPECT = 10 / 3.5;
-  Ads.paintBillboard = function (ctx, k, x, y, w, h) {
-    ctx.save(); ctx.beginPath(); ctx.rect(x, y, w, h); ctx.clip(); ctx.translate(x, y); const vw = h * Ads.BILLBOARD_ASPECT; ctx.scale(w / vw, 1); w = vw;
-    const m = h * 0.09;
+  Ads.paintBillboard = function (ctx, k, x, y, w, h, aspect) {
+    ctx.save(); ctx.beginPath(); ctx.rect(x, y, w, h); ctx.clip(); ctx.translate(x, y); const vw = h * (aspect || Ads.BILLBOARD_ASPECT); ctx.scale(w / vw, 1);
+    const V = venue(); const slot = V.billboard[((k % 4) + 4) % 4];
+    if (slot[0] === 'L' || slot[0] === 'I') brandBillboard(ctx, slot.length > 1 ? +slot.slice(1) : 0, vw, h); else partnerBoard(ctx, slot, vw, h, { dark: V.dark, lh: 0.42, fill: 0.3 });
+    ctx.restore();
+  };
+  function brandBillboard(ctx, k, w, h) {
+    ctx.save(); const m = h * 0.09;
     if (k % 4 === 0) {
       lumiFrame(ctx, w, h, LUMI.bg, ['rgba(230,200,255,0.8)', 'rgba(220,238,209,0.9)']); haze(ctx, w * 0.5, h * 1.2, w * 0.3, h * 0.6, 'rgba(96,196,255,0.35)');
       Ads.lumiMark(ctx, m, m, h * 0.5);

@@ -19,6 +19,11 @@ window.EI = window.EI || {};
   }
   // the circuit is chosen in the menu; a change reloads the page with ?track=<id> (the whole scene is built once at start-up)
   const trackId = (() => { try { const q = new URLSearchParams(location.search).get('track'); const id = q || localStorage.getItem('ei-track') || 'silverstone'; return EI.TRACKS[id] ? id : 'silverstone'; } catch (e) { return 'silverstone'; } })();
+  // loading screen (F1 dress): the event and circuit of the track being built, filled in before the (blocking) scene build starts
+  (function fillLoader(d) {
+    if (!d) return; const set = (sel, v) => { const el = document.querySelector(sel); if (el && v) el.textContent = v; };
+    set('#loader-event', d.gp || d.name + ' Grand Prix'); set('#loader-venue', d.circuit || d.name); set('#loading .loader-text', 'Building ' + d.name);
+  })(EI.TRACKS[trackId]);
   function fillTrackCard(d) {
     const turns = d.corners.filter(c => c.t != null).length || d.corners.filter(c => !/Straight/i.test(c.name)).length;
     const set = (id, v) => { const el = $(id); if (el) el.textContent = v; };

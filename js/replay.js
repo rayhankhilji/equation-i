@@ -371,6 +371,7 @@ window.EI = window.EI || {};
     // the results card is up: offer the reel (and play it on its own once, unless automated / turned off)
     onResults(race) {
       if (!this.rec || this.rec.race !== race) return;
+      this.rec.frozen = true; for (const sl of this.rec.slots) sl.open = false;   // the kept windows are final: nothing can evict them now
       this.clips = this.rec.reel(8); this.btnState(this.clips.length > 0);
       let auto = true; try { auto = localStorage.getItem('ei-hl-auto') !== '0'; } catch (e) { }
       if (typeof navigator !== 'undefined' && navigator.webdriver && !/[?&]hl=auto/.test(location.search)) auto = false;

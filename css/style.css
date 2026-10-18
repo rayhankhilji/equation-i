@@ -381,6 +381,22 @@ button.primary:hover { background: linear-gradient(180deg, #ff4536, #e40700); }
 @keyframes loaderSlide { 0% { transform: translateX(-100%); } 100% { transform: translateX(350%); } }
 .loader-text { font-size: 11px; letter-spacing: 3.5px; text-transform: uppercase; color: var(--muted); font-weight: 700; animation: pulse 1.2s infinite; }
 @keyframes pulse { 0%, 100% { opacity: 0.5; } 50% { opacity: 1; } }
+/* the loading screen in Formula 1 dress: F1 carbon black, the official F1 logo (assets/brand/f1, Wikimedia Commons), F1 red, and a
+   Formula1 Display-like wide face (Saira at its widest setting, SIL OFL, vendored in assets/brand/f1). Same ids and mechanics as before */
+@font-face { font-family: "F1 Wide"; src: url(../assets/brand/f1/Saira-wdth.woff2) format("woff2"); font-weight: 100 900; font-stretch: 125%; font-display: swap; }
+#loading.f1-load { background: radial-gradient(ellipse 55% 45% at 50% 42%, rgba(225,6,0,0.11), transparent 72%), linear-gradient(180deg, #1b1b25 0%, #15151e 55%, #101017 100%); backdrop-filter: none; -webkit-backdrop-filter: none; }
+#loading.f1-load::before { inset: auto 0 0 0; height: 5px; background: #e10600; mask-image: none; -webkit-mask-image: none; }
+#loading.f1-load::after { content: ""; position: fixed; left: 0; top: 0; width: 132px; height: 5px; background: #e10600; pointer-events: none; }
+#loading.f1-load .loader { display: flex; flex-direction: column; align-items: center; max-width: 92vw; }
+#loading .f1-logo { display: block; width: min(250px, 58vw); height: auto; margin: 0 0 30px; }
+#loading .f1-kicker { font-family: "F1 Wide", var(--font); font-weight: 600; font-size: 10.5px; letter-spacing: 2.6px; text-transform: uppercase; color: #9b9ea8; }
+#loading .f1-event { font-family: "F1 Wide", var(--font); font-weight: 800; font-size: clamp(22px, 3.3vw, 34px); line-height: 1.08; letter-spacing: 0.01em; text-transform: uppercase; color: #ffffff; margin-top: 10px; }
+#loading .f1-venue { font-family: "F1 Wide", var(--font); font-weight: 400; font-size: 12px; letter-spacing: 2.2px; text-transform: uppercase; color: #c8cbd2; margin-top: 7px; }
+#loading .loader-bar { width: min(340px, 78vw); height: 4px; border-radius: 0; background: rgba(255,255,255,0.12); margin: 30px auto 14px; }
+#loading .loader-bar i { width: 34%; background: #e10600; animation-duration: 1.25s; }
+#loading .loader-text { font-family: "F1 Wide", var(--font); font-weight: 700; font-size: 10.5px; letter-spacing: 3px; color: #ffffff; }
+#loading .loader-partners { margin-top: 30px; opacity: 0.8; }
+#loading .loader-partners > span { font-family: "F1 Wide", var(--font); font-weight: 600; font-size: 9px; letter-spacing: 2.2px; color: #8b8e98; }
 
 /* ----- responsive front end ----- */
 @media (max-width: 980px) {
