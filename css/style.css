@@ -397,6 +397,9 @@ button.primary:hover { background: linear-gradient(180deg, #ff4536, #e40700); }
 #loading .loader-text { font-family: "F1 Wide", var(--font); font-weight: 700; font-size: 10.5px; letter-spacing: 3px; color: #ffffff; }
 #loading .loader-partners { margin-top: 30px; opacity: 0.8; }
 #loading .loader-partners > span { font-family: "F1 Wide", var(--font); font-weight: 600; font-size: 9px; letter-spacing: 2.2px; color: #8b8e98; }
+/* the partner chips are spans too: keep the brands' own lower-case wordmarks (the label rule above used to upper-case them) */
+#loading .loader-partners > .pchip { text-transform: none; letter-spacing: normal; margin-right: 0; }
+#loading .loader-partners > .pchip.lumi { color: #5e3a5f; } #loading .loader-partners > .pchip.intake { color: #2b211c; }
 
 /* ----- responsive front end ----- */
 @media (max-width: 980px) {

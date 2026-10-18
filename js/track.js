@@ -878,7 +878,7 @@ window.EI = window.EI || {};
         return mesh(pos, uv, idx, mat, name);
       };
       const turq = lin(RC[0]).multiplyScalar(2.4);
-      flat(P.poly, 0.06, 4, new THREE.MeshStandardMaterial(Object.assign(offMat(-1), { map: T.runoff.map, color: turq })), 'infieldPaint');
+      flat(P.poly, 0.06, 4, new THREE.MeshStandardMaterial(Object.assign(offMat(-1), { map: T.runoff.map, color: turq, emissive: lin(RC[0]).multiplyScalar(0.12) })), 'infieldPaint');
       // the link road: ribbon along the smoothed centre line, rows dropped where the road or its kerbs would reach past the barrier
       const R = F.road; if (R) {
         const curve = new THREE.CatmullRomCurve3(R.pts.map(p => new THREE.Vector3(p[0], 0, p[1])), false, 'centripetal'); const pts = curve.getSpacedPoints(Math.max(2, Math.round(curve.getLength() / 1.5)));
