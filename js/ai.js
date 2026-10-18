@@ -435,7 +435,7 @@ window.EI = window.EI || {};
         }
         // attacking on a straight: first close right up in the tow, then pull out with the speed it gives (pulling out 20-30 m
         // back threw the tow away and the pass never got closer); pull out once close, closing fast, with DRS, or near the braking zone
-        const attack = want && onStraight && !(nc.dist < 120 && nc.vmin < av - 8);
+        const attack = want && onStraight && car.lapsDone >= 1 && !(nc.dist < 120 && nc.vmin < av - 8);   // not in the lap-1 pack
         const fgA = 4.5 + av * 0.04;
         if (want && aheadGap < P.passGap && (this.passing || dive || car.drsOpen || aheadGap < fgA + 4 || (nc.dist < 160 && closing > 2))) {
           const room = hw - 1.3;
@@ -456,8 +456,11 @@ window.EI = window.EI || {};
         // vA: the car ahead's speed a moment from now if it keeps braking as hard as it is now; the kinematic cap is the most
         // this car can carry and still match vA before the gap closes to 3.5 m (braking at 25 m/s2, well inside the brakes)
         const vA = Math.max(0, ahead.v + Math.min(0, ahead.aLong) * 0.3);
-        if (overlap) target = Math.min(target, Math.sqrt(vA * vA + 2 * 25 * Math.max(0, aheadGap - 3.5 - av * 0.05)));
-        if (overlap && aheadGap < fg + 9) {
+        // attacking in the tow on a straight: only the closing speed it can still kill (10 m/s2 more than the car ahead) limits
+        // it, so the tow builds the run that the late pull-out turns into a pass; otherwise follow at the gap
+        if (attack && overlap) target = Math.min(target, ahead.v + Math.sqrt(2 * 10 * Math.max(0, aheadGap - 4.5 - av * 0.03)));
+        else if (overlap) target = Math.min(target, Math.sqrt(vA * vA + 2 * 25 * Math.max(0, aheadGap - 3.5 - av * 0.05)));
+        if (overlap && !attack && aheadGap < fg + 9) {
           const follow = Math.max(vA + (aheadGap - fg) * 1.1, 3);
           target = Math.min(target, Math.max(follow, vA + (passing ? 1.5 : L(0.4, 1.5, P.agg))));
         }

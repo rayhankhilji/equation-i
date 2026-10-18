@@ -575,8 +575,8 @@ window.EI = window.EI || {};
   // the finish line camera: beside the track opposite the pit wall, ~40 m before the line, looking down the straight
   function lineSpot(P) {
     const tr = P.rec.track, side = -(tr.pitSideSign ? tr.pitSideSign() : -1), i = tr.idxAtS(tr.sf + 35); const wall = side < 0 ? tr.wallL[i] : tr.wallR[i];
-    const street = !!(tr.data && tr.data.street); const off = street ? wall + 0.5 : Math.min(wall + 3, tr.halfWidth + 20);
-    return { x: tr.x[i] + tr.nx[i] * side * off, y: tr.y[i] + (street ? 4.5 : 6), z: tr.z[i] + tr.nz[i] * side * off, s: tr.sf + 35 };
+    const street = !!(tr.data && tr.data.street); const off = street ? wall + 0.5 : Math.min(wall + 6, tr.halfWidth + 22);
+    return { x: tr.x[i] + tr.nx[i] * side * off, y: tr.y[i] + (street ? 5.5 : 9.5), z: tr.z[i] + tr.nz[i] * side * off, s: tr.sf + 35 };
   }
   const _v = typeof THREE !== 'undefined' ? new THREE.Vector3() : null, _w = typeof THREE !== 'undefined' ? new THREE.Vector3() : null;
   function shotCamera(P, c, sh, snap, dt) {
