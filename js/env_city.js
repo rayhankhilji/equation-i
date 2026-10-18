@@ -326,6 +326,12 @@ window.EI = window.EI || {};
     p.shade(c => { for (let k = 0; k < IN; k += 56) { const g = c.createLinearGradient(k, 0, k + 56, 0); g.addColorStop(0, 'rgba(0,0,0,0.12)'); g.addColorStop(0.5, 'rgba(255,255,255,0.08)'); g.addColorStop(1, 'rgba(0,0,0,0.12)'); c.fillStyle = g; c.fillRect(k, 0, 56, IN); } });
     p.bump(c => { for (let k = 0; k < IN; k += 56) { const g = c.createLinearGradient(k, 0, k + 56, 0); g.addColorStop(0, gray(110)); g.addColorStop(0.5, gray(150)); g.addColorStop(1, gray(110)); c.fillStyle = g; c.fillRect(k, 0, 56, IN); } });
   }]);
+  def('awnb', 13, 0, [(p) => {
+    // solid canvas awning (Boulevard Albert I blue: the colour comes from the accent), seams and a little sag shading across
+    p.rect(0, 0, IN, IN, accP(Hh.awn, [236, 236, 232], 0.8)); p.rect(0, IN - 26, IN, 26, accP(Hh.awn, [214, 214, 210], 0.8));
+    p.shade(c => { for (let k = 0; k < IN; k += 56) { const g = c.createLinearGradient(k, 0, k + 56, 0); g.addColorStop(0, 'rgba(0,0,0,0.14)'); g.addColorStop(0.5, 'rgba(255,255,255,0.1)'); g.addColorStop(1, 'rgba(0,0,0,0.14)'); c.fillStyle = g; c.fillRect(k, 0, 56, IN); } });
+    p.bump(c => { for (let k = 0; k < IN; k += 56) { const g = c.createLinearGradient(k, 0, k + 56, 0); g.addColorStop(0, gray(110)); g.addColorStop(0.5, gray(150)); g.addColorStop(1, gray(110)); c.fillStyle = g; c.fillRect(k, 0, 56, IN); } });
+  }]);
   def('loggia', 4, 6, [(p) => {
     // a recessed loggia: deep shade, the door at the back, a solid parapet painted at the front
     p.clear(wallP()); p.rect(10, 0, 204, 150, sp([110, 104, 96], TW, 0.9, 0, 0.18)); p.vgrad(10, 0, 204, 150, [[0, 'rgba(0,0,0,0.5)'], [1, 'rgba(0,0,0,0.25)']]);
@@ -877,6 +883,8 @@ window.EI = window.EI || {};
     const T = E.t, pa = T.project(cx, cz, null, E._dpr || (E._dpr = {}));
     const albert = T.data.id === 'monaco' && kc !== 5 && kc !== 7 && area > 150 && pa.dist < 75 && (pa.s > T.length - 330 || pa.s < 165);
     if (albert) style = 'riviera';
+    // Monaco is masonry: glass curtain walls and office bands only out at Larvotto / Fontvieille and on the very tallest towers
+    if ((style === 'modern' || style === 'office') && zone !== 'larvotto' && zone !== 'fontvieille' && !(known && H > 120)) style = 'riviera';
     const S = STY[style];
     if (!known) {
       let f0, f1;
@@ -909,10 +917,10 @@ window.EI = window.EI || {};
       if (zone === 'larvotto' || zone === 'fontvieille') { if (h6 > 0.6) rv = 'mod'; }
       rail = Math.floor(h3 * 4) % 4; if (rv === 'mod') rail = 2;
     }
-    if (albert) { roof = 'flat'; if (rv === 'mod' || rv === 'rv60') rv = 'punched'; }
+    if (albert) { roof = 'flat'; rv = h6 < 0.45 ? 'punched' : 'long'; }
     const awnP = albert ? 0.85 : style === 'riviera' && rv !== 'mod' ? (h5 < 0.35 ? 0.55 : h5 < 0.6 ? 0.18 : 0) : 0;
     // towers step back for their top floors (a penthouse ring with a terrace), the tallest get a crown
-    let sb = null; if ((style === 'riviera' || style === 'modern') && nf >= 9 && area > 260 && h1 * 7 % 1 < 0.6) sb = { n: 1 + (h2 * 5 % 1 < 0.4 ? 1 : 0), d: 2.2 + h3 * 1.6 };
+    let sb = null; if (!albert && (style === 'riviera' || style === 'modern') && nf >= 9 && area > 260 && h1 * 7 % 1 < 0.6) sb = { n: 1 + (h2 * 5 % 1 < 0.4 ? 1 : 0), d: 2.2 + h3 * 1.6 };
     return { zone, style, S, nf, H, tint, acc, roof, roofTint, rv, rail, awnP, albert, sb, seed: Math.floor(h1 * 997), shops: zone !== 'hill' && zone !== 'beausoleil' && style !== 'villa' && style !== 'old' };
   }
 
@@ -1064,25 +1072,24 @@ window.EI = window.EI || {};
   }
   // canvas awnings over some balcony bays (accent stripes): a sloping sheet and its valance
   function awningsOn(E, G, segs, D, yTopA, out, k, all) {
-    if (!D.awnP) return; const cl = cell('awn'); G.sub = D.albert ? 0 : 1; const drop = 0.75; const col = D.albert ? AWN_BLUE : WHITE, acc = G.acc; if (D.albert) G.acc = WHITE;
+    if (!D.awnP) return; const cl = cell(D.albert ? 'awnb' : 'awn'); G.sub = D.albert ? 0 : 1; const drop = 0.75; const acc = G.acc; if (D.albert) G.acc = AWN_BLUE;
     for (const s of segs) {
       if (!(all || s.long) || !s.balc) continue; const nb = Math.max(1, Math.round(s.L / D.S.bw)); const bw = s.L / nb;
       for (let j = 0; j < nb; j++) {
         if (hash(s.u + j * 7, k * 13 + D.seed, 77) > D.awnP) continue; const a0 = j * bw + 0.15, a1 = (j + 1) * bw - 0.15;
         const P = (al, o) => [s.P0[0] + s.d[0] * al + s.n[0] * o, s.P0[1] + s.d[1] * al + s.n[2] * o];
         const w0 = P(a0, 0.02), w1 = P(a1, 0.02), e0 = P(a0, out), e1 = P(a1, out); const yB = yTopA - drop;
-        G.quad([w1[0], yTopA, w1[1]], [w0[0], yTopA, w0[1]], [e0[0], yB, e0[1]], [e1[0], yB, e1[1]], null, [0, 0, 1, 0, 1, 1, 0, 1], col, cl);
-        if (D.albert) G.quad([w1[0], yTopA, w1[1]], [w0[0], yTopA, w0[1]], [e0[0], yB, e0[1]], [e1[0], yB, e1[1]], [0, -1, 0], [0, 0, 1, 0, 1, 1, 0, 1], scaleC(col, 0.62), cl);
-        G.quad([e1[0], yB - 0.28, e1[1]], [e0[0], yB - 0.28, e0[1]], [e0[0], yB, e0[1]], [e1[0], yB, e1[1]], s.n, [0, 0, 1, 0, 1, 0.12, 0, 0.12], col, cl);
+        G.quad([w1[0], yTopA, w1[1]], [w0[0], yTopA, w0[1]], [e0[0], yB, e0[1]], [e1[0], yB, e1[1]], null, [0, 0, 1, 0, 1, 1, 0, 1], WHITE, cl);
+        if (D.albert) { G.acc = AWN_UNDER; G.quad([w1[0], yTopA, w1[1]], [w0[0], yTopA, w0[1]], [e0[0], yB, e0[1]], [e1[0], yB, e1[1]], [0, -1, 0], [0, 0, 1, 0, 1, 1, 0, 1], WHITE, cl); G.acc = AWN_BLUE; }
+        G.quad([e1[0], yB - 0.28, e1[1]], [e0[0], yB - 0.28, e0[1]], [e0[0], yB, e0[1]], [e1[0], yB, e1[1]], s.n, [0, 0, 1, 0, 1, 0.12, 0, 0.12], WHITE, cl);
       }
     }
     G.sub = 0; G.acc = acc;
   }
   // Boulevard Albert I: a blue drop-arm awning over most windows of the plain faces (core geometry: Low draws them too)
-  const AWN_BLUE = C(0x2a7ad8);
+  const AWN_BLUE = C(0x2a7ad8), AWN_UNDER = C(0x1d5aa6);
   function windowAwnings(E, G, seg, D, L) {
-    const S = D.S, cl = cell('awn'), nfMain = D.nf - L.nsb, out = 0.85, drop = 0.7, vh = 0.26; const acc = G.acc; G.acc = WHITE; G.sub = 0;
-    const under = scaleC(AWN_BLUE, 0.62);
+    const S = D.S, cl = cell('awnb'), nfMain = D.nf - L.nsb, out = 0.85, drop = 0.7, vh = 0.26; const acc = G.acc; G.acc = AWN_BLUE; G.sub = 0;
     for (const s of seg) {
       if (s.balc || !(s.street || s.long) || s.L < 3) continue; const bw = s.L / s.nb;
       const up = [s.n[0] * drop, out, s.n[2] * drop]; const ul = Math.hypot(up[0], up[1], up[2]); up[0] /= ul; up[1] /= ul; up[2] /= ul;
@@ -1092,9 +1099,9 @@ window.EI = window.EI || {};
           if (hash(s.u + j * 3, k * 7 + D.seed, 53) > 0.8) continue;
           const P = (al, o) => [s.P0[0] + s.d[0] * al + s.n[0] * o, s.P0[1] + s.d[1] * al + s.n[2] * o];
           const a0 = (j + 0.12) * bw, a1 = (j + 0.88) * bw; const w0 = P(a0, 0.03), w1 = P(a1, 0.03), e0 = P(a0, out), e1 = P(a1, out);
-          G.quad([w1[0], yT, w1[1]], [w0[0], yT, w0[1]], [e0[0], yB, e0[1]], [e1[0], yB, e1[1]], up, [0, 0, 1, 0, 1, 1, 0, 1], AWN_BLUE, cl);
-          G.quad([w1[0], yT, w1[1]], [w0[0], yT, w0[1]], [e0[0], yB, e0[1]], [e1[0], yB, e1[1]], [-up[0], -up[1], -up[2]], [0, 0, 1, 0, 1, 1, 0, 1], under, cl);
-          G.quad([e1[0], yB - vh, e1[1]], [e0[0], yB - vh, e0[1]], [e0[0], yB, e0[1]], [e1[0], yB, e1[1]], s.n, [0, 0, 1, 0, 1, 0.12, 0, 0.12], AWN_BLUE, cl);
+          G.quad([w1[0], yT, w1[1]], [w0[0], yT, w0[1]], [e0[0], yB, e0[1]], [e1[0], yB, e1[1]], up, [0, 0, 1, 0, 1, 0.88, 0, 0.88], WHITE, cl);
+          G.acc = AWN_UNDER; G.quad([w1[0], yT, w1[1]], [w0[0], yT, w0[1]], [e0[0], yB, e0[1]], [e1[0], yB, e1[1]], [-up[0], -up[1], -up[2]], [0, 0, 1, 0, 1, 0.88, 0, 0.88], WHITE, cl); G.acc = AWN_BLUE;
+          G.quad([e1[0], yB - vh, e1[1]], [e0[0], yB - vh, e0[1]], [e0[0], yB, e0[1]], [e1[0], yB, e1[1]], s.n, [0, 0.88, 1, 0.88, 1, 1, 0, 1], WHITE, cl);
         }
       }
     }
@@ -1394,7 +1401,9 @@ window.EI = window.EI || {};
             if (TD && pr.s > TD.s0 - 10 && pr.s < TD.s1 + 10 && pr.dist < Math.max(t.wallL[pr.i], t.wallR[pr.i]) + 2.2) yb = Math.max(yb, t.y[pr.i] + 7.3);
             const nfl = Math.max(1, Math.round((yTop - yb) / 3.3));
             G.quad([b[0], yb, b[1]], [a[0], yb, a[1]], [a[0], yTop, a[1]], [b[0], yTop, b[1]], n, [u, 0, u + 1, 0, u + 1, nfl, u, nfl], tint, fc); u++;
-            G.quad([b[0], yTop, b[1]], [a[0], yTop, a[1]], [a[0], yTop + 1.1, a[1]], [b[0], yTop + 1.1, b[1]], n, [0, 0, 1, 0, 1, 0.3, 0, 0.3], WHITE, cell('slab'));
+            // the roof fascia: dark lettered panels along the faces seen from the hairpin, white slab edge elsewhere
+            if (pr.dist < 140 && (k & 1) === 0 && L > 5) G.quad([b[0], yTop, b[1]], [a[0], yTop, a[1]], [a[0], yTop + 1.6, a[1]], [b[0], yTop + 1.6, b[1]], n, [0, 0, 2, 0, 2, 1, 0, 1], WHITE, cell('roofsign'));
+            else G.quad([b[0], yTop, b[1]], [a[0], yTop, a[1]], [a[0], yTop + 1.1, a[1]], [b[0], yTop + 1.1, b[1]], n, [0, 0, 1, 0, 1, 0.3, 0, 0.3], WHITE, cell('slab'));
             // near: a balcony slab with a planter edge at every floor, where it clears the circuit
             if (kind === 'D') {
               const o = [n[0] * 1.6, n[2] * 1.6]; const A = [a[0] + o[0], a[1] + o[1]], B = [b[0] + o[0], b[1] + o[1]];

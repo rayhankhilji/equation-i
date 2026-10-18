@@ -49,7 +49,7 @@ window.EI = window.EI || {};
     // physically based sky, with the sun light aligned to it and a PMREM environment for reflections / ambient
     // per-circuit light: Silverstone keeps its English afternoon; Monaco gets a high late-May sun from over the sea (so the
     // city facades facing the harbour are lit), a clearer sky, sea haze on the horizon and warm stone bounce light
-    const LOOKS = { monaco: { elev: 52, azim: 338, turb: 1.9, ray: 1.5, mie: 0.003, horizon: 0xbcd3ea, sky: [0.66, 0.4], fog: [550, 2400], fogLow: [320, 1400], hemi: [0xa8cdf2, 0x8a7a66, 0.42], sun: [0xfff3e0, 2.65],
+    const LOOKS = { monaco: { elev: 52, azim: 338, turb: 1.9, ray: 1.5, mie: 0.003, horizon: 0xbcd3ea, sky: [0.34, 1.2], fog: [550, 2400], fogLow: [320, 1400], hemi: [0xa8cdf2, 0x8a7a66, 0.42], sun: [0xfff3e0, 2.65],
         // the cyan sky in the reflections tinted the shaded asphalt teal: a greyer environment, a little less saturation boost and
         // more contrast for the hard May sun; the Tete de Chien / Mont Agel ridge painted into the sky to the north (west to east-north-east)
         envSat: 0.4, grade: { sat: 1.3, con: 1.12, warm: [1.03, 1.0, 0.975] }, ridge: [-3.05, -0.3, 0.2] },
@@ -58,7 +58,7 @@ window.EI = window.EI || {};
       // high up so the cars keep their contact shadows
       abudhabi: { night: true, elev: 70, azim: 200, west: [-0.7, 0, 0.7], horizon: 0x1c150e, fog: [800, 3400], fogLow: [480, 1900], hemi: [0x2c3a5a, 0x221a12, 0.42], sun: [0xc8d2ff, 0.2], nightTrack: { core: 0.6, halo: 0.2 }, nightAir: [1.0, 0.84, 0.62, 0.05],
         grade: { sat: 1.22, con: 1.12, warm: [1.02, 1.0, 0.985] } } };
-    const LK = Object.assign({ elev: 38, azim: 212, turb: 2.5, ray: 2.0, mie: 0.004, horizon: 0xa9c4e4, sky: [0.6, 0.45], fog: [600, 2600], fogLow: [350, 1500], hemi: [0x9fc4ee, 0x3f5a2e, 0.35], sun: [0xfff1dd, 2.4] }, LOOKS[trackId] || {}); EI.look = LK;
+    const LK = Object.assign({ elev: 38, azim: 212, turb: 2.5, ray: 2.0, mie: 0.004, horizon: 0xa9c4e4, sky: [0.42, 1.0], fog: [600, 2600], fogLow: [350, 1500], hemi: [0x9fc4ee, 0x3f5a2e, 0.35], sun: [0xfff1dd, 2.4] }, LOOKS[trackId] || {}); EI.look = LK;
     // a per-circuit grade replaces the default one (the night race: less saturation boost, a little more contrast, so the floodlit
     // turquoise and the purple LED wash read vivid without turning neon)
     if (LK.grade) { const G = LK.grade; THREE.ShaderChunk.tonemapping_fragment = gradeChunk(G.sat, G.con, G.warm || [1.03, 1.0, 0.97]); }

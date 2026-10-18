@@ -134,7 +134,14 @@ window.EI = window.EI || {};
       x.fillText('trylumi.co', w * 0.25, h / 2 + 2); x.fillText('intake.ink', w * 0.75, h / 2 + 2); x.fillStyle = 'rgba(255,255,255,0.35)'; x.fillRect(w / 2 - 1, 10, 2, h - 20); x.restore();
       if (A && A.lumiMark) try { A.lumiMark(x, 52, 12, 40, null, true); } catch (e) { }
     });
-    RG = { glassN, marina, shutter, towerG, sign }; return RG;
+    // the underside of the flat cantilever roofs (u4 / r14): dark steel deck, a rib every 3 m, purlins, a grid of round downlights
+    // every 1.5 m (12 x 6 m tile; emissive at night so the lamps halo)
+    const soffit = AT.region('yasSoffit', 256, 128, (x, w, h) => {
+      x.fillStyle = '#2e3238'; x.fillRect(0, 0, w, h); x.fillStyle = 'rgba(255,255,255,0.05)'; for (let y = 0; y < h; y += 16) x.fillRect(0, y, w, 2);
+      x.fillStyle = '#4b5159'; for (let i = 0; i < 4; i++) x.fillRect(i * 64, 0, 6, h);
+      for (let i = 0; i < 8; i++) for (let j = 0; j < 4; j++) { const cx = i * 32 + 19, cy = j * 32 + 16; const g = x.createRadialGradient(cx, cy, 0, cx, cy, 9); g.addColorStop(0, 'rgba(255,246,222,1)'); g.addColorStop(0.35, 'rgba(255,236,200,0.95)'); g.addColorStop(1, 'rgba(255,230,190,0)'); x.fillStyle = g; x.fillRect(cx - 9, cy - 9, 18, 18); }
+    });
+    RG = { glassN, marina, shutter, towerG, sign, soffit }; return RG;
   }
 
   // ---------------------------------------------------------------- membrane: a tensile fabric surface over a local rectangle,
@@ -218,7 +225,8 @@ window.EI = window.EI || {};
       // the venue's bare stair towers at the run ends: clad them like the stand backs
       if (b.first) cladTower(B, m, -hl - 1.9, zBack - 2.0, yTop, -1);
       if (b.last) cladTower(B, m, hl + 1.9, zBack - 2.0, yTop, 1);
-      sailRow(B, LN, m, -hl - 0.3, hl + 0.3, -4.2, zBack + 1.4, yTop + 3.4, 3.6, 3.0, [-b.nx, -b.nz], 0.16); n++;
+      // flat cantilevered roofs (u4, r14); the tent sails are kept for the North Grandstand (northStand) and the paddock
+      flatRoof(B, m, -hl - 0.3, hl + 0.3, -3.4, zBack + 1.2, yTop + 4.6, yTop + 3.6, [-b.nx, -b.nz], 0.14, 9); n++;
       // the back of the stand: pale composite cladding over a lit concourse of kiosks and fans (instead of the bare dark wall)
       const TX = EI.EnvYasTex.regions(), zc = zBack + 0.07, yC = 3.6, yT = yTop + 1.2;
       const Q = (x, y, z) => xf(m, x, y, z);
@@ -263,6 +271,36 @@ window.EI = window.EI || {};
     B.set('white', 0.7, 0, isNight() ? 0.25 : 0); band(0, 0.25, 0, 1, C(0xc8102e)); band(0.25, 1, 0, 1 / 3, C(0x00843d)); band(0.25, 1, 1 / 3, 2 / 3, C(0xf4f4f4)); band(0.25, 1, 2 / 3, 1, C(0x111111));
   }
   const I4 = new THREE.Matrix4();
+  // flat cantilevered roof (u4, r14) over local [x0, x1] x [zF, zB] (zF towards the track), rising slightly towards the track: a
+  // ribbed underside full of downlights, pale metal top, a dark steel fascia carrying an LED partner band, columns along the back
+  // with the girders running out under the deck (visible ribs). Lights: downlight glows along the front, floods on the stand and
+  // the track
+  function flatRoof(B, m, x0, x1, zF, zB, yF, yB, aimW, lightPow, colStep) {
+    const Rr = regions(), TX = EI.EnvYasTex.regions(), night = isNight(); const Q = (x, y, z) => xf(m, x, y, z);
+    const o = Q(0, 0, 0), ex = Q(1, 0, 0), ez = Q(0, 0, 1); const wx = [ex[0] - o[0], 0, ex[2] - o[2]], wz = [ez[0] - o[0], 0, ez[2] - o[2]];
+    const yAt = (z) => yF + (yB - yF) * (z - zF) / (zB - zF); const D = zB - zF, th = 0.45;
+    B.set(Rr.soffit, 0.6, 0.3, night ? 1.6 : 0);
+    qW(B, Q(x0, yF, zF), Q(x1, yF, zF), Q(x1, yB, zB), Q(x0, yB, zB), C(0xffffff), [x0 / 12, 0, x1 / 12, 0, x1 / 12, D / 6, x0 / 12, D / 6], [0, -1, 0]);
+    B.set('white', 0.45, 0.35, 0); qW(B, Q(x0, yF + th, zF), Q(x1, yF + th, zF), Q(x1, yB + th, zB), Q(x0, yB + th, zB), C(0xd3d7db), null, [0, 1, 0]);
+    // fascia (front), back edge, ends
+    const fas = C(0x1f2328);
+    B.set('white', 0.5, 0.5, 0); qW(B, Q(x0, yF - 0.75, zF), Q(x1, yF - 0.75, zF), Q(x1, yF + th + 0.1, zF), Q(x0, yF + th + 0.1, zF), fas, null, [-wz[0], 0, -wz[2]]);
+    qW(B, Q(x0, yF - 0.75, zF), Q(x1, yF - 0.75, zF), Q(x1, yF, zF + 0.6), Q(x0, yF, zF + 0.6), fas, null, [0, -1, 0]);
+    qW(B, Q(x0, yB - 0.2, zB), Q(x1, yB - 0.2, zB), Q(x1, yB + th, zB), Q(x0, yB + th, zB), fas, null, wz);
+    for (const [x, s] of [[x0, -1], [x1, 1]]) qW(B, Q(x, yF - 0.75, zF), Q(x, yF + th + 0.1, zF), Q(x, yB + th, zB), Q(x, yB - 0.2, zB), fas, null, [wx[0] * s, 0, wx[2] * s]);
+    B.set(TX.led, 0.4, 0, night ? 1.25 : 0.2); const L = x1 - x0;
+    qW(B, Q(x0 + 0.3, yF - 0.55, zF - 0.03), Q(x1 - 0.3, yF - 0.55, zF - 0.03), Q(x1 - 0.3, yF + th - 0.05, zF - 0.03), Q(x0 + 0.3, yF + th - 0.05, zF - 0.03), C(0xffffff), [0, 0, (L - 0.6) / 12.8, 0, (L - 0.6) / 12.8, 1, 0, 1], [-wz[0], 0, -wz[2]]);
+    // columns and the girders under the deck
+    const n = Math.max(1, Math.round(L / colStep)), st = L / n; const steelC = C(0xb9bfc5);
+    for (let k = 0; k <= n; k++) {
+      const x = x0 + Math.min(L - 0.3, Math.max(0.3, k * st)); B.set('white', 0.45, 0.55, 0);
+      B.beam(I4, Q(x, 0, zB - 0.4), Q(x, yB - 0.1, zB - 0.4), 0.55, steelC, 8);
+      B.beam(I4, Q(x, yB - 0.25, zB - 0.4), Q(x, yF - 0.3, zF + 0.4), 0.42, steelC);
+      B.beam(I4, Q(x, yB - 1.6, zB - 0.4), Q(x, yAt(zF + D * 0.45) - 0.35, zF + D * 0.45), 0.24, steelC);
+    }
+    for (let x = x0 + 2.5; x < x1 - 1; x += 5) glow(Q(x, yF - 0.25, zF + 1.0), 1.1, [1.0, 0.95, 0.84]);
+    for (let x = x0 + 12; x < x1; x += 24) { if (lightPow) flood(Q(x, yF - 0.6, zF + 1.5), { power: lightPow, aim: aimW, spread: 1.15, range: 55 }); flood(Q(x, yAt(zF + D * 0.5) - 1, zF + D * 0.5), { power: 0.05, range: 30 }); }
+  }
 
   // ---------------------------------------------------------------- the North Grandstand (u5): the horseshoe of tiers round the
   // hairpin (the venue built them as chords, northLayout) closed into one stand, one continuous white tent roof over it all: a row
@@ -365,6 +403,40 @@ window.EI = window.EI || {};
     return nm;
   }
 
+  // ---------------------------------------------------------------- the row of tall white tent peaks seen past the end of the
+  // straight (u4, a18): five pyramid tents on white posts over a glazed lit hospitality deck, on the first free ground straight ahead
+  // of the pit straight beyond Turn 1
+  function tentRow(E, B, LN, out) {
+    const t = E.t, OCC = EI.Env.OCC, night = isNight(), TX = EI.EnvYasTex.regions(); const pr = {};
+    const f0 = lapFrame(t, t.sf + 150, 1), o = lapFrame(t, t.sf + 200, 1); const nT = 5, sz = 17, L = nT * sz, Dp = sz;
+    let best = null;
+    for (let d = 110; d <= 320 && !best; d += 15) for (const lat of [0, -25, 25, -50, 50, -75, 75]) {
+      const cx = o.x + f0.tx * d + f0.tz * lat, cz = o.z + f0.tz * d - f0.tx * lat;
+      // the row faces back down the straight: its long axis across the view
+      const ax = -f0.tz, az = f0.tx;
+      if (E.rectFree(cx, cz, ax, az, L / 2 + 3, Dp / 2 + 3, OCC.BUILT | OCC.WATER | OCC.ROAD | OCC.TRACK) < 0.97) continue;
+      if (E.isSea && E.isSea(cx, cz)) continue;
+      let ok = true; for (const [a, b] of [[-L / 2, -Dp / 2], [L / 2, -Dp / 2], [-L / 2, Dp / 2], [L / 2, Dp / 2], [0, 0]]) { t.project(cx + ax * a - az * b, cz + az * a + ax * b, null, pr); if (pr.dist < Math.max(t.wallL[pr.i], t.wallR[pr.i]) + 18) ok = false; }
+      if (ok) { best = { cx, cz, ax, az }; break; }
+    }
+    if (!best) { out.tentRow = 0; return; }
+    const y0 = E.ground(best.cx, best.cz) - 0.2; const m = EI.Env.frame(best.cx, y0, best.cz, best.ax, best.az, -best.az, best.ax);
+    E.markRect(best.cx, best.cz, best.ax, best.az, L / 2 + 2, Dp / 2 + 2, OCC.BUILT);
+    const white = C(0xf5f5f2), deckH = 6.2, eave = deckH + 3.4, pk = 10.5;
+    // the deck: lit lounge glazing all round, a white slab roof
+    B.set(TX.hosp, 0.12, 0.35, night ? 1.0 : 0); B.box(m, L - 1, deckH, Dp - 1, 0, 0, 0, C(0xffffff), { tile: 12 });
+    B.set('white', 0.7, 0, 0); B.box(m, L + 0.6, 0.45, Dp + 0.6, 0, deckH, 0, white, { bottom: true });
+    for (let k = 0; k < nT; k++) {
+      const x0 = -L / 2 + k * sz + 0.15, x1 = x0 + sz - 0.3, z0 = -Dp / 2 + 0.15, z1 = Dp / 2 - 0.15;
+      membrane(B, m, x0, x1, z0, z1, (u, v) => { const d = Math.max(Math.abs(u - 0.5), Math.abs(v - 0.5)) * 2; return eave + pk * Math.pow(Math.max(0, 1 - d), 1.6); }, 8, 8, fabric, fabricU, night ? 0.55 : 0);
+      const c = xf(m, (x0 + x1) / 2, eave + pk, 0); const mP = new THREE.Matrix4().makeTranslation(c[0], c[1], c[2]);
+      B.set('white', 0.5, 0.2, 0); B.col(mP, 0, 0, 0, 2.2, 0.16, 0.05, 6, white, true);
+      for (const [cx, cz] of [[x0, z0], [x1, z0], [x0, z1], [x1, z1]]) { B.set('white', 0.5, 0.3, 0); B.col(m, cx, cz, deckH, eave, 0.14, 0.12, 6, white, true); LN.seg(xf(m, cx, eave, cz), c, steel); }
+      if (night) { glow(xf(m, (x0 + x1) / 2, eave + 1.5, 0), 3.6, [1.0, 0.88, 0.66]); flood(xf(m, (x0 + x1) / 2, eave, 0), { power: 0.08, range: 30, color: [1.0, 0.88, 0.7] }); }
+    }
+    out.tentRow = nT;
+  }
+
   // ---------------------------------------------------------------- the pit building: closed garages either side of the pit.js
   // garages, three glazed hospitality decks with balconies and lit ceilings, the sail canopy reaching out over the pit lane
   function lapFrame(t, s, side) {
@@ -411,11 +483,11 @@ window.EI = window.EI || {};
     }
     // end walls
     for (const [s, f] of [[S0, 1], [S1, -1]]) { B.set(R.stone, 0.75, 0); const a = P(s, L0, 0), b = P(s, L1, 0), c = P(s, L1, 20), d = P(s, L0, 20); if (f > 0) B.quad(a, d, c, b, stone); else B.quad(a, b, c, d, stone); }
-    // the canopy: sail modules from over the pit lane to behind the building, rising towards the track
+    // the canopy: a flat cantilevered roof from over the pit lane to behind the building, rising towards the track (u4)
     for (let s = S0; s < S1; s += 40) {
       const s2 = Math.min(S1, s + 40); const f = lapFrame(t, t.sf + (s + s2) / 2, side);
       const m = EI.Env.frame(f.x, f.y, f.z, f.tx, f.tz, f.nx, f.nz);
-      sailRow(B, LN, m, -(s2 - s) / 2 - 0.2, (s2 - s) / 2 + 0.2, latC + 1, L1 + 2, 21.5, 5.5, 3.2, [-f.nx, -f.nz], 0.14);
+      flatRoof(B, m, -(s2 - s) / 2 - 0.02, (s2 - s) / 2 + 0.02, latC + 1, L1 + 2, 24.0, 21.6, [-f.nx, -f.nz], 0.14, 10);
     }
     // the pit lane itself under the canopy
     for (let s = S0 + 10; s < S1; s += 33) flood(P(s, latC + 4, 24), { power: 0.12, aim: [-lapFrame(t, t.sf + s, side).nx, -lapFrame(t, t.sf + s, side).nz], spread: 1.2, range: 60 });
@@ -598,6 +670,7 @@ window.EI = window.EI || {};
     step('paddock', () => paddock(E, B, LN, R, Rr, H, out));
     step('towers', () => towers(E, B, R, Rr, pit, out));
     step('bridge', () => bridge(E, B, R, Rr, out));
+    step('tents', () => tentRow(E, B, LN, out));
     step('flood', () => floodlights(E, out));
     H.W.add(B, 'main'); H.W.add(LN, 'lines'); out.archTris = B.count / 3;
   };

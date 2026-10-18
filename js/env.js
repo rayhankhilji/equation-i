@@ -202,7 +202,7 @@ window.EI = window.EI || {};
       CH = CH || 600; const buckets = new Map();
       for (const s of this.src) {
         const p = s.g.attributes.position.array, nt = p.length / 9; const keys = new Int32Array(nt);
-        for (let t = 0; t < nt; t++) { const o = t * 9; const x = (p[o] + p[o + 3] + p[o + 6]) / 3, z = (p[o + 2] + p[o + 5] + p[o + 8]) / 3; const key = (Math.floor(x / CH) + 64) * 128 + (Math.floor(z / CH) + 64); keys[t] = key; const bk = s.layer + key; let b = buckets.get(bk); if (!b) buckets.set(bk, b = { layer: s.layer, key, n: 0, parts: [] }); b.n++; }
+        for (let t = 0; t < nt; t++) { const o = t * 9; const x = (p[o] + p[o + 3] + p[o + 6]) / 3, z = (p[o + 2] + p[o + 5] + p[o + 8]) / 3; const key = (Math.floor(x / CH) + 64) * 128 + (Math.floor(z / CH) + 64); keys[t] = key; const bk = s.layer + keys[t]; let b = buckets.get(bk); if (!b) buckets.set(bk, b = { layer: s.layer, key, n: 0, parts: [] }); b.n++; }
         s.keys = keys;
       }
       for (const b of buckets.values()) b.pos = new Float32Array(b.n * 9), b.nrm = new Float32Array(b.n * 9), b.col = new Float32Array(b.n * 9), b.rm = new Float32Array(b.n * 6), b.o = 0;

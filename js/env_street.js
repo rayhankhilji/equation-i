@@ -61,50 +61,69 @@ window.EI = window.EI || {};
     E.tunnel = { s0, s1 };
     E.stats.tunnelSegs = kseg;
   }
-  // ---------------------------------------------------------------- tunnel (street circuit): a vaulted bore under the hotel, cream tiled walls over a
-  // dark dado behind the rails, the haunches carrying continuous rows of light fittings, a dark soffit. The interior is lit by its own lamps:
-  // the shell is baked (unlit, vertex light) so the sun never reaches inside, and a graded dark film over the road and rails fades in from
-  // each portal. Brighter yellow reinforcement lighting in the first and last 40 m, as at the real portals.
+  // ---------------------------------------------------------------- tunnel (street circuit): the bore under the hotel as it is: a FLAT grey concrete
+  // ceiling, cream square tiles on the walls over a dark dado behind the rails, a slanted cable tray along the top of the outer wall carrying a row of
+  // round white LED lamps, long partner boards on the outer wall. The shell is baked (unlit, vertex light) so the sun never reaches inside, and a
+  // graded dark film over the road and rails fades in from each portal. Warmer, denser reinforcement lamps in the first and last 40 m.
   function buildTunnelVault(E) {
     const t = E.t, sc = E.sc, TD = t.data.tunnel; if (!TD) return;
     const s0 = TD.s0, s1 = TD.s1, step = 2; const Z = t.streetZones ? t.streetZones() : null;
-    const Hw = 3.7, Hc = 6.1; // wall height before the haunch, crown height
+    const Hw = 4.05, Ht = 4.55, Hc = 5.0, tray = 0.55; // tiles to Hw, upright tray face to Ht, the tray slopes in to the ceiling at Hc
     const P = [], N = [], Cc = [], UV = [], I = []; const LP = [], LC = [], LI = []; const SH = new EI.Env.Builder(); const OV = { p: [], uv: [], i: [] };
-    const tile = C(0xe9e2d0), dado = C(0x4c4f52), haunch = C(0xb9b3a4), soffit = C(0x34363a), shellC = C(0xb7ab98);
-    // profile across the bore (left to right): [lateral factor (-1 = left wall line, +1 = right), extra inward offset, height, colour, v]
-    const prof = (wl, wr) => { const out = []; const arc = (side, a0, a1, n) => { for (let k = 0; k <= n; k++) { const a = a0 + (a1 - a0) * k / n; out.push([side, -Math.sin(a) * 1.9 + 0, Hw + (1 - Math.cos(a)) * 0 + Math.sin(a) * 0 + (Hc - Hw) * (1 - Math.cos(a)) / (1 - Math.cos(Math.PI / 2)), a < 0.4 ? tile : haunch]); } };
-      out.push([-1, 0, 0, dado], [-1, 0, 1.15, dado], [-1, 0, 1.18, tile], [-1, 0, Hw, tile]);
-      for (let k = 1; k <= 4; k++) { const a = k / 4 * Math.PI / 2; out.push([-1, Math.sin(a) * 1.9 * -1, Hw + (Hc - Hw) * (1 - Math.cos(a)), k < 2 ? tile : haunch]); }
-      out.push([0, 0, Hc + 0.05, soffit]);
-      for (let k = 4; k >= 1; k--) { const a = k / 4 * Math.PI / 2; out.push([1, Math.sin(a) * 1.9 * -1, Hw + (Hc - Hw) * (1 - Math.cos(a)), k < 2 ? tile : haunch]); }
-      out.push([1, 0, Hw, tile], [1, 0, 1.18, tile], [1, 0, 1.15, dado], [1, 0, 0, dado]); return out; };
-    let row = -1, vtx = 0, along = 0, prevI = -1;
+    const BP = [], BC = [], BU = [], BI = [];
+    const tile = C(0xeee8da), dado = C(0x4c4f52), trayC = C(0x55585c), ceil = C(0x8c8e8f), shellC = C(0xb7ab98);
+    // the outer side of the curve gets the lamp row and the boards: the arc bulges away from its chord towards it
+    const iA = t.idxAtS(s0), iB = t.idxAtS(s1), iM = t.idxAtS((s0 + s1) / 2);
+    const outer = ((t.x[iM] - (t.x[iA] + t.x[iB]) / 2) * t.nx[iM] + (t.z[iM] - (t.z[iA] + t.z[iB]) / 2) * t.nz[iM]) > 0 ? 1 : -1;
+    // profile across the bore (left to right): [side (-1 left wall, +1 right, 0 centre), inward offset, height, colour, flat (untextured)]
+    const PROF = [];
+    for (const sd of [-1, 1]) {
+      const half = [[sd, 0, 0, dado, 0], [sd, 0, 1.15, dado, 0], [sd, 0, 1.18, tile, 0], [sd, 0, Hw, tile, 0], [sd, 0, Hw, trayC, 1], [sd, 0, Ht, trayC, 1], [sd, tray, Hc, ceil, 1]];
+      if (sd < 0) PROF.push(...half); else { PROF.push([0, 0, Hc, ceil, 1]); PROF.push(...half.reverse()); }
+    }
+    let vtx = 0, along = 0, prevI = -1, prev = null;
     const nst = Math.ceil((s1 - s0) / step);
     for (let k = 0; k <= nst; k++) {
       const s = Math.min(s1, s0 + k * step); const i = t.idxAtS(s); const y = t.y[i];
       const wl = t.wallL[i] + (Z ? Z[-1].back[i] : 0) + 0.3, wr = t.wallR[i] + (Z ? Z[1].back[i] : 0) + 0.3;
       if (prevI >= 0) along += Math.hypot(t.x[i] - t.x[prevI], t.z[i] - t.z[prevI]); prevI = i;
-      const pr = prof(wl, wr); const dIn = Math.min(s - s0, s1 - s); const portalBoost = 1 + 0.9 * (1 - U.smoothstep(15, 45, dIn));
+      const dIn = Math.min(s - s0, s1 - s); const portalBoost = 1 + 0.9 * (1 - U.smoothstep(15, 45, dIn));
+      const joint = 0.94 + 0.06 * Math.cos(along * Math.PI / 6) ** 8;   // concrete ceiling panels, 6 m
       let v = 0, last = null;
-      for (let c = 0; c < pr.length; c++) {
-        const [f, inw, h, colr] = pr[c]; const lat = f < 0 ? -wl - inw : f > 0 ? wr + inw : (wr - wl) / 2;
+      for (let c = 0; c < PROF.length; c++) {
+        const [f, inw, h, colr, flat] = PROF[c]; const lat = f < 0 ? -wl + inw : f > 0 ? wr - inw : (wr - wl) / 2;
         const x = t.x[i] + t.nx[i] * lat, z = t.z[i] + t.nz[i] * lat; if (last) v += Math.hypot(lat - last[0], h - last[1]); last = [lat, h];
-        P.push(x, y + h, z); UV.push(along / 2, v / 2);
-        // baked light: a warm wash peaking under the light rows (at the haunch), the dado and the soffit darker
-        const glow = (0.34 + 0.5 * Math.exp(-Math.pow((h - (Hw + 0.3)) / 1.4, 2))) * portalBoost * (colr === soffit ? 0.5 : 1) * (0.92 + 0.16 * Math.sin(along * 0.9));
-        Cc.push(colr.r * glow * 1.05, colr.g * glow * 0.98, colr.b * glow * 0.86);
-        const nx = f < 0 ? t.nx[i] : f > 0 ? -t.nx[i] : 0, nz = f < 0 ? t.nz[i] : f > 0 ? -t.nz[i] : 0; N.push(nx, f === 0 ? -1 : 0, nz);
+        P.push(x, y + h, z); if (flat) UV.push(0.125, 0.125); else UV.push(along / 2, h / 2);
+        // baked light: the lamp row washes the outer wall and the ceiling, the walls fade darker towards the dado
+        const outerW = f === outer ? 1.12 : f === 0 ? 1.0 : 0.9;
+        const glow = (0.42 + 0.42 * Math.exp(-Math.pow((h - (Hw - 0.4)) / 1.6, 2))) * portalBoost * outerW * (colr === ceil ? joint : 1) * (0.95 + 0.1 * Math.sin(along * 0.79));
+        Cc.push(colr.r * glow * 1.04, colr.g * glow, colr.b * glow * 0.92);
+        const nx = f < 0 ? t.nx[i] : f > 0 ? -t.nx[i] : 0, nz = f < 0 ? t.nz[i] : f > 0 ? -t.nz[i] : 0; N.push(nx, colr === ceil ? -1 : 0, nz);
       }
-      const K = pr.length; if (k > 0) for (let c = 0; c < K - 1; c++) { const a = vtx - K + c, b = vtx + c; I.push(a, b, a + 1, a + 1, b, b + 1); }
+      const K = PROF.length; if (k > 0) for (let c = 0; c < K - 1; c++) { const a = vtx - K + c, b = vtx + c; I.push(a, b, a + 1, a + 1, b, b + 1); }
       vtx += K;
-      // light fittings: a row of linear luminaires on each haunch (2.4 m fittings, 0.2 m gaps), denser yellow ones near the portals
-      if (k > 0) for (const sd of [-1, 1]) {
-        const j = t.idxAtS(s - step * 0.9); const W = sd < 0 ? wl : wr; const vh = (inw) => Hw + (Hc - Hw) * (1 - Math.cos(Math.asin(Math.min(1, inw / 1.9)))) - 0.05;
-        const lat0 = sd * (W - 0.45), lat1 = sd * (W - 0.95);
-        const A = (ii, l) => [t.x[ii] + t.nx[ii] * l, t.y[ii] + vh(W - Math.abs(l)), t.z[ii] + t.nz[ii] * l];
-        const base = LP.length / 3; for (const q of [A(j, lat0), A(i, lat0), A(i, lat1), A(j, lat1)]) LP.push(q[0], q[1], q[2]);
-        const lc = dIn < 40 ? [1.0, 0.86, 0.5] : [1.0, 0.95, 0.82]; for (let q = 0; q < 4; q++) LC.push(lc[0], lc[1], lc[2]); LI.push(base, base + 1, base + 2, base, base + 2, base + 3);
+      // round LED lamps on the sloping tray of the outer wall, every 4 m (2 m and warmer near the portals): octagons facing down and in
+      const W = outer < 0 ? wl : wr; const spacing = dIn < 40 ? 2 : 4;
+      if (k > 0 && Math.floor(along / spacing) !== Math.floor((along - step) / spacing)) {
+        const latA = outer * (W - tray * 0.5), hA = (Ht + Hc) / 2; const cx = t.x[i] + t.nx[i] * latA, cz = t.z[i] + t.nz[i] * latA, cy = y + hA - 0.02;
+        // in the tray plane: along the track (tx, tz) and up the slope (towards the wall and down)
+        const ux = t.tx[i], uz = t.tz[i]; const sl = Math.hypot(tray, Hc - Ht); const wx = t.nx[i] * outer * tray / sl, wz = t.nz[i] * outer * tray / sl, wy = -(Hc - Ht) / sl;
+        const r = 0.22, base = LP.length / 3; const lc = dIn < 40 ? [1.0, 0.88, 0.58] : [1.0, 0.98, 0.92];
+        // nudge off the tray towards the bore so the disc never z-fights
+        const ox = -t.nx[i] * outer * 0.03, oz = -t.nz[i] * outer * 0.03, oy = -0.03;
+        LP.push(cx + ox, cy + oy, cz + oz); LC.push(lc[0] * 1.6, lc[1] * 1.6, lc[2] * 1.6);
+        for (let q = 0; q < 8; q++) { const a = q / 8 * Math.PI * 2, ca = Math.cos(a) * r, sa = Math.sin(a) * r; LP.push(cx + ox + ux * ca + wx * sa, cy + oy + wy * sa, cz + oz + uz * ca + wz * sa); LC.push(lc[0], lc[1], lc[2]); }
+        for (let q = 0; q < 8; q++) LI.push(base, base + 1 + q, base + 1 + (q + 1) % 8);
       }
+      // partner boards along the outer wall (1.3 - 3.1 m), 27 m long with 5 m gaps, clear of the portals
+      { const lat = outer * (W - 0.04); const cur = [t.x[i] + t.nx[i] * lat, y, t.z[i] + t.nz[i] * lat, along];
+        if (prev && dIn > 22 && Math.min(prev.s - s0, s1 - prev.s) > 22) {
+          const run = 32, bl = 27; const p0 = prev.p[3] % run, p1 = p0 + (along - prev.p[3]);
+          if (p1 <= bl) { const row = Math.floor(prev.p[3] / run) % 4; const b0 = BP.length / 3; const v0 = 1 - (row + 1) / 4 + 0.004, v1 = 1 - row / 4 - 0.004;
+            const u0 = outer < 0 ? p0 / bl : 1 - p0 / bl, u1 = outer < 0 ? p1 / bl : 1 - p1 / bl;
+            for (const [q, u, h] of [[prev.p, u0, 1.3], [cur, u1, 1.3], [cur, u1, 3.1], [prev.p, u0, 3.1]]) { BP.push(q[0], q[1] + h, q[2]); BU.push(u, h < 2 ? v0 : v1); const g = 0.82 * portalBoost; BC.push(g, g, g); }
+            BI.push(b0, b0 + 1, b0 + 2, b0, b0 + 2, b0 + 3); } }
+        prev = { p: cur, s }; }
       // outer shell (top + sides), so nothing shows through from above
       const LT = [t.x[i] - t.nx[i] * (wl + 1.4), y + Hc + 1.4, t.z[i] - t.nz[i] * (wl + 1.4)], RT = [t.x[i] + t.nx[i] * (wr + 1.4), y + Hc + 1.4, t.z[i] + t.nz[i] * (wr + 1.4)];
       const LB = [LT[0], y - 0.3, LT[2]], RB = [RT[0], y - 0.3, RT[2]];
@@ -123,21 +142,33 @@ window.EI = window.EI || {};
     const vault = new THREE.Mesh(g, new THREE.MeshBasicMaterial({ map: tunnelTileTexture(), vertexColors: true, side: THREE.DoubleSide })); vault.name = 'tunnel'; sc.group.add(vault);
     const lg = new THREE.BufferGeometry(); lg.setAttribute('position', new THREE.Float32BufferAttribute(LP, 3)); lg.setAttribute('color', new THREE.Float32BufferAttribute(LC, 3)); lg.setIndex(LI); lg.computeBoundingSphere();
     const lamps = new THREE.Mesh(lg, new THREE.MeshBasicMaterial({ vertexColors: true, toneMapped: false, side: THREE.DoubleSide })); lamps.name = 'tunnelLamps'; sc.group.add(lamps);
+    if (BI.length) {
+      const bg = new THREE.BufferGeometry(); bg.setAttribute('position', new THREE.Float32BufferAttribute(BP, 3)); bg.setAttribute('color', new THREE.Float32BufferAttribute(BC, 3)); bg.setAttribute('uv', new THREE.Float32BufferAttribute(BU, 2)); bg.setIndex(BI); bg.computeBoundingSphere();
+      const boards = new THREE.Mesh(bg, new THREE.MeshBasicMaterial({ map: tunnelBoardTexture(), vertexColors: true, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -4 })); boards.name = 'tunnelBoards'; sc.group.add(boards);
+    }
     const sm = new THREE.Mesh(SH.geometry(), new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.9, side: THREE.DoubleSide })); sm.name = 'tunnelShell'; sm.castShadow = true; sm.receiveShadow = true; sc.group.add(sm);
     // dark film: alpha ramp texture (u = darkness), drawn over the asphalt, kerbs and the rail faces
-    const [rc, rx] = EI.Env.canvas(64, 4); const gr = rx.createLinearGradient(0, 0, 64, 0); gr.addColorStop(0, 'rgba(10,9,8,0)'); gr.addColorStop(1, 'rgba(10,9,8,0.62)'); rx.fillStyle = gr; rx.fillRect(0, 0, 64, 4);
+    const [rc, rx] = EI.Env.canvas(64, 4); const gr = rx.createLinearGradient(0, 0, 64, 0); gr.addColorStop(0, 'rgba(10,9,8,0)'); gr.addColorStop(1, 'rgba(10,9,8,0.5)'); rx.fillStyle = gr; rx.fillRect(0, 0, 64, 4);
     const ot = new THREE.CanvasTexture(rc); ot.wrapS = ot.wrapT = THREE.ClampToEdgeWrapping;
     const og = new THREE.BufferGeometry(); og.setAttribute('position', new THREE.Float32BufferAttribute(OV.p, 3)); og.setAttribute('uv', new THREE.Float32BufferAttribute(OV.uv, 2)); og.setIndex(OV.i); og.computeBoundingSphere();
     const film = new THREE.Mesh(og, new THREE.MeshBasicMaterial({ map: ot, transparent: true, depthWrite: false, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -6 })); film.name = 'tunnelFilm'; film.renderOrder = 1; sc.group.add(film);
-    E.tunnel = { s0, s1 }; E.stats.tunnelSegs = nst;
+    E.tunnel = { s0, s1 }; E.stats.tunnelSegs = nst; E.stats.tunnelLamps = LI.length / 24; E.stats.tunnelBoards = BI.length / 6;
+  }
+  // the long partner boards on the outer tunnel wall: four rows (2048 x 128 each = two partner designs side by side, 27 m on the wall)
+  function tunnelBoardTexture() {
+    const [c, ctx] = EI.Env.canvas(2048, 512); ctx.fillStyle = '#1d2026'; ctx.fillRect(0, 0, 2048, 512);
+    if (EI.Ads && EI.Ads.paintTile) for (let r = 0; r < 4; r++) for (let h = 0; h < 2; h++) { try { EI.Ads.paintTile(ctx, r * 2 + h, h * 1024, r * 128, 1024, 128, 8); } catch (e) { } ctx.fillStyle = 'rgba(0,0,0,0.5)'; ctx.fillRect(h * 1024 + 1021, r * 128, 3, 128); }
+    const tex = new THREE.CanvasTexture(c); tex.anisotropy = 8; return U.srgb(tex);
   }
   function tunnelTileTexture() {
     const [c, ctx] = EI.Env.canvas(256, 256); const r = U.rng(31);
     ctx.fillStyle = '#f1ece0'; ctx.fillRect(0, 0, 256, 256);
-    // 0.5 x 0.25 m glazed tiles (the texture covers 2 x 2 m), soft grime streaks and a few darker replacement tiles
-    for (let y = 0; y < 256; y += 32) for (let x = 0; x < 256; x += 64) { const v = 232 + r() * 16; ctx.fillStyle = r() < 0.04 ? 'rgb(205,200,188)' : 'rgb(' + v + ',' + (v - 4) + ',' + (v - 14) + ')'; ctx.fillRect(x + 1, y + 1, 62, 30); }
-    ctx.fillStyle = 'rgba(120,112,100,0.3)'; for (let y = 0; y <= 256; y += 32) ctx.fillRect(0, y - 1, 256, 2); for (let x = 0; x <= 256; x += 64) ctx.fillRect(x - 1, 0, 2, 256);
-    for (let i = 0; i < 30; i++) { ctx.fillStyle = 'rgba(80,72,60,' + (0.04 + r() * 0.06) + ')'; ctx.fillRect(r() * 256, 0, 2 + r() * 8, 256); }
+    // 0.5 m square glazed tiles (the texture covers 2 x 2 m), soft grime streaks and a few darker replacement tiles
+    for (let y = 0; y < 256; y += 64) for (let x = 0; x < 256; x += 64) { const v = 234 + r() * 14; ctx.fillStyle = r() < 0.05 ? 'rgb(208,203,192)' : 'rgb(' + v + ',' + (v - 3) + ',' + (v - 11) + ')'; ctx.fillRect(x + 1, y + 1, 62, 62); }
+    ctx.fillStyle = 'rgba(110,104,94,0.45)'; for (let y = 0; y <= 256; y += 64) ctx.fillRect(0, y - 1, 256, 2); for (let x = 0; x <= 256; x += 64) ctx.fillRect(x - 1, 0, 2, 256);
+    for (let i = 0; i < 24; i++) { ctx.fillStyle = 'rgba(80,72,60,' + (0.03 + r() * 0.05) + ')'; ctx.fillRect(r() * 256, 0, 2 + r() * 8, 256); }
+    // the flat (untextured) parts sample the middle of the first tile: keep it a clean even tone
+    ctx.fillStyle = 'rgb(240,238,234)'; ctx.fillRect(8, 8, 48, 48);
     const tex = new THREE.CanvasTexture(c); tex.wrapS = tex.wrapT = THREE.RepeatWrapping; tex.anisotropy = 8; return U.srgb(tex);
   }
   function portal(pos, nrm, col, uv, c, n, color) {
@@ -604,9 +635,10 @@ window.EI = window.EI || {};
       const nearTrack = ln.cls === 0 && ln.dTrack < 130, heroQ = ln.cls === 0 && ln.dTrack < 75;
       for (let s = 2; s < l - 2;) {
         let kind, L; const r = rng();
-        if (ln.cls === 0) { if (heroQ && r < 0.8) { kind = 'hero'; L = 58 + rng() * 34; } else if (nearTrack && r < 0.85) { kind = 'super'; L = 36 + rng() * 26; } else if (r < 0.35) { kind = 'super'; L = 30 + rng() * 22; } else if (r < 0.75) { kind = 'cruiser'; L = 15 + rng() * 14; } else if (r < 0.88) { kind = 'bigsail'; L = 32 + rng() * 22; } else { kind = 'sail'; L = 13 + rng() * 10; } }
-        else if (ln.cls === 1) { if (r < 0.32) { kind = 'super'; L = 28 + rng() * 20; } else if (r < 0.72) { kind = 'cruiser'; L = 13 + rng() * 12; } else if (r < 0.88) { kind = 'sail'; L = 12 + rng() * 9; } else { kind = 'sport'; L = 9 + rng() * 5; } }
-        else { if (r < 0.32) { kind = 'cruiser'; L = 11 + rng() * 9; } else if (r < 0.55) { kind = 'sport'; L = 8 + rng() * 5; } else if (r < 0.93) { kind = 'sail'; L = 9 + rng() * 7; } else { kind = 'tender'; L = 4.5 + rng() * 2; } }
+        if (ln.cls === 0) { if (heroQ && r < 0.8) { kind = 'hero'; L = 58 + rng() * 34; } else if (nearTrack && r < 0.85) { kind = 'super'; L = 36 + rng() * 26; } else if (r < 0.6) { kind = 'super'; L = 32 + rng() * 26; } else if (r < 0.88) { kind = 'cruiser'; L = 16 + rng() * 14; } else if (r < 0.96) { kind = 'bigsail'; L = 32 + rng() * 22; } else { kind = 'sail'; L = 13 + rng() * 10; } }
+        // Grand Prix week: the long pontoons are lined with superyachts and big flybridge cruisers, only a few sailing boats
+        else if (ln.cls === 1) { if (r < 0.62) { kind = 'super'; L = 30 + rng() * 26; } else if (r < 0.9) { kind = 'cruiser'; L = 16 + rng() * 12; } else if (r < 0.96) { kind = 'bigsail'; L = 26 + rng() * 14; } else { kind = 'sport'; L = 10 + rng() * 5; } }
+        else { if (r < 0.4) { kind = 'super'; L = 26 + rng() * 16; } else if (r < 0.78) { kind = 'cruiser'; L = 13 + rng() * 11; } else if (r < 0.88) { kind = 'sport'; L = 9 + rng() * 5; } else if (r < 0.97) { kind = 'sail'; L = 10 + rng() * 7; } else { kind = 'tender'; L = 4.5 + rng() * 2; } }
         const Bm = beamOf(kind, L); const gap = 0.7 + rng() * 0.9;
         const along = s + Bm / 2; if (along > l - Bm / 2) break;
         const sx = ln.a[0] + tx * along, sz = ln.a[1] + tz * along; const cx = sx + ln.nx * (L / 2 + 1.6), cz = sz + ln.nz * (L / 2 + 1.6);

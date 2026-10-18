@@ -204,9 +204,11 @@ window.EI = window.EI || {};
     for (const p of parts) {
       const y0 = ground(p.p);
       if (p.h <= 12) { B.set(R.stone, 0.75, 0); prism(B, p.p, y0, y0 + p.h, white, 16, 8, C(0xd6d2c8), 'white'); continue; }
-      wings.push({ p: p.p, h: p.h, y0 });
-      B.set(R.stone, 0.75, 0, night ? 0.25 : 0); prism(B, p.p, y0, y0 + 9, white, 16, 8);
-      B.set(night ? TX().whotel : TX().curtain, 0.16, 0.45, night ? 0.8 : 0); prism(B, p.p, y0 + 9, y0 + p.h, glassTint, 9.6, 13.2, roofC, 'white');
+      // the OSM height is the gridshell's crest: the glass blocks under it stop ~12 m lower (u1: two podium floors + ~8 room floors)
+      const hb = Math.max(22, p.h - 12); wings.push({ p: p.p, h: hb, y0 });
+      // track-level podium: two floors of warm-lit restaurant / lounge glazing (u1)
+      B.set(TX().hosp, 0.12, 0.35, night ? 1.1 : 0); prism(B, p.p, y0, y0 + 9, white, 12, 13.5);
+      B.set(night ? TX().whotel : TX().curtain, 0.16, 0.45, night ? 0.8 : 0); prism(B, p.p, y0 + 9, y0 + hb, glassTint, 9.6, 13.2, roofC, 'white');
     }
     // the bridge across the track (9 m clear), glazed sides, white soffit
     const br = H.bridge; let bridgeY = null;
@@ -226,7 +228,7 @@ window.EI = window.EI || {};
     const tails = []; for (const w of wings) {
       const a = principalAxis([w.p]); let lo = Infinity, hi = -Infinity, bw = 0; for (const q of w.p) { const al = (q[0] - a.c[0]) * a.dx + (q[1] - a.c[1]) * a.dz, bl = -(q[0] - a.c[0]) * a.dz + (q[1] - a.c[1]) * a.dx; lo = Math.min(lo, al); hi = Math.max(hi, al); bw = Math.max(bw, Math.abs(bl)); }
       const ab = (bc[0] - a.c[0]) * a.dx + (bc[1] - a.c[1]) * a.dz; const ends = ab > lo && ab < hi ? [-1, 1] : [ab < lo ? 1 : -1];
-      for (const sg of ends) tails.push({ a, end: sg > 0 ? hi : lo, sg, bw: bw + PAD, p: w.p });
+      for (const sg of ends) { const e = sg > 0 ? hi : lo, tip = [a.c[0] + a.dx * (e + sg * TAIL), a.c[1] + a.dz * (e + sg * TAIL)]; if (!offTrack(tip[0], tip[1], 30) || (E.isSea && E.isSea(tip[0], tip[1]))) continue; tails.push({ a, end: e, sg, bw: bw + PAD, p: w.p }); }
     }
     // 0 on the wings, rising to 1 at a tail's tip (null: not in a tail)
     for (const T of tails) { const c = centroid(T.p); T.side = Math.sign(latOf0(c[0], c[1])) || 1; }
@@ -241,7 +243,7 @@ window.EI = window.EI || {};
     const PADL = PAD + TAIL + 4; const F = sdf(u0 - PADL, v0 - PADL, u1 + PADL, v1 + PADL, 2.5, (u, v) => { const w = toW(u, v); return inside(w[0], w[1]); });
     const yBase = Math.min(...wings.map(w => w.y0));
     // crest a few metres over the roofs (inverse-distance blend between the wings), dipping where it bridges the gap between them
-    const topAt = (x, z) => { let sw = 0, sh = 0, dm = Infinity; for (const w of wings) { const d = U.pointInPoly(x, z, w.p) ? 0 : polyDist(x, z, w.p); dm = Math.min(dm, d); const k = 1 / Math.pow(d + 6, 2.2); sw += k; sh += k * (w.y0 + w.h + 5); } return sh / sw - 7 * U.smoothstep(PAD, PAD + 14, dm); };
+    const topAt = (x, z) => { let sw = 0, sh = 0, dm = Infinity; for (const w of wings) { const d = U.pointInPoly(x, z, w.p) ? 0 : polyDist(x, z, w.p); dm = Math.min(dm, d); const k = 1 / Math.pow(d + 6, 2.2); sw += k; sh += k * (w.y0 + w.h + 8); } return sh / sw - 7 * U.smoothstep(PAD, PAD + 14, dm); };
     // the ribbon: a hem 15 m up (24 m over the track), rising steeply to hug the walls, a long gentle wave along its length,
     // the ends sweeping down to the ground
     const yFn = (u, v, din) => {
