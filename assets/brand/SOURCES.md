@@ -73,6 +73,7 @@ Allwyn, OKX, BWT, TGR, MoneyGram ...) are set as wordmarks in code (js/ads.js `P
 | `partners/audi.svg` | [File:Audi-Logo 2016.svg](https://commons.wikimedia.org/wiki/File:Audi-Logo_2016.svg) (https://commons.wikimedia.org/wiki/Special:FilePath/Audi-Logo_2016.svg) |
 | `partners/aws.svg` | [File:Amazon Web Services Logo.svg](https://commons.wikimedia.org/wiki/File:Amazon_Web_Services_Logo.svg) (https://commons.wikimedia.org/wiki/Special:FilePath/Amazon_Web_Services_Logo.svg) |
 | `partners/bp.svg` | [File:Bp textlogo.svg](https://commons.wikimedia.org/wiki/File:Bp_textlogo.svg) (https://commons.wikimedia.org/wiki/Special:FilePath/Bp_textlogo.svg) |
+| `partners/bwt.svg` | [File:BWT Logo 2024.svg](https://commons.wikimedia.org/wiki/File:BWT_Logo_2024.svg) (https://commons.wikimedia.org/wiki/Special:FilePath/BWT_Logo_2024.svg) |
 | `partners/cashapp.svg` | [File:Square Cash app logo.svg](https://commons.wikimedia.org/wiki/File:Square_Cash_app_logo.svg) (https://commons.wikimedia.org/wiki/Special:FilePath/Square_Cash_app_logo.svg) |
 | `partners/castrol.svg` | [File:Castrol logo 2023.svg](https://commons.wikimedia.org/wiki/File:Castrol_logo_2023.svg) (https://commons.wikimedia.org/wiki/Special:FilePath/Castrol_logo_2023.svg) |
 | `partners/cevalogistics.svg` | [File:Logo of CEVA Logistics (2023).svg](https://commons.wikimedia.org/wiki/File:Logo_of_CEVA_Logistics_%282023%29.svg) (https://commons.wikimedia.org/wiki/Special:FilePath/Logo_of_CEVA_Logistics_%282023%29.svg) |
@@ -90,7 +91,9 @@ Allwyn, OKX, BWT, TGR, MoneyGram ...) are set as wordmarks in code (js/ads.js `P
 | `partners/duracell.svg` | [File:Duracell logo.svg](https://commons.wikimedia.org/wiki/File:Duracell_logo.svg) (https://commons.wikimedia.org/wiki/Special:FilePath/Duracell_logo.svg) |
 | `partners/eni.svg` | [File:Eni wordmark.svg](https://commons.wikimedia.org/wiki/File:Eni_wordmark.svg) (https://commons.wikimedia.org/wiki/Special:FilePath/Eni_wordmark.svg) |
 | `partners/etihadairways.svg` | [File:Etihad-airways-logo.svg](https://commons.wikimedia.org/wiki/File:Etihad-airways-logo.svg) (https://commons.wikimedia.org/wiki/Special:FilePath/Etihad-airways-logo.svg) |
+| `partners/ferrari.svg` | [File:Ferrari wordmark.svg](https://commons.wikimedia.org/wiki/File:Ferrari_wordmark.svg) (https://commons.wikimedia.org/wiki/Special:FilePath/Ferrari_wordmark.svg) |
 | `partners/ford.svg` | [File:Ford logo flat.svg](https://commons.wikimedia.org/wiki/File:Ford_logo_flat.svg) (https://commons.wikimedia.org/wiki/Special:FilePath/Ford_logo_flat.svg) |
+| `partners/globant.svg` | [File:Globant Logo.svg](https://commons.wikimedia.org/wiki/File:Globant_Logo.svg) (https://commons.wikimedia.org/wiki/Special:FilePath/Globant_Logo.svg) |
 | `partners/googlegemini.svg` | [File:Google Gemini logo 2025.svg](https://commons.wikimedia.org/wiki/File:Google_Gemini_logo_2025.svg) (https://commons.wikimedia.org/wiki/Special:FilePath/Google_Gemini_logo_2025.svg) |
 | `partners/gulf.svg` | [File:Gulf Oil logo.svg](https://commons.wikimedia.org/wiki/File:Gulf_Oil_logo.svg) (https://commons.wikimedia.org/wiki/Special:FilePath/Gulf_Oil_logo.svg) |
 | `partners/hardrock.svg` | [File:Hard Rock Cafe Logo.svg](https://commons.wikimedia.org/wiki/File:Hard_Rock_Cafe_Logo.svg) (https://commons.wikimedia.org/wiki/Special:FilePath/Hard_Rock_Cafe_Logo.svg) |
@@ -99,23 +102,31 @@ Allwyn, OKX, BWT, TGR, MoneyGram ...) are set as wordmarks in code (js/ads.js `P
 | `partners/hp.svg` | [File:HP logo 2025.svg](https://commons.wikimedia.org/wiki/File:HP_logo_2025.svg) (https://commons.wikimedia.org/wiki/Special:FilePath/HP_logo_2025.svg) |
 | `partners/ibm.svg` | [File:IBM logo.svg](https://commons.wikimedia.org/wiki/File:IBM_logo.svg) (https://commons.wikimedia.org/wiki/Special:FilePath/IBM_logo.svg) |
 | `partners/ineos.svg` | [File:INEOS logo.svg](https://commons.wikimedia.org/wiki/File:INEOS_logo.svg) (https://commons.wikimedia.org/wiki/Special:FilePath/INEOS_logo.svg) |
+| `partners/kitkat.svg` | [File:Logo of the KitKat.svg](https://commons.wikimedia.org/wiki/File:Logo_of_the_KitKat.svg) (https://commons.wikimedia.org/wiki/Special:FilePath/Logo_of_the_KitKat.svg) |
 | `partners/komatsu.svg` | [File:Komatsu company logos.svg](https://commons.wikimedia.org/wiki/File:Komatsu_company_logos.svg) (https://commons.wikimedia.org/wiki/Special:FilePath/Komatsu_company_logos.svg) |
 | `partners/lenovo.svg` | [File:Lenovo logo (2015 onwards) 2.svg](https://commons.wikimedia.org/wiki/File:Lenovo_logo_%282015_onwards%29_2.svg) (https://commons.wikimedia.org/wiki/Special:FilePath/Lenovo_logo_%282015_onwards%29_2.svg) |
+| `partners/liquimoly.svg` | [File:Liqui-moly.svg](https://commons.wikimedia.org/wiki/File:Liqui-moly.svg) (https://commons.wikimedia.org/wiki/Special:FilePath/Liqui-moly.svg) |
 | `partners/louisvuitton.svg` | [File:Louis Vuitton logo.svg](https://commons.wikimedia.org/wiki/File:Louis_Vuitton_logo.svg) (https://commons.wikimedia.org/wiki/Special:FilePath/Louis_Vuitton_logo.svg) |
 | `partners/lvmh.svg` | [File:LVMH wordmark.svg](https://commons.wikimedia.org/wiki/File:LVMH_wordmark.svg) (https://commons.wikimedia.org/wiki/Special:FilePath/LVMH_wordmark.svg) |
 | `partners/mastercard.svg` | [File:Mastercard 2019 logo.svg](https://commons.wikimedia.org/wiki/File:Mastercard_2019_logo.svg) (https://commons.wikimedia.org/wiki/Special:FilePath/Mastercard_2019_logo.svg) |
 | `partners/mercadolibre.svg` | [File:Mercado Libre wordmark (Spanish version).svg](https://commons.wikimedia.org/wiki/File:Mercado_Libre_wordmark_%28Spanish_version%29.svg) (https://commons.wikimedia.org/wiki/Special:FilePath/Mercado_Libre_wordmark_%28Spanish_version%29.svg) |
+| `partners/mercedes.svg` | [File:Mercedes-Benz Logo 2010.svg](https://commons.wikimedia.org/wiki/File:Mercedes-Benz_Logo_2010.svg) (https://commons.wikimedia.org/wiki/Special:FilePath/Mercedes-Benz_Logo_2010.svg) |
 | `partners/microsoft.svg` | [File:Microsoft logo (2012).svg](https://commons.wikimedia.org/wiki/File:Microsoft_logo_%282012%29.svg) (https://commons.wikimedia.org/wiki/Special:FilePath/Microsoft_logo_%282012%29.svg) |
 | `partners/okx.svg` | [File:OKX Logo.svg](https://commons.wikimedia.org/wiki/File:OKX_Logo.svg) (https://commons.wikimedia.org/wiki/Special:FilePath/OKX_Logo.svg) |
 | `partners/oracle.svg` | [File:Oracle logo.svg](https://commons.wikimedia.org/wiki/File:Oracle_logo.svg) (https://commons.wikimedia.org/wiki/Special:FilePath/Oracle_logo.svg) |
+| `partners/paramountplus.svg` | [File:Paramount Plus.svg](https://commons.wikimedia.org/wiki/File:Paramount_Plus.svg) (https://commons.wikimedia.org/wiki/Special:FilePath/Paramount_Plus.svg) |
+| `partners/pepsico.svg` | [File:PepsiCo (2025, wordmark).svg](https://commons.wikimedia.org/wiki/File:PepsiCo_%282025%2C_wordmark%29.svg) (https://commons.wikimedia.org/wiki/Special:FilePath/PepsiCo_%282025%2C_wordmark%29.svg) |
 | `partners/petronas.svg` | [File:PETRONAS-logo.svg](https://commons.wikimedia.org/wiki/File:PETRONAS-logo.svg) (https://commons.wikimedia.org/wiki/Special:FilePath/PETRONAS-logo.svg) |
 | `partners/pirelli.svg` | [File:Pirelli - logo full (Italy, 1997).svg](https://commons.wikimedia.org/wiki/File:Pirelli_-_logo_full_%28Italy%2C_1997%29.svg) (https://commons.wikimedia.org/wiki/Special:FilePath/Pirelli_-_logo_full_%28Italy%2C_1997%29.svg) |
 | `partners/puma.svg` | [File:Puma-logo-(text).svg](https://commons.wikimedia.org/wiki/File:Puma-logo-%28text%29.svg) (https://commons.wikimedia.org/wiki/Special:FilePath/Puma-logo-%28text%29.svg) |
 | `partners/qatarairways.svg` | [File:Qatar Airways logo.svg](https://commons.wikimedia.org/wiki/File:Qatar_Airways_logo.svg) (https://commons.wikimedia.org/wiki/Special:FilePath/Qatar_Airways_logo.svg) |
+| `partners/qualcomm.svg` | [File:Qualcomm-Logo.svg](https://commons.wikimedia.org/wiki/File:Qualcomm-Logo.svg) (https://commons.wikimedia.org/wiki/Special:FilePath/Qualcomm-Logo.svg) |
 | `partners/redbull.svg` | [File:Logo of Red bull.svg](https://commons.wikimedia.org/wiki/File:Logo_of_Red_bull.svg) (https://commons.wikimedia.org/wiki/Special:FilePath/Logo_of_Red_bull.svg) |
 | `partners/revolut.svg` | [File:Revolut logo.svg](https://commons.wikimedia.org/wiki/File:Revolut_logo.svg) (https://commons.wikimedia.org/wiki/Special:FilePath/Revolut_logo.svg) |
 | `partners/salesforce.svg` | [File:Salesforce.com logo.svg](https://commons.wikimedia.org/wiki/File:Salesforce.com_logo.svg) (https://commons.wikimedia.org/wiki/Special:FilePath/Salesforce.com_logo.svg) |
 | `partners/santander.svg` | [File:Banco Santander Logotipo.svg](https://commons.wikimedia.org/wiki/File:Banco_Santander_Logotipo.svg) (https://commons.wikimedia.org/wiki/Special:FilePath/Banco_Santander_Logotipo.svg) |
+| `partners/shell.svg` | [File:Shell wordmark 2019.svg](https://commons.wikimedia.org/wiki/File:Shell_wordmark_2019.svg) (https://commons.wikimedia.org/wiki/Special:FilePath/Shell_wordmark_2019.svg) |
+| `partners/standardchartered.svg` | [File:Standard Chartered (2021).svg](https://commons.wikimedia.org/wiki/File:Standard_Chartered_%282021%29.svg) (https://commons.wikimedia.org/wiki/Special:FilePath/Standard_Chartered_%282021%29.svg) |
 | `partners/tagheuer.svg` | [File:TAG Heuer logo.svg](https://commons.wikimedia.org/wiki/File:TAG_Heuer_logo.svg) (https://commons.wikimedia.org/wiki/Special:FilePath/TAG_Heuer_logo.svg) |
 | `partners/tenneco.svg` | [File:Tenneco Logo 2024.svg](https://commons.wikimedia.org/wiki/File:Tenneco_Logo_2024.svg) (https://commons.wikimedia.org/wiki/Special:FilePath/Tenneco_Logo_2024.svg) |
 | `partners/unicredit.svg` | [File:Unicredit logo.svg](https://commons.wikimedia.org/wiki/File:Unicredit_logo.svg) (https://commons.wikimedia.org/wiki/Special:FilePath/Unicredit_logo.svg) |

@@ -188,7 +188,7 @@
     pirelli: { n: 'Pirelli', board: { bg: '#0d0d0d', tone: 'color' }, word: W_(SANS, 900, { up: 1, it: 1, col: '#e30613' }) },
     qatarairways: { n: 'Qatar Airways', board: { bg: '#5c0632', tone: 'white' } },
     salesforce: { n: 'Salesforce', board: { bg: '#ffffff', tone: 'color' } },
-    cryptocom: { n: 'Crypto.com', board: { bg: '#0b1c40', tone: 'white' }, word: W_(SANS, 700, { col: '#ffffff', ls: -0.01 }) },
+    cryptocom: { n: 'Crypto.com', board: { bg: '#0b1c40', tone: 'white' }, word: W_(SANS, 700, { col: '#0b1c40', ls: -0.01 }) },
     santander: { n: 'Santander', board: { bg: '#ec0000', tone: 'white' } },
     americanexpress: { n: 'American Express', board: { bg: '#006fcf', tone: 'color' } },
     moetchandon: { n: 'Moët & Chandon', board: { bg: '#111111', tone: 'white' } },
@@ -221,7 +221,7 @@
   const slug = (s) => String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]/g, '');
   Ads.partnerId = function (name) { const s = slug(name); return PARTNERS[s] ? s : ALIAS[s] || s; };
   // which ids have vector artwork in assets/brand/partners (filled in with the downloaded files; anything else uses its wordmark)
-  const ART = Ads.PARTNER_ART = new Set(['adidas', 'americanexpress', 'atlassian', 'att', 'audi', 'aws', 'bp', 'cashapp', 'castrol', 'cevalogistics', 'claro', 'claude', 'cognizant', 'coinbase', 'corescientific', 'coreweave', 'crowdstrike', 'dell', 'deloitte', 'dhl', 'dpworld', 'duracell', 'eni', 'etihadairways', 'ford', 'googlegemini', 'gulf', 'hardrock', 'heineken', 'honda', 'hp', 'ibm', 'ineos', 'komatsu', 'lenovo', 'louisvuitton', 'lvmh', 'mastercard', 'mercadolibre', 'microsoft', 'okx', 'oracle', 'petronas', 'pirelli', 'puma', 'qatarairways', 'redbull', 'revolut', 'salesforce', 'santander', 'tagheuer', 'tenneco', 'unicredit', 'valvoline', 'visa']);
+  const ART = Ads.PARTNER_ART = new Set(['adidas', 'americanexpress', 'atlassian', 'att', 'audi', 'aws', 'bp', 'bwt', 'cashapp', 'castrol', 'cevalogistics', 'claro', 'claude', 'cognizant', 'coinbase', 'corescientific', 'coreweave', 'crowdstrike', 'dell', 'deloitte', 'dhl', 'dpworld', 'duracell', 'eni', 'etihadairways', 'ferrari', 'ford', 'globant', 'googlegemini', 'gulf', 'hardrock', 'heineken', 'honda', 'hp', 'ibm', 'ineos', 'kitkat', 'komatsu', 'lenovo', 'liquimoly', 'louisvuitton', 'lvmh', 'mastercard', 'mercadolibre', 'mercedes', 'microsoft', 'okx', 'oracle', 'paramountplus', 'pepsico', 'petronas', 'pirelli', 'puma', 'qatarairways', 'qualcomm', 'redbull', 'revolut', 'salesforce', 'santander', 'shell', 'standardchartered', 'tagheuer', 'tenneco', 'unicredit', 'valvoline', 'visa']);
   // trimmed aspect (width / height) of each artwork, measured offline (the SVGs carry the same trimmed viewBox)
   Ads.PARTNER_DIR = Ads.BRAND_DIR + 'partners/';
   const PIMG = {};   // id -> decoded SVG image
@@ -269,7 +269,7 @@
   }
   // logos drawn on their own filled plate (DHL's yellow bar, Pirelli's yellow box, TAG Heuer's shield, Ford's oval ...): a one-colour
   // tone would turn them into a solid blob, so they always keep their own colours
-  const PLATE = Ads.PARTNER_PLATE = new Set(['dhl', 'pirelli', 'tagheuer', 'americanexpress', 'okx', 'ford', 'cashapp', 'gulf', 'claro', 'hardrock', 'mastercard', 'salesforce', 'lenovo']);
+  const PLATE = Ads.PARTNER_PLATE = new Set(['dhl', 'pirelli', 'tagheuer', 'americanexpress', 'okx', 'ford', 'cashapp', 'gulf', 'claro', 'hardrock', 'mastercard', 'salesforce', 'lenovo', 'liquimoly', 'kitkat']);
   function partnerRaster(id, tone) {
     tone = tone || 'color'; if (PLATE.has(id) && tone !== 'color' && tone !== 'rev') tone = 'color'; const key = id + '|' + tone; let r = PRAS.get(key); if (r) return r;
     let base = PRAS.get(id + '|color');
