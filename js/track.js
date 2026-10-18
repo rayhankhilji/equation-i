@@ -598,7 +598,9 @@ window.EI = window.EI || {};
       const T = this.surfaceTextures();
       const per = (p) => L / Math.max(1, Math.round(L / p));                  // tile periods that divide the lap: no seam at s = 0
       const sp = new THREE.Vector4(1 / per(48), 1 / per(14), 1 / per(26), 1 / per(64));
-      const common = { eiAux: { value: T.aux }, eiSP: { value: sp }, eiHW: { value: hw }, eiKW: { value: kw } };
+      // gravel tone (linear multiplier, data.gravelTint): the trap's material colour and the spill / dust it throws onto the run-off
+      const GT = new THREE.Vector3().fromArray(this.data.gravelTint || [1, 1, 1]);
+      const common = { eiAux: { value: T.aux }, eiSP: { value: sp }, eiHW: { value: hw }, eiKW: { value: kw }, eiGT: { value: GT } };
       // no kerbs inside a tunnel (Monaco's sweeps through it on plain white edge lines)
       const TN = this.data.tunnel; const kk = this.smooth(this.k, 6); const kerbMask = i => Math.abs(kk[i]) > 1 / 420 && !(TN && this.s[i] > TN.s0 + 10 && this.s[i] < TN.s1 - 10);
       this.kerbMask = kerbMask;
@@ -646,10 +648,12 @@ window.EI = window.EI || {};
       // ------------------------------------------------ run-off: shoulder everywhere, green strip behind kerbs, painted asphalt at the big corners, gravel beyond
       const cornerAt = (s) => { let name = null; for (const c of this.data.corners) if (s >= c.s - 60) name = c.name; return name; };
       const lin = (hex) => new THREE.Color(hex).convertSRGBToLinear();
-      const BLUE = lin(0x2457a6), RED = lin(0xc4122a), GREEN = lin(0x2f8a3c), DBLUE = lin(0x1b3f86);
+      const BLUE = lin(0x2457a6), GREEN = lin(0x2f8a3c), DBLUE = lin(0x1b3f86);
+      // Silverstone (aerials, becketts_motogp): dark tarmac aprons behind the green strip, a single blue band at the newer corners
+      // (pattern 3), plain tarmac at Copse / Maggotts / Becketts / Stowe; corners not listed get no paint
       const SCHEMES = {
-        Copse: [0, RED, BLUE], Luffield: [1, BLUE, RED], Woodcote: [1, BLUE, RED], Stowe: [0, GREEN, BLUE], Vale: [2, RED, BLUE], Club: [2, RED, BLUE],
-        Abbey: [1, GREEN, BLUE], Village: [1, RED, BLUE], 'The Loop': [1, RED, BLUE], Brooklands: [0, GREEN, DBLUE],
+        Abbey: [3, DBLUE, DBLUE], Village: [3, DBLUE, DBLUE], 'The Loop': [3, DBLUE, DBLUE], Brooklands: [3, BLUE, BLUE], Luffield: [3, BLUE, BLUE],
+        Woodcote: [3, GREEN, GREEN], Vale: [3, BLUE, BLUE], Club: [3, BLUE, BLUE],
       };
       // street circuit: the escape road at the Nouvelle Chicane is painted solid red with white borders, Sainte Devote's in blue / red bands
       // (brick red, worn: chicane1 / rascasse refs, never the saturated pink-red)
@@ -690,7 +694,7 @@ window.EI = window.EI || {};
       const runFrag = RC ? RUNOFF_FRAG.replace('vec3(0.1, 0.25, 0.085)', v3(lin(RC[2] || RC[0]))).replace('    rCol = mix(rCol, rCol * 0.45, rTyre', RC_STRIPES + '    rCol = mix(rCol, rCol * 0.45, rTyre') : RUNOFF_FRAG;
       const aw0 = hw + kw + 2.0;
       const rMat = shaderMat({ map: T.runoff.map, normalMap: T.runoff.normalMap, normalScale: new THREE.Vector2(0.7, 0.7), roughnessMap: T.runoff.roughnessMap, roughness: 1, metalness: 0, polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 2 }, 'runoff' + (RC ? '-' + RC.join('') + '-sp' : ''), RC ? Object.assign({}, common, { eiBrand: { value: brandStripTexture() } }) : common, RC ? VARY_RUN_RC : VARY_RUN, runFrag, RC ? RUNOFF_ROUGH + '    roughnessFactor = mix(roughnessFactor, 0.9, rTq);\n' : RUNOFF_ROUGH, FLATTEN);
-      const gMat = shaderMat({ map: T.gravel.map, normalMap: T.gravel.normalMap, normalScale: new THREE.Vector2(1.25, 1.25), roughnessMap: T.gravel.roughnessMap, roughness: 1, metalness: 0, polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 3 }, 'gravel', common, VARY4, GRAVEL_FRAG, GRAVEL_ROUGH, '', GRAVEL_NORMAL);
+      const gMat = shaderMat({ map: T.gravel.map, normalMap: T.gravel.normalMap, normalScale: new THREE.Vector2(1.25, 1.25), roughnessMap: T.gravel.roughnessMap, roughness: 1, metalness: 0, color: new THREE.Color(GT.x, GT.y, GT.z), polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 3 }, 'gravel', common, VARY4, GRAVEL_FRAG, GRAVEL_ROUGH, '', GRAVEL_NORMAL);
       this.surfMats = { runoff: rMat, gravel: gMat };
       for (const side of [-1, 1]) {
         const run = side < 0 ? this.runoffL : this.runoffR, grav = side < 0 ? this.gravelL : this.gravelR, wall = side < 0 ? this.wallL : this.wallR;
