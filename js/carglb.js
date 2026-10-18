@@ -278,7 +278,7 @@ window.EI = window.EI || {};
       while (cur.w > 64 && cur.h > 16 && vw.lv.length < 6) { cur = halveLevel(cur); vw.lv.push(cur); }
       vw.ppm0 = ppm; yield;
     }
-    const byCls = [[], [], [], [], []]; for (const vw of views) byCls[vw.cls].push(vw);
+    const byCls = [[], [], [], [], []]; for (const vw of views) { byCls[vw.cls].push(vw); if (vw.also) for (const cc of vw.also) byCls[cc].push(vw); }   // also: classes that reuse this view (no extra canvas)
     // content bounds of each view (metres), so texels that cannot receive anything are rejected early
     for (const vw of views) {
       const l0 = vw.lv[0]; let bx0 = l0.w, by0 = l0.h, bx1 = -1, by1 = -1;
@@ -402,7 +402,9 @@ window.EI = window.EI || {};
         k.decal(sp(2, { bg: null, fg: SC }), 2.68, 0.18, 0.035, 0.34);
       }
     };
-    views.push({ cls: 1, map: (x, y) => [-x, -y], x0: -3.2, x1: 3.2, y0: -1.25, y1: 0.05, draw: side(-1) });
+    // the left view also colours the texels that face down / forward / back (sidepod undercut, inlet faces, nose tip), so the
+    // colour blocks wrap round them instead of leaving the base paint there
+    views.push({ cls: 1, also: [4], map: (x, y) => [-x, -y], x0: -3.2, x1: 3.2, y0: -1.25, y1: 0.05, draw: side(-1) });
     views.push({ cls: 2, map: (x, y) => [x, -y], x0: -3.2, x1: 3.2, y0: -1.25, y1: 0.05, draw: side(1) });
     // top view: X = z (right), Y = -x (nose up), text upright reads from behind
     views.push({ cls: 3, map: (x, y, z) => [z, -x], x0: -1.1, x1: 1.1, y0: -3.2, y1: 3.2, draw: (g) => {

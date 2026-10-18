@@ -868,16 +868,16 @@ window.EI = window.EI || {};
         const m = new THREE.Mesh(geo, mat); m.receiveShadow = true; m.name = name; g.add(m); return m;
       };
       const offMat = (o) => Object.assign({ roughness: 0.88, metalness: 0, polygonOffset: true, polygonOffsetFactor: o, polygonOffsetUnits: o * 2 });
-      // flat polygon, triangles split down to ~4 m edges and draped on the ground
+      // flat polygon, triangles split down to ~9 m edges and draped on the ground
       const flat = (poly, dy, uvS, mat, name) => {
         const pos = [], uv = [], idx = []; const tris = THREE.ShapeUtils.triangulateShape(poly.map(p => new THREE.Vector2(p[0], p[1])), []);
         const put = (a, b, c) => { if ((b[1] - a[1]) * (c[0] - a[0]) - (b[0] - a[0]) * (c[1] - a[1]) < 0) { const t = b; b = c; c = t; } const k = pos.length / 3; for (const q of [a, b, c]) { pos.push(q[0], gy(q[0], q[1]) + dy, q[1]); uv.push(q[0] / uvS, q[1] / uvS); } idx.push(k, k + 1, k + 2); };
-        const split = (a, b, c) => { const L = Math.max(Math.hypot(b[0] - a[0], b[1] - a[1]), Math.hypot(c[0] - b[0], c[1] - b[1]), Math.hypot(a[0] - c[0], a[1] - c[1])); if (L < 4) return put(a, b, c);
+        const split = (a, b, c) => { const L = Math.max(Math.hypot(b[0] - a[0], b[1] - a[1]), Math.hypot(c[0] - b[0], c[1] - b[1]), Math.hypot(a[0] - c[0], a[1] - c[1])); if (L < 9) return put(a, b, c);
           const m = (p, q) => [(p[0] + q[0]) / 2, (p[1] + q[1]) / 2]; const ab = m(a, b), bc = m(b, c), ca = m(c, a); split(a, ab, ca); split(ab, b, bc); split(ca, bc, c); split(ab, bc, ca); };
         for (const [a, b, c] of tris) split(poly[a], poly[b], poly[c]);
         return mesh(pos, uv, idx, mat, name);
       };
-      const turq = lin(RC[0]).multiplyScalar(1.5);
+      const turq = lin(RC[0]).multiplyScalar(2.4);
       flat(P.poly, 0.06, 4, new THREE.MeshStandardMaterial(Object.assign(offMat(-1), { map: T.runoff.map, color: turq })), 'infieldPaint');
       // the link road: ribbon along the smoothed centre line, rows dropped where the road or its kerbs would reach past the barrier
       const R = F.road; if (R) {

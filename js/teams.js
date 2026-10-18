@@ -105,9 +105,9 @@ window.EI = window.EI || {};
       const rect = (x0, x1, z0, z1, col) => { ctx.fillStyle = col; ctx.fillRect(z0 * 1000, -x1 * 1000, (z1 - z0) * 1000, (x1 - x0) * 1000); };
       const poly = (pts, col) => { ctx.beginPath(); pts.forEach(([x, z], i) => (i ? ctx.lineTo(z * 1000, -x * 1000) : ctx.moveTo(z * 1000, -x * 1000))); ctx.closePath(); ctx.fillStyle = col; ctx.fill(); };
       EI.LIVERIES.top(ctx, { at, rect, poly }, team, driverNum); ctx.restore();
-      // side views (mm, X = -x, Y = -y): u = 512 + 0.16 X (nose left), v = y0 + 235.5 + 0.2048 Y (y 1.15 .. -0.1 m)
+      // side views (mm, X = -x, Y = -y), uniform scale so logos keep their aspect: u = 512 + 0.16 X (nose left), v = y0 + 184 + 0.16 Y (y 1.15 .. -0.45 m)
       for (let k = 0; k < 2; k++) {
-        const y0 = 512 + k * 256; ctx.save(); ctx.beginPath(); ctx.rect(0, y0, 1024, 256); ctx.clip(); ctx.setTransform(0.16, 0, 0, 0.2048, 512, y0 + 235.5);
+        const y0 = 512 + k * 256; ctx.save(); ctx.beginPath(); ctx.rect(0, y0, 1024, 256); ctx.clip(); ctx.setTransform(0.16, 0, 0, 0.16, 512, y0 + 184);
         EI.LIVERIES.side(ctx, EI.CarGLB.sideKit(ctx, -1), team, driverNum, code); ctx.restore();
       }
       const tex = new THREE.CanvasTexture(c); tex.anisotropy = 8; tex.flipY = false; tex.encoding = THREE.sRGBEncoding;
@@ -234,15 +234,17 @@ window.EI = window.EI || {};
     // floor shadow + carbon floor
     ctx.fillStyle = 'rgba(0,0,0,0.5)'; ctx.beginPath(); ctx.ellipse(X(0.2), Y(0.0), 2.9 * ppm, 0.06 * ppm, 0, 0, 7); ctx.fill();
     ctx.fillStyle = '#1b1c20'; shape([[2.2, 0.06], [-1.95, 0.06], [-1.95, 0.12], [2.2, 0.12]]); ctx.fill();
-    // bodywork silhouette, filled with the side view of the livery sheet (u = 512 - 160 x, v = 747.5 - 204.8 y)
+    // bodywork silhouette, filled with the side view of the livery sheet (u = 512 - 160 x, v = 696 - 160 y)
     const BODY = [[3.06, 0.17], [2.9, 0.27], [2.4, 0.4], [1.7, 0.53], [1.15, 0.64], [1.0, 0.72], [0.55, 0.74], [0.3, 0.8], [0.12, 0.98], [-0.08, 1.04], [-0.42, 0.98], [-0.9, 0.84], [-1.4, 0.68], [-1.82, 0.52], [-1.9, 0.3], [-1.85, 0.12], [-0.9, 0.12], [0.9, 0.14], [2.0, 0.15], [2.6, 0.13]];
     ctx.save(); shape(BODY); ctx.clip();
-    ctx.drawImage(tex.image, 512 - 160 * 3.2, 747.5 - 204.8 * 1.15, 160 * 5.9, 204.8 * 1.3, X(3.2), Y(1.15), 5.9 * ppm, 1.3 * ppm);
+    ctx.drawImage(tex.image, 512 - 160 * 3.2, 696 - 160 * 1.15, 160 * 5.9, 160 * 1.3, X(3.2), Y(1.15), 5.9 * ppm, 1.3 * ppm);
     const sh = ctx.createLinearGradient(0, Y(1.05), 0, Y(0.1)); sh.addColorStop(0, 'rgba(255,255,255,0.18)'); sh.addColorStop(0.45, 'rgba(255,255,255,0)'); sh.addColorStop(1, 'rgba(0,0,0,0.25)'); ctx.fillStyle = sh; ctx.fillRect(0, 0, w, h);
     ctx.restore();
     // halo + helmet
-    ctx.strokeStyle = parts.halo || '#1e1f22'; ctx.lineWidth = 0.045 * ppm; ctx.lineCap = 'round'; ctx.beginPath(); ctx.moveTo(X(1.12), Y(0.7)); ctx.quadraticCurveTo(X(0.95), Y(0.9), X(0.55), Y(0.9)); ctx.lineTo(X(0.2), Y(0.86)); ctx.stroke();
-    ctx.fillStyle = (driver && driver.helmet) || team.accent; ctx.beginPath(); ctx.ellipse(X(0.62), Y(0.8), 0.13 * ppm, 0.11 * ppm, 0, 0, 7); ctx.fill();
+    ctx.fillStyle = (driver && driver.helmet) || team.accent; ctx.beginPath(); ctx.ellipse(X(0.6), Y(0.77), 0.12 * ppm, 0.1 * ppm, 0, 0, 7); ctx.fill();
+    ctx.fillStyle = '#20232a'; ctx.beginPath(); ctx.ellipse(X(0.66), Y(0.78), 0.06 * ppm, 0.03 * ppm, 0, 0, 7); ctx.fill();   // visor
+    ctx.lineCap = 'round'; ctx.lineWidth = 0.05 * ppm; ctx.strokeStyle = 'rgba(255,255,255,0.35)'; for (const pass of [0, 1]) { if (pass) { ctx.lineWidth = 0.035 * ppm; ctx.strokeStyle = parts.halo || '#2a2c31'; }
+      ctx.beginPath(); ctx.moveTo(X(1.15), Y(0.68)); ctx.quadraticCurveTo(X(1.0), Y(0.9), X(0.6), Y(0.9)); ctx.lineTo(X(0.25), Y(0.88)); ctx.stroke(); }
     // wings: front-wing endplate / flaps, rear-wing endplate / main plane
     ctx.fillStyle = parts.fwEnd; shape([[3.0, 0.05], [2.45, 0.05], [2.45, 0.3], [2.75, 0.3], [3.0, 0.16]]); ctx.fill();
     ctx.fillStyle = parts.fwFlap; shape([[2.95, 0.2], [2.5, 0.27], [2.5, 0.31], [2.9, 0.25]]); ctx.fill();

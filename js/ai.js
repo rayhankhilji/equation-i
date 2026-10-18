@@ -358,12 +358,12 @@ window.EI = window.EI || {};
       if (target < prof[i] - 2 && Math.abs(t.lineK[i]) < 1 / 250) target *= P.carry; // braking on a straight: late brakers carry more speed in
       // slow drift of pace within a lap (tyre feel, concentration): a random walk bounded by consistency
       this.lapFormT -= dt; if (this.lapFormT <= 0) { this.lapFormT = 6 + this.rng() * 8; this.lapForm = U.clamp(this.lapForm + (this.rng() - 0.5) * P.formStep, -P.formMax, P.formMax); }
-      target *= (this.speedFactor + this.lapForm) / this.d.brakeMargin * (1 - Math.abs(this.offset) / hw * 0.18);
-      if (car.tyre.grip < 1) target *= car.tyre.grip;
+      target = Math.min(target, this.offLineCap(prof, av));                // off the line (passing, side by side): the path's own limit
+      target *= (this.speedFactor + this.lapForm) / this.d.brakeMargin;
+      if (car.tyre.grip !== 1) target *= Math.sqrt(car.tyre.grip);
       // tyre management: savers hold back in the first half and push at the end; pushers do the opposite and fade with wear
       if (race.laps >= 2) { if (car.lap <= Math.ceil(race.laps / 2) && car.lap < race.laps) target *= P.tyreEarly; else if (car.lap >= race.laps) target *= P.tyreLate; }
       if (car.wear > 0) target *= (1 - P.wearK * Math.min(1, car.wear));
-      if (this.d.frontier) target *= 1.0 + 0.012 * Math.min(1, car.ers); // frontier bots exploit every bit of grip
       if (this.underPressure) target *= 1 - P.pressureSlow;                 // tightening up with a car on the gearbox
       // --- mistakes: either a lock-up into a heavy stop (runs wide) or a hesitant early lift. More likely for inconsistent
       // drivers, late brakers and, under pressure, for the less composed. Applied before the traffic logic so the follow-distance
@@ -381,25 +381,46 @@ window.EI = window.EI || {};
       this.wasBraking = braking;
       if (this.mistakeT > 0) target *= this.mistakeKind > 0 ? P.overshootK : 0.9;
       // --- traffic: car directly ahead, a car to tow behind, cars alongside, threats behind
-      let ahead = null, aheadGap = 1e9, alongside = 0, behindClose = false, threat = null, towCar = null, towGap = 1e9;
+      this.urgent = false;
+      let blue = car.blueFlag && !car.blueFlag.finished ? car.blueFlag : null, blueD = -1e9;
+      let ahead = null, aheadGap = 1e9, alongside = 0, alongV = 0, alongD = 1e9, alongAhead = false, behindClose = false, threat = null, towCar = null, towGap = 1e9;
       for (const o of cars) {
         if (o === car) continue;
         let dsx = o.trk.s - car.trk.s; if (dsx > t.length / 2) dsx -= t.length; if (dsx < -t.length / 2) dsx += t.length;
         const dl = o.trk.lat - car.trk.lat;
-        if (dsx > 0 && dsx < 45 && Math.abs(dl) < 3.2 && dsx < aheadGap) { ahead = o; aheadGap = dsx; }
+        if (dsx > 0 && dsx < 45 && Math.abs(dl) < 3.6 && dsx < aheadGap) { ahead = o; aheadGap = dsx; }
         if (dsx > 6 && dsx < 50 && Math.abs(dl) < 7 && dsx < towGap) { towCar = o; towGap = dsx; }
-        if (Math.abs(dsx) < 6.5 && Math.abs(dl) < 3.4) alongside += dl > 0 ? 1 : -1;
+        if (Math.abs(dsx) < 6.5 && Math.abs(dl) < 3.4) { alongside += dl > 0 ? 1 : -1; if (Math.abs(dsx) < alongD) { alongD = Math.abs(dsx); alongV = o.v; alongAhead = dsx > 0.5; } }
         if (dsx < 0 && dsx > -25 && Math.abs(dl) < 4) behindClose = true;
         if (dsx < 0 && dsx > -P.threatRange && Math.abs(dl) < 5 && (o.v > car.v + 0.3 || dsx > -12)) threat = o;
+        if (dsx < 0 && dsx > -60 && o.dist - car.dist > t.length * 0.5 && !o.finished && (!blue || dsx > blueD)) { blue = o; blueD = dsx; }   // a car a lap up
       }
       this.underPressure = behindClose || alongside !== 0;
+      // --- lanes: never steer into a car that overlaps this one nose to tail; hold at least sep (car width + racecraft margin) to
+      // its side. Both cars apply it, so two cars side by side keep their lanes through the corner instead of both following the
+      // racing line into each other. A car squeezed against the track edge by a car ahead of it drops in behind.
+      const myW = 1.45 * Math.abs(Math.sin(rel)), sep0 = 1.3 + P.sidePush + myW; let lo = -Infinity, hi = Infinity, sqV = Infinity;
+      for (const o of cars) {
+        if (o === car || (o.pit && o.pit.active)) continue;
+        let dsx = o.trk.s - car.trk.s; if (dsx > t.length / 2) dsx -= t.length; if (dsx < -t.length / 2) dsx += t.length;
+        const dl = o.trk.lat - car.trk.lat; if (dsx > 5.8 || dsx < -4.5 || Math.abs(dl) > 6) continue;   // overlapping: its rear beside our nose, or its nose beside our rear wheels
+        const sep = sep0 + 1.45 * Math.abs(Math.sin(U.wrapAngle(o.heading - t.heading[o.trk.i])));
+        if (dl > 0 || (dl === 0 && o.id > car.id)) hi = Math.min(hi, o.trk.lat - sep); else lo = Math.max(lo, o.trk.lat + sep);
+        if (dsx > 1 && o.v < sqV) sqV = o.v;
+      }
+      if (lo > -Infinity || hi < Infinity) {
+        const edge = hw - 0.6;
+        if ((lo > edge || hi < -edge || lo > hi) && sqV < Infinity) target = Math.min(target, Math.max(sqV - 2, 10));
+        lo = Math.min(Math.max(lo, -edge), edge); hi = Math.max(Math.min(hi, edge), -edge); if (lo > hi) lo = hi = (lo + hi) / 2;
+      }
+      this.latLo = lo; this.latHi = hi;
       // --- contact reaction: a bump makes the bot lift and steer away from the other car for half a second
       if (car.hit > 0.3 && !this.reactT) { this.reactT = 0.5; let away = 0; for (const o of cars) { if (o === car) continue; const dx = o.x - car.x, dz = o.z - car.z; if (dx * dx + dz * dz < 36) { const dl = o.trk.lat - car.trk.lat; away -= Math.sign(dl || 1) * 1.5; } } this.reactOffset = U.clamp(away, -2, 2); }
       if (this.reactT) { this.reactT = Math.max(0, this.reactT - dt); if (this.reactT === 0) this.reactT = null; }
       // --- choose a lateral offset: overtake, tow, defend, avoid, or hold the line
       const kHere = Math.abs(t.lineK[i]), onStraight = kHere < 1 / 300, base = t.lineOff[i];
       const slowSoon = nc.vmin < 30 && nc.dist < 170 && nc.vmin < av - 8;
-      let wantOffset = this.lineBias, passing = false;
+      let wantOffset = onStraight ? this.lineBias : 0, passing = false;
       if (ahead) {
         if (ahead !== this.tailCar) { this.tailCar = ahead; this.tailT = 0; this.passing = false; } else this.tailT += dt;
         const closing = car.v - ahead.v;
@@ -412,7 +433,11 @@ window.EI = window.EI || {};
           if (P.abortSlow) { want = false; if (this.passing) st.aborts++; }  // careful drivers tuck back in before a slow corner
           else if (P.dive && aheadGap < 26) dive = true;                       // risk-takers go for the inside and brake later
         }
-        if (want && aheadGap < P.passGap) {
+        // attacking on a straight: first close right up in the tow, then pull out with the speed it gives (pulling out 20-30 m
+        // back threw the tow away and the pass never got closer); pull out once close, closing fast, with DRS, or near the braking zone
+        const attack = want && onStraight && !(nc.dist < 120 && nc.vmin < av - 8);
+        const fgA = 4.5 + av * 0.04;
+        if (want && aheadGap < P.passGap && (this.passing || dive || car.drsOpen || aheadGap < fgA + 4 || (nc.dist < 160 && closing > 2))) {
           const room = hw - 1.3;
           const roomy = ahead.trk.lat > base ? -1 : 1;
           const first = dive || (P.insidePass && nc.dist < 300) ? nc.inside : roomy;
@@ -426,23 +451,27 @@ window.EI = window.EI || {};
         if (passing && !this.passing) st.passAttempts++;
         this.passing = passing;
         // do not run into the back of the car ahead: match its speed while there is lateral overlap
-        const overlap = Math.abs(ahead.trk.lat - car.trk.lat) < 2.6;
-        const fg = onStraight ? Math.max(6.2, P.followGap - 0.8 * T.tow) : P.followGap;
+        const overlap = Math.abs(ahead.trk.lat - car.trk.lat) < 2.7 + myW + 1.45 * Math.abs(Math.sin(U.wrapAngle(ahead.heading - t.heading[ahead.trk.i])));   // 2.3 m contact width + yawed corners
+        const fg = attack ? fgA : (onStraight ? Math.max(6.2, P.followGap - 0.8 * T.tow) : P.followGap) + av * 0.06;   // + a time headway: 5 m more at 300 km/h
+        // vA: the car ahead's speed a moment from now if it keeps braking as hard as it is now; the kinematic cap is the most
+        // this car can carry and still match vA before the gap closes to 3.5 m (braking at 25 m/s2, well inside the brakes)
+        const vA = Math.max(0, ahead.v + Math.min(0, ahead.aLong) * 0.3);
+        if (overlap) target = Math.min(target, Math.sqrt(vA * vA + 2 * 25 * Math.max(0, aheadGap - 3.5 - av * 0.05)));
         if (overlap && aheadGap < fg + 9) {
-          const follow = Math.max(ahead.v + (aheadGap - fg) * 1.1, 3);
-          target = Math.min(target, Math.max(follow, ahead.v + (passing ? 1.5 : L(0.4, 1.5, P.agg))));
+          const follow = Math.max(vA + (aheadGap - fg) * 1.1, 3);
+          target = Math.min(target, Math.max(follow, vA + (passing ? 1.5 : L(0.4, 1.5, P.agg))));
         }
-        if (overlap && aheadGap < Math.min(7, fg)) target = Math.min(target, ahead.v - 1);
+        if (overlap && aheadGap < Math.min(7, fg)) target = Math.min(target, vA - 1);
+        if (overlap && aheadGap < fg && target < av - 0.6) this.urgent = true;   // closing on the car ahead: brake like it, not gently
       } else { this.tailCar = null; this.tailT = 0; this.passing = false; }
       // slipstream hunters line up behind the car ahead on a straight to sit in its tow
       if (!passing && towCar && onStraight && P.towHunt > 0 && alongside === 0) { wantOffset = L(wantOffset, U.clamp(towCar.trk.lat, -hw + 1.3, hw - 1.3) - base, P.towHunt); st.towT += dt; }
       if (alongside !== 0) {
-        // car on the left (dl > 0 => alongside positive): move right
-        const room = hw - 1.0;
-        wantOffset = U.clamp(car.trk.lat - base - alongside * P.sidePush, -room - base, room - base);
-        target = Math.min(target, Math.max(av + P.sideGas, 20));
+        // in a corner the car that is behind gives way (racecraft: how much momentum it keeps); the car ahead has the corner.
+        // Flat out side by side on a straight.
+        if (!onStraight && alongAhead) target = Math.min(target, Math.max(alongV + P.sideGas, 20));
         // side by side into a slow corner: the cautious yield
-        if (slowSoon && T.risk < 0.35) { target = Math.min(target, av - 1.5); if (!this.yielding) st.yields++; this.yielding = true; } else this.yielding = false;
+        if (slowSoon && T.risk < 0.35 && alongAhead) { target = Math.min(target, alongV - 1.5); if (!this.yielding) st.yields++; this.yielding = true; } else this.yielding = false;
       }
       // defend the inside when a faster car is close behind on a straight: one decision, one move per straight
       if (!onStraight) { this.defendDecided = false; this.defending = false; }
@@ -451,9 +480,27 @@ window.EI = window.EI || {};
         if (this.rng() < P.defendChance) { this.defending = true; this.defendLat = U.clamp(nc.inside * P.defendLat, -hw + 1.3, hw - 1.3); st.defends++; }
       }
       if (this.defending && onStraight && alongside === 0) wantOffset = this.defendLat - base;
+      // blue flag: a car a lap up close behind. No defending; on the straight move off its side of the line and lift a little
+      if (blue) {
+        let db = blue.trk.s - car.trk.s; if (db > t.length / 2) db -= t.length; if (db < -t.length / 2) db += t.length;
+        if (db < 0 && db > -60) {
+          this.defending = false; st.blues = (st.blues || 0) + dt;
+          if (onStraight) { wantOffset = U.clamp(car.trk.lat - base + (blue.trk.lat > car.trk.lat ? -2.5 : 2.5), -hw + 1.3 - base, hw - 1.3 - base); if (db > -30) target = Math.min(target, Math.max(blue.v - 3, 20)); }
+        }
+      }
       // a car diagonally ahead and close: give it room instead of driving into its rear corner
-      for (const o of cars) { if (o === car) continue; let dsx = o.trk.s - car.trk.s; if (dsx > t.length / 2) dsx -= t.length; if (dsx < -t.length / 2) dsx += t.length; const dl = o.trk.lat - car.trk.lat; if (dsx > 2 && dsx < P.diagWin && Math.abs(dl) > 1.2 && Math.abs(dl) < 3.4) { wantOffset = U.clamp(car.trk.lat - base - Math.sign(dl) * 1.2, -hw + 1.2 - base, hw - 1.2 - base); target = Math.min(target, Math.max(o.v - 0.5, 15)); } }
-      if (this.reactT) { wantOffset = car.trk.lat - base + this.reactOffset; target = Math.min(target, Math.max(av * 0.9, 10)); }
+      for (const o of cars) { if (o === car) continue; let dsx = o.trk.s - car.trk.s; if (dsx > t.length / 2) dsx -= t.length; if (dsx < -t.length / 2) dsx += t.length; const dl = o.trk.lat - car.trk.lat; if (dsx > 2 && dsx < P.diagWin && Math.abs(dl) > 1.2 && Math.abs(dl) < 3.4) { wantOffset = U.clamp(car.trk.lat - base - Math.sign(dl) * 1.2, -hw + 1.2 - base, hw - 1.2 - base); if (Math.abs(dl) < 2.5) target = Math.min(target, Math.max(o.v - 0.5, 15)); } }
+      // bumper check in world space (track s / lat distort in hairpins: the inside of a 10 m hairpin has half the arc length):
+      // a car in front of this one's nose within 12 m and in its path caps the speed to what can still be killed in the gap
+      { const fx = Math.cos(car.heading), fz = Math.sin(car.heading);
+        for (const o of cars) {
+          if (o === car || (o.pit && o.pit.active)) continue; const dx = o.x - car.x, dz = o.z - car.z; if (dx * dx + dz * dz > 144) continue;
+          const fwd = dx * fx + dz * fz, side = dz * fx - dx * fz, rh = U.wrapAngle(o.heading - car.heading);
+          if (fwd <= 0 || Math.abs(side) > 2.5 + 1.45 * Math.abs(Math.sin(rh))) continue;
+          const vo = Math.max(0, o.v * Math.cos(rh)); target = Math.min(target, vo + Math.sqrt(2 * 8 * Math.max(0, fwd - 6.3)));
+          if (fwd < 7.5 && av > vo) this.urgent = true;
+        } }
+      if (this.reactT) wantOffset = car.trk.lat - base + this.reactOffset;   // after a bump: steer away and lift (below), no stamp on the brakes
       this.offsetTarget = wantOffset;
       this.offset += U.clamp(this.offsetTarget - this.offset, -3.5 * dt, 3.5 * dt);
       // --- random small errors
@@ -463,13 +510,18 @@ window.EI = window.EI || {};
       inp.steer = U.clamp(inp.steer + this.noise * 0.5, -1, 1);
       // --- throttle / brake
       const vErr = target - av;
-      if (vErr > 0.8) { inp.throttle = U.clamp(vErr / 3, 0.35, 1); inp.brake = 0; }
-      else if (vErr < -0.6) { inp.throttle = 0; inp.brake = U.clamp(-vErr / P.brakeGain, 0.15, 1); }
+      // out of a corner (the target still rising at the end of the look window) the profile already is the full-throttle curve:
+      // squeeze to full power instead of creeping up on it with part throttle
+      const rising = vErr > 0.3 && this.prof[(i + look) % n] > this.prof[i] + 0.3;
+      if (rising) { inp.throttle = U.clamp(0.5 + vErr / 2, 0.5, 1); inp.brake = 0; }
+      else if (vErr > 0.8) { inp.throttle = U.clamp(vErr / 3, 0.35, 1); inp.brake = 0; }
+      else if (vErr < -0.6) { inp.throttle = 0; inp.brake = U.clamp(-vErr / (this.urgent ? 2 : P.brakeGain), 0.15, 1); }
       else { inp.throttle = 0.55; inp.brake = 0; }
       // launch: the first second off the line, throttle set by the start skill
       if (race.time < this.reaction + 1.6) inp.throttle = Math.min(inp.throttle, P.launch);
       // heavy understeer if running wide: lift a little
       if (car.surface === 'grass' || car.surface === 'gravel') inp.throttle = Math.min(inp.throttle, 0.5);
+      if (this.reactT) inp.throttle = Math.min(inp.throttle, 0.3);
       // --- DRS: open once the zone is reached; the tow-savvy open it at once, others a beat later
       if (car.inDrsZone >= 0 && car.drsEligible) this.drsZoneT += dt; else this.drsZoneT = 0;
       inp.drs = this.drsZoneT >= P.drsDelay;
@@ -481,10 +533,26 @@ window.EI = window.EI || {};
       if (car.ersActive) { st.ersT += dt; if (car.lap === race.laps) st.ersLastT += dt; } if (car.drsOpen) st.drsT += dt;
     }
 
+    // speed limit of the path this car is actually on: the racing line shifted sideways by this.offset has curvature
+    // k / (1 - k * offset) (k > 0 bends towards +lat). Where that is tighter than the line, the profile speed scales with
+    // sqrt(k / kOff); the cap also brakes for such a point up to 160 m ahead. Replaces a flat "up to 18% slower at the edge".
+    offLineCap(prof, av) {
+      const o = this.offset; if (Math.abs(o) < 0.6) return Infinity;
+      const t = this.track, n = t.n, i = this.car.trk.i, step = Math.max(1, Math.round(4 / t.ds)), dec = 0.85 * EI.CAR.BRAKE.b0;
+      let cap = Infinity;
+      for (let j = 0, d = 0; d < 160; j += step, d += step * t.ds) {
+        const q = (i + j) % n, k = t.lineK[q], den = 1 - k * o; if (k * o <= 0 && Math.abs(k) < 1 / 400) continue;
+        const r = den > 0.2 ? 1 / den : 5; if (r <= 1) continue;          // on the outside of this bend: no tighter than the line
+        const v = prof[q] / Math.sqrt(r); cap = Math.min(cap, Math.sqrt(v * v + 2 * dec * d));
+        if (cap < av - 40) break;
+      }
+      return cap;
+    }
+
     // after the flag: a gentle lap on the racing line at three quarters of the profile
     coolDown() {
       const car = this.car, t = this.track, inp = car.input, av = Math.abs(car.v);
-      inp.drs = false; inp.ers = false; inp.reverse = false;
+      inp.drs = false; inp.ers = false; inp.reverse = false; this.latLo = -Infinity; this.latHi = Infinity;
       let target = Infinity; const look = Math.round((10 + av * 0.2) / t.ds);
       for (let j = 0; j <= look; j += 2) target = Math.min(target, t.aiSpeed[(car.trk.i + j) % t.n]);
       target *= 0.72; const vErr = target - av;
@@ -492,17 +560,58 @@ window.EI = window.EI || {};
       this.steerToLine(5.5 + av * 0.36);
     }
 
+    // pure pursuit: the arc through a point on the (offset) line ahead gives the path curvature to drive; the steering input
+    // is that curvature over the most the car can turn at this speed (lock-limited when slow, grip-limited when fast; the
+    // same model car.js applies with full steering assist). The old fixed-gain steer (2.2 x heading error) asked for far
+    // too little lock at speed, so the car only turned once it was metres off the line: it ran wide in every fast corner
+    // (Maggotts-Becketts-Chapel onto the grass on every lap) and snaked on the straights.
     steerToLine(lookDist) {
       const car = this.car, t = this.track, n = t.n;
       const j = (car.trk.i + Math.round(lookDist / t.ds)) % n;
+      // never aim off the road: the line swings edge to edge, so an offset taken here can point off track 30 m on
+      const edge = t.halfWidth - 1.0;
+      const lo = this.latLo == null ? -edge : Math.max(-edge, this.latLo), hi = this.latHi == null ? edge : Math.min(edge, this.latHi);
+      this.offset = U.clamp(this.offset, lo - t.lineOff[j], hi - t.lineOff[j]);
       const tx = t.lineX[j] + t.nx[j] * this.offset, tz = t.lineZ[j] + t.nz[j] * this.offset;
-      const want = Math.atan2(tz - car.z, tx - car.x);
-      const err = U.wrapAngle(want - car.heading);
-      car.input.steer = U.clamp(-err * 2.2, -1, 1);
+      const dx = tx - car.x, dz = tz - car.z, ld = Math.max(2, Math.hypot(dx, dz));
+      const err = U.wrapAngle(Math.atan2(dz, dx) - car.heading);
+      const av = Math.abs(car.v), kWant = 2 * Math.sin(err) / ld;
+      const dMax = Math.max(0.42 / (1 + av / 18), 0.55 / (1 + Math.pow(av / 16, 3)));
+      const G = EI.CAR.GRIP, mu = car.tyre.grip * (1 - 0.3 * Math.min(1, car.wear));
+      const kMax = Math.min(Math.tan(dMax) / EI.CAR.WB, av > 0.5 ? mu * Math.min(G.cap, G.a0 + G.a1 * av * av) / (av * av) : 99);
+      car.input.steer = U.clamp(-kWant / kMax, -1, 1);
       if (car.v < 0) car.input.steer *= -1;
     }
   }
-  EI.AIDriver = AIDriver;
+  // the racing line the bots drive: a minimum-curvature line over the full usable width (car edge on the white line, kerbs
+  // left as margin), replacing track.js's heuristic line (which used only 62% of the half width, so its corners were much
+  // tighter than the road allows: a human on the full width was seconds a lap faster than an ultra bot). Computed once per
+  // track, in place (lineOff / lineX / lineZ / lineK keep their meaning for everything that reads them: pit entry, cameras).
+  // Gauss-Seidel on sum |p[i-1] - 2 p[i] + p[i+1]|^2 with each point moving along its normal, coarse to fine.
+  function raceLine(track) {
+    if (track._aiLine) return; track._aiLine = true;
+    const n = track.n, X = track.x, Z = track.z, NX = track.nx, NZ = track.nz, w = track.halfWidth - 1.15;
+    const off = Float64Array.from(track.lineOff, v => U.clamp(v, -w, w));
+    for (const step of [24, 12, 6, 3, 1]) {
+      for (let it = 0; it < (step === 1 ? 400 : 150); it++) {
+        for (let i = 0; i < n; i++) {
+          const a2 = (i - 2 * step + 2 * n) % n, a1 = (i - step + n) % n, b1 = (i + step) % n, b2 = (i + 2 * step) % n;
+          const px = (-(X[a2] + NX[a2] * off[a2]) + 4 * (X[a1] + NX[a1] * off[a1]) + 4 * (X[b1] + NX[b1] * off[b1]) - (X[b2] + NX[b2] * off[b2])) / 6;
+          const pz = (-(Z[a2] + NZ[a2] * off[a2]) + 4 * (Z[a1] + NZ[a1] * off[a1]) + 4 * (Z[b1] + NZ[b1] * off[b1]) - (Z[b2] + NZ[b2] * off[b2])) / 6;
+          off[i] = U.clamp((px - X[i]) * NX[i] + (pz - Z[i]) * NZ[i], -w, w);
+        }
+      }
+    }
+    const lo = track.smooth(Float32Array.from(off), 2);
+    for (let i = 0; i < n; i++) { track.lineOff[i] = U.clamp(lo[i], -w, w); track.lineX[i] = X[i] + NX[i] * track.lineOff[i]; track.lineZ[i] = Z[i] + NZ[i] * track.lineOff[i]; }
+    const k = new Float32Array(n);
+    for (let i = 0; i < n; i++) {
+      const a = (i + n - 1) % n, b = (i + 1) % n; const ax = track.lineX[b] - track.lineX[i], az = track.lineZ[b] - track.lineZ[i], bx = track.lineX[i] - track.lineX[a], bz = track.lineZ[i] - track.lineZ[a];
+      const la = Math.hypot(ax, az) || 1, lb = Math.hypot(bx, bz) || 1; k[i] = -((bx / lb) * (az / la) - (bz / lb) * (ax / la)) / ((la + lb) / 2);
+    }
+    track.lineK.set(track.smooth(k, 6));
+  }
+  EI.AIDriver = AIDriver; EI.aiRaceLine = raceLine;
   EI.AI_DIFF = DIFF;
   EI.AI_TRAITS = TRAITS;
   EI.AI_ARCHETYPES = ARCHETYPES;

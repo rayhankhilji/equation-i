@@ -110,7 +110,7 @@ window.EI = window.EI || {};
       g.save(); g.globalAlpha = 0.5; for (let i = 0; i < 7; i++) for (let j = 0; j < 3; j++) { const x = 0.05 - i * 0.13 - (j % 2) * 0.065, y = 0.76 + j * 0.055; k.poly([[x, y + 0.025], [x + 0.05, y], [x, y - 0.025], [x - 0.05, y]], '#0e0f11'); } g.restore();   // AMG diamonds
       const FLOW = [[3.05, 0.2], [2.2, 0.31], [1.4, 0.4], [0.7, 0.47], [0.0, 0.46], [-0.7, 0.38], [-1.5, 0.3]];
       k.stroke(FLOW, 0.032, TEAL); k.stroke(FLOW.map(([x, y]) => [x, y + 0.035]), 0.008, SIL);
-      L.emblem('star', -1.05, 0.55, 0.075, SIL);
+      L.mark('mercedes', -1.05, 0.55, 0.15, 0.15, 'mono:#c5c9ce', 'star', 0.075, SIL);
       L.partner('petronas', 'sp', 'white'); L.partner('microsoft', 'airbox', 'black'); L.partner('ineos', 'spLow', 'white');
       L.partner('crowdstrike', 'rwEnd', 'white'); L.partner('microsoft', 'fwEnd', 'white'); L.partner('teamviewer', 'noseSide', 'white');
       L.number(1.05, 0.56, 0.08, '#0e0f11'); L.codeText(1.3, 0.69, 0.045, '#0e0f11');
@@ -120,7 +120,7 @@ window.EI = window.EI || {};
       const { t, g } = L; const SIL = '#c5c9ce';
       t.poly([[3.05, -0.05], [3.05, 0.05], [1.0, 0.12], [0.3, 0.2], [-0.4, 0.14], [-0.4, -0.14], [0.3, -0.2], [1.0, -0.12]], SIL);   // nose spine + cockpit shoulders
       for (const s of [-1, 1]) t.poly([[3.0, s * 0.055], [3.0, s * 0.07], [1.0, s * 0.14], [1.0, s * 0.125]], '#00a19c');
-      L.emblem('star', 2.6, 0, 0.045, '#0e0f11');
+      L.mark('mercedes', 2.6, 0, 0.09, 0.09, 'black', 'star', 0.045, '#0e0f11');
       L.number(2.2, 0, 0.09, '#0e0f11'); L.partner('petronas', 'rwTop', 'white'); L.partner('petronas', 'spTop', 'white');
     },
   };
@@ -136,7 +136,7 @@ window.EI = window.EI || {};
       k.region([[3.2, 0.14], [1.0, 0.16], [-0.6, 0.18], [-2.0, 0.22]], [[-2.4, LOW_V], [3.2, LOW_V]], '#16171a');
       L.partner('hp', 'ec', 'color'); L.partner('hp', 'sp', 'white'); L.partner('shell', 'ecRear', 'color'); L.partner('unicredit', 'noseSide', 'white');
       L.partner('ibm', 'spLow', 'white'); L.partner('hp', 'fwEnd', 'white'); L.partner('shell', 'rwEnd', 'color');
-      L.emblem('shield', 0.62, 0.6, 0.1, '#fff200', true);
+      L.mark('ferrari', 0.62, 0.6, 0.12, 0.13, 'color', 'shield', 0.1, '#fff200', true);
       L.number(1.25, 0.5, 0.085, W); L.codeText(1.3, 0.62, 0.045, W); L.number(-2.13, 0.62, 0.11, W);
     },
     top(L) {
@@ -144,7 +144,7 @@ window.EI = window.EI || {};
       for (const s of [-1, 1]) t.poly([[1.0, s * 0.1], [1.0, s * 0.3], [0.2, s * 0.55], [-0.6, s * 0.4], [-1.3, s * 0.14], [-1.3, s * 0.06], [0.2, s * 0.12]], W);
       t.poly([[0.25, -0.08], [0.25, 0.08], [-1.4, 0.06], [-1.4, -0.06]], W);
       t.rect(-3.2, -1.5, -1.2, 1.2, '#16171a');
-      L.emblem('shield', 2.5, 0, 0.11, '#fff200', true); L.number(2.12, 0, 0.13, W);
+      L.mark('ferrari', 2.5, 0, 0.1, 0.12, 'color', 'shield', 0.11, '#fff200', true); L.number(2.12, 0, 0.13, W);
       L.partner('hp', 'rwTop', 'white'); L.partner('hp', 'ecTop', 'color');
     },
   };
@@ -179,14 +179,14 @@ window.EI = window.EI || {};
       const LINE = [[3.2, 0.19], [2.0, 0.24], [1.0, 0.27], [0.0, 0.28], [-0.9, 0.36], [-1.6, 0.5], [-2.3, 0.7]];
       k.region(LINE, [[-2.6, LOW_V], [3.2, LOW_V]], '#0b0c12'); k.stroke(LINE.map(([x, y]) => [x, y + 0.012]), 0.014, '#db0a40');
       k.poly([[3.2, 0.1], [3.2, 0.4], [2.75, 0.4], [2.6, 0.1]], '#db0a40');
-      L.partnerAt('redbull', -0.95, 0.62, 0.62, 0.3, 'color');
+      L.emblem('bullMark', -0.95, 0.68, 0.5); L.partnerAt('redbull', -0.95, 0.5, 0.5, 0.09, 'color');
       L.partner('oracle', 'sp', 'white'); L.partner('ford', 'spFront', 'color'); L.partner('mobil1', 'spLow', 'white');
       L.partner('oracle', 'rwEnd', 'white'); L.partner('att', 'noseSide', 'white'); L.partner('tagheuer', 'cockpit', 'white'); L.partner('hardrock', 'fwEnd', 'white');
       L.number(1.25, 0.5, 0.085, W); L.codeText(1.3, 0.62, 0.045, W); L.number(-2.13, 0.62, 0.11, W);
     },
     top(L) {
-      const { t } = L; t.rect(2.62, 3.2, -1, 1, '#db0a40'); L.partnerTop('redbull', -0.95, 0, 0.36, 0.2, 'color');
-      L.partnerTop('redbull', 2.35, 0, 0.2, 0.12, 'color'); L.number(1.98, 0, 0.11, W); L.partner('oracle', 'rwTop', 'white'); L.partner('oracle', 'spTop', 'white');
+      const { t } = L; t.rect(2.62, 3.2, -1, 1, '#db0a40'); L.emblem('bullMark', -0.95, 0, 0.34);
+      L.emblem('bullMark', 2.35, 0, 0.18); L.number(1.98, 0, 0.11, W); L.partner('oracle', 'rwTop', 'white'); L.partner('oracle', 'spTop', 'white');
     },
   };
 
@@ -203,13 +203,13 @@ window.EI = window.EI || {};
       k.stroke(LO.map(([x, y]) => [x, y - 0.012]), 0.012, '#e10600');
       k.region([[3.2, 0.13], [1.0, 0.15], [0, 0.16]], [[0, LOW_V], [3.2, LOW_V]], '#16171a');
       L.partner('visa', 'sp', 'color'); L.partner('cashapp', 'spFront', 'color'); L.partner('visa', 'ec', 'white'); L.partner('mobil1', 'spLow', 'color');
-      L.partner('visa', 'rwEnd', 'white'); L.partner('cashapp', 'fwEnd', 'white'); L.partnerAt('redbull', -1.45, 0.5, 0.42, 0.2, 'color');
+      L.partner('visa', 'rwEnd', 'white'); L.partner('cashapp', 'fwEnd', 'white'); L.emblem('bullMark', -1.45, 0.55, 0.4);
       L.number(1.3, 0.48, 0.07, W); L.codeText(1.3, 0.62, 0.045, W); L.number(-2.13, 0.62, 0.11, W);
     },
     top(L) {
       const { t } = L; t.rect(-3.2, -1.3, -1.2, 1.2, '#1634cc');
       for (const s of [-1, 1]) t.poly([[3.0, s * 0.05], [1.0, s * 0.12], [0.2, s * 0.2], [-1.3, s * 0.12], [-1.3, s * 0.18], [0.2, s * 0.27], [1.0, s * 0.17], [3.0, s * 0.08]], '#1634cc');
-      L.partnerTop('redbull', -0.75, 0, 0.3, 0.18, 'color'); L.partnerTop('redbull', 2.4, 0, 0.16, 0.1, 'color');
+      L.emblem('bullMark', -0.75, 0, 0.3); L.emblem('bullMark', 2.4, 0, 0.15);
       L.number(2.05, 0, 0.1, '#1634cc'); L.partner('visa', 'rwTop', 'white'); L.partner('cashapp', 'spTop', 'color');
     },
   };
@@ -300,7 +300,7 @@ window.EI = window.EI || {};
   };
   // Aston Martin Aramco F1 Team, AMR26: satin British racing green, lime pinlines, black airbox, light-blue rear-wing element
   D.astonmartin = {
-    parts: { body: '#005a4e', fwFlap: '#00665a', fwEnd: '#00665a', fwTip: '#cedc00', rwMain: '#00665a', rwEnd: '#00665a', rwFlap: '#6cc4e8', halo: '#0d1a17', mirror: '#00665a', fin: '#0d1a17' },
+    parts: { body: '#004c41', fwFlap: '#004c41', fwEnd: '#004c41', fwTip: '#cedc00', rwMain: '#004c41', rwEnd: '#004c41', rwFlap: '#6cc4e8', halo: '#0d1a17', mirror: '#004c41', fin: '#0d1a17' },
     num: { ff: '"Titillium Web", Arial, sans-serif', w: 600, ls: 0.06 },
     side(L) {
       const { k } = L; const LM = '#cedc00';
@@ -357,6 +357,7 @@ window.EI = window.EI || {};
       partner(id, slot, tone) { const b = SIDE[slot]; if (!b) return; at(b[0], b[1], () => partner(g, id, b[2], b[3], tone)); },
       partnerAt(id, x, y, w, h, tone) { at(x, y, () => partner(g, id, w, h, tone)); },
       emblem(name, x, y, ...args) { at(x, y, () => EMBLEM[name](g, ...args)); },
+      mark(id, x, y, w, h, tone, name, ...args) { at(x, y, () => (EI.Ads && EI.Ads.hasPartner && EI.Ads.hasPartner(id) ? partner(g, id, w, h, tone) : EMBLEM[name](g, ...args))); },
       number(x, y, cap, col) { at(x, y, () => styledText(g, String(num), cap, col, st)); },
       codeText(x, y, cap, col) { if (code) at(x, y, () => styledText(g, code, cap, col, { ff: st.ff, w: st.w, it: st.it, sx: st.sx, skew: st.skew, ls: 0.06 })); },
       wordmark(str, x, y, cap, col, o) { at(x, y, () => styledText(g, str, cap, col, o)); },
@@ -370,6 +371,7 @@ window.EI = window.EI || {};
         for (let i = 0; i < n; i++) { const z = b[1] * (i ? -1 : 1); t.at(b[0], z, () => partner(g, id, b[4] ? b[3] : b[2], b[4] ? b[2] : b[3], tone), b[4] ? (z < 0 ? Math.PI / 2 : -Math.PI / 2) : 0); } },
       partnerTop(id, x, z, w, h, tone, rot) { t.at(x, z, () => partner(g, id, w, h, tone), rot || 0); },
       emblem(name, x, z, ...args) { t.at(x, z, () => EMBLEM[name](g, ...args)); },
+      mark(id, x, z, w, h, tone, name, ...args) { t.at(x, z, () => (EI.Ads && EI.Ads.hasPartner && EI.Ads.hasPartner(id) ? partner(g, id, w, h, tone) : EMBLEM[name](g, ...args))); },
       number(x, z, cap, col) { t.at(x, z, () => styledText(g, String(num), cap, col, st), Math.PI); },   // reads from the front
       wordmark(str, x, z, cap, col, o, along) { t.at(x, z, () => styledText(g, str, cap, col, o), along ? -Math.PI / 2 : 0); },
     };
