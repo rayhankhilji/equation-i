@@ -636,14 +636,23 @@ window.EI = window.EI || {};
       const b = E.brdc; const y = E.ground(b.cx, b.cz) - 0.05; const m = Env.frame(b.cx, y, b.cz, b.tx, b.tz, b.nx, b.nz); const P = (x, yy, z) => Env.xf(m, x, yy, z);
       const teal = C(0x4f7d84), tealD = C(0x34555c), balu = C(0x9cc2c6), memb = C(0xf7f8f8), membU = C(0xd9dcdd), Wl = 64, hw = Wl / 2;
       const quad2 = (a, b2, c, d, col, colB) => { H.quad(a, b2, c, d, col); H.quad(d, c, b2, a, colB || col); };
-      H.box(m, Wl, 4.0, 22, 0, 0, 0, C(0x2f3a44)); H.box(m, Wl + 0.1, 2.9, 22.1, 0, 0.5, 0, tealD);
-      H.box(m, Wl + 2, 0.5, 25.5, 0, 4.0, -1.6, white, { bottom: true });                        // balcony slab, 2.6 m out over the front
-      H.box(m, Wl - 1, 3.4, 21, 0, 4.5, 0, teal); H.box(m, Wl - 0.9, 0.5, 21.1, 0, 7.4, 0, white);
-      H.box(m, Wl + 2, 0.5, 25.5, 0, 7.9, -1.6, white, { bottom: true });                        // second slab = terrace floor
-      H.box(m, Wl - 8, 3.2, 16, 0, 8.4, 2.5, teal); H.box(m, Wl - 7.9, 0.4, 16.1, 0, 11.2, 2.5, white);
-      for (const yb of [4.5, 8.4]) { quad2(P(-hw - 1, yb, -14.3), P(hw + 1, yb, -14.3), P(hw + 1, yb + 1.1, -14.3), P(-hw - 1, yb + 1.1, -14.3), balu); MD.beam(m, [-hw - 1, yb + 1.12, -14.3], [hw + 1, yb + 1.12, -14.3], 0.07, white);
-        for (const sx of [-hw - 1, hw + 1]) quad2(P(sx, yb, 11), P(sx, yb, -14.3), P(sx, yb + 1.1, -14.3), P(sx, yb + 1.1, 11), balu); }
-      for (let x = -hw + 2; x < hw; x += 3) { H.box(m, 0.14, 3.4, 0.14, x, 4.5, -10.55, white); H.box(m, 0.14, 2.9, 0.14, x, 0.5, -11.08, C(0xc9ced2)); if (Math.abs(x) < hw - 5) H.box(m, 0.14, 3.2, 0.14, x, 8.4, -5.55, white); }
+      // floors are stadium-shaped in plan (straight front and back, half-round glazed ends: the curved glass of the photos)
+      const outline = (L, D, cz) => { const r = D / 2, a = Math.max(0, L / 2 - r), pts = [], N = 8;
+        for (let k = 0; k <= N; k++) { const th = -Math.PI / 2 + Math.PI * k / N; pts.push([a + r * Math.cos(th), cz + r * Math.sin(th)]); }
+        for (let k = 0; k <= N; k++) { const th = Math.PI / 2 + Math.PI * k / N; pts.push([-a + r * Math.cos(th), cz + r * Math.sin(th)]); } return pts; };
+      const wall = (pts, cz, y0w, h, col, both) => { for (let i = 0; i < pts.length; i++) { const p = pts[i], q = pts[(i + 1) % pts.length]; const mx = (p[0] + q[0]) / 2, mz = (p[1] + q[1]) / 2 - cz;
+        const A = P(p[0], y0w, p[1]), Bq = P(q[0], y0w, q[1]), Cq = P(q[0], y0w + h, q[1]), Dq = P(p[0], y0w + h, p[1]); const out = -(q[1] - p[1]) * mx + (q[0] - p[0]) * mz >= 0;
+        if (both) quad2(A, Bq, Cq, Dq, col); else if (out) H.quad(A, Bq, Cq, Dq, col); else H.quad(Dq, Cq, Bq, A, col); } };
+      const cap = (pts, cz, yc, up, col) => { const c = P(0, yc, cz); for (let i = 0; i < pts.length; i++) { const p = pts[i], q = pts[(i + 1) % pts.length]; const cr = (p[1] - cz) * q[0] - p[0] * (q[1] - cz);
+        if ((cr > 0) === up) H.tri(c, P(p[0], yc, p[1]), P(q[0], yc, q[1]), col); else H.tri(c, P(q[0], yc, q[1]), P(p[0], yc, p[1]), col); } };
+      const mull = (pts, y0w, h, col, step) => { for (let i = 0; i < pts.length; i++) { const p = pts[i], q = pts[(i + 1) % pts.length]; const l = Math.hypot(q[0] - p[0], q[1] - p[1]); const n = Math.max(1, Math.round(l / step));
+        for (let k = 0; k < n; k++) { const u = k / n; H.box(m, 0.14, h, 0.14, p[0] + (q[0] - p[0]) * u, y0w, p[1] + (q[1] - p[1]) * u, col); } } };
+      const g0 = outline(Wl, 22, 0), gG = outline(Wl + 0.2, 22.2, 0), s1 = outline(Wl + 2, 25.5, -1.6), f1 = outline(Wl - 1, 21, 0), f2 = outline(Wl - 8, 16, 2.5), bal = outline(Wl + 1.6, 25.1, -1.6);
+      wall(g0, 0, 0, 4.0, C(0x2f3a44)); wall(gG, 0, 0.5, 2.9, tealD); mull(gG, 0.5, 2.9, C(0xc9ced2), 3);
+      for (const ys of [4.0, 7.9]) { wall(s1, -1.6, ys, 0.5, white); cap(s1, -1.6, ys + 0.5, true, white); cap(s1, -1.6, ys, false, white); }
+      wall(f1, 0, 4.5, 3.4, teal); mull(f1, 4.5, 3.4, white, 3);
+      wall(f2, 2.5, 8.4, 2.8, teal); mull(f2, 8.4, 2.8, white, 3); wall(f2, 2.5, 11.2, 0.4, white); cap(f2, 2.5, 11.6, true, white);
+      for (const yb of [4.5, 8.4]) { wall(bal, -1.6, yb, 1.1, balu, true); for (let i = 0; i < bal.length; i++) { const p = bal[i], q = bal[(i + 1) % bal.length]; MD.beam(m, [p[0], yb + 1.12, p[1]], [q[0], yb + 1.12, q[1]], 0.07, white); } }
       // the canopy: eight peaked membranes in a row, each rising to a crown at the mast line, the front edge scalloped between masts
       const nM = 8, mw = (Wl + 4) / nM, x0 = -(Wl + 4) / 2, zf = -15.2, zr = 9.5, NX = 6, NZ = 4;
       const cy = (x, z) => { const u = U.mod((x - x0) / mw, 1), w = Math.min(1, Math.abs(u - 0.5) * 2); const vz = (z - zf) / (zr - zf); const crown = 1 - Math.pow(1 - w, 1.6);

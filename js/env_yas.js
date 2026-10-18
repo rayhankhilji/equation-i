@@ -229,15 +229,17 @@ window.EI = window.EI || {};
     const tails = []; for (const w of wings) {
       const a = principalAxis([w.p]); let lo = Infinity, hi = -Infinity, bw = 0; for (const q of w.p) { const al = (q[0] - a.c[0]) * a.dx + (q[1] - a.c[1]) * a.dz, bl = -(q[0] - a.c[0]) * a.dz + (q[1] - a.c[1]) * a.dx; lo = Math.min(lo, al); hi = Math.max(hi, al); bw = Math.max(bw, Math.abs(bl)); }
       const ab = (bc[0] - a.c[0]) * a.dx + (bc[1] - a.c[1]) * a.dz; const ends = ab > lo && ab < hi ? [-1, 1] : [ab < lo ? 1 : -1];
-      for (const sg of ends) { const e = sg > 0 ? hi : lo, tip = [a.c[0] + a.dx * (e + sg * TAIL), a.c[1] + a.dz * (e + sg * TAIL)]; if (!offTrack(tip[0], tip[1], 30) || (E.isSea && E.isSea(tip[0], tip[1]))) continue; tails.push({ a, end: e, sg, bw: bw + PAD, p: w.p }); }
+      // each tail as long as it can be while its tip stays well clear of the barrier and out of the marina (u1: no piece of skin by the run-off)
+      for (const sg of ends) { const e = sg > 0 ? hi : lo; let len = TAIL; const tipOk = (l) => { const x = a.c[0] + a.dx * (e + sg * l), z = a.c[1] + a.dz * (e + sg * l); return offTrack(x, z, 16) && !(E.isSea && E.isSea(x, z)); };
+        while (len > 10 && !tipOk(len)) len -= 3; if (len > 10) tails.push({ a, end: e, sg, bw: bw + PAD, p: w.p, len }); }
     }
     // 0 on the wings, rising to 1 at a tail's tip (null: not in a tail)
     for (const T of tails) { const c = centroid(T.p); T.side = Math.sign(latOf0(c[0], c[1])) || 1; }
-    const tailOf = (x, z) => { for (const T of tails) { const al = (x - T.a.c[0]) * T.a.dx + (z - T.a.c[1]) * T.a.dz, bl = -(x - T.a.c[0]) * T.a.dz + (z - T.a.c[1]) * T.a.dx; const e = (al - T.end) * T.sg; if (e > 0 && e <= TAIL && Math.abs(bl) < T.bw * (1 - 0.55 * Math.pow(e / TAIL, 1.4))) return T; } return null; };
-    const tailE = (x, z) => { let best = null; for (const T of tails) { const al = (x - T.a.c[0]) * T.a.dx + (z - T.a.c[1]) * T.a.dz, bl = -(x - T.a.c[0]) * T.a.dz + (z - T.a.c[1]) * T.a.dx; const e = (al - T.end) * T.sg; if (e <= 0 || e > TAIL) continue; const f = e / TAIL;
+    const tailOf = (x, z) => { for (const T of tails) { const al = (x - T.a.c[0]) * T.a.dx + (z - T.a.c[1]) * T.a.dz, bl = -(x - T.a.c[0]) * T.a.dz + (z - T.a.c[1]) * T.a.dx; const e = (al - T.end) * T.sg; if (e > 0 && e <= T.len && Math.abs(bl) < T.bw * (1 - 0.55 * Math.pow(e / T.len, 1.4))) return T; } return null; };
+    const tailE = (x, z) => { let best = null; for (const T of tails) { const al = (x - T.a.c[0]) * T.a.dx + (z - T.a.c[1]) * T.a.dz, bl = -(x - T.a.c[0]) * T.a.dz + (z - T.a.c[1]) * T.a.dx; const e = (al - T.end) * T.sg; if (e <= 0 || e > T.len) continue; const f = e / T.len;
       if (Math.abs(bl) < T.bw * (1 - 0.55 * Math.pow(f, 1.4))) best = Math.max(best || 0, f); } return best; };
     // tails stay on their wing's side of the track and off the water
-    const inside = (x, z) => { for (const p of doms) if (U.pointInPoly(x, z, p) || polyDist(x, z, p) < PAD) return true; const te = tailOf(x, z); return te != null && offTrack(x, z, 3) && latOf0(x, z) * te.side > 0; };
+    const inside = (x, z) => { for (const p of doms) if (U.pointInPoly(x, z, p) || polyDist(x, z, p) < PAD) return true; const te = tailOf(x, z); return te != null && offTrack(x, z, 10) && latOf0(x, z) * te.side > 0; };
     // the skin's own frame: along the hotel's long axis (s) and across it (q), so the lattice runs with the building
     const ax = principalAxis(doms); const toW = (u, v) => [ax.c[0] + ax.dx * u - ax.dz * v, ax.c[1] + ax.dz * u + ax.dx * v];
     let u0 = Infinity, u1 = -Infinity, v0 = Infinity, v1 = -Infinity; for (const p of doms) for (const q of p) { const du = (q[0] - ax.c[0]) * ax.dx + (q[1] - ax.c[1]) * ax.dz, dv = -(q[0] - ax.c[0]) * ax.dz + (q[1] - ax.c[1]) * ax.dx; u0 = Math.min(u0, du); u1 = Math.max(u1, du); v0 = Math.min(v0, dv); v1 = Math.max(v1, dv); }

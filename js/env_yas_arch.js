@@ -408,7 +408,7 @@ window.EI = window.EI || {};
   // of the pit straight beyond Turn 1
   function tentRow(E, B, LN, out) {
     const t = E.t, OCC = EI.Env.OCC, night = isNight(), TX = EI.EnvYasTex.regions(); const pr = {};
-    const f0 = lapFrame(t, t.sf + 150, 1), o = lapFrame(t, t.sf + 200, 1); const nT = 5, sz = 17, L = nT * sz, Dp = sz;
+    const f0 = lapFrame(t, t.sf + 150, 1), o = lapFrame(t, t.sf + 200, 1); const nT = 5, sz = 21, L = nT * sz, Dp = sz;
     let best = null;
     for (let d = 110; d <= 320 && !best; d += 15) for (const lat of [0, -25, 25, -50, 50, -75, 75]) {
       const cx = o.x + f0.tx * d + f0.tz * lat, cz = o.z + f0.tz * d - f0.tx * lat;
@@ -422,7 +422,7 @@ window.EI = window.EI || {};
     if (!best) { out.tentRow = 0; return; }
     const y0 = E.ground(best.cx, best.cz) - 0.2; const m = EI.Env.frame(best.cx, y0, best.cz, best.ax, best.az, -best.az, best.ax);
     E.markRect(best.cx, best.cz, best.ax, best.az, L / 2 + 2, Dp / 2 + 2, OCC.BUILT);
-    const white = C(0xf5f5f2), deckH = 6.2, eave = deckH + 3.4, pk = 10.5;
+    const white = C(0xf5f5f2), deckH = 6.2, eave = deckH + 3.6, pk = 14;
     // the deck: lit lounge glazing all round, a white slab roof
     B.set(TX.hosp, 0.12, 0.35, night ? 1.0 : 0); B.box(m, L - 1, deckH, Dp - 1, 0, 0, 0, C(0xffffff), { tile: 12 });
     B.set('white', 0.7, 0, 0); B.box(m, L + 0.6, 0.45, Dp + 0.6, 0, deckH, 0, white, { bottom: true });
