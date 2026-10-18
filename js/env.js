@@ -862,6 +862,8 @@ window.EI = window.EI || {};
       ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.strokeStyle = 'rgb(146,143,136)';
       for (const r of E.roads || []) { if (r.w < 5) continue; ctx.lineWidth = r.w + 7; ctx.beginPath(); r.line.forEach((p, i) => i ? ctx.lineTo(p[0], p[1]) : ctx.moveTo(p[0], p[1])); ctx.stroke(); }
       E._desertParking(ctx, path, D.parking || []);
+      // the hairpin pocket's turquoise paint (track.js buildInfield lays the detail on top): no lawn, no tufts there
+      const pk = E.t.infieldPocket && E.t.infieldPocket(); if (pk) { ctx.fillStyle = 'rgb(40,150,165)'; path(pk.poly); ctx.fill(); }
     };
   };
   // car parks: dark asphalt with white bay lines in rows along the polygon's longest side

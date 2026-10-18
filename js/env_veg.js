@@ -251,7 +251,8 @@ window.EI = window.EI || {};
     const medSize = (sp) => sp === SP.UMBRELLA ? [11 + rng() * 6, 12 + rng() * 5] : sp === SP.PALM ? [6 + rng() * 2.5, 10 + rng() * 6] : sp === SP.CYPRESS ? [2.6 + rng() * 1, 10 + rng() * 5] : [6 + rng() * 3, 8 + rng() * 4];
     if (street) for (const [x, z] of t.data.scenery.trees || []) { if (!ok(x, z, 2.5)) continue; const nm = SK ? EI.StreetKit.treeSpecies(E, x, z) : null; const sp = nm ? MED[nm] : SP.OAK; if (sp === SP.OAK) add(x, z, SP.OAK, 6 + rng() * 3, 8 + rng() * 4); else { const [w, h] = medSize(sp); add(x, z, sp, w, h); } }
     if (desert && E.desertLights) E.desertLights();
-    if (desert) for (const [x, z, nm, w, h] of Veg.desertTrees(E, rng)) { const sp = MED[nm]; if (sp == null) continue; if (!ok(x, z, 2)) continue; add(x, z, sp, w, h); }
+    const pocket = desert && t.infieldPocket ? t.infieldPocket() : null;
+    if (desert) for (const [x, z, nm, w, h] of Veg.desertTrees(E, rng)) { const sp = MED[nm]; if (sp == null) continue; if (!ok(x, z, 2)) continue; if (pocket && U.pointInPoly(x, z, pocket.poly)) continue; add(x, z, sp, w, h); }
     if (SK) for (const [x, z, nm, w, h] of EI.StreetKit.trees(E)) { const sp = MED[nm]; if (sp == null) continue; add(x, z, sp, nm === 'cactus' ? 1.8 : w, nm === 'cactus' ? 3 : h, null, nm === 'cactus' ? 1.25 : null); }
     // ---- copses in a few far fields
     let nCopse = 0;
@@ -528,7 +529,7 @@ window.EI = window.EI || {};
             if (desert) {   // desert: tufts on the irrigated lawns only, never on the painted / asphalt run-off
               const ro = side < 0 ? t.runoffOuterL : t.runoffOuterR; if (ro && d < ro[i] + 1.2) continue;
               if (d < wall) { const rr = side < 0 ? t.runoffL : t.runoffR; let near = false; for (let j = -7; j <= 7 && !near; j++) near = !!rr[(i + j + t.n) % t.n]; if (near && d < hw + kw + 17) continue; }
-              E.mapColor(x, z, col); if (col.g < col.r * 1.08) continue;
+              E.mapColor(x, z, col); if (col.g < col.r * 1.08 || col.b > col.r * 1.4) continue;
             }
             if (d > wall && E.fsAt(x, z) < 2.0) continue; // another part of the track
             push(x, t.y[i] - 0.03, z, 0.6 + rng() * 0.7);

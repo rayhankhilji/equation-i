@@ -414,6 +414,15 @@ window.EI = window.EI || {};
       if (this._pitSide) return this._pitSide; const p = this.data.pit; if (!p || p.length < 3) return (this._pitSide = -1);
       const m = p[Math.floor(p.length / 2)]; const pr = this.project(m[0], m[1], null, {}); return (this._pitSide = pr.lat < 0 ? -1 : 1);
     }
+    // Yas's hairpin pocket (data.infield): the outline of the ground behind the inside barrier between `paint` [s0, s1], following this
+    // track's own inner wall line (so the paint always meets the barrier) and closed straight across the open end
+    infieldPocket() {
+      if (this._pocket !== undefined) return this._pocket; const F = this.data.infield; if (!F) return (this._pocket = null);
+      const [s0, s1] = F.paint; const sd = this.kFold[this.idxAtS((s0 + s1) / 2)] > 0 ? 1 : -1; const wall = sd > 0 ? this.wallR : this.wallL;
+      const at = (s, off) => { const i = this.idxAtS(U.mod(s, this.length)); const l = wall[i] + off; return [this.x[i] + this.nx[i] * sd * l, this.z[i] + this.nz[i] * sd * l]; };
+      const poly = []; for (let s = s0; s <= s1; s += 4) poly.push(at(s, 0.2));
+      return (this._pocket = { sd, at, poly });
+    }
     cornerNameAt(s) { let name = ''; for (const c of this.data.corners) if (s >= c.s - 40) name = c.name; return name || this.data.corners[this.data.corners.length - 1].name; }
     sectorAt(s) { return s < this.sectors[0] ? 0 : s < this.sectors[1] ? 1 : 2; }
     gridSlot(pos) {
@@ -703,8 +712,8 @@ window.EI = window.EI || {};
       float rRed = smoothstep(0.33 - rAA, 0.33 + rAA, rE) * (1.0 - smoothstep(1.57 - rAA, 1.57 + rAA, rE)) * step(fract(rS / 7.2), 0.62);
       vec3 rRW = mix(vec3(0.74, 0.74, 0.72), vec3(0.58, 0.032, 0.014), rRed) * (0.88 + 0.2 * rM1.g);
       vec3 rSC = mix(rDark, rRW, rwIn);
-      float brIn = smoothstep(2.3 - rAA, 2.3 + rAA, rE) * (1.0 - smoothstep(4.1 - rAA, 4.1 + rAA, rE)) * vTrk3.y;
-      float rTx = texture2D(eiBrand, vec2(rS / 16.0 * vTrk3.w, clamp((rE - 2.3) / 1.8, 0.0, 1.0))).r * brIn;
+      float brIn = smoothstep(2.15 - rAA, 2.15 + rAA, rE) * (1.0 - smoothstep(3.65 - rAA, 3.65 + rAA, rE)) * vTrk3.y;
+      float rTx = texture2D(eiBrand, vec2(rS / 13.3 * vTrk3.w, clamp((rE - 2.15) / 1.5, 0.0, 1.0))).r * brIn;
       rSC = mix(mix(rSC, vec3(0.04, 0.045, 0.05), brIn), vec3(0.78, 0.78, 0.76), rTx);
       rSC = mix(rSC, rCol, smoothstep(vTrk3.z - rAA, vTrk3.z + rAA, rE));
       rSC = mix(rSC, rSC * 0.6, rTyre * 0.4) * (1.0 - clamp(rWear * 0.25, 0.0, 0.3));
@@ -718,8 +727,9 @@ window.EI = window.EI || {};
       this.surfMats = { runoff: rMat, gravel: gMat };
       for (const side of [-1, 1]) {
         const run = side < 0 ? this.runoffL : this.runoffR, grav = side < 0 ? this.gravelL : this.gravelR, wall = side < 0 ? this.wallL : this.wallR;
-        // outer edge: dilate then smooth so the run-off tapers in and out and never leaves a gap to the gravel
-        const raw = new Float32Array(n); for (let i = 0; i < n; i++) raw[i] = run[i] ? hw + kw + (grav[i] ? 7.05 : 14) : RC ? hw + kw + (kerbMask(i) ? 9 : 3.4) : kerbMask(i) ? aw0 + 0.05 : hw + 1.0;
+        // outer edge: dilate then smooth so the run-off tapers in and out and never leaves a gap to the gravel; Yas's painted run-off
+        // runs right up to the barrier at the corners (no sand / gravel between the paint and the wall unless the corner has a gravel bed)
+        const raw = new Float32Array(n); for (let i = 0; i < n; i++) raw[i] = run[i] ? (RC && !grav[i] ? Math.max(hw + kw + 14, wall[i]) : hw + kw + (grav[i] ? 7.05 : 14)) : RC ? hw + kw + (kerbMask(i) ? 9 : 3.4) : kerbMask(i) ? aw0 + 0.05 : hw + 1.0;
         const dil = new Float32Array(n); for (let i = 0; i < n; i++) { let m = 0; for (let j = -4; j <= 4; j++) m = Math.max(m, raw[(i + j + n) % n]); dil[i] = m; }
         const outer = this.smooth(dil, 4); for (let i = 0; i < n; i++) outer[i] = Math.max(hw + 0.6, Math.min(outer[i], wall[i] - 0.4));
         // paint scheme per row (corner name), spread one row so the colour attribute is constant across each paint boundary quad
@@ -736,7 +746,7 @@ window.EI = window.EI || {};
             const u = U.mod(this.s[i] - P.s0, L); const out = u <= span ? 0 : Math.min(u - span, L - u); const f = 1 - U.smoothstep(0, 25, out); if (f <= 0) continue;
             const endF = Math.min(u, span - u); const mid = P.ends && u <= span ? U.smoothstep(P.ends - 15, P.ends, endF) : 1;
             wRW[i] = Math.max(wRW[i], f); if ((onPit ? P.pit : P.far) === 'brand') wBR[i] = Math.max(wBR[i], mid);
-            if (onPit && P.wall) tqS[i] = Math.min(tqS[i], P.wall - 1.3);
+            if (onPit && P.wall) tqS[i] = Math.min(tqS[i], Math.max(2.0, Math.min(P.wall, wall[i] - hw) - 1.3));
           }
         }
         const geo = this.strip(2, {
@@ -790,6 +800,7 @@ window.EI = window.EI || {};
       const vMat = shaderMat({ map: T.grass.map, normalMap: T.grass.normalMap, normalScale: new THREE.Vector2(0.8, 0.8), roughness: 0.96, metalness: 0, polygonOffset: true, polygonOffsetFactor: 3, polygonOffsetUnits: 6 }, 'verge', vUni, VARY_VERGE, VERGE_FRAG, '', '');
       const vm = new THREE.Mesh(vGeo, vMat); vm.receiveShadow = true; vm.name = 'verge'; vm.position.y = -0.03; g.add(vm);
 
+      this.buildInfield(g, T, kerbMat);
       this.buildMarkings(g);
     }
 
@@ -840,6 +851,69 @@ window.EI = window.EI || {};
       if (!idx.length) return;
       const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); geo.setAttribute('color', new THREE.Float32BufferAttribute(col, 3)); geo.setIndex(idx); geo.computeVertexNormals();
       const m = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.55, metalness: 0, side: THREE.DoubleSide })); m.castShadow = true; m.receiveShadow = true; m.name = 'sausageKerbs'; g.add(m);
+    }
+
+    // ------------------------------------------------ Yas's hairpin pocket (aerial imagery, swarm/f1/trackgeo/c_ad_hairpin.jpg): behind the inside
+    // barrier the old layout's link road (asphalt with flat kerbs both sides), turquoise paint up to the walls and a pale service strip
+    // with a low wall along the exit leg. Road centre line from the imagery; the paint and the strip follow the inner wall line
+    buildInfield(g, T, kerbMat) {
+      const P = this.infieldPocket(); if (!P) return; const F = this.data.infield, sc = this.scenery, pr = {};
+      const gy = (x, z) => (sc && sc.height ? sc.height(x, z) : this.y[this.idxAtS(F.paint[0])]);
+      const lin = (h) => new THREE.Color(h).convertSRGBToLinear(); const RC = this.data.runoffColors || ['#1a9db0'];
+      const mesh = (pos, uv, idx, mat, name, col) => {
+        const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); geo.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+        if (col) geo.setAttribute('color', new THREE.Float32BufferAttribute(new Array(pos.length).fill(col), 3)); geo.setIndex(idx); geo.computeVertexNormals();
+        // ground pieces face up whichever way their rows ran
+        if (name !== 'infieldWall') { let ny = 0; const N = geo.attributes.normal; for (let i = 0; i < N.count; i++) ny += N.getY(i); if (ny < 0) { for (let i = 0; i < idx.length; i += 3) { const t = idx[i + 1]; idx[i + 1] = idx[i + 2]; idx[i + 2] = t; } geo.setIndex(idx); geo.computeVertexNormals(); } }
+        const m = new THREE.Mesh(geo, mat); m.receiveShadow = true; m.name = name; g.add(m); return m;
+      };
+      const offMat = (o) => Object.assign({ roughness: 0.88, metalness: 0, polygonOffset: true, polygonOffsetFactor: o, polygonOffsetUnits: o * 2 });
+      // flat polygon, triangles split down to ~4 m edges and draped on the ground
+      const flat = (poly, dy, uvS, mat, name) => {
+        const pos = [], uv = [], idx = []; const tris = THREE.ShapeUtils.triangulateShape(poly.map(p => new THREE.Vector2(p[0], p[1])), []);
+        const put = (a, b, c) => { if ((b[1] - a[1]) * (c[0] - a[0]) - (b[0] - a[0]) * (c[1] - a[1]) < 0) { const t = b; b = c; c = t; } const k = pos.length / 3; for (const q of [a, b, c]) { pos.push(q[0], gy(q[0], q[1]) + dy, q[1]); uv.push(q[0] / uvS, q[1] / uvS); } idx.push(k, k + 1, k + 2); };
+        const split = (a, b, c) => { const L = Math.max(Math.hypot(b[0] - a[0], b[1] - a[1]), Math.hypot(c[0] - b[0], c[1] - b[1]), Math.hypot(a[0] - c[0], a[1] - c[1])); if (L < 4) return put(a, b, c);
+          const m = (p, q) => [(p[0] + q[0]) / 2, (p[1] + q[1]) / 2]; const ab = m(a, b), bc = m(b, c), ca = m(c, a); split(a, ab, ca); split(ab, b, bc); split(ca, bc, c); split(ab, bc, ca); };
+        for (const [a, b, c] of tris) split(poly[a], poly[b], poly[c]);
+        return mesh(pos, uv, idx, mat, name);
+      };
+      const turq = lin(RC[0]).multiplyScalar(1.5);
+      flat(P.poly, 0.06, 4, new THREE.MeshStandardMaterial(Object.assign(offMat(-1), { map: T.runoff.map, color: turq })), 'infieldPaint');
+      // the link road: ribbon along the smoothed centre line, rows dropped where the road or its kerbs would reach past the barrier
+      const R = F.road; if (R) {
+        const curve = new THREE.CatmullRomCurve3(R.pts.map(p => new THREE.Vector3(p[0], 0, p[1])), false, 'centripetal'); const pts = curve.getSpacedPoints(Math.max(2, Math.round(curve.getLength() / 1.5)));
+        const hwR = R.w / 2, kb = R.kerb || 0, cols = [-hwR - kb, -hwR, hwR, hwR + kb];
+        const clear = (x, z) => { const p = this.project(x, z, null, pr); return p.dist > (p.lat < 0 ? this.wallL[p.i] : this.wallR[p.i]) + 0.3; };
+        const rows = []; let arc = 0;
+        pts.forEach((p, k) => {
+          const q = pts[Math.min(k + 1, pts.length - 1)], o = pts[Math.max(k - 1, 0)]; let tx = q.x - o.x, tz = q.z - o.z; const tl = Math.hypot(tx, tz) || 1; tx /= tl; tz /= tl; const nx = -tz, nz = tx;
+          if (k) arc += Math.hypot(p.x - pts[k - 1].x, p.z - pts[k - 1].z);
+          const v = cols.map(l => [p.x + nx * l, p.z + nz * l]); rows.push({ v, arc, ok: clear(v[0][0], v[0][1]) && clear(v[3][0], v[3][1]) });
+        });
+        const strip = (c0, c1, dy, uvF, mat, name, col) => {
+          const pos = [], uv = [], idx = [];
+          rows.forEach((r, k) => { for (const c of [c0, c1]) { const q = r.v[c]; pos.push(q[0], gy(q[0], q[1]) + dy, q[1]); uv.push(...uvF(c === c0 ? 0 : 1, r.arc)); }
+            if (k && r.ok && rows[k - 1].ok) { const a = (k - 1) * 2, b = k * 2; idx.push(a, a + 1, b, a + 1, b + 1, b); } });
+          return mesh(pos, uv, idx, mat, name, col);
+        };
+        strip(1, 2, 0.09, (u, a) => [u * R.w / 4, a / 4], new THREE.MeshStandardMaterial(Object.assign(offMat(-2), { map: T.asphalt.map, color: lin('#9a9a9a') })), 'infieldRoad');
+        // flat kerbs, the white rim on the road side (u = 0 at the road edge)
+        if (kb) { const km = kerbMat.clone(); Object.assign(km, offMat(-3)); km.roughness = 0.48; strip(1, 0, 0.1, (u, a) => [u, a / 7.2], km, 'infieldKerb', 0.92); strip(2, 3, 0.1, (u, a) => [u, a / 7.2], km, 'infieldKerb', 0.92); }
+      }
+      // the service strip along the exit leg: pale concrete band from the barrier out to w0 .. w1 m (rounded at its head), a low wall on its
+      // open side
+      const S = F.strip; if (S) {
+        const [s0, s1, w0, w1] = S; const pos = [], uv = [], idx = [], top = []; let k = 0;
+        for (let s = s0; s <= s1 + 0.01; s += 2, k++) {
+          const u = (s - s0) / (s1 - s0), hd = Math.min(1, (s - s0) / (w0 * 0.5)); const w = (w0 + (w1 - w0) * u) * Math.sqrt(Math.max(0.04, 1 - (1 - hd) * (1 - hd)));
+          const a = P.at(s, 0.35), b = P.at(s, 0.35 + w); for (const q of [a, b]) { pos.push(q[0], gy(q[0], q[1]) + 0.1, q[1]); uv.push(q[0] / 4, q[1] / 4); }
+          if (k) { const i0 = (k - 1) * 2, i1 = k * 2; idx.push(i0, i1, i0 + 1, i0 + 1, i1, i1 + 1); } top.push(b);
+        }
+        mesh(pos, uv, idx, new THREE.MeshStandardMaterial(Object.assign(offMat(-2), { map: T.runoff.map, color: lin('#d8d2c4') })), 'infieldStrip');
+        const wp = [], wu = [], wi = []; const H = 1.0;
+        top.forEach((q, j) => { const y = gy(q[0], q[1]); wp.push(q[0], y - 0.1, q[1], q[0], y + H, q[1]); wu.push(j * 0.5, 0, j * 0.5, 1); if (j) { const a = (j - 1) * 2, b = j * 2; wi.push(a, b, a + 1, a + 1, b, b + 1); } });
+        mesh(wp, wu, wi, new THREE.MeshStandardMaterial({ color: lin('#e4e2dc'), roughness: 0.8, metalness: 0, side: THREE.DoubleSide }), 'infieldWall');
+      }
     }
 
     // ------------------------------------------------ painted markings: start/finish, grid boxes, DRS lines, run-off logos (one atlas, one material)
