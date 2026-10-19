@@ -56,11 +56,11 @@
     while (s < R.s1 - 5) {
       const i0 = t.idxAtS(s); const Rr = 1 / (Math.abs(kk[i0]) + 1e-5); const step = U.clamp(Rr * 0.24, 8, R.style === 'centrale' ? 36 : 40); let sb = Math.min(R.s1, s + step); if (R.s1 - sb < 6) sb = R.s1;
       let wmax = 0; for (let q = s; q <= sb + 0.01; q += 2) wmax = Math.max(wmax, E.wallCap(t.idxAtS(q), side));
-      const d = R.gapW != null ? wmax + R.gapW : Math.max(R.dmin, wmax + 2.6);
+      const d = R.gapW != null ? wmax + R.gapW : Math.max(R.dmin != null ? R.dmin : 0, wmax + 2.6);
       const inner = (kk[i0] > 0) === (side > 0); if (inner && d > Rr * 0.8) { s = sb; continue; }
       const ia = t.idxAtS(s), ib = t.idxAtS(sb);
       const A = [t.x[ia] + t.nx[ia] * side * d, t.z[ia] + t.nz[ia] * side * d], B = [t.x[ib] + t.nx[ib] * side * d, t.z[ib] + t.nz[ib] * side * d];
-      let ax = B[0] - A[0], az = B[1] - A[1]; const len = Math.hypot(ax, az); if (len < 5) { s = sb; continue; } ax /= len; az /= len;
+      let ax = B[0] - A[0], az = B[1] - A[1]; const len = Math.hypot(ax, az); if (!(len >= 5)) { s = sb; continue; } ax /= len; az /= len;
       let nx = -az, nz = ax; const im = t.idxAtS((s + sb) / 2); if (nx * t.nx[im] * side + nz * t.nz[im] * side < 0) { nx = -nx; nz = -nz; }
       const avail = R.rowsFix ? R.rowsFix * 0.82 + 1.6 : (R.dmax != null ? R.dmax - d : 14);
       const y = t.y[im] - 0.03; const cx = (A[0] + B[0]) / 2, cz = (A[1] + B[1]) / 2;
