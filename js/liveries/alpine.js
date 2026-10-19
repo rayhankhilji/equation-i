@@ -64,7 +64,7 @@
       // body: Alpine blue on top, deepening to navy low down and towards the tail (the paint's metallic flop)
       const gv = g.createLinearGradient(0, k.Y(0.95), 0, k.Y(0.15)); gv.addColorStop(0, BLL); gv.addColorStop(0.35, BL); gv.addColorStop(0.75, '#173e9c'); gv.addColorStop(1, NV);
       k.poly([[3.2, TOP_V], [3.2, LOW_V], [-1.88, LOW_V], [-1.88, TOP_V]], gv);
-      const gt = g.createLinearGradient(k.X(-0.6), 0, k.X(-1.8), 0); gt.addColorStop(0, 'rgba(18,26,74,0)'); gt.addColorStop(1, 'rgba(12,17,49,0.75)');
+      const gt = g.createLinearGradient(k.X(-0.6), 0, k.X(-1.8), 0); gt.addColorStop(0, 'rgba(18,26,74,0)'); gt.addColorStop(1, 'rgba(12,17,49,0.45)');
       k.poly([[-0.6, TOP_V], [-0.6, LOW_V], [-1.88, LOW_V], [-1.88, TOP_V]], gt);
       // pink nose top: the upper band of the nose / chassis side from the tip back to the cockpit
       k.region([[3.2, 0.25], [2.7, 0.31], [2.2, 0.41], [1.7, 0.5], [1.3, 0.56], [1.05, 0.6]], [[1.0, TOP_V], [3.2, TOP_V]], PK);
@@ -76,22 +76,22 @@
       k.at(0.4, 0.56, () => msc(g, 0.5, 0.12, '#ffffff'));
       k.at(-0.1, 0.21, () => logo(g, 'delphi', 0.22, 0.055, 'white', FB.delphi));
       // engine cover: enilive (the eni artwork + "live"), the small partners row under it; the pink A on the tail; the number
-      k.at(-0.42, 0.82, () => logo(g, 'enilive', 0.5, 0.11, 'white', FB.enilive));
-      k.at(-0.2, 0.74, () => logo(g, 'avature', 0.2, 0.045, 'white', FB.avature));
-      L.partnerAt('mercadolibre', -0.52, 0.74, 0.14, 0.05, 'white');
-      k.at(0.1, 0.74, () => logo(g, 'modo', 0.17, 0.045, 'white', FB.modo));
-      k.at(-1.04, 0.81, () => alpA(g, 0.13, PK, '#ffffff'));
-      L.number(-1.36, 0.81, 0.11, '#ffffff');
+      k.at(-0.36, 0.885, () => (has('eni') ? LV.partner(g, 'eni', 0.36, 0.085, 'white') : logo(g, 'enilive', 0.5, 0.11, 'white', FB.enilive)));   // eni (six-legged dog) white
+      k.at(-0.2, 0.705, () => logo(g, 'avature', 0.2, 0.045, 'white', FB.avature));
+      L.partnerAt('mercadolibre', -0.6, 0.705, 0.14, 0.05, 'white');
+      k.at(0.1, 0.705, () => logo(g, 'modo', 0.17, 0.045, 'white', FB.modo));
+      k.at(-1.0, 0.6, () => alpA(g, 0.24, PK, '#ffffff'));   // the big pink A (keylined) at the cover / sidepod tail
+      L.number(-1.4, 0.74, 0.1, '#ffffff');
       L.codeText(1.42, 0.535, 0.04, '#ffffff');
       // nose: eToro (white, on the blue under the pink band), the Alpine A at the tip
       L.partnerAt('etoro', 2.0, 0.39, 0.3, 0.06, 'white');
       k.at(2.88, 0.24, () => alpA(g, 0.05, '#ffffff'));
       k.at(1.3, 0.48, () => logo(g, 'moser', 0.2, 0.025, 'white', FB.moser));
       // rear-wing endplate: pink front panel with eni (black), MSC + EURODATACAR white on the carbon
-      k.poly([[-1.88, 1.1], [-1.88, 0.4], [-2.6, 0.4], [-2.6, 1.1]], BK); k.poly([[-1.88, 1.05], [-1.88, 0.6], [-2.1, 0.6], [-2.1, 1.05]], PK);
-      L.partnerAt('eni', -1.99, 0.86, 0.18, 0.08, 'black');
-      k.at(-2.24, 0.8, () => msc(g, 0.24, 0.07, '#ffffff'));
-      k.at(-2.24, 0.71, () => logo(g, 'eurodatacar', 0.24, 0.032, 'white', FB.eurodatacar));
+      k.poly([[-1.88, 1.1], [-1.88, 0.4], [-2.6, 0.4], [-2.6, 1.1]], BK); k.poly([[-1.88, 1.06], [-1.88, 0.72], [-2.3, 0.72], [-2.3, 1.06]], PK);
+      L.partnerAt('eni', -2.09, 0.89, 0.34, 0.13, 'black');
+      k.at(-2.12, 0.62, () => msc(g, 0.3, 0.075, '#ffffff'));
+      k.at(-2.12, 0.53, () => logo(g, 'eurodatacar', 0.3, 0.036, 'white', FB.eurodatacar));
       // halo (pink): businessolver along the side
       L.haloSide('businessolver', '#16171b', { ff: '"Plus Jakarta Sans", Arial, sans-serif', w: 700 });
     },
@@ -119,7 +119,7 @@
       L.wordmark(String(L.num), 1.15, 0, 0.09, BN, { ff: '"Titillium Web", Arial, sans-serif', w: 700 }, true);
       // sidepod tops: MSC; engine cover: enilive along the spine; rear wing: pink with navy BWT (white keyline)
       for (const s of [-1, 1]) { t.at(0.15, s * 0.45, () => msc(g, 0.3, 0.07, '#ffffff')); }
-      t.at(-0.55, 0, () => logo(g, 'enilive', 0.42, 0.08, 'white', FB.enilive), ALONG);
+      t.at(-0.55, 0, () => (has('eni') ? LV.partner(g, 'eni', 0.36, 0.1, 'white') : logo(g, 'enilive', 0.42, 0.08, 'white', FB.enilive)), ALONG);
       for (const s of [-1, 1]) t.at(-2.08, s * 0.28, () => bwt(g, 0.42, 0.1, 'mono:' + BN, '#ffffff'));
       L.wordmark('ALPINE', -2.22, 0, 0.04, '#ffffff', { ff: '"Titillium Web", Arial, sans-serif', w: 600, ls: 0.45 });
       // front-wing flaps: navy BWT with the white keyline on the pink

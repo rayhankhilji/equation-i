@@ -67,6 +67,7 @@
       const mk = (rows, off, dy, tier) => {
         const blk = { cx: cx + nx * off, cz: cz + nz * off, ax, az, nx, nz, len: len - 0.3, rows, roof: false, seat: R.seat, y: y + dy, s: (s + sb) / 2, first: false, last: false, name: R.label || R.name.replace(/^Tribuna /, '').toUpperCase(), mz: { tier, run, k } };
         if (!perm) { blk.first = k === 0; blk.last = sb >= R.s1 - 0.01; }
+        const sdr = St.dressOf(E.t, blk.name); if (sdr) { if (sdr.fill != null) blk.fill = sdr.fill; if (sdr.red != null) blk.red = sdr.red; }   // data.dress.stands (js/data/monza_dress.js)
         const depth = 0.4 + rows * 0.82 + 0.6;
         E.blocks.push(blk); run.blocks.push(blk); E.standPolys.push(E.markRect(blk.cx + nx * depth / 2, blk.cz + nz * depth / 2, ax, az, blk.len / 2 + 0.3, depth / 2 + 0.3, OCC.BUILT));
         return blk;
@@ -83,6 +84,9 @@
     if (run.blocks.length) E.mzRuns.push(run);
     return run;
   };
+
+  // data.dress.stands[name] = { fill (seat occupancy 0..1), red (share of red shirts), flags (m per flag pole), banners (chance per block) }
+  St.dressOf = function (t, name) { const D = t.data.dress && t.data.dress.stands; return D && name ? (D[name] || null) : null; };
 
   // ================================================================ dressing
   St.build = function (E, BK, out) {
@@ -169,9 +173,10 @@
       for (const b of bl) {
         const m = b.mz.m, hl = b.len / 2, P = (x, y, z) => Env.xf(m, x, y, z); const o = Env.xf(m, 0, 0, 0), fw = Env.xf(m, 0, 0, -1); const yaw = Math.atan2(fw[0] - o[0], fw[2] - o[2]);
         const topY = R.style === 'covered' || R.style === 'centrale' ? b.mz.yTop + 3.6 : b.mz.yTop + 1.3;
-        const nf = perm ? Math.max(1, Math.floor(b.len / 16)) : (rng() < 0.6 ? 1 : 0);
+        const sdr = St.dressOf(t, b.name) || {};
+        const nf = sdr.flags != null ? Math.floor(b.len / sdr.flags + rng()) : perm ? Math.max(1, Math.floor(b.len / 16)) : (rng() < 0.6 ? 1 : 0);   // flags: one pole per N m
         for (let k = 0; k < nf; k++) { const a = -hl + (k + 0.5) * b.len / nf; const zP = b.mz.zBack + (perm ? 0.5 : 0.3); S.beam(m, [a, topY - 1, zP], [a, topY + 5.2, zP], 0.09, C(0xd9dde0)); flagAt(P(a, topY + 5.1, zP), yaw + Math.PI / 2, flagR[perm ? (k % 3 === 2 ? 1 : 0) : 1 + Math.floor(rng() * 3)]); }
-        if (rng() < 0.55 && b.len > 10) { const r = bannerR[Math.floor(rng() * bannerR.length)]; const bw = 5.5 + rng() * 2, a0 = (rng() - 0.5) * (b.len - bw - 1); const yy = 1.25, zz = -0.09; A.quad(r, P(a0 + bw / 2, yy - 1.05, zz), P(a0 - bw / 2, yy - 1.05, zz), P(a0 - bw / 2, yy, zz), P(a0 + bw / 2, yy, zz)); banners++; }
+        if (rng() < (sdr.banners != null ? sdr.banners : 0.55) && b.len > 10) { const r = bannerR[Math.floor(rng() * bannerR.length)]; const bw = 5.5 + rng() * 2, a0 = (rng() - 0.5) * (b.len - bw - 1); const yy = 1.25, zz = -0.09; A.quad(r, P(a0 + bw / 2, yy - 1.05, zz), P(a0 - bw / 2, yy - 1.05, zz), P(a0 - bw / 2, yy, zz), P(a0 + bw / 2, yy, zz)); banners++; }
       }
     }
     Object.assign(out, { standRoofs: roofs, flags, banners });

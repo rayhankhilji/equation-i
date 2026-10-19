@@ -81,8 +81,9 @@ window.EI = window.EI || {};
     ground(x, z) { return this.sc.height(x, z); }
     inObstacle(x, z, list) { for (const p of list || this.polys) if (U.pointInPoly(x, z, p)) return true; return false; }
     // find a trackside spot of half-length `half` and depth `depth` beyond the wall that overlaps no stand/building; walks along s in both directions
-    freeSpot(s, side, off, half, depth) {
+    freeSpot(s, side, off, half, depth, maxSlide) {
       for (const ds of [0, 15, -15, 30, -30, 45, -45, 60, -60, 80, -80, 100, -100]) {
+        if (maxSlide != null && Math.abs(ds) > maxSlide) break;
         const p = this.at(s + ds, side, off); let ok = !this.inPit(s + ds, side) && !this.isReserved(s + ds, side);
         for (const [a, b] of [[-half, 0], [half, 0], [-half, depth], [half, depth], [0, depth / 2]]) { const x = p.x + p.tx * a + p.nx * b, z = p.z + p.tz * a + p.nz * b; if (this.inObstacle(x, z)) { ok = false; break; } }
         if (ok) { p.s = s + ds; return p; }
@@ -255,7 +256,7 @@ window.EI = window.EI || {};
     for (const side of [-1, 1]) {
       let lp = null, run = 0;
       for (let s = 0; s < t.length; s += 0.5) {
-        const i = t.idxAtS(s); if (!cx.tyreZone(i, side)) { lp = null; continue; }
+        const i = t.idxAtS(s); if (!cx.tyreZone(i, side) || (cx.tecZone && !cx.tecZone(i, side))) { lp = null; continue; }
         const p = cx.at(s, side, -0.5); if (lp && Math.hypot(p.x - lp.x, p.z - lp.z) < 1.12) continue; lp = p; spots.push([p, side, run++]);
       }
     }
@@ -263,10 +264,13 @@ window.EI = window.EI || {};
     const red = C(0xd0151c), white = C(0xeeeeea);
     spots.forEach(([p, side, k], j) => { frame(_m, p.x, p.y + 0.01, p.z, side, p.tx, p.tz); inst.setMatrixAt(j, _m); inst.setColorAt(j, k % 2 ? white : red); });
     if (!spots.length) return; inst.instanceColor.needsUpdate = true; inst.castShadow = true; inst.receiveShadow = true;
-    cx.add(inst, 'tyreStacks'); cx.stats.tecPro = spots.length;
+    cx.add(inst, cx.tecZone ? 'tecPro' : 'tyreStacks'); cx.stats.tecPro = spots.length;
   }
   function buildTyreStacks(cx) {
     if (cx.desert) return buildTecPro(cx);
+    // data.tecProCorners (Monza): those corners get red / white TecPro blocks instead of the tyre wall
+    const TP = cx.t.data.tecProCorners;
+    if (TP && TP.length) { cx.tecZone = (i, side) => TP.indexOf(cx.cornerAt(cx.t.s[i])) >= 0; buildTecPro(cx); }
     const t = cx.t, rng = U.rng(77);
     // one column: 4 tyres with dark gaps and a dark hub hole on top; vertex colour is a brightness mask, instance colour paints the rubber
     // a single 8-sided column with a banded texture (the dark gaps between the four tyres), a cap and a dark hub hole
@@ -281,7 +285,7 @@ window.EI = window.EI || {};
     for (const side of [-1, 1]) {
       let run = 0, lp = null;
       for (let s = 0; s < t.length; s += 0.69) {
-        const i = t.idxAtS(s); if (!cx.tyreZone(i, side)) { run = 0; lp = null; continue; }
+        const i = t.idxAtS(s); if (!cx.tyreZone(i, side) || (cx.tecZone && cx.tecZone(i, side))) { run = 0; lp = null; continue; }
         const p = cx.at(s, side, -0.47); if (lp && Math.hypot(p.x - lp.x, p.z - lp.z) < 0.6) continue; lp = p;
         spots.push([s, side, run++]);
       }
@@ -407,14 +411,21 @@ window.EI = window.EI || {};
     const flagsC = [C(0xffd500), C(0x1a73e8), C(0xf4f4f4), C(0xc8102e), C(0x19a34a), C(0x111111)];
     // corner posts first (outside of each named corner), then fill every gap longer than ~300 m along the straights, alternating sides
     const spots = []; const seen = {};
-    for (const c of t.data.corners) {
+    // data.furniture.marshals (Monza): explicit posts [s, side] (side = +-1, 'out' / 'in' = outside / inside of the bend there); replaces the generated set
+    const MP = cx.F.marshals;
+    if (MP) for (const [s0, w] of MP) {
+      const sd = w === 'out' ? cx.outsideSide(t.idxAtS(s0 + 10)) : w === 'in' ? -cx.outsideSide(t.idxAtS(s0 + 10)) : w;
+      const p = cx.freeSpot(s0, sd, 2.6, 3, 3, 30) || cx.freeSpot(s0, -sd, 2.6, 3, 3, 30); if (!p) continue;
+      const q = Math.sign(p.nx * t.nx[p.i] + p.nz * t.nz[p.i]) || sd; spots.push([p, q]); cx.reserve(p.s, q, 5); cx.reserve(p.s + 14, q, 3);
+    }
+    for (const c of MP ? [] : t.data.corners) {
       if (/Straight/i.test(c.name) || seen[c.name]) continue; seen[c.name] = true;
       const i = t.idxAtS(c.s + 30); const side = cx.outsideSide(i); const p = cx.freeSpot(c.s - 28, side, 2.6, 3, 3); if (p) { spots.push([p, side]); cx.reserve(p.s, side, 5); cx.reserve(p.s + 14, side, 3); }
     }
     const gapAt = (s) => { let best = Infinity; for (const [p] of spots) { let d = Math.abs(U.mod(s - p.s, t.length)); d = Math.min(d, t.length - d); best = Math.min(best, d); } return best; };
     let alt = 1;
     // Yas: a post every ~190 m on BOTH sides (behind the walls, u2-u4)
-    if (cx.desert) {
+    if (cx.desert && !MP) {
       const gapSide = (s, sd) => { let best = Infinity; for (const [p, q] of spots) { if (q !== sd) continue; let d = Math.abs(U.mod(s - p.s, t.length)); d = Math.min(d, t.length - d); best = Math.min(best, d); } return best; };
       for (let s = 0; s < t.length; s += 20) for (const side of [1, -1]) {
         if (gapSide(s, side) < 190 || cx.inPit(s, side)) continue; const p = cx.freeSpot(s, side, 2.6, 3, 3); if (!p) continue;
@@ -422,7 +433,7 @@ window.EI = window.EI || {};
       }
     }
     for (let s = 0; s < t.length; s += 20) {
-      if (cx.desert || gapAt(s) < 290) continue; alt = -alt; const side = cx.inPit(s, alt) ? -alt : alt;
+      if (MP || cx.desert || gapAt(s) < 290) continue; alt = -alt; const side = cx.inPit(s, alt) ? -alt : alt;
       const p = cx.freeSpot(s, side, 2.6, 3, 3) || cx.freeSpot(s, -side, 2.6, 3, 3); if (!p) continue;
       const sd = Math.sign(p.nx * t.nx[p.i] + p.nz * t.nz[p.i]) || side; spots.push([p, sd]); cx.reserve(p.s, sd, 5); cx.reserve(p.s + 14, sd, 3);
     }
@@ -675,7 +686,7 @@ window.EI = window.EI || {};
     // lap-long instanced families: one mesh draws everything beyond ~100 m of the eye (no shadows, dropped beyond the tier's
     // clutter distance) and a small near set within ~200 m casts the shadows - the shadow pass no longer draws the whole lap
     cx.sc.nearFar = cx.sc.nearFar || [];
-    for (const nm of ['tyreStacks', 'hoardings', 'hoardingPosts', 'fencePosts', 'fenceRails']) { const o = cx.group.getObjectByName(nm); if (o && o.isInstancedMesh) cx.sc.nearFar.push(splitNearFar(cx, o)); }
+    for (const nm of ['tyreStacks', 'tecPro', 'hoardings', 'hoardingPosts', 'fencePosts', 'fenceRails']) { const o = cx.group.getObjectByName(nm); if (o && o.isInstancedMesh) cx.sc.nearFar.push(splitNearFar(cx, o)); }
     // triangle budget bookkeeping (instances x geometry)
     let tris = 0, draws = 0; cx.group.traverse(o => { if (!o.isMesh) return; draws++; const g = o.geometry; const n = g.index ? g.index.count : g.attributes.position.count; tris += (n / 3) * (o.isInstancedMesh ? o.count : 1); });
     cx.stats.triangles = Math.round(tris); cx.stats.meshes = draws;

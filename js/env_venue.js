@@ -381,6 +381,7 @@ window.EI = window.EI || {};
     // spectator colours (sRGB): everyday clothes, a lot of team merchandise
     const teams = EI.TEAMS || [{ primary: '#e10600', secondary: '#ffffff' }];
     const everyday = ['#d8d8d4', '#cfd0cc', '#bfc0bc', '#1a1a1a', '#2a2b2e', '#2a2b2e', '#3b404a', '#4f5560', '#6c717a', '#8b8f98', '#1b2a4a', '#1f2f50', '#2a4a78', '#4a6a92', '#7d8ea4', '#8a1c22', '#a3262b', '#5a1f22', '#1f4d45', '#3c5a3a', '#8a7a4a', '#b39a4a', '#b0652e', '#4a3a5a', '#9a6a7e', '#a8987a', '#6a5440'];
+    const REDS = ['#d40000', '#c20a0a', '#e01b1b', '#b00010', '#d8d8d4'];   // block.red (Monza tifosi): share of red shirts
     const merch = teams.map(tm => tm.primary).concat(teams.map(tm => tm.secondary || tm.primary));
     const flagCols = ['#c8102e', '#ffffff', '#012169', '#ffd500', '#ff8000', '#00843d', '#e10600', '#1a73e8'];
     const pick = (r, list) => list[Math.floor(r() * list.length)];
@@ -419,7 +420,7 @@ window.EI = window.EI || {};
       const aisles = []; for (let a = -hl + 7; a < hl - 4; a += 14) aisles.push(a);
       const roofShade = b.roof ? 0.74 : 0.95;
       // crowd character of this block: fill, a team section, standing patches
-      const fill = 0.74 + rng() * 0.24; const team = rng() < 0.45 ? teams[Math.floor(rng() * teams.length)] : null; const tsA = -hl + rng() * L * 0.7, tsL = 5 + rng() * 12, tsR = Math.floor(rng() * rows * 0.5);
+      const fill0 = 0.74 + rng() * 0.24; const fill = b.fill != null ? b.fill : fill0; const team = rng() < 0.45 ? teams[Math.floor(rng() * teams.length)] : null; const tsA = -hl + rng() * L * 0.7, tsL = 5 + rng() * 12, tsR = Math.floor(rng() * rows * 0.5);
       for (let r = 0; r < rows; r++) {
         const y = y0 + r * rise, za = z0 + r * tread, zb = za + tread;
         B.quad(P(-hl, y + rise, za), P(hl, y + rise, za), P(hl, y, za), P(-hl, y, za), seatD);
@@ -436,7 +437,7 @@ window.EI = window.EI || {};
           const inTeam = team && a > tsA && a < tsA + tsL && r >= tsR; const standZone = U.noise2(w[0] / 14 + 40, w[2] / 14 + 7) > 0.7;
           const standing = standZone ? rng() < 0.85 : rng() < 0.035;
           const pose = standing ? wpick(rng, STANDING) : wpick(rng, SEATED);
-          const tr = rng(); const shirt = inTeam ? (tr < 0.72 ? team.primary : tr < 0.88 ? (team.secondary || team.primary) : pick(rng, everyday)) : (tr < 0.2 ? pick(rng, merch) : pick(rng, everyday));
+          const tr = rng(); const shirt = inTeam ? (tr < 0.72 ? team.primary : tr < 0.88 ? (team.secondary || team.primary) : pick(rng, everyday)) : (b.red != null && rng() < b.red) ? pick(rng, REDS) : (tr < 0.2 ? pick(rng, merch) : pick(rng, everyday));
           const acc = pose === 14 || pose === 6 ? (inTeam ? team.primary : pick(rng, flagCols)) : pose === 15 ? (inTeam ? team.primary : pick(rng, merch)) : (inTeam && rng() < 0.6 ? team.primary : pick(rng, rng() < 0.5 ? merch : everyday));
           const mo = (pose === 11 || pose === 12 || pose === 14 || pose === 15) ? (rng() < 0.55 ? 2 : 1) : pose === 6 ? 1 : rng() < 0.02 ? 1 : 0;
           const sv = lin(shirt), av = lin(acc); const shade = roofShade * (0.84 + rng() * 0.22) * (b.roof && r < 2 ? 1.18 : 1);

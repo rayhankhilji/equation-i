@@ -70,7 +70,7 @@
       const stack = [['barclays', 1.72], ['gulf', 1.86], ['komatsu', 1.98], ['claude', 2.1], ['betway', 2.22], ['vastdata', 2.34]];
       for (const [id, x] of stack) L.partnerTop(id, x, 0, 0.14, 0.05, id === 'gulf' ? 'color' : 'white', Math.PI);   // read from ahead, like the real stack
       // rear wing: light-blue top flap with BARCLAYS
-      L.partnerTop('barclays', -2.2, 0, 0.8, 0.075, 'white'); L.partnerTop('atlassian', -1.99, 0, 0.85, 0.075, 'white', Math.PI);   // flap top reads from behind, main plane from ahead (photos)
+      L.t.rect(-2.32, -2.17, -0.5, 0.5, LB); L.partnerTop('barclays', -2.245, 0, 0.8, 0.07, 'white'); L.partnerTop('atlassian', -2.05, 0, 0.85, 0.08, 'white', Math.PI);   // flap top reads from behind, main plane from ahead (photos)
       // halo top bar: team handles reading from the cockpit; Atlassian on the front pillar
       L.haloTop('@WilliamsRacing', W, -1); L.haloTop('@Atlassian', W, 1);
       L.haloFront('atlassian', 'white');

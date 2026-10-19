@@ -89,6 +89,10 @@ window.EI = window.EI || {};
     P.garD0 = P.boxD[NB - 1] - BOX_SP / 2; P.garD1 = P.boxD[0] + BOX_SP / 2;
     // street circuit (Monaco): the limiter zone covers the garages and 25 m either side, not the whole straight (pit loss ~20 s)
     if (track.data.street) { P.dLimIn = Math.max(P.dLimIn, Math.round(P.garD0)); P.dLimOut = Math.min(P.dLimOut, Math.round(P.garD1)); }
+    // circuits with a longer limiter zone than the 360 m straight window (Monza: the limit lines sit out on the entry and exit roads;
+    // pit loss ~24 s). track.data.pitZonePad overrides the table.
+    { const pad = track.data.pitZonePad != null ? track.data.pitZonePad : ({ monza: 35 })[track.data.id] || 0;
+      if (pad > 0 && !track.data.street) { P.dLimIn = Math.max(P.dRoad0 + 20, P.dLimIn - pad); P.dLimOut = Math.min(P.dRoad1 - 20, P.dLimOut + pad); } }
     // approach to the pit entry (Pit.driveBot): how far out a car lines up for it and how hard it brakes for the entry speed. Monaco's
     // entry comes straight out of Rascasse (already slow), so a short approach; elsewhere 430 m (measured pit loss ~19-21 s)
     P.appr = track.data.street ? 130 : 430; P.apprDec = track.data.street ? 24 : 14;

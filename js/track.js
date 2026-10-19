@@ -1048,19 +1048,23 @@ window.EI = window.EI || {};
         const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; return t; })();
       const FD = this.data.fence || {}; const TD0 = this.data.tunnel;   // data.fence { h, op }: catch-fence height and opacity (Monza: 4.5 m)
       const fenceMat = new THREE.MeshBasicMaterial({ map: fenceTex, transparent: true, side: THREE.DoubleSide, depthWrite: false, opacity: FD.op || 0.7 });
+      // data.fence.runs [[s0, s1, side (0 = both), height m]]: later runs override earlier ones, height 0 = no fence (Monza: tall catch fence by the stands, low along the pit wall)
+      const fenceH = (i, side, h0) => { let h = h0; if (FD.runs) for (const r of FD.runs) { if (r[2] && r[2] !== side) continue; const sv = this.s[i]; if (r[0] <= r[1] ? (sv >= r[0] && sv <= r[1]) : (sv >= r[0] || sv <= r[1])) h = r[3]; } return h; };
+      this.fenceH = fenceH;
       for (const side of [-1, 1]) {
         const wall = side < 0 ? this.wallL : this.wallR;
-        const TD = this.data.tunnel; const fg = this.ribbon(i => side * (wall[i] + 0.8), i => side * (wall[i] + 0.8), { ya: () => 0, yb: () => FD.h || 3.4, vScale: 3, mask: TD ? (i => this.s[i] < TD.s0 - 6 || this.s[i] > TD.s1 + 6) : undefined });
+        const TD = this.data.tunnel; const fg = this.ribbon(i => side * (wall[i] + 0.8), i => side * (wall[i] + 0.8), { ya: () => 0, yb: (i) => fenceH(i, side, FD.h || 3.4), vScale: 3, mask: TD || FD.runs ? (i => (!TD || this.s[i] < TD.s0 - 6 || this.s[i] > TD.s1 + 6) && fenceH(i, side, 1) > 0) : undefined });
         const fm = new THREE.Mesh(fg, fenceMat); fm.name = 'fence'; g.add(fm);
       }
       // catch-fence posts (data.fence.posts = spacing in metres): grey galvanised posts with the top leaning towards the track (Monza refs m15_t1exit)
       if (FD.posts) {
-        const pp = [], pi = []; const step = Math.max(1, Math.round(FD.posts / this.ds)); const Hh = FD.h || 4.5, lean = 0.7, th = 0.07;
+        const pp = [], pi = []; const step = Math.max(1, Math.round(FD.posts / this.ds)); const lean = 0.7, th = 0.07;
         const prism = (ax, ay, az, bx, by, bz, tx, tz) => { const b = pp.length / 3; for (const [x, y, z] of [[ax, ay, az], [bx, by, bz]]) for (const [u, v] of [[-1, -0.6], [1, -0.6], [0, 1]]) pp.push(x + tx * th * u - tz * th * v, y, z + tz * th * u + tx * th * v); for (let k = 0; k < 3; k++) { const k2 = (k + 1) % 3; pi.push(b + k, b + k2, b + 3 + k, b + k2, b + 3 + k2, b + 3 + k); } };
         for (const side of [-1, 1]) {
           const wall = side < 0 ? this.wallL : this.wallR;
           for (let i = 0; i < this.n; i += step) {
             if (TD0 && this.s[i] > TD0.s0 - 6 && this.s[i] < TD0.s1 + 6) continue;
+            const Hh = fenceH(i, side, FD.h || 4.5); if (Hh <= 0) continue;
             const d = wall[i] + 0.8, d2 = d - side * 0 ; const x = this.x[i] + this.nx[i] * side * d, z = this.z[i] + this.nz[i] * side * d, y = this.y[i]; const ex = -this.nx[i] * side * lean, ez = -this.nz[i] * side * lean;
             prism(x, y, z, x, y + Hh - 0.9, z, this.tx[i], this.tz[i]); prism(x, y + Hh - 0.9, z, x + ex, y + Hh, z + ez, this.tx[i], this.tz[i]);
           }
@@ -1381,7 +1385,7 @@ window.EI = window.EI || {};
       cell('bridge:intake2', 0, 1408, 1024, 128, (ctx, w, h) => EI.Ads.paintBridge(ctx, 'intake2', w, h));
       cell('bridge:DRS ZONE', 1024, 1408, 1024, 128, text('DRS ZONE', '#1a73e8', 80));
       cell('drsDetect', 1024, 1760, 512, 128, (ctx, w, h) => { ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, w, h); ctx.fillStyle = '#1a73e8'; ctx.fillRect(0, 0, w, h * 0.14); ctx.fillRect(0, h * 0.86, w, h * 0.14); ctx.fillStyle = '#111'; ctx.font = 'italic 900 62px Arial Black, Arial'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('DRS DETECTION', w / 2, h / 2 + 3, w - 30); });
-      [150, 100, 50].forEach((d, k) => cell('brake:' + d, k * 160, 1888, 160, 160, (ctx, w, h) => { ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, w, h); ctx.strokeStyle = '#0d3a2b'; ctx.lineWidth = 9; ctx.strokeRect(4.5, 4.5, w - 9, h - 9); ctx.fillStyle = '#111'; ctx.font = '900 ' + (d > 99 ? 65 : 81) + 'px Arial Black, Arial'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(String(d), w / 2, h / 2 + 4); }));
+      [[150, 0], [100, 160], [50, 320], [300, 800], [200, 960]].forEach(([d, bx]) => cell('brake:' + d, bx, 1888, 160, 160, (ctx, w, h) => { ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, w, h); ctx.strokeStyle = '#0d3a2b'; ctx.lineWidth = 9; ctx.strokeRect(4.5, 4.5, w - 9, h - 9); ctx.fillStyle = '#111'; ctx.font = '900 ' + (d > 99 ? 65 : 81) + 'px Arial Black, Arial'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(String(d), w / 2, h / 2 + 4); }));
       cell('drs', 480, 1888, 320, 160, (ctx, w, h) => { ctx.fillStyle = '#1a73e8'; ctx.fillRect(0, 0, w, h); ctx.fillStyle = '#fff'; ctx.font = 'italic 900 94px Arial Black, Arial'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('DRS', w / 2, h / 2 + 4); });
       [['post', '#2b2f36'], ['black', '#0f1012'], ['hood', '#1a1a1c'], ['white', '#e8e8e8'], ['plum', '#5e3a5f'], ['brown', '#2b211c'], ['blue', '#1a73e8']].forEach(([k, col], j) => cell(k, 1536 + (j % 4) * 128, 1760 + Math.floor(j / 4) * 128, 128, 128, (ctx, w, h) => { ctx.fillStyle = col; ctx.fillRect(0, 0, w, h); }));
       const tex = U.srgb(canvasTex(c)); tex.wrapS = tex.wrapT = THREE.ClampToEdgeWrapping;
@@ -1398,7 +1402,7 @@ window.EI = window.EI || {};
       const solid = (geo, key, decor) => { const m = new THREE.Mesh(uvSolid(geo, key), mat); if (decor) m.userData.decor = true; return m; };
       const placeAt = (s, side, dist) => { const i = this.idxAtS(s); const wall = side < 0 ? this.wallL[i] : this.wallR[i]; const d = dist != null ? dist : wall - 0.1; return { x: this.x[i] + this.nx[i] * side * d, y: this.y[i], z: this.z[i] + this.nz[i] * side * d, heading: this.heading[i], i }; };
       // start light gantry
-      const i0 = this.idxAtS(this.sf + 6); const gantry = new THREE.Group();
+      const i0 = this.idxAtS(this.sf + (this.data.furniture && this.data.furniture.startGantry != null ? this.data.furniture.startGantry : 6)); const gantry = new THREE.Group();
       for (const side of [-1, 1]) { const post = solid(new THREE.BoxGeometry(0.5, 7.5, 0.5), 'post'); post.position.set(0, 3.75, side * (hw + 1.6)); post.castShadow = true; gantry.add(post); }
       const beamLen = hw * 2 + 3.6;
       for (const [yy, zz] of [[7.0, -0.35], [7.0, 0.35], [7.8, -0.35], [7.8, 0.35]]) { const chord = solid(new THREE.BoxGeometry(0.1, 0.1, beamLen), 'post'); chord.position.set(zz, yy, 0); gantry.add(chord); }
@@ -1436,7 +1440,7 @@ window.EI = window.EI || {};
       }
       // braking boards: 150 / 100 / 50 m before the turn-in of the heavy stops, on the outside of the approach
       const stops = this.data.brakeStops || ['Village', 'Brooklands', 'Stowe', 'Vale', 'Club', 'Abbey', 'Luffield'];
-      for (const c of this.data.corners) { if (stops.indexOf(c.name) < 0 || named['_d' + c.name]) continue; named['_d' + c.name] = true; const side = outsideAt(c.s + 30); for (const d of [150, 100, 50]) addBoard(c.s - d, side, 'brake:' + d, 1.5, 1.5, 1.45, Math.min(wallAt(c.s - d, side) - 1.4, this.halfWidth + this.kerbWidth + 4)); }
+      for (const c of this.data.corners) { if (stops.indexOf(c.name) < 0 || named['_d' + c.name]) continue; named['_d' + c.name] = true; const side = outsideAt(c.s + 30); const BB = this.data.brakeBoards; for (const d of (BB && (BB[c.name] || BB.default)) || [150, 100, 50]) addBoard(c.s - d, side, 'brake:' + d, 1.5, 1.5, 1.45, Math.min(wallAt(c.s - d, side) - 1.4, this.halfWidth + this.kerbWidth + 4)); }
       for (const z of this.drs) { const dd = (s, sd, w) => Math.min(wallAt(s, sd) - 0.6 - w / 2, this.halfWidth + 5 + w / 2); addBoard(z.detect, -1, 'drsDetect', 4, 1.0, 2.3, dd(z.detect, -1, 4)); addBoard(z.start, -1, 'drs', 2.4, 1.2, 2.2, dd(z.start, -1, 2.4)); addBoard(z.start, 1, 'drs', 2.4, 1.2, 2.2, dd(z.start, 1, 2.4)); }
       // sponsor bridges
       const bridge = (s, text, beam) => {

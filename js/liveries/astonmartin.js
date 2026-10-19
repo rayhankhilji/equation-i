@@ -69,9 +69,9 @@
       for (const [id, x, w, h] of stack) L.partnerTop(id, x, 0, w, h, id === 'pirelli' ? 'color' : 'white', Math.PI);
       // sidepod tops: aramco; engine cover spine: MAADEN; rear wing top element (light blue): aramco
       L.partner('aramco', 'spTop', 'white'); L.partner('maaden', 'ecTop', 'white');
-      L.partnerTop('aramco', -2.1, 0, 0.8, 0.1, 'white');
+      L.t.rect(-2.32, -2.17, -0.5, 0.5, SKY); L.partnerTop('aramco', -2.05, 0, 0.9, 0.1, 'white', Math.PI); L.partnerTop('aramco', -2.245, 0, 0.9, 0.075, 'white', Math.PI);   // the rear wing reads from ahead (photos)
       // front-wing top flaps: aramco each side
-      L.partner('aramco', 'fwTop', 'white');
+      for (const z of [-0.62, 0.62]) L.partnerTop('aramco', 2.75, z, 0.46, 0.11, 'white', Math.PI);   // reads from ahead (photos)
       // halo top bar + front, mirrors
       L.haloTop('@AstonMartinF1', W, -1); L.haloTop('@aramco', W, 1); L.haloFront('breitling', 'white');
       L.partner('boss', 'mirrorTop', 'white');
