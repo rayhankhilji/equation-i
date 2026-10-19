@@ -62,7 +62,7 @@ window.EI = window.EI || {};
       // hazy pale summer sky with a milky horizon, the Royal Park's deep greens bouncing up as a green-olive ground light, a softer
       // grade; canopy: dappled sun under the park's trees (js/canopy.js)
       monza: { elev: 29, azim: 300, turb: 4.2, ray: 2.0, mie: 0.007, mieG: 0.84, horizon: 0xc8c9c3, sky: [0.44, 0.8], fog: [480, 2300], fogLow: [320, 1400],
-        hemi: [0xb4c4d6, 0x4b6130, 0.42], sun: [0xffd9a6, 2.6], envSat: 0.5, grade: { sat: 1.3, con: 1.07, warm: [1.045, 1.0, 0.95] }, canopy: { k: 0.72 } },
+        hemi: [0xb4c4d6, 0x4b6130, 0.44], sun: [0xffe4bc, 2.4], envSat: 0.5, grade: { sat: 1.32, con: 1.07, warm: [1.035, 1.0, 0.965] }, canopy: { k: 0.72 } },
       // Yas Marina: the race starts at sunset - the sun low over the Gulf in the west-south-west, warm haze, long shadows
       // Yas Marina: a night race under floodlights (js/night.js: night sky, the light map, glows); the 'sun' is dim moonlight from
       // high up so the cars keep their contact shadows

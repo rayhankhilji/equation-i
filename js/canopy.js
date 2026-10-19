@@ -55,7 +55,7 @@
     }
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     if (!used) return;
-    const tex = new THREE.CanvasTexture(c); tex.minFilter = THREE.LinearMipmapLinearFilter; tex.magFilter = THREE.LinearFilter; tex.generateMipmaps = true;
+    const tex = new THREE.CanvasTexture(c); tex.flipY = false; tex.minFilter = THREE.LinearMipmapLinearFilter; tex.magFilter = THREE.LinearFilter; tex.generateMipmaps = true;
     // leaf noise: tileable 128 x 128 value noise, blotchy (a few octaves), wrapped
     const L = 128, lc = document.createElement('canvas'); lc.width = lc.height = L; const lx = lc.getContext('2d'); const img = lx.createImageData(L, L); const d = img.data; const T = 8;
     const nz = (u, v) => U.fbm(u + 3.1, v + 7.7, 3, 2.0, 0.55);
