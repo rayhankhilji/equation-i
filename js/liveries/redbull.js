@@ -77,7 +77,7 @@
       bull(L, -0.64, 0.89, 1.0, 0.36, 0.012);
       // sidepod: ORACLE, Red Bull wordmark; cockpit: ROKT; chassis: CARLYLE / 1Password / Hard Rock
       L.partnerAt('oracle', -0.2, 0.4, 0.9, 0.13, 'white');
-      keyline(L, 'redbull', -0.98, 0.58, 0.53, 0.17, 'color', 'white', 0.008);
+      keyline(L, 'redbull', -0.88, 0.57, 0.5, 0.16, 'color', 'white', 0.008);
       wordW(L, 'ROKT', 0.05, 0.76, 0.2, 0.055, W, { w: 900, ls: 0.04 });
       wordW(L, 'CARLYLE', 1.0, 0.62, 0.32, 0.045, W, { ff: 'Georgia, "Times New Roman", serif', w: 700, ls: 0.12 });
       if (EI.Ads.hasPartner('1password')) { L.partnerAt('1password', 0.88, 0.54, 0.04, 0.04, 'white'); wordW(L, '1Password', 1.03, 0.54, 0.22, 0.036, W, { w: 700 }); } else fitW(L, '1password', 1.0, 0.54, 0.24, 'white');

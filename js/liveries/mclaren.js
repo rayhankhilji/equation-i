@@ -61,8 +61,8 @@
       // Allwyn airbox: dark teal fading to black
       const gr = g.createLinearGradient(0, k.Y(1.1), 0, k.Y(0.82)); gr.addColorStop(0, TEAL); gr.addColorStop(1, AN);
       k.poly([[0.08, 1.2], [0.08, 0.86], [-0.4, 0.86], [-0.42, 1.2]], gr);
-      if (EI.Ads.hasPartner('allwyn')) k.at(-0.15, 0.99, () => {   // the white allwyn wordmark (the artwork's round 'a' mark clipped off)
-        const w = 0.3 * MM, h = w / 0.74 / 3.82; g.save(); g.beginPath(); g.rect(-w / 2, -h, w, h * 2); g.clip(); const F = w / 0.74; EI.Ads.drawPartner(g, 'allwyn', -0.13 * F, 0, F, h, { tone: 'white' }); g.restore(); });
+      if (EI.Ads.hasPartner('allwyn')) k.at(-0.16, 0.95, () => {   // the white allwyn wordmark (the artwork's round 'a' mark clipped off)
+        const w = 0.26 * MM, h = w / 0.74 / 3.82; g.save(); g.beginPath(); g.rect(-w / 2, -h, w, h * 2); g.clip(); const F = w / 0.74; EI.Ads.drawPartner(g, 'allwyn', -0.13 * F, 0, F, h, { tone: 'white' }); g.restore(); });
       else L.wordmark('allwyn', -0.15, 0.99, 0.065, W, { ff: '"Plus Jakarta Sans", Arial, sans-serif', w: 800, ls: -0.02 });
       fitW(L, 'googlegemini', -0.45, 0.665, 0.52, 'rev');
       k.at(-0.2, 0.36, () => okx(g, 0.3, W));
