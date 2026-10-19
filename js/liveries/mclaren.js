@@ -71,7 +71,7 @@
       L.wordmark('ClubAvolta', 0.3, 0.6, 0.04, W, { w: 700 });
       L.partnerAt('richardmille', 1.12, 0.6, 0.32, 0.036, 'mono:#7d1a12');
       L.partnerAt('dpworld', 0.84, 0.46, 0.2, 0.065, 'white', '#23286a');
-      wordW(L, 'DELL', -1.33, 0.72, 0.24, 0.07, '#141414', { w: 900, ls: 0.14 }); wordW(L, 'Technologies', -1.33, 0.665, 0.19, 0.03, '#141414', { w: 600 });   // stacked DELL / Technologies, black on papaya (photos)
+      wordW(L, 'DELL', -1.22, 0.61, 0.24, 0.07, '#141414', { w: 900, ls: 0.14 }); wordW(L, 'Technologies', -1.22, 0.555, 0.19, 0.03, '#141414', { w: 600 });   // stacked DELL / Technologies, black on papaya (photos)
       L.partnerAt('mclarenspeedmark', 0.98, 0.25, 0.2, 0.06, 'color');
       // front-wing endplates: workday; rear-wing endplates: Dropbox
       L.partnerAt('dropbox', -2.17, 0.86, 0.4, 0.075, 'black'); L.partnerAt('groq', -2.17, 0.56, 0.14, 0.05, 'white');
