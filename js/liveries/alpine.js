@@ -115,7 +115,7 @@
       t.at(2.5, 0, () => msc(g, 0.11, 0.03, '#1b2a8c'), ALONG);
       L.partnerTop('pirelli', 2.36, 0, 0.12, 0.03, 'color', ALONG);
       t.at(2.18, 0, () => bwt(g, 0.12, 0.045, 'mono:' + BN), ALONG);
-      L.wordmark('ALPINE', 1.6, 0, 0.04, BN, { ff: '"Titillium Web", Arial, sans-serif', w: 600, ls: 0.5 }, true);
+      L.wordmark('ALPINE', 1.6, 0, 0.05, BN, { ff: '"Titillium Web", Arial, sans-serif', w: 600, ls: 0.5 }, true);
       L.wordmark(String(L.num), 1.15, 0, 0.09, BN, { ff: '"Titillium Web", Arial, sans-serif', w: 700 }, true);
       // sidepod tops: MSC; engine cover: enilive along the spine; rear wing: pink with navy BWT (white keyline)
       for (const s of [-1, 1]) { t.at(0.15, s * 0.45, () => msc(g, 0.3, 0.07, '#ffffff')); }

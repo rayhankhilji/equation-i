@@ -121,7 +121,7 @@
       t.poly([[0.14, -0.13], [0.14, 0.13], [-0.45, 0.12], [-0.45, -0.12]], RD);
       // nose: number + flag + Haas emblem + partner column, reading along the car
       t.poly([[3.1, -0.08], [3.1, 0.08], [2.6, 0.095], [2.6, -0.095]], RD);
-      L.number(1.78, 0, 0.13, BK);
+      L.number(1.8, 0, 0.17, BK);
       t.at(1.55, 0, () => { const w = 0.07 * MM, h = 0.045 * MM; for (let i = 0; i < 7; i++) { g.fillStyle = i % 2 ? '#ffffff' : '#b22234'; g.fillRect(-w / 2, -h / 2 + i * h / 7, w, h / 7); } g.fillStyle = '#3c3b6e'; g.fillRect(-w / 2, -h / 2, w * 0.42, h * 4 / 7); }, ALONG);
       t.at(1.42, 0, () => haasMark(g, 0.07, 'color'), ALONG);
       t.at(1.28, 0, () => logo(g, 'ic', 0.1, 0.04, 'black', FB.ic), ALONG);
@@ -129,7 +129,7 @@
       L.partnerTop('pirelli', 1.08, 0, 0.11, 0.025, 'color', ALONG);
       t.at(2.25, 0, () => logo(g, 'mphasis', 0.13, 0.03, 'white', FB.mphasis), ALONG);
       // rear wing: red with the white HAAS; front-wing flaps: the GR in black / red
-      t.at(-2.12, 0, () => haasWord(g, 0.085, '#ffffff'));
+      t.at(-2.12, 0, () => haasWord(g, 0.1, '#ffffff'));
       for (const s of [-1, 1]) t.at(2.7, s * 0.6, () => gr(g, 0.32, 0.09, BK, RD));
       // halo: the team handle + HAAS, the Haas emblem where the arms meet
       L.haloTop('@HaasF1Team', '#111214', -1, { w: 700 }, 0.03); L.haloTop('HAAS', '#111214', 1, { w: 900, it: 1 }, 0.035);

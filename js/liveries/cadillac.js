@@ -36,7 +36,7 @@
       L.wordmark('Cadillac', 1.08, 0.6, 0.085, W, { ff: 'Georgia, "Times New Roman", serif', w: 700, it: 1, ls: 0.0 });
       L.partnerAt('clarowordmark', 0.78, 0.5, 0.27, 0.075, 'white');
       L.number(1.85, 0.5, 0.065, W);
-      L.partnerAt('jimbeam', 0.62, 0.3, 0.26, 0.2, 'white');
+      L.partnerAt('jimbeam', 0.66, 0.25, 0.24, 0.17, 'white');
       L.partnerAt('tenneco', -1.8, 0.4, 0.22, 0.04, 'white');
       L.codeText(0.55, 0.69, 0.04, BK);
       // rear-wing endplate (white) with IFS; front-wing endplate (white) with 3M

@@ -38,11 +38,11 @@
       L.partnerAt('aramco', -0.32, 0.43, 0.86, 0.15, 'white');
       L.partnerAt('boss', 0.3, 0.56, 0.24, 0.07, 'white');
       L.partnerAt('cohere', -0.12, 0.72, 0.41, 0.08, 'white');
-      L.partnerAt('maaden', -0.64, 0.8, 0.46, 0.17, 'white');
+      L.partnerAt('maaden', -0.6, 0.77, 0.42, 0.15, 'white');
       L.partnerAt('coreweave', -0.12, 0.94, 0.32, 0.16, 'white');
       L.partnerAt('cognizant', -1.22, 0.8, 0.46, 0.07, 'white');
-      L.partnerAt('hondawordmark', -1.1, 0.67, 0.34, 0.05, 'white');
-      L.wordmark('Powered by', -1.06, 0.72, 0.026, W, { w: 600, ls: 0.02 });
+      L.partnerAt('hondawordmark', -1.1, 0.63, 0.34, 0.05, 'white');
+      L.wordmark('Powered by', -1.06, 0.68, 0.026, W, { w: 600, ls: 0.02 });
       L.partnerAt('aramco', -1.35, 0.9, 0.22, 0.04, 'white');
       L.partnerAt('glenfiddich', -1.4, 1.02, 0.1, 0.07, 'white');
       L.partnerAt('valvolinemark', -1.05, 0.52, 0.09, 0.05, 'color'); L.partnerAt('valvolinewordmark', -1.27, 0.52, 0.3, 0.05, 'white');

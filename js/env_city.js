@@ -565,6 +565,40 @@ window.EI = window.EI || {};
   def('water', 11, 5, [(p) => { p.clear(sp([40, 128, 170], TN, 0.06, 0.85, 0.5)); p.shade(c => { const r = U.rng(251); for (let i = 0; i < 60; i++) { c.strokeStyle = 'rgba(255,255,255,' + (0.08 + r() * 0.12).toFixed(2) + ')'; c.lineWidth = 1.5; c.beginPath(); const x = r() * IN, y = r() * IN; c.moveTo(x, y); c.quadraticCurveTo(x + 15, y - 6, x + 30, y); c.stroke(); } c.fillStyle = 'rgba(20,60,110,0.35)'; c.fillRect(0, 108, IN, 8); }); }]);
   def('pooltile', 11, 6, [(p) => { p.clear(sp([230, 236, 236], TN, 0.5, 0, 0.5)); p.shade(c => { c.fillStyle = 'rgba(0,0,0,0.12)'; for (let k = 0; k < IN; k += 14) { c.fillRect(k, 0, 1, IN); c.fillRect(0, k, IN, 1); } }); p.bump(c => { c.fillStyle = gray(100); for (let k = 0; k < IN; k += 14) { c.fillRect(k, 0, 1, IN); c.fillRect(0, k, IN, 1); } }); }]);
   def('soil', 11, 7, [(p) => { p.clear(sp([92, 74, 56], TN, 0.95, 0, 0.5)); p.grain(3000, 0.15, 253); p.stucco(3000, 0.15, 254); }]);
+  // ---------------- row 13 (scenery polish): the Ste Devote chequer paving, the porthole block at the Nouvelle Chicane
+  def('chequer', 13, 1, [(p) => {
+    // Ste Devote forecourt: 0.34 m pale grey / salmon-red concrete flags laid as a chequer (devote2), grey joints; 2.4 m per tile
+    p.clear(sp([150, 146, 140], TW, 0.9, 0, 0.5)); const r = U.rng(261), N = 7, q = IN / N;
+    p.shade(c => { for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) { const v = 0.9 + r() * 0.2, red = (i + j) & 1; c.fillStyle = 'rgba(' + ((red ? 196 : 206) * v | 0) + ',' + ((red ? 116 : 202) * v | 0) + ',' + ((red ? 100 : 196) * v | 0) + ',1)'; c.fillRect(i * q + 1, j * q + 1, q - 2, q - 2); } });
+    p.bump(c => { c.fillStyle = gray(90); for (let k = 0; k < N; k++) { c.fillRect(0, k * q, IN, 1.5); c.fillRect(k * q, 0, 1.5, IN); } });
+    p.grain(1800, 0.06, 262);
+  }]);
+  const porthole = (p, x, y, r, seed) => {
+    p.ell(x, y, r + 5, r + 5, sp([226, 228, 228], TN, 0.35, 0, 0.74)); p.ell(x, y, r + 1.5, r + 1.5, sp([120, 124, 128], TN, 0.4, 0.2, 0.7)); p.ell(x, y, r, r, sp([34, 46, 56], TN, 0.06, 1, Hh.glass));
+    p.shade(c => { const g = c.createLinearGradient(x - r, y - r, x + r, y + r); g.addColorStop(0, 'rgba(190,214,228,0.55)'); g.addColorStop(0.55, 'rgba(90,112,128,0.2)'); g.addColorStop(1, 'rgba(10,16,22,0.2)'); c.fillStyle = g; c.beginPath(); c.ellipse(x, y, r, r, 0, 0, 6.2832); c.fill(); });
+  };
+  def('pth_flr', 13, 2, [(p) => {
+    // a storey of the white block: a round porthole beside a glazed band, a sweeping white balcony slab with a dark soffit
+    p.clear(wallP([245, 245, 242], 0.55)); porthole(p, 54, 86, 27, 511);
+    glass(p, 112, 40, 104, 92, { seed: 512, curtains: false, light: true }); for (const k of [148, 182]) p.rect(k, 40, 4, 92, sp([236, 238, 238], TN, 0.4, 0.2, Hh.frame));
+    p.rect(0, 146, IN, 24, trimP([250, 250, 248], 0.74)); p.rect(0, 170, IN, 10, sp([104, 78, 62], TN, 0.7, 0, 0.3)); p.rect(0, 140, IN, 7, sp([205, 210, 212], TN, 0.3, 0.2, 0.66));
+    aoTop(p, 0, 26, 0.18); p.streaks(0, 180, IN, 40, 0.08, 513); p.grain(1400, 0.04, 514);
+  }, (p) => {
+    p.clear(wallP([245, 245, 242], 0.55)); for (const x of [40, 112, 184]) porthole(p, x, 82, 23, 520 + x);
+    p.rect(0, 146, IN, 24, trimP([250, 250, 248], 0.74)); p.rect(0, 170, IN, 10, sp([104, 78, 62], TN, 0.7, 0, 0.3)); p.rect(0, 140, IN, 7, sp([205, 210, 212], TN, 0.3, 0.2, 0.66));
+    aoTop(p, 0, 26, 0.18); p.streaks(0, 180, IN, 40, 0.08, 523); p.grain(1400, 0.04, 524);
+  }]);
+  def('pth_gnd', 13, 4, [(p) => {
+    // podium: pale grey ribbed cladding, a row of portholes, a dark service opening
+    p.clear(wallP([214, 218, 220], 0.5)); p.shade(c => { for (let k = 0; k < IN; k += 14) { c.fillStyle = 'rgba(255,255,255,0.22)'; c.fillRect(k, 0, 2, IN); c.fillStyle = 'rgba(40,50,60,0.14)'; c.fillRect(k + 6, 0, 3, IN); } });
+    p.bump(c => { c.fillStyle = gray(150); for (let k = 0; k < IN; k += 14) c.fillRect(k, 0, 4, IN); });
+    for (const x of [34, 100]) porthole(p, x, 84, 19, 530 + x); p.rect(150, 60, 66, IN - 60, sp([40, 44, 48], TN, 0.5, 0, 0.3)); for (let k = 62; k < IN; k += 12) p.rect(150, k, 66, 2, sp([70, 74, 78], TN, 0.5, 0.3, 0.45));
+    p.rect(0, 0, IN, 22, trimP([246, 246, 244], 0.7)); aoTop(p, 22, 30, 0.2); p.grain(1400, 0.05, 534);
+  }, (p) => {
+    p.clear(wallP([214, 218, 220], 0.5)); p.shade(c => { for (let k = 0; k < IN; k += 14) { c.fillStyle = 'rgba(255,255,255,0.22)'; c.fillRect(k, 0, 2, IN); c.fillStyle = 'rgba(40,50,60,0.14)'; c.fillRect(k + 6, 0, 3, IN); } });
+    for (const x of [10, 118]) { p.fill(c => { c.moveTo(x, IN); c.lineTo(x, 100); c.quadraticCurveTo(x + 48, 30, x + 96, 100); c.lineTo(x + 96, IN); c.closePath(); }, sp([226, 228, 228], TN, 0.4, 0, 0.7)); p.fill(c => { c.moveTo(x + 8, IN); c.lineTo(x + 8, 104); c.quadraticCurveTo(x + 48, 42, x + 88, 104); c.lineTo(x + 88, IN); c.closePath(); }, sp([34, 46, 56], TN, 0.06, 1, Hh.glass)); p.rect(x + 46, 70, 4, IN, sp([226, 228, 228], TN, 0.4, 0.2, 0.6)); }
+    p.rect(0, 0, IN, 22, trimP([246, 246, 244], 0.7)); aoTop(p, 22, 30, 0.2); p.grain(1400, 0.05, 536);
+  }]);
   // ---------------- row 12: foliage and fittings
   def('frond', 12, 0, [(p) => {
     p.clear(sp([70, 96, 40], TW, 0.85, 0, 0.5)); p.shade(c => { const r = U.rng(255); c.strokeStyle = 'rgba(20,40,10,0.55)'; c.lineWidth = 1.4; for (let y = 0; y < IN; y += 5) { c.beginPath(); c.moveTo(112, y); c.lineTo(10 + r() * 10, y + 22); c.moveTo(112, y); c.lineTo(214 - r() * 10, y + 22); c.stroke(); } c.fillStyle = 'rgba(200,190,120,0.7)'; c.fillRect(108, 0, 8, IN); c.fillStyle = 'rgba(255,255,200,0.12)'; c.fillRect(30, 0, 50, IN); });
@@ -1544,6 +1578,8 @@ window.EI = window.EI || {};
     const paveC = cell('pave'), kerbC = cell('kerb'), stoneC = cell('stone');
     // terracotta block paving from Ste Devote up through the town to Portier (beaurivage1, hairpin_entry), warm grey stone on the harbour side
     const pcT = C(0xe0a48c), pcG = C(0xd8d0c6), kc = C(0xe8e6e2), sc0 = C(0xcfc4b2); const terra = (s) => t.data.street && s > 130 && s < 1440;
+    // Ste Devote (the chapel corner and the climb out of it): grey / salmon chequer flags (devote2)
+    const chqC = cell('chequer'); const chq = (s) => t.data.id === 'monaco' && s > 120 && s < 330;
     let walls = 0; const RT = (t.data.street && t.data.street.retaining) || []; const retain = (s) => RT.some(r => s > r[0] - 10 && s < r[1] + 10); const TER = ((t.data.street && t.data.street.terraces) || []).concat(t.data.street && t.data.street.ycm ? [t.data.street.ycm] : []);
     for (const side of [-1, 1]) {
       let prev = null, u = 0;
@@ -1575,7 +1611,7 @@ window.EI = window.EI || {};
           const q = (a0, a1, b0, b1, uv, col, cl) => { if (side > 0) G.quad(a0, b0, b1, a1, [0, 1, 0], [uv[0], uv[1], uv[2], uv[3], uv[4], uv[5], uv[6], uv[7]], col, cl); else G.quad(a1, b1, b0, a0, [0, 1, 0], [uv[6], uv[7], uv[4], uv[5], uv[2], uv[3], uv[0], uv[1]], col, cl); };
           // granite kerb strip, then the block paving
           q([prev.x0, prev.y, prev.z0], [prev.xk, prev.y, prev.zk], [cur.x0, cur.y, cur.z0], [cur.xk, cur.y, cur.zk], [u, 0, u, 0.15, u1, 0.15, u1, 0], kc, kerbC);
-          q([prev.xk, prev.y, prev.zk], [prev.x1, prev.y, prev.z1], [cur.xk, cur.y, cur.zk], [cur.x1, cur.y, cur.z1], [u, 0, u, (Wd - KW) / 2.4, u1, (Wd - KW) / 2.4, u1, 0], terra(s) ? pcT : pcG, paveC);
+          q([prev.xk, prev.y, prev.zk], [prev.x1, prev.y, prev.z1], [cur.xk, cur.y, cur.zk], [cur.x1, cur.y, cur.z1], [u, 0, u, (Wd - KW) / 2.4, u1, (Wd - KW) / 2.4, u1, 0], chq(s) ? WHITE : terra(s) ? pcT : pcG, chq(s) ? chqC : paveC);
           // kerb face down to the road surface (behind the barrier)
           const nn = [-t.nx[ii] * side, 0, -t.nz[ii] * side];
           if (side > 0) G.quad([prev.x0, prev.yr, prev.z0], [cur.x0, cur.yr, cur.z0], [cur.x0, cur.y, cur.z0], [prev.x0, prev.y, prev.z0], nn, [u, 0, u1, 0, u1, 0.07, u, 0.07], kc, kerbC);

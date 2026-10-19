@@ -86,9 +86,9 @@
       t.poly([[-0.2, -0.17], [-0.2, 0.17], [-1.2, 0.3], [-1.95, 0.3], [-1.95, -0.3], [-1.2, -0.3]], BK);
       for (const s of [-1, 1]) t.poly([[-0.4, s * 0.32], [-0.4, s * 0.6], [-1.15, s * 0.5], [-1.15, s * 0.3]], LR);
       // nose: red rings at the tip, the Revolut R, the race number in red, Pirelli / visit QATAR / Libertex
-      t.at(2.78, 0, () => LV.partner(g, 'audi', 0.13, 0.04, 'mono:' + LR), FRONT);
-      t.at(2.5, 0, () => { if (!logoPart(g, 'revolut', 0.07, 0.07, 'black', [0, 0, 0.145, 1])) LV.styledText(g, 'R', 0.06, '#111214', { w: 900 }); }, FRONT);
-      L.number(2.12, 0, 0.09, LR);
+      t.at(2.76, 0, () => LV.partner(g, 'audi', 0.18, 0.055, 'mono:' + LR), FRONT);
+      t.at(2.48, 0, () => { if (!logoPart(g, 'revolut', 0.1, 0.1, 'black', [0, 0, 0.145, 1])) LV.styledText(g, 'R', 0.06, '#111214', { w: 900 }); }, FRONT);
+      L.number(2.12, 0, 0.11, LR);
       L.partnerTop('pirelli', 1.86, 0, 0.12, 0.025, 'color', FRONT);
       t.at(1.68, 0, () => visitQatar(g, 0.1, 0.05, '#111214'), FRONT);
       t.at(1.52, 0, () => logo(g, 'libertex', 0.13, 0.03, 'black', FB.libertex), FRONT);
