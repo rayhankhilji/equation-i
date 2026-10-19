@@ -257,8 +257,8 @@ window.EI = window.EI || {};
     // split screen: each view shows its player's keys while the cars wait on the grid (and for a few seconds after the start)
     if (race.players.length > 1) viewports.forEach((vp, k) => {
       const chip = document.createElement('div'); chip.className = 'sp-keys show';
-      chip.innerHTML = k === 0 ? '<span class="ctl-pl">P1</span><span><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> drive</span><span><kbd>L.Shift</kbd> DRS</span><span><kbd>Space</kbd> ERS</span><span><kbd>C</kbd> camera</span><span><kbd>P</kbd> pit</span>'
-        : '<span class="ctl-pl">P2</span><span><kbd>&#8593;</kbd><kbd>&#8592;</kbd><kbd>&#8595;</kbd><kbd>&#8594;</kbd> drive</span><span><kbd>R.Shift</kbd>/<kbd>.</kbd> DRS</span><span><kbd>Enter</kbd> ERS</span><span><kbd>/</kbd> camera</span><span><kbd>&#9003;</kbd> pit</span>';
+      chip.innerHTML = k === 0 ? '<span class="ctl-pl">P1</span><span><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> drive</span><span><kbd>L.Shift</kbd> aero</span><span><kbd>Space</kbd> ERS</span><span><kbd>C</kbd> camera</span><span><kbd>P</kbd> pit</span>'
+        : '<span class="ctl-pl">P2</span><span><kbd>&#8593;</kbd><kbd>&#8592;</kbd><kbd>&#8595;</kbd><kbd>&#8594;</kbd> drive</span><span><kbd>R.Shift</kbd>/<kbd>.</kbd> aero</span><span><kbd>Enter</kbd> ERS</span><span><kbd>/</kbd> camera</span><span><kbd>&#9003;</kbd> pit</span>';
       vp.el.appendChild(chip); vp.keyChip = chip;
     });
     cameras = race.players.map(() => new THREE.PerspectiveCamera(62, 1, 0.25, 6000)); camModes = race.players.map(() => 0);
