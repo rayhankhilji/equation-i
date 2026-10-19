@@ -88,12 +88,16 @@ window.EI = window.EI || {};
     const mid = (P.dLimIn + P.dLimOut) / 2; const NB = Math.max(10, EI.TEAMS.length); P.boxD = []; for (let k = 0; k < NB; k++) P.boxD.push(mid + ((NB - 1) / 2 - k) * BOX_SP);   // one box per entry (11 in 2026)
     P.garD0 = P.boxD[NB - 1] - BOX_SP / 2; P.garD1 = P.boxD[0] + BOX_SP / 2;
     // street circuit (Monaco): the limiter zone covers the garages and 25 m either side, not the whole straight (pit loss ~20 s)
-    if (track.data.street) { P.dLimIn = Math.max(P.dLimIn, Math.round(P.garD0 - 25)); P.dLimOut = Math.min(P.dLimOut, Math.round(P.garD1 + 25)); }
+    if (track.data.street) { P.dLimIn = Math.max(P.dLimIn, Math.round(P.garD0)); P.dLimOut = Math.min(P.dLimOut, Math.round(P.garD1)); }
+    // approach to the pit entry (Pit.driveBot): how far out a car lines up for it and how hard it brakes for the entry speed. Monaco's
+    // entry comes straight out of Rascasse (already slow), so a short approach; elsewhere 430 m (measured pit loss ~19-21 s)
+    P.appr = track.data.street ? 130 : 430; P.apprDec = track.data.street ? 24 : 14;
+    P.latA = track.data.street ? 36 : 24; P.boxA = track.data.street ? 15 : 9; P.decA = 20; P.exitA = track.data.street ? 15 : 12;   // lane cornering, box stop / pull-away, braking for the limit line, pulling away after it (m/s2)
     const u = (s) => P.sCap + U.mod(s - P.sCap, TL);
     P.anch = [[dCap, P.sCap], [P.dA, u(P.s[P.dA])], [P.dB, u(P.s[P.dB])], [dRel, u(P.s[dRel])]];
     for (let k = 1; k < P.anch.length; k++) if (P.anch[k][1] <= P.anch[k - 1][1]) P.anch[k][1] = P.anch[k - 1][1] + (P.anch[k][0] - P.anch[k - 1][0]);
-    for (let i = 0; i < N; i++) { const v = Math.min(78, Math.sqrt(24 / Math.max(P.k[i], 1e-4))); P.vCurv[i] = v; P.vAuto[i] = (i >= P.dLimIn && i <= P.dLimOut) ? Math.min(v, LIMIT) : v; }
-    for (const arr of [P.vCurv, P.vAuto]) for (let i = N - 2; i >= 0; i--) arr[i] = Math.min(arr[i], Math.sqrt(arr[i + 1] * arr[i + 1] + 2 * 20 * ds));
+    for (let i = 0; i < N; i++) { const v = Math.min(78, Math.sqrt(P.latA / Math.max(P.k[i], 1e-4))); P.vCurv[i] = v; P.vAuto[i] = (i >= P.dLimIn && i <= P.dLimOut) ? Math.min(v, LIMIT) : v; }
+    for (const arr of [P.vCurv, P.vAuto]) for (let i = N - 2; i >= 0; i--) arr[i] = Math.min(arr[i], Math.sqrt(arr[i + 1] * arr[i + 1] + 2 * P.decA * ds));
     // where the path passes through the circuit barrier (outside the straight): gaps get cut there
     P.gaps = []; let prev = null;
     for (let i = dCap; i < N; i++) { const t = Math.abs(P.lat[i]) - wallOf(P.ti[i]); const sg = t > 0; if (prev !== null && sg !== prev && (i < P.dA - 5 || i > P.dB + 5)) P.gaps.push([P.x[i], P.z[i]]); prev = sg; }
@@ -732,7 +736,7 @@ window.EI = window.EI || {};
     // ---- longitudinal
     let vt = (st.manual && st.d < L.dLimIn ? L.vCurv : L.vAuto)[idxD(st.d)];
     if (st.d >= L.dLimIn - 1 && st.d <= L.dLimOut) vt = Math.min(vt, LIMIT);
-    if (st.phase === 'in' && st.stopD != null) vt = Math.min(vt, Math.sqrt(2 * 9 * Math.max(0, st.stopD - st.d)));
+    if (st.phase === 'in' && st.stopD != null) vt = Math.min(vt, Math.sqrt(2 * L.boxA * Math.max(0, st.stopD - st.d)));
     if (st.phase === 'wait' || st.phase === 'service') vt = 0;
     // spacing to cars ahead in the same lane
     for (const o of race.cars) { const q = o.pit; if (o === car || !q || !q.active || q.d <= st.d) continue; const gap = q.d - st.d; if (gap < 26 && Math.abs(q.o - st.o) < 2.3) vt = Math.min(vt, Math.max(0, q.v + (gap - 8.5) * 1.1)); }
@@ -744,7 +748,7 @@ window.EI = window.EI || {};
         else vt = Math.min(vt, st.v + Math.max(thr, 0.15) * 13 * dt);
       }
     }
-    const acc = inZone ? 9 : 12;
+    const acc = inZone ? L.boxA : L.exitA;
     if (vt > st.v) st.v = Math.min(vt, st.v + acc * dt); else st.v = Math.max(Math.max(0, vt), st.v - 34 * dt);
     const dPrev = st.d; st.d += st.v * dt;
     // ---- speed limit line
@@ -802,9 +806,9 @@ window.EI = window.EI || {};
   }
   function beginService(car, race) {
     const st = car.pit, b = st.box; st.phase = 'service';
-    const rng = race.rng; const scale = car.isPlayer ? 1.15 + rng() * 0.25 : 1.1 + rng() * 0.65;
+    const rng = race.rng; const scale = 1.1 + rng() * 0.45;   // the same crews for players and bots
     const corners = []; for (let w = 0; w < 4; w++) { const off = scale * (0.55 + rng() * 0.15); const on = off + scale * (0.55 + rng() * 0.2); const done = on + scale * (0.3 + rng() * 0.12); corners.push({ off, on, done }); }
-    if (!car.isPlayer && rng() < 0.05) { const c = corners[Math.floor(rng() * 4)]; const extra = 0.5 + rng() * 1.0; c.on += extra; c.done += extra; } // a sticky wheel nut
+    if (rng() < 0.04) { const c = corners[Math.floor(rng() * 4)]; const extra = 0.5 + rng() * 1.0; c.on += extra; c.done += extra; } // a sticky wheel nut
     let last = 0; for (const c of corners) last = Math.max(last, c.done);
     const serve = Math.max(0, Math.min(car.penServable || 0, car.penalty || 0));
     if (serve > 0) { for (const c of corners) { c.off += serve; c.on += serve; c.done += serve; } last += serve; car.penalty -= serve; car.penServable = 0; car.penServed = (car.penServed || 0) + serve; }
@@ -839,14 +843,14 @@ window.EI = window.EI || {};
     const car = ai.car, st = car.pit; if (!st) return false; const inp = car.input;
     if (st.active) { inp.throttle = 1; inp.brake = 0; inp.steer = 0; inp.drs = false; inp.ers = false; inp.reverse = false; return true; }
     if (!st.request || car.finished || !race.started) return false;
-    const t = race.track; const dTo = U.mod(L.sCap - car.trk.s, t.length); if (dTo > 430 || dTo < 0.5) return false;
+    const t = race.track; const dTo = U.mod(L.sCap - car.trk.s, t.length); if (dTo > L.appr || dTo < 0.5) return false;
     const i = car.trk.i, av = Math.abs(car.v); const look = 7 + av * 0.35; const j = (i + Math.round(look / t.ds)) % t.n;
-    const latT = L.side * (t.halfWidth - 2.0); const blend = U.clamp((430 - dTo) / 170, 0, 1);
+    const latT = L.side * (t.halfWidth - 2.0); const blend = U.clamp((L.appr - dTo) / (L.appr * 0.4), 0, 1);
     const lat = U.lerp(t.lineOff[j] + ai.offset, latT, blend);
     const tx = t.x[j] + t.nx[j] * lat, tz = t.z[j] + t.nz[j] * lat; const err = U.wrapAngle(Math.atan2(tz - car.z, tx - car.x) - car.heading);
     inp.steer = U.clamp(-err * 2.2, -1, 1); if (car.v < 0) inp.steer *= -1;
     let vt = Infinity; const lk = Math.round((4 + av * 0.12) / t.ds); for (let k = 0; k <= lk; k += 2) vt = Math.min(vt, t.aiSpeed[(i + k) % t.n]); vt *= ai.speedFactor;
-    vt = Math.min(vt, Math.sqrt(L.vAuto[L.dCap] ** 2 + 2 * 14 * dTo));
+    vt = Math.min(vt, Math.sqrt(L.vAuto[L.dCap] ** 2 + 2 * L.apprDec * dTo));
     for (const o of cars) { if (o === car) continue; let dsx = o.trk.s - car.trk.s; if (dsx > t.length / 2) dsx -= t.length; if (dsx < -t.length / 2) dsx += t.length; if (dsx > 0 && dsx < 30 && Math.abs(o.trk.lat - car.trk.lat) < 2.6) vt = Math.min(vt, Math.max(4, o.v + (dsx - 8) * 1.0)); }
     const vErr = vt - av;
     if (vErr > 0.8) { inp.throttle = U.clamp(vErr / 3, 0.35, 1); inp.brake = 0; } else if (vErr < -0.6) { inp.throttle = 0; inp.brake = U.clamp(-vErr / 6, 0.15, 1); } else { inp.throttle = 0.5; inp.brake = 0; }

@@ -194,4 +194,11 @@ Allwyn, OKX, BWT, TGR, MoneyGram ...) are set as wordmarks in code (js/ads.js `P
 | `partners/hondawordmark.svg` | Aston Martin F1 Team partners page (https://www.astonmartinf1.com/en-GB/partners), the team's own logo file `Honda_2026-Mono-Black__1_.svg` (assets.astonmartinf1.com); viewBox trimmed to the Honda wordmark (LIVERY-C) |
 | `partners/valvolinemark.svg` | Aston Martin F1 Team partners page (https://www.astonmartinf1.com/en-GB/partners), the team's own logo file `Valvoline-Mono-Black.svg` (assets.astonmartinf1.com); viewBox trimmed to the V mark (LIVERY-C) |
 | `partners/valvolinewordmark.svg` | Aston Martin F1 Team partners page (https://www.astonmartinf1.com/en-GB/partners), the team's own logo file `Valvoline-Mono-Black.svg` (assets.astonmartinf1.com); viewBox trimmed to the wordmark (LIVERY-C) |
+| `partners/atlasair.svg` | Aston Martin F1 Team partners page (https://www.astonmartinf1.com/en-GB/partners), the team's own logo file `AtlasAir-Mono-Black.svg` (assets.astonmartinf1.com) (LIVERY-C) |
+| `partners/celsius.svg` | Aston Martin F1 Team partners page (https://www.astonmartinf1.com/en-GB/partners), the team's own logo file `Celsius-Mono-Black__1_.svg` (assets.astonmartinf1.com) (LIVERY-C) |
+| `partners/eightsleep.svg` | Aston Martin F1 Team partners page (https://www.astonmartinf1.com/en-GB/partners), the team's own logo file `EightSleep-Mono-Black.svg` (assets.astonmartinf1.com) (LIVERY-C) |
+| `partners/krown.svg` | Aston Martin F1 Team partners page (https://www.astonmartinf1.com/en-GB/partners), the team's own logo file `Krown-Mono-Black__1_.svg` (assets.astonmartinf1.com) (LIVERY-C) |
+| `partners/servicenow.svg` | Aston Martin F1 Team partners page (https://www.astonmartinf1.com/en-GB/partners), the team's own logo file `ServiceNow-Mono-Black.svg` (assets.astonmartinf1.com) (LIVERY-C) |
+| `partners/ukg.svg` | Aston Martin F1 Team partners page (https://www.astonmartinf1.com/en-GB/partners), the team's own logo file `UKG-Mono-Black.svg` (assets.astonmartinf1.com) (LIVERY-C) |
+| `partners/zscaler.svg` | Aston Martin F1 Team partners page (https://www.astonmartinf1.com/en-GB/partners), the team's own logo file `Zscaler-Mono-Black.svg` (assets.astonmartinf1.com) (LIVERY-C) |
 <!--/PARTNER-TABLE-->

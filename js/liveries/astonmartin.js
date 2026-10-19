@@ -46,6 +46,9 @@
       L.partnerAt('aramco', -1.35, 0.9, 0.22, 0.04, 'white');
       L.partnerAt('glenfiddich', -1.4, 1.02, 0.1, 0.07, 'white');
       L.partnerAt('valvolinemark', -1.05, 0.52, 0.09, 0.05, 'color'); L.partnerAt('valvolinewordmark', -1.27, 0.52, 0.3, 0.05, 'white');
+      L.partnerAt('zscaler', -1.22, 0.9, 0.2, 0.09, 'white');
+      // the small partner row along the floor edge under the title (Krown, Atlas Air, UKG)
+      L.partnerAt('krown', 0.12, 0.3, 0.12, 0.05, 'white'); L.partnerAt('atlasair', -0.45, 0.3, 0.12, 0.05, 'white'); L.partnerAt('ukg', -0.72, 0.3, 0.1, 0.04, 'white');
       // chassis / cockpit / floor
       L.partnerAt('pepperstone', 1.22, 0.62, 0.42, 0.07, 'white');
       L.partnerAt('astonmartin', 1.2, 0.52, 0.36, 0.09, 'white');
@@ -55,7 +58,7 @@
       L.codeText(0.55, 0.69, 0.04, W);
       // rear-wing endplate (green) and front-wing endplate
       L.partnerAt('coinbase', -2.13, 0.9, 0.42, 0.09, 'white');
-      L.partnerAt('jcb', -2.13, 0.66, 0.2, 0.06, 'white');
+      L.partnerAt('servicenow', -2.13, 0.79, 0.34, 0.05, 'white'); L.partnerAt('jcb', -2.13, 0.64, 0.2, 0.06, 'white');
       L.partnerAt('glenfiddich', 2.66, 0.19, 0.42, 0.16, 'white');
       L.haloSide('Breitling', W, { w: 600, ls: 0.12 });
     },
