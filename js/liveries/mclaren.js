@@ -79,6 +79,11 @@
       L.number(1.62, 0.52, 0.07, AN); L.codeText(1.27, 0.5, 0.036, AN); k.at(1.09, 0.5, () => FLAG(g, natOf(L.code), 0.03));
       L.haloHandle('mclaren.com', W, -1); L.haloHandle('@McLarenF1', W, 1);
     },
+    // wheel covers (2026 photos): dark covers with the rainbow rings, an outer ring at the rim and a small inner ring at the hub
+    cover(g, S) {
+      const r = (m) => m / 0.56 * S, c = S / 2; g.fillStyle = '#16171a'; g.beginPath(); g.arc(c, c, r(0.27), 0, 7); g.fill();
+      for (const [rr, lw] of [[0.205, 0.03], [0.1, 0.018]]) for (let i = 0; i < 48; i++) { g.strokeStyle = 'hsl(' + (i * 7.5) + ',95%,55%)'; g.lineWidth = r(lw); g.beginPath(); g.arc(c, c, r(rr), i * Math.PI / 24 - 0.01, (i + 1) * Math.PI / 24 + 0.01); g.stroke(); }
+    },
     endplate(L) {   // front-wing endplates (papaya): workday
       L.partnerAt('workday', 2.5, 0.3, 0.3, 0.09, 'mono:#3a1f0c');
     },

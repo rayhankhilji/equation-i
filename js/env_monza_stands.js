@@ -1,0 +1,201 @@
+// Equation I - Monza grandstands. Layout from the OSM footprints (js/env_monza_osm.js) + a few runs OSM misses (Curva Biassono, Lesmo):
+// each stand becomes chords along the lap (EI.EnvVenue builds their tiers, front walls, boards and the crowd); this file adds what makes
+// them Monza: the 1938 Tribuna Centrale (two tiers of white seats, thin cantilevered concrete roof, the drum-shaped control tower and
+// the antenna masts on top), the long covered Laterali (blue seats, thin flat roof on slim columns, white fascia), the big open concrete
+// Parabolica stands, concrete backs / ends for every permanent stand, flag poles with tricolours and tifosi banners. The temporary
+// scaffold stands (Prima Variante, Alta Velocita, Roggia, Ascari, Lesmo, Biassono) keep the venue's galvanised scaffold look.
+(function () {
+  const Mz = EI.EnvMonza; if (!Mz) return;
+  const U = EI.U, Env = EI.Env, K = Mz.K, C = K.C;
+  const St = {};
+  // OSM name -> style. centrale: two tiers + roof + drum; covered: flat roof on columns; open: concrete, no roof; temp: scaffold (venue)
+  const PLAN = [
+    [/^Tribuna Centrale$/, { style: 'centrale', seat: 0xe8e8e3, label: 'CENTRALE' }],
+    [/Laterale (Destra|Sinistra)/, { style: 'covered', seat: 0x2356a6 }],
+    [/Piscina/, { style: 'covered', seat: 0x2356a6, label: 'PISCINA' }],
+    [/Vedano/, { style: 'open', seat: 0x2356a6, label: 'VEDANO' }],
+    [/^Tribuna Parabolica$/, { style: 'open', seat: 0x2d5fb0, label: 'PARABOLICA', maxRows: 32 }],
+    [/Laterale Parabolica/, { style: 'open', seat: 0x2d5fb0, label: 'PARABOLICA' }],
+    [/Parabolica interna/, { style: 'open', seat: 0xb8202a, label: 'PARABOLICA' }],
+    [/Alta Velocit/, { style: 'temp', seat: 0x3d5f8f, label: 'ALTA VELOCITA' }],
+    [/Prima Variante/, { style: 'temp', seat: 0x3d5f8f, label: 'PRIMA VARIANTE', maxRows: 22 }],
+    [/Seconda Variante|Roggia/, { style: 'temp', seat: 0x8c1d24, label: 'ROGGIA' }],
+    [/Ascari|Museo|Amici/, { style: 'temp', seat: 0x3d5f8f, label: 'ASCARI' }],
+  ];
+  // runs OSM does not map (research lap s, side 'out' = outside of the corner): temporary stands on the grass banks
+  const EXTRA = [
+    { s0: 905, s1: 1090, side: 'out', gap: 6, rows: 14, style: 'temp', seat: 0x3d5f8f, label: 'BIASSONO' },
+    { s0: 2205, s1: 2295, side: 'out', gap: 5, rows: 12, style: 'temp', seat: 0x8c1d24, label: 'LESMO' },
+    { s0: 2548, s1: 2612, side: 'out', gap: 5, rows: 11, style: 'temp', seat: 0x3d5f8f, label: 'LESMO' },
+  ];
+  const PERM = { centrale: 1, covered: 1, open: 1 };
+
+  // ================================================================ layout (inside EnvVenue.layoutStands, so the venue builds the tiers + crowd)
+  St.layout = function (E) {
+    const t = E.t, f = Mz.fit(t), pr = {}; E.mzRuns = []; const L = t.length;
+    for (const st of EI.MONZA_OSM.stands) {
+      let plan = null; for (const [re, p] of PLAN) if (re.test(st.n)) { plan = p; break; } if (!plan) continue;
+      if (st.n === '' ) continue;
+      const poly = f.poly(st.p); let cx = 0, cz = 0; for (const p of poly) { cx += p[0]; cz += p[1]; } cx /= poly.length; cz /= poly.length;
+      t.project(cx, cz, null, pr); const sc = pr.s, side = pr.lat > 0 ? 1 : -1;
+      let a = Infinity, b = -Infinity, dmin = Infinity, dmax = -Infinity;
+      for (const p of poly) { t.project(p[0], p[1], null, pr); const ds = U.mod(pr.s - sc + L / 2, L) - L / 2; a = Math.min(a, ds); b = Math.max(b, ds); const d = pr.lat * side; dmin = Math.min(dmin, d); dmax = Math.max(dmax, d); }
+      if (b - a < 8 || dmax - dmin < 5) continue;
+      St.run(E, Object.assign({ name: st.n, s0: sc + a, s1: sc + b, side, dmin, dmax }, plan));
+    }
+    for (const x of EXTRA) {
+      const s0 = f.s(x.s0), s1 = s0 + U.mod(f.s(x.s1) - s0, L); const kk = t.smooth(t.k, 12); const im = t.idxAtS((s0 + s1) / 2); const side = x.side === 'out' ? (kk[im] > 0 ? -1 : 1) : x.side;
+      St.run(E, Object.assign({ name: x.label, s0, s1, side, gapW: x.gap, rowsFix: x.rows }, x));
+    }
+    E.stats.monzaStands = { runs: E.mzRuns.length, blocks: E.mzRuns.reduce((n, r) => n + r.blocks.length, 0) };
+  };
+  // one run -> chords following the lap (straight blocks, max ~40 m on the straights, shorter in the curves)
+  St.run = function (E, R) {
+    const t = E.t, OCC = Env.OCC; const kk = t.smooth(t.k, 10); const side = R.side; const perm = !!PERM[R.style];
+    const run = { R, blocks: [], tiers: [] }; let s = R.s0, k = 0;
+    while (s < R.s1 - 5) {
+      const i0 = t.idxAtS(s); const Rr = 1 / (Math.abs(kk[i0]) + 1e-5); const step = U.clamp(Rr * 0.24, 8, R.style === 'centrale' ? 36 : 40); let sb = Math.min(R.s1, s + step); if (R.s1 - sb < 6) sb = R.s1;
+      let wmax = 0; for (let q = s; q <= sb + 0.01; q += 2) wmax = Math.max(wmax, E.wallCap(t.idxAtS(q), side));
+      const d = R.gapW != null ? wmax + R.gapW : Math.max(R.dmin, wmax + 2.6);
+      const inner = (kk[i0] > 0) === (side > 0); if (inner && d > Rr * 0.8) { s = sb; continue; }
+      const ia = t.idxAtS(s), ib = t.idxAtS(sb);
+      const A = [t.x[ia] + t.nx[ia] * side * d, t.z[ia] + t.nz[ia] * side * d], B = [t.x[ib] + t.nx[ib] * side * d, t.z[ib] + t.nz[ib] * side * d];
+      let ax = B[0] - A[0], az = B[1] - A[1]; const len = Math.hypot(ax, az); if (len < 5) { s = sb; continue; } ax /= len; az /= len;
+      let nx = -az, nz = ax; const im = t.idxAtS((s + sb) / 2); if (nx * t.nx[im] * side + nz * t.nz[im] * side < 0) { nx = -nx; nz = -nz; }
+      const avail = R.rowsFix ? R.rowsFix * 0.82 + 1.6 : (R.dmax != null ? R.dmax - d : 14);
+      const y = t.y[im] - 0.03; const cx = (A[0] + B[0]) / 2, cz = (A[1] + B[1]) / 2;
+      const mk = (rows, off, dy, tier) => {
+        const blk = { cx: cx + nx * off, cz: cz + nz * off, ax, az, nx, nz, len: len - 0.3, rows, roof: false, seat: R.seat, y: y + dy, s: (s + sb) / 2, first: false, last: false, name: R.label || R.name.replace(/^Tribuna /, '').toUpperCase(), mz: { tier, run, k } };
+        if (!perm) { blk.first = k === 0; blk.last = sb >= R.s1 - 0.01; }
+        const depth = 0.4 + rows * 0.82 + 0.6;
+        E.blocks.push(blk); run.blocks.push(blk); E.standPolys.push(E.markRect(blk.cx + nx * depth / 2, blk.cz + nz * depth / 2, ax, az, blk.len / 2 + 0.3, depth / 2 + 0.3, OCC.BUILT));
+        return blk;
+      };
+      if (R.style === 'centrale') {
+        const r1 = U.clamp(Math.floor((avail * 0.45 - 1.6) / 0.82), 7, 12), r2 = U.clamp(Math.floor((avail * 0.55 - 1.6) / 0.82), 8, 15);
+        mk(r1, 0, 0, 0); mk(r2, 0.4 + r1 * 0.82 + 0.9, 1.4 + r1 * 0.42 - 1.4 + 0.3, 1);
+      } else {
+        const rows = U.clamp(Math.floor((Math.min(avail, 40) - 1.6) / 0.82), 6, R.maxRows || 28);
+        mk(rows, 0, 0, 0);
+      }
+      k++; s = sb;
+    }
+    if (run.blocks.length) E.mzRuns.push(run);
+    return run;
+  };
+
+  // ================================================================ dressing
+  St.build = function (E, BK, out) {
+    const { B, S, G, F: Fd, A } = BK; const t = E.t; const rng = U.rng(938);
+    const conc = C(0xd9d3c3), concD = C(0xb7b1a2), cream = C(0xe6dfcc), soffit = C(0x5a5c5e), white = C(0xf2f2ef), steel = C(0x9aa1a8), dark = C(0x2a2d33), navy = C(0x1c2740);
+    // atlas: partner tiles for the roof fascias (5:1), tifosi banners, flags
+    const tiles = []; for (let k = 0; k < 8; k++) tiles.push(A.region('mzTile' + k, 320, 64, (x2, w, h) => Mz.paintAd(x2, w, h, k, 5)));
+    const BANNERS = [['FORZA FERRARI', '#d40000', '#ffd200'], ['TIFOSI', '#d40000', '#ffffff'], ['GRAZIE MONZA', '#111111', '#ff2a2a'], ['FORZA ROSSA', '#ffd200', '#c00000'], ['SCUDERIA CLUB', '#c00000', '#ffffff'], ['ITALIA', '#009246', '#ffffff']];
+    const bannerR = BANNERS.map(([txt, bg, fg], k) => A.region('mzBanner' + k, 256, 48, (x2, w, h) => { Mz.paintText(x2, w, h, txt, { bg, fg, size: 0.66 }); x2.strokeStyle = fg; x2.lineWidth = 3; x2.strokeRect(3, 3, w - 6, h - 6); }));
+    const flagR = St.flagRegions(A);
+    let roofs = 0, flags = 0, banners = 0;
+    const flagAt = (P0, yaw, r) => { St.flag(A, r, P0, yaw); flags++; };
+    for (const run of E.mzRuns) {
+      const R = run.R; const perm = !!PERM[R.style];
+      const bl = run.blocks.filter(b => b.mz.tier === 0), up = run.blocks.filter(b => b.mz.tier === 1);
+      for (const b of run.blocks) {
+        const m = Env.frame(b.cx, b.y, b.cz, b.ax, b.az, b.nx, b.nz); const P = (x, y, z) => Env.xf(m, x, y, z); const hl = b.len / 2;
+        const yTop = 1.4 + b.rows * 0.42, zBack = 0.4 + b.rows * 0.82; b.mz.yTop = yTop; b.mz.zBack = zBack; b.mz.m = m;
+        if (!perm) continue;
+        // concrete back wall (hides the venue's scaffold frames) with pilasters, a plinth down into the ground, end walls at the run ends
+        const yb = -2.0;
+        K.dq(B, P(-hl - 0.1, yb, zBack + 0.14), P(hl + 0.1, yb, zBack + 0.14), P(hl + 0.1, yTop + 1.25, zBack + 0.14), P(-hl - 0.1, yTop + 1.25, zBack + 0.14), conc);
+        for (let a = -hl + 2.5; a < hl - 1; a += 5) B.box(m, 0.5, yTop + 1.25 - yb, 0.4, a, yb, zBack + 0.36, concD);
+        K.dq(B, P(-hl - 0.1, yb, -0.06), P(hl + 0.1, yb, -0.06), P(hl + 0.1, 0.05, -0.06), P(-hl - 0.1, 0.05, -0.06), concD);
+        const firstK = b === run.blocks[0] || (b.mz.tier === 1 && b === up[0]), lastK = b === bl[bl.length - 1] || (b.mz.tier === 1 && b === up[up.length - 1]);
+        for (const [flag, sx] of [[firstK, -hl - 0.1], [lastK, hl + 0.1]]) if (flag) K.dq(B, P(sx, yb, -0.08), P(sx, yb, zBack + 0.14), P(sx, yTop + 1.25, zBack + 0.14), P(sx, 1.6, -0.08), conc);
+        // stair doors / vomitories in the back wall
+        for (let a = -hl + 7; a < hl - 4; a += 14) B.box(m, 1.8, 2.3, 0.06, a, 0, zBack + 0.17, dark);
+      }
+      // wedges between consecutive chords of a curved run (the backs open up on the convex side)
+      for (const list of [bl, up]) for (let k = 0; k + 1 < list.length && perm; k++) {
+        const a = list[k], b = list[k + 1]; const ma = a.mz.m, mb = b.mz.m; const ha = a.len / 2, hb = b.len / 2;
+        const pa = (y, z) => Env.xf(ma, ha + 0.1, y, z), pb = (y, z) => Env.xf(mb, -hb - 0.1, y, z);
+        const yT = a.mz.yTop, zB = a.mz.zBack;
+        K.dq(B, pa(-2, zB + 0.14), pb(-2, zB + 0.14), pb(yT + 1.25, zB + 0.14), pa(yT + 1.25, zB + 0.14), conc);
+        K.dq(B, pa(1.4, 0.4), pb(1.4, 0.4), pb(yT, zB), pa(yT, zB), C(a.seat).multiplyScalar(0.8));
+        K.dq(B, pa(-2, -0.06), pb(-2, -0.06), pb(1.4, -0.06), pa(1.4, -0.06), concD);
+      }
+      // ---- covered stands: thin flat roof on slim front and back columns, dark soffit, white fascia with partner tiles
+      if (R.style === 'covered' || R.style === 'centrale') {
+        const tier = R.style === 'centrale' ? up : bl;
+        for (const b of tier) {
+          const m = b.mz.m, hl = b.len / 2, P = (x, y, z) => Env.xf(m, x, y, z); const yR = b.mz.yTop + (R.style === 'centrale' ? 3.4 : 3.1), zF = R.style === 'centrale' ? -4.5 : -1.4, zR = b.mz.zBack + 0.6;
+          B.box(m, b.len + 0.1, 0.32, zR - zF, 0, yR, (zF + zR) / 2, soffit, { top: R.style === 'centrale' ? cream : C(0xb9bcbf), bottom: true });
+          if (R.style === 'centrale') { K.dq(B, P(-hl - 0.05, yR - 0.35, zF - 0.02), P(hl + 0.05, yR - 0.35, zF - 0.02), P(hl + 0.05, yR + 0.34, zF - 0.02), P(-hl - 0.05, yR + 0.34, zF - 0.02), cream); }
+          else {
+            K.dq(B, P(-hl - 0.05, yR - 0.75, zF - 0.02), P(hl + 0.05, yR - 0.75, zF - 0.02), P(hl + 0.05, yR + 0.34, zF - 0.02), P(-hl - 0.05, yR + 0.34, zF - 0.02), white);
+            // partner tiles along the fascia, 5:1, centred
+            const th = 0.8, tw = th * 5; const n = Math.floor((b.len - 1) / (tw + 1.5)); const x0 = -(n * (tw + 1.5) - 1.5) / 2;
+            for (let k = 0; k < n; k++) { const xa = x0 + k * (tw + 1.5); const r = tiles[Math.floor(rng() * 8)]; A.quad(r, P(xa + tw, yR - 0.72, zF - 0.06), P(xa, yR - 0.72, zF - 0.06), P(xa, yR + 0.08, zF - 0.06), P(xa + tw, yR + 0.08, zF - 0.06)); }
+          }
+          // columns: back row (concrete fins on the centrale, steel elsewhere), slim front posts every ~12 m on the covered stands
+          for (let a = -hl + 1.5; a <= hl - 1.4; a += Math.max(6, b.len / Math.max(1, Math.round(b.len / 9)))) {
+            if (R.style === 'centrale') B.box(m, 0.6, yR + 2.0, 2.2, a, -2, b.mz.zBack + 0.9, cream); else S.box(m, 0.3, yR + 2, 0.3, a, -2, b.mz.zBack + 0.35, steel);
+          }
+          if (R.style === 'covered') for (let a = -hl + 4; a <= hl - 3; a += 12) S.beam(m, [a, 1.4, 0.35], [a, yR, 0.35], 0.14, C(0x3a3f46));
+          Fd.beam(m, [-hl, yR - 0.15, zF + 1.2], [hl, yR - 0.15, zF + 1.2], 0.12, C(0x70757b));
+          for (let a = -hl + 3; a < hl - 1; a += 6) Fd.box(m, 0.5, 0.12, 0.3, a, yR - 0.14, zF + 1.8, C(0xfff4dc));
+          roofs++;
+        }
+      }
+      // ---- the centrale: glazed hospitality band under the upper tier, the drum tower on the roof, the bay below it, the antenna masts
+      if (R.style === 'centrale' && up.length) {
+        for (const b of up) { const m = b.mz.m, hl = b.len / 2, P = (x, y, z) => Env.xf(m, x, y, z); K.dq(G, P(-hl, -0.9, -0.05), P(hl, -0.9, -0.05), P(hl, 1.25, -0.05), P(-hl, 1.25, -0.05), C(0x2c3e50)); }
+        // the run's middle: centre of the two upper chords
+        const bm = up[Math.floor((up.length - 1) / 2)], bn = up[Math.min(up.length - 1, Math.floor(up.length / 2))];
+        const m = bm.mz.m; const xm = bm === bn ? 0 : bm.len / 2; const yR = bm.mz.yTop + 3.4;
+        // drum: cream concrete base ring, glazed band, overhanging disc roof, a small lantern on top
+        K.cyl(B, m, xm, 4.2, yR + 0.3, 1.2, 4.6, 20, cream);
+        K.cyl(G, m, xm, 4.2, yR + 1.5, 2.3, 4.35, 20, C(0x41586b));
+        for (let k = 0; k < 10; k++) { const a = k / 10 * Math.PI * 2; Fd.beam(m, [xm + Math.cos(a) * 4.4, yR + 1.5, 4.2 + Math.sin(a) * 4.4], [xm + Math.cos(a) * 4.4, yR + 3.8, 4.2 + Math.sin(a) * 4.4], 0.1, white); }
+        K.cyl(B, m, xm, 4.2, yR + 3.8, 0.35, 5.4, 20, cream, cream); K.disc(B, m, xm, 4.2, yR + 3.8, 0, 5.4, 20, cream);
+        K.cyl(B, m, xm, 4.2, yR + 4.15, 1.6, 2.4, 12, cream, cream);
+        // the bay: a half cylinder on the front of the roof line down to the hospitality level, with a vertical window slot
+        for (let k = 0; k < 8; k++) { const a0 = Math.PI + k / 8 * Math.PI, a1 = Math.PI + (k + 1) / 8 * Math.PI; const r = 3.0, zc = -1.6;
+          const p = (a, y) => Env.xf(m, xm + Math.cos(a) * r, y, zc + Math.sin(a) * r); K.dq(B, p(a0, -1.0), p(a1, -1.0), p(a1, yR + 0.3), p(a0, yR + 0.3), cream);
+          if (k === 3 || k === 4) K.dq(G, p(a0 + 0.05, 0.6), p(a1 - 0.05, 0.6), p(a1 - 0.05, yR - 0.6), p(a0 + 0.05, yR - 0.6), C(0x2c3e50)); }
+        // four lattice antenna masts with panel heads, two either side of the drum
+        let am = 0; for (const b of up) { const hl = b.len / 2; for (const a of [-hl * 0.55, hl * 0.55]) { if (am >= 4) break; const mm = b.mz.m; const yRb = b.mz.yTop + 3.4; K.lattice(S, mm, a, b.mz.zBack - 1.5, yRb + 0.3, yRb + 13, 1.0, 0.5, C(0xb9bec4), 0.09);
+          for (let k = 0; k < 3; k++) { const ang = k / 3 * Math.PI * 2; S.box(mm, 0.3, 1.6, 0.12, a + Math.cos(ang) * 0.5, yRb + 11.2, b.mz.zBack - 1.5 + Math.sin(ang) * 0.5, C(0xdfe2e4)); } am++; } }
+        out.centrale = { blocks: run.blocks.length };
+      }
+      // ---- flags: tricolours on poles behind the permanent stands, tifosi flags on the temporary ones; banners on the front walls
+      for (const b of bl) {
+        const m = b.mz.m, hl = b.len / 2, P = (x, y, z) => Env.xf(m, x, y, z); const o = Env.xf(m, 0, 0, 0), fw = Env.xf(m, 0, 0, -1); const yaw = Math.atan2(fw[0] - o[0], fw[2] - o[2]);
+        const topY = R.style === 'covered' || R.style === 'centrale' ? b.mz.yTop + 3.6 : b.mz.yTop + 1.3;
+        const nf = perm ? Math.max(1, Math.floor(b.len / 16)) : (rng() < 0.6 ? 1 : 0);
+        for (let k = 0; k < nf; k++) { const a = -hl + (k + 0.5) * b.len / nf; const zP = b.mz.zBack + (perm ? 0.5 : 0.3); S.beam(m, [a, topY - 1, zP], [a, topY + 5.2, zP], 0.09, C(0xd9dde0)); flagAt(P(a, topY + 5.1, zP), yaw + Math.PI / 2, flagR[perm ? (k % 3 === 2 ? 1 : 0) : 1 + Math.floor(rng() * 3)]); }
+        if (rng() < 0.55 && b.len > 10) { const r = bannerR[Math.floor(rng() * bannerR.length)]; const bw = 5.5 + rng() * 2, a0 = (rng() - 0.5) * (b.len - bw - 1); const yy = 1.25, zz = -0.09; A.quad(r, P(a0 + bw / 2, yy - 1.05, zz), P(a0 - bw / 2, yy - 1.05, zz), P(a0 - bw / 2, yy, zz), P(a0 + bw / 2, yy, zz)); banners++; }
+      }
+    }
+    Object.assign(out, { standRoofs: roofs, flags, banners });
+  };
+
+  // ================================================================ flags (static, rippled, in the sign atlas: no extra draw call)
+  St.flagRegions = function (A) {
+    return [
+      A.region('mzFlagIt', 96, 64, (x2, w, h) => Mz.paintTricolore(x2, w, h)),
+      A.region('mzFlagRed', 96, 64, (x2, w, h) => { x2.fillStyle = '#d40000'; x2.fillRect(0, 0, w, h); x2.fillStyle = '#ffd200'; x2.beginPath(); x2.moveTo(w * 0.36, h * 0.2); x2.lineTo(w * 0.64, h * 0.2); x2.lineTo(w * 0.64, h * 0.56); x2.quadraticCurveTo(w * 0.62, h * 0.74, w * 0.5, h * 0.82); x2.quadraticCurveTo(w * 0.38, h * 0.74, w * 0.36, h * 0.56); x2.closePath(); x2.fill(); x2.fillStyle = '#009246'; x2.fillRect(w * 0.36, h * 0.2, w * 0.093, h * 0.06); x2.fillStyle = '#ffffff'; x2.fillRect(w * 0.453, h * 0.2, w * 0.094, h * 0.06); x2.fillStyle = '#ce2b37'; x2.fillRect(w * 0.547, h * 0.2, w * 0.093, h * 0.06); x2.fillStyle = '#111'; x2.fillRect(w * 0.47, h * 0.34, w * 0.06, h * 0.32); }),
+      A.region('mzFlagYel', 96, 64, (x2, w, h) => { x2.fillStyle = '#ffd200'; x2.fillRect(0, 0, w, h); x2.fillStyle = '#d40000'; x2.fillRect(0, 0, w, h * 0.16); x2.fillRect(0, h * 0.84, w, h * 0.16); x2.fillStyle = '#111'; x2.font = 'italic 900 22px Arial'; x2.textAlign = 'center'; x2.textBaseline = 'middle'; x2.fillText('FORZA', w / 2, h / 2); }),
+      A.region('mzFlagChq', 96, 64, (x2, w, h) => { for (let i = 0; i < 6; i++) for (let j = 0; j < 4; j++) { x2.fillStyle = (i + j) % 2 ? '#111' : '#f4f4f4'; x2.fillRect(i * w / 6, j * h / 4, w / 6 + 1, h / 4 + 1); } }),
+    ];
+  };
+  // a 2.4 x 1.6 m flag hanging from (P0) along yaw, rippled (3 bends), both faces
+  St.flag = function (A, r, P0, yaw, wd, ht) {
+    wd = wd || 2.4; ht = ht || 1.6; const cx = Math.cos(yaw), sz = -Math.sin(yaw); const nxp = Math.sin(yaw), nzp = Math.cos(yaw);
+    const N = 4; for (let k = 0; k < N; k++) {
+      const u0 = k / N, u1 = (k + 1) / N; const w0 = Math.sin(u0 * 7.5) * 0.18 * u0, w1 = Math.sin(u1 * 7.5) * 0.18 * u1; const sag0 = u0 * u0 * 0.25, sag1 = u1 * u1 * 0.25;
+      const p = (u, w, sg, y) => [P0[0] + cx * u * wd + nxp * w, P0[1] + y - sg, P0[2] + sz * u * wd + nzp * w];
+      const a = p(u0, w0, sag0, -ht), b = p(u1, w1, sag1, -ht), c = p(u1, w1, sag1, 0), d = p(u0, w0, sag0, 0);
+      A.quad(r, a, b, c, d, u0, u1, 0, 1); A.quad(r, b, a, d, c, u1, u0, 0, 1);
+    }
+  };
+
+  Mz.Stands = St;
+})();

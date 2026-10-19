@@ -653,7 +653,7 @@ window.EI = window.EI || {};
         for (let k = 0; k < 2 * n; k++) { const i = k % n, p = (i + n - 1) % n; a[i] = kerbMask(p) ? a[p] + 1 : 0; }
         for (let k = 2 * n; k >= 0; k--) { const i = k % n, q = (i + 1) % n; b[i] = kerbMask(i) ? b[q] + 1 : 0; }
         for (let i = 0; i < n; i++) ramp[i] = U.clamp(Math.min(a[i], b[i]) * ds / 3.0, 0, 1); }
-      const prof = this.data.street || KS === 'yas' ? [[0, 0.004], [0.1, 0.026], [kw - 0.1, 0.03], [kw, 0.006]] : [[0, 0.004], [0.3, 0.068], [kw - 0.32, 0.074], [kw, 0.0]];
+      const prof = this.data.street || KS === 'yas' || KS === 'monza' ? [[0, 0.004], [0.1, 0.026], [kw - 0.1, 0.03], [kw, 0.006]] : [[0, 0.004], [0.3, 0.068], [kw - 0.32, 0.074], [kw, 0.0]];
       const kerbTone = new Float32Array(n); for (let i = 0; i < n; i++) kerbTone[i] = 0.82 + 0.18 * U.noise2(i * 0.11, 4.2);
       for (const side of [-1, 1]) {
         // stripes advance with the arc length at the kerb's middle so they never stretch on the outside of a corner
@@ -691,6 +691,8 @@ window.EI = window.EI || {};
       // corner's painted run-off in bands of it and a deeper shade
       const RC = this.data.runoffColors;
       if (RC) { const A = lin(RC[0]), B = lin(RC[1]); for (const c of this.data.corners) if (c.t) SCHEMES[c.name] = [c.t % 3 === 0 ? 2 : c.t % 2, A, B]; }
+      // data.runoffSchemes: [[corner name, pattern, colour A, colour B], ...] (hex strings) for circuits with their own painted run-off (Monza)
+      for (const [nm, pt, ca, cb] of this.data.runoffSchemes || []) SCHEMES[nm] = [pt, lin(ca), lin(cb)];
       const v3 = (c) => 'vec3(' + c.r.toFixed(4) + ', ' + c.g.toFixed(4) + ', ' + c.b.toFixed(4) + ')';
       // house-colour run-off (Yas): the whole apron from the kerb to the wall in the colour, with darker concentric stripes
       // following the track edge, a white line at its outer edge; tyre marks and wear stay on top
@@ -721,7 +723,7 @@ window.EI = window.EI || {};
 ` : '';
       const runFrag = RC ? RUNOFF_FRAG.replace('vec3(0.13, 0.235, 0.105)', v3(lin(RC[2] || RC[0]))).replace('    rCol = mix(rCol, rCol * 0.45, rTyre', RC_STRIPES + '    rCol = mix(rCol, rCol * 0.45, rTyre') : RUNOFF_FRAG;
       const aw0 = hw + kw + 2.0;
-      const rMat = shaderMat({ map: T.runoff.map, normalMap: T.runoff.normalMap, normalScale: new THREE.Vector2(0.7, 0.7), roughnessMap: T.runoff.roughnessMap, roughness: 1, metalness: 0, polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 2 }, 'runoff' + (RC ? '-' + RC.join('') + '-sp' : ''), RC ? Object.assign({}, common, { eiBrand: { value: brandStripTexture() } }) : common, RC ? VARY_RUN_RC : VARY_RUN, runFrag, RC ? RUNOFF_ROUGH + '    roughnessFactor = mix(roughnessFactor, 0.9, rTq);\n' : RUNOFF_ROUGH, FLATTEN);
+      const rMat = shaderMat({ map: T.runoff.map, normalMap: T.runoff.normalMap, normalScale: new THREE.Vector2(0.7, 0.7), roughnessMap: T.runoff.roughnessMap, roughness: 1, metalness: 0, polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 2, ...(this.data.runoffTint ? { color: new THREE.Color().fromArray(this.data.runoffTint) } : {}) }, 'runoff' + (RC ? '-' + RC.join('') + '-sp' : ''), RC ? Object.assign({}, common, { eiBrand: { value: brandStripTexture() } }) : common, RC ? VARY_RUN_RC : VARY_RUN, runFrag, RC ? RUNOFF_ROUGH + '    roughnessFactor = mix(roughnessFactor, 0.9, rTq);\n' : RUNOFF_ROUGH, FLATTEN);
       const gMat = shaderMat({ map: T.gravel.map, normalMap: T.gravel.normalMap, normalScale: new THREE.Vector2(1.25, 1.25), roughnessMap: T.gravel.roughnessMap, roughness: 1, metalness: 0, color: new THREE.Color(GT.x, GT.y, GT.z), polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 3 }, 'gravel', common, VARY4, GRAVEL_FRAG, GRAVEL_ROUGH, '', GRAVEL_NORMAL);
       this.surfMats = { runoff: rMat, gravel: gMat };
       for (const side of [-1, 1]) {
@@ -821,14 +823,14 @@ window.EI = window.EI || {};
     // sausage kerbs: raised yellow humps 1.5 m behind the apex kerb on the inside of the slow / medium corners
     buildSausages(g) {
       const hw = this.halfWidth, kw = this.kerbWidth, n = this.n; const kk = this.smooth(this.k, 6);
-      const corners = ['Abbey', 'Village', 'The Loop', 'Brooklands', 'Luffield', 'Copse', 'Stowe', 'Vale', 'Club'];
+      const corners = this.data.sausageCorners || ['Abbey', 'Village', 'The Loop', 'Brooklands', 'Luffield', 'Copse', 'Stowe', 'Vale', 'Club'];
       const prof = [[-0.3, 0], [-0.26, 0.07], [-0.17, 0.135], [-0.06, 0.16], [0.06, 0.16], [0.17, 0.135], [0.26, 0.07], [0.3, 0]];
       const pos = [], col = [], idx = []; const yel = new THREE.Color(0xf2b705).convertSRGBToLinear(), dirt = new THREE.Color(0x7a6a3a).convertSRGBToLinear(), blk = new THREE.Color(0x1a1a1a);
       const seen = {}; this.sausages = [];
       this.data.corners.forEach((c, ci) => {
         if (corners.indexOf(c.name) < 0) return;
         const next = this.data.corners[ci + 1]; const sEnd = next ? Math.min(next.s, c.s + 200) : c.s + 200;
-        let best = -1, bk = 0; for (let s = c.s - 30; s < sEnd; s += this.ds) { const i = this.idxAtS(s); if (Math.abs(kk[i]) > bk) { bk = Math.abs(kk[i]); best = i; } }
+        let best = -1, bk = 0; const prv = this.data.corners[ci - 1]; for (let s = c.s - (prv && prv.name === c.name ? 4 : 30); s < sEnd; s += this.ds) { const i = this.idxAtS(s); if (Math.abs(kk[i]) > bk) { bk = Math.abs(kk[i]); best = i; } }
         if (best < 0 || bk < 1 / 260 || seen[best]) return; seen[best] = true;
         const side = kk[best] > 0 ? 1 : -1;                        // centre of curvature side = inside
         const wall = side < 0 ? this.wallL[best] : this.wallR[best]; const R = 1 / bk; const lat0 = hw + kw + 1.5 + 0.3;
@@ -1042,10 +1044,11 @@ window.EI = window.EI || {};
       const fenceTex = (function () { const c = document.createElement('canvas'); c.width = 64; c.height = 64; const ctx = c.getContext('2d'); ctx.clearRect(0, 0, 64, 64); ctx.strokeStyle = 'rgba(30,30,30,0.85)'; ctx.lineWidth = 1.2;
         for (let i = 0; i <= 64; i += 6) { ctx.beginPath(); ctx.moveTo(i, 0); ctx.lineTo(i, 64); ctx.stroke(); ctx.beginPath(); ctx.moveTo(0, i); ctx.lineTo(64, i); ctx.stroke(); } ctx.fillStyle = '#555'; ctx.fillRect(0, 0, 3, 64);
         const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; return t; })();
-      const fenceMat = new THREE.MeshBasicMaterial({ map: fenceTex, transparent: true, side: THREE.DoubleSide, depthWrite: false, opacity: 0.7 });
+      const FD = this.data.fence || {};   // data.fence { h, op }: catch-fence height and opacity (Monza: 4.5 m)
+      const fenceMat = new THREE.MeshBasicMaterial({ map: fenceTex, transparent: true, side: THREE.DoubleSide, depthWrite: false, opacity: FD.op || 0.7 });
       for (const side of [-1, 1]) {
         const wall = side < 0 ? this.wallL : this.wallR;
-        const TD = this.data.tunnel; const fg = this.ribbon(i => side * (wall[i] + 0.8), i => side * (wall[i] + 0.8), { ya: () => 0, yb: () => 3.4, vScale: 3, mask: TD ? (i => this.s[i] < TD.s0 - 6 || this.s[i] > TD.s1 + 6) : undefined });
+        const TD = this.data.tunnel; const fg = this.ribbon(i => side * (wall[i] + 0.8), i => side * (wall[i] + 0.8), { ya: () => 0, yb: () => FD.h || 3.4, vScale: 3, mask: TD ? (i => this.s[i] < TD.s0 - 6 || this.s[i] > TD.s1 + 6) : undefined });
         const fm = new THREE.Mesh(fg, fenceMat); fm.name = 'fence'; g.add(fm);
       }
     }

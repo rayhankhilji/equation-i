@@ -101,7 +101,7 @@
       k.at(-2.0, 0.85, () => pecten(g, 0.1)); wordW(L, 'V-Power', -2.23, 0.85, 0.27, 0.07, W, { w: 700, it: 1 });
       wordW(L, 'PERONI', -2.17, 0.72, 0.26, 0.06, W, { w: 700, ff: 'Georgia, "Times New Roman", serif', ls: 0.06 }); wordW(L, 'NASTRO AZZURRO 0.0%', -2.17, 0.66, 0.26, 0.03, W, { w: 700 });
       L.codeText(1.27, 0.48, 0.036, W); k.at(1.09, 0.48, () => FLAG(g, natOf(L.code), 0.03));
-      fitW(L, 'dxc', 0.55, 0.885, 0.3, 'white', null, 0.05);   // DXC big and white on the halo side (2026 photos)
+      L.haloHandle('DXC', W, -1, { w: 900, ls: 0.14 }); L.haloHandle('DXC', W, 1, { w: 900, ls: 0.14 });   // DXC on the halo sides
     },
     endplate(L) {   // front-wing endplates (black): UniCredit + tricolore
       const { k, g } = L;
@@ -111,10 +111,6 @@
       const { t, g } = L;
       // white spine over the airbox and the engine cover, pinstripe edges
       t.poly([[0.6, -0.3], [0.6, 0.3], [0.0, 0.36], [-0.6, 0.3], [-0.95, 0.0], [-0.6, -0.3], [0.0, -0.36]], WH);
-      // keep the halo's top bar black where the white shoulders run under it (its arms, rear mount -> front pillar)
-      g.save(); g.strokeStyle = BK; g.lineWidth = 0.085 * MM; g.lineJoin = g.lineCap = 'round';
-      for (const s of [-1, 1]) { g.beginPath(); [[-0.04, 0.32], [0.2, 0.322], [0.34, 0.297], [0.45, 0.247], [0.54, 0.172], [0.61, 0.092], [0.67, 0.02], [0.7, 0.0]].forEach(([x, z], i) => (i ? g.lineTo(s * z * MM, -x * MM) : g.moveTo(s * z * MM, -x * MM))); g.stroke(); }
-      g.restore();
       t.at(2.62, 0, () => pecten(g, 0.09), Math.PI);
       L.number(2.25, 0, 0.12, W);
       L.partnerTop('ibm', 1.97, 0, 0.12, 0.04, 'white', Math.PI); L.partnerTop('whoop', 1.6, 0, 0.14, 0.03, 'white', Math.PI); L.partnerTop('unicredit', 1.75, 0, 0.17, 0.035, 'white', Math.PI);
@@ -123,7 +119,7 @@
       for (const z of [-0.3, 0.3]) L.partnerTop('hp', -2.06, z, 0.15, 0.15, 'color');
       L.partnerTop('ibm', -2.26, 0, 0.3, 0.07, 'white');
       for (const z of [-0.62, 0.62]) L.partnerTop('hp', 2.72, z, 0.12, 0.12, 'color');
-      for (const s of [-1, 1]) t.at(0.26, s * 0.318, () => EI.Ads.drawPartner(g, 'dxc', 0, 0, 0.24 * MM, 0.045 * MM, { tone: 'white' }), -s * Math.PI / 2);   // DXC along both halo arms L.haloFront('dxc', 'white');
+      L.haloTop('DXC', W, -1, { w: 900, ls: 0.12 }, 0.06); L.haloTop('DXC', W, 1, { w: 900, ls: 0.12 }, 0.06);   // DXC big on both halo arms (2026 photos) L.haloFront('dxc', 'white');
     },
   });
 })();

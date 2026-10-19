@@ -68,10 +68,10 @@
       k.stroke(SW, 0.04, TEAL);
       wordW(L, 'PETRONAS', -0.3, 0.335, 0.76, 0.1, W, { w: 900, ls: 0.02 });
       // stars over the engine cover, denser and brighter towards the airbox
-      for (let i = 0; i < 60; i++) { const x = -0.15 - rnd(i) * 1.15, y = 0.6 + rnd(i + 99) * 0.42; const a = 1.0 - (-0.15 - x) * 0.55; if (a < 0.3 || (x > -0.5 && y > 0.84) || (x > -0.75 && y < 0.78 && y > 0.66)) continue; k.at(x, y, () => { g.globalAlpha = a; star3(g, 0.034 + rnd(i + 7) * 0.012, SIL); g.globalAlpha = 1; }); }
+      for (let i = 0; i < 60; i++) { const x = -0.15 - rnd(i) * 1.15, y = 0.6 + rnd(i + 99) * 0.42; const a = 1.0 - (-0.15 - x) * 0.55; if (a < 0.3 || (x > -0.7 && y > 0.82) || (x > -0.75 && y < 0.78 && y > 0.66)) continue; k.at(x, y, () => { g.globalAlpha = a; star3(g, 0.034 + rnd(i + 7) * 0.012, SIL); g.globalAlpha = 1; }); }
       // airbox / engine cover / cockpit partners
       k.at(-0.17, 0.93, () => msft(g, 0.42, 0.09));
-      fitW(L, 'solera', -0.32, 0.835, 0.36, 'white', null, 0.05);
+      fitW(L, 'solera', -0.48, 0.858, 0.32, 'white', null, 0.05);
       fitW(L, 'teamviewer', -0.45, 0.705, 0.48, 'white');
       fitW(L, 'amd', 0.25, 0.78, 0.18, 'white');
       fitW(L, 'nubank', 0.55, 0.79, 0.11, 'white');

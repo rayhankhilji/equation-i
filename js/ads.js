@@ -429,7 +429,7 @@
   // The layout is done in the board's physical proportions (vw = h * aspect) and squeezed into the pixel box, so on the mesh, whose
   // face is `aspect` times as wide as it is tall, nothing is stretched. o.dark: Yas's black boards (white logos)
   Ads.paintTile = function (ctx, k, x, y, w, h, aspect, o) {
-    const vw = h * (aspect || 5); const V = venue(); const slot = V.tiles[((k % 8) + 8) % 8];
+    const vw = h * (aspect || 5); const V = venue(); const slot = V.tiles[((k % 8) + 8) % 8]; if (!o && V.darkBoards) o = { dark: true };
     ctx.save(); ctx.beginPath(); ctx.rect(x, y, w, h); ctx.clip(); ctx.translate(x, y); ctx.scale(w / vw, 1); slotPainter(slot, 'tile', o)(ctx, vw, h); ctx.restore();
   };
   // a Lumi / Intake design by its own index (0-3 Lumi, 4-7 Intake), for surfaces that carry the race partners only
@@ -457,7 +457,8 @@
       runoff: ['aramco', 'L', 'pirelli', 'I'], bridge: { lumi: 'L', intake: 'etihadairways', lumi2: 'aramco', intake2: 'I' } },
   };
   // Monza: Pirelli is the Italian GP's title partner ("Formula 1 Pirelli Gran Premio d'Italia") and its boards/bridges dominate the venue
-  VENUES.monza = { title: 'pirelli', event: "Gran Premio d'Italia", dark: false,
+  // Monza's trackside partner boards are dark (black / dark green, SPEC refs t1_prima_variante_stand_crowd, wall_boards_runoff)
+  VENUES.monza = { title: 'pirelli', event: "Gran Premio d'Italia", dark: false, darkBoards: true, darkBg: '#0f2219',
     tiles: ['pirelli', 'aramco', 'L0', 'heineken', 'dhl', 'msccruises', 'I4', 'qatarairways'],
     barrier: ['pirelli', 'L', 'aramco', 'dhl', 'I'], billboard: ['pirelli', 'L2', 'heineken', 'I3'],
     runoff: ['pirelli', 'L', 'aramco', 'I'], bridge: { lumi: 'L', intake: 'pirelli', lumi2: 'aramco', intake2: 'I' } };
@@ -468,7 +469,7 @@
   // Real LED / vinyl boards are flat: the brand ground and the logo, repeated on the very long formats. o.dark: Yas's black boards
   function partnerBoard(ctx, id, w, h, o) {
     o = o || {}; const P = PARTNERS[id] || {}; const b = P.board || { bg: '#ffffff', tone: 'color' };
-    const dark = o.dark && id !== 'f1'; const bg = dark ? '#0b0c0f' : (o.bg || b.bg); const tone = dark ? (b.tone === 'whiteKeepRed' ? b.tone : b.tone === 'color' && isLightRaster(id) ? 'color' : 'white') : (o.tone || b.tone);
+    const dark = o.dark && id !== 'f1'; const bg = dark ? (venue().darkBg || '#0b0c0f') : (o.bg || b.bg); const tone = dark ? (b.tone === 'whiteKeepRed' ? b.tone : b.tone === 'color' && isLightRaster(id) ? 'color' : 'white') : (o.tone || b.tone);
     ctx.fillStyle = bg; ctx.fillRect(0, 0, w, h);
     // compact marks (TAG Heuer's shield, Gulf's disc ...) on long boards: larger, and repeated like the real boards; safe margins all round
     const a = partnerRaster(id, 'color').a, asp = w / h, compact = a < 2.2 && asp > 2.6;
@@ -690,8 +691,8 @@
   ];
   // the five wall panels of the venue (VENUES[track].barrier): painters (ctx, w, h) laid out in the panel's physical 5.12 x 0.7 frame.
   // Ads.barrierArt({ dark }) for Yas's black boards with white logos
-  Ads.barrierArt = function (o) { o = o || {}; const V = venue(); const dark = o.dark != null ? o.dark : V.dark; return V.barrier.map((s) => (s === 'L' || s === 'I') ? (dark ? darkBrand(s) : slotPainter(s, 'barrier')) : (ctx, w, h) => partnerBoard(ctx, s, w, h, { dark, lh: 0.62, repeat: 1 })); };
-  function darkBrand(s) { return (ctx, w, h) => { ctx.fillStyle = '#0b0c0f'; ctx.fillRect(0, 0, w, h); Ads.lockupCentered(ctx, s === 'L' ? 'lumi' : 'intake', w / 2, h / 2, h * 0.6, w * 0.8, '#ffffff', s === 'L'); }; }
+  Ads.barrierArt = function (o) { o = o || {}; const V = venue(); const dark = o.dark != null ? o.dark : (V.dark || V.darkBoards); return V.barrier.map((s) => (s === 'L' || s === 'I') ? (dark ? darkBrand(s) : slotPainter(s, 'barrier')) : (ctx, w, h) => partnerBoard(ctx, s, w, h, { dark, lh: 0.62, repeat: 1 })); };
+  function darkBrand(s) { return (ctx, w, h) => { ctx.fillStyle = venue().darkBg || '#0b0c0f'; ctx.fillRect(0, 0, w, h); Ads.lockupCentered(ctx, s === 'L' ? 'lumi' : 'intake', w / 2, h / 2, h * 0.6, w * 0.8, '#ffffff', s === 'L'); }; }
   Object.defineProperty(Ads, 'BARRIER', { get() { return Ads.barrierArt(); }, enumerable: true });
 
   // ---------------------------------------------------------------- car livery decals (carglb.js / teams.js fit these onto the body)
