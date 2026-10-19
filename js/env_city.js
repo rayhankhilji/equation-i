@@ -980,7 +980,7 @@ window.EI = window.EI || {};
     if (D.lv) return D.lv; const sc = E.sc, S = D.S;
     let gMin = Infinity, gMax = -Infinity; for (const q of ring) { const g = sc.height(q[0], q[1]); if (g < gMin) gMin = g; if (g > gMax) gMax = g; }
     const gc = sc.height(cx, cz); gMin = Math.min(gMin, gc); gMax = Math.max(gMax, gc);
-    const yG = D.yG != null ? D.yG : gMin, yb = Math.min(yG, gMin) - 2.5 - (gMax - gMin) * 0.3, yR = yG + D.H;
+    const yG = D.yG != null ? D.yG : gMin, yb = Math.min(yG, gMin) - 2.5 - Math.min((gMax - gMin) * 0.3, 4), yR = yG + D.H;   // (the slack under the lowest corner is capped: a steep or odd ring used to drop the plinth by tens of metres = the Portier 'pillars'; faces over a real drop get their own foundation wall, faceFoundation)
     const ob = obb(ring) || { cx, cz, ux: 1, uz: 0, hl: 5, hw: 5 }; ob.cx = ob.cx != null ? ob.cx : cx;
     let sbRing = null; if (D.sb) { sbRing = offsetRing(ring, D.sb.d); if (sbRing && Math.abs(area2(sbRing)) / 2 < 70) sbRing = null; }
     const nsb = sbRing ? D.sb.n : 0; const yTop = yR - nsb * S.fh;
@@ -1019,6 +1019,13 @@ window.EI = window.EI || {};
       default: return { gnd: cell('lobby', 1), single: cell('of_flr'), flr: () => cell('of_flr') };
     }
   }
+  // the lowest level a face's foundation must reach: the ground just outside it (the terrain grid, not the verge ribbon which keeps the road's
+  // level near the circuit); only faces within 45 m of a barrier can float over a drop, elsewhere the plinth slack is enough
+  function faceFoundation(E, s, yG, yb) {
+    const mx = (s.P0[0] + s.P1[0]) / 2, mz = (s.P0[1] + s.P1[1]) / 2; if (E.fsAt(mx, mz) > 45) return yb;
+    let g = Infinity; for (const o of [1.5, 4]) { const y = E.sc.gridHeight(mx + s.n[0] * o, mz + s.n[2] * o); if (y < g) g = y; }
+    return g < yb + 0.8 ? Math.max(Math.min(yb, g - 0.8), yG - 36) : yb;
+  }
   function buildOne(E, G, ring, D, mode, cxz) {
     const S = D.S; const [cx, cz] = cxz; const L = levels(E, ring, D, cx, cz);
     const { yG, yb, yR, yTop, ob, parH } = L; const tint = D.tint; const proxy = mode === 'proxy', near = mode === 'near';
@@ -1047,8 +1054,12 @@ window.EI = window.EI || {};
     for (const s of seg) {
       const fc = faceCells(D, s, mode, rvN);
       if (proxy && L.far) { wq(s, yb, yTop + parH, (yb - yG - S.gh) / S.fh, (yTop + parH - yG - S.gh) / S.fh, fc.single); continue; }
-      if (!proxy) wq(s, yb, yG, (yb - yG) / 2.4, 0, cell('plinth'), C(0xe8e2d8));
-      const g0 = proxy ? yb : yG; wq(s, g0, yG + S.gh, 1 - (yG + S.gh - g0) / S.gh, 1, fc.gnd);
+      // on a slope the walls stand on a foundation: where the ground just outside the face falls well below the base (a building on a
+      // cliff edge), a rough limestone retaining wall carries it down to the ground instead of the facade being repeated down the slope
+      const yLow = faceFoundation(E, s, yG, yb);
+      if (yLow < yb - 0.01) { const sw = Math.max(1, Math.round(s.L / 2.6)); G.quad([s.P1[0], yLow, s.P1[1]], [s.P0[0], yLow, s.P0[1]], [s.P0[0], yG, s.P0[1]], [s.P1[0], yG, s.P1[1]], s.n, [0, 0, sw, 0, sw, (yG - yLow) / 2.6, 0, (yG - yLow) / 2.6], C(0xe2d7c4), cell('stone')); if (!proxy) wq(s, yb, yG, (yb - yG) / 2.4, 0, cell('plinth'), C(0xe8e2d8)); }
+      else if (!proxy) wq(s, yb, yG, (yb - yG) / 2.4, 0, cell('plinth'), C(0xe8e2d8));
+      const g0 = proxy && yLow >= yb - 0.01 ? yb : yG; wq(s, g0, yG + S.gh, 1 - (yG + S.gh - g0) / S.gh, 1, fc.gnd);
       if (nfMain > 0) {
         if (near || (!proxy && S.perFloor)) { for (let k = 0; k < nfMain; k++) { const y0 = yG + S.gh + k * S.fh; wq(s, y0, y0 + S.fh, k, k + 1, fc.flr(k)); } }
         else wq(s, yG + S.gh, yTop, 0, nfMain, fc.single);
