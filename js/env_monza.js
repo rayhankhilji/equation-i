@@ -246,7 +246,7 @@ window.EI = window.EI || {};
   function buildPit(E, BK, out) {
     const F = Mz.pitFrame(E); if (!F) return; const t = E.t; const { B, S, G, F: Fd, A } = BK;
     const m = F.m, X = F.X, zG = F.zG, zGB = F.zGB; const P = (x, y, z) => Env.xf(m, X(x), y, z);
-    const white = C(0xf0f1ef), offW = C(0xdcdedd), grey = C(0xa9adb1), dark = C(0x2a2e34), shutter = C(0x8f969d), red = C(0xc8102e), mirror = C(0x9fb3c4), mirrorD = C(0x6f8496), glassD = C(0x1e2a36), steel = C(0xd9dde0), conc = C(0xc9c8c2);
+    const white = C(0xf0f1ef), offW = C(0xdcdedd), grey = C(0xa9adb1), dark = C(0x2a2e34), shutter = C(0x8f969d), red = C(0xc8102e), mirror = C(0x5d7487), mirrorD = C(0x485d70), glassD = C(0x1e2a36), steel = C(0xd9dde0), conc = C(0xc9c8c2);
     const half = F.half, x0 = F.x0, x1 = F.x1; const dq = (Bd, a, b, c, d, col) => K.dq(Bd, a, b, c, d, col);
     // ---- closed garages beyond the team boxes, same rhythm as pit.js (shutter, header, recessed glass band, slab with a red edge)
     for (const [a0, a1] of [[x0, -half], [half, x1]]) {
@@ -264,12 +264,12 @@ window.EI = window.EI || {};
       }
     }
     // ---- the upper floor: angled mirror glass (two rows of panels, leaning out 1.6 m at the top), white mullions every 3 m
-    const yb = 10.15, yt = 15.2, lean = 1.6, zf = zG - 0.6; const fz = (y) => zf - lean * (y - yb) / (yt - yb);
+    const yb = 10.15, yt = 13.9, lean = 1.2, zf = zG - 0.6; const fz = (y) => zf - lean * (y - yb) / (yt - yb);
     for (let x = x0; x < x1 - 0.01; x += 6) {
       const xb = Math.min(x1, x + 6);
-      for (const [ya, yb2, col] of [[yb + 0.3, 12.7, mirror], [12.75, yt - 0.25, mirrorD]]) G.quad(P(x, ya, fz(ya)), P(xb, ya, fz(ya)), P(xb, yb2, fz(yb2)), P(x, yb2, fz(yb2)), col), G.quad(P(x, yb2, fz(yb2)), P(xb, yb2, fz(yb2)), P(xb, ya, fz(ya)), P(x, ya, fz(ya)), col);
-      for (let xm = x; xm < xb - 0.01; xm += 3) Fd.beam(m, [X(xm), yb + 0.2, fz(yb + 0.2) - 0.05], [X(xm), yt, fz(yt) - 0.05], 0.1, white);
-      Fd.beam(m, [X(x), 12.72, fz(12.72) - 0.05], [X(xb), 12.72, fz(12.72) - 0.05], 0.12, white);
+      for (const [ya, yb2, col] of [[yb + 0.3, (yb + yt) / 2, mirror], [(yb + yt) / 2 + 0.05, yt - 0.25, mirrorD]]) G.quad(P(x, ya, fz(ya)), P(xb, ya, fz(ya)), P(xb, yb2, fz(yb2)), P(x, yb2, fz(yb2)), col), G.quad(P(x, yb2, fz(yb2)), P(xb, yb2, fz(yb2)), P(xb, ya, fz(ya)), P(x, ya, fz(ya)), col);
+      for (let xm = x; xm < xb - 0.01; xm += 2.5) Fd.beam(m, [X(xm), yb + 0.2, fz(yb + 0.2) - 0.05], [X(xm), yt, fz(yt) - 0.05], 0.1, C(0xc4c9cd));
+      Fd.beam(m, [X(x), (yb + yt) / 2 + 0.02, fz((yb + yt) / 2) - 0.05], [X(xb), (yb + yt) / 2 + 0.02, fz((yb + yt) / 2) - 0.05], 0.12, C(0xc4c9cd));
     }
     // sill + head bands, the back wall and the roof slab of the upper floor
     dq(B, P(x0, yb, zf + 0.3), P(x1, yb, zf + 0.3), P(x1, yb + 0.3, fz(yb + 0.3)), P(x0, yb + 0.3, fz(yb + 0.3)), white);
@@ -287,7 +287,7 @@ window.EI = window.EI || {};
     // Paddock Club terrace: glass balustrade, white tensile tent roofs (peaked modules on a frame) over the back two thirds of the roof
     Fd.beam(m, [X(x0), yt + 1.6, fz(yt) + 0.4], [X(x1), yt + 1.6, fz(yt) + 0.4], 0.07, white);
     dq(G, P(x0, yt + 0.55, fz(yt) + 0.45), P(x1, yt + 0.55, fz(yt) + 0.45), P(x1, yt + 1.6, fz(yt) + 0.45), P(x0, yt + 1.6, fz(yt) + 0.45), C(0x9ec0c8));
-    const tz0 = fz(yt) + 3.5, tz1 = zGB + 5.5, tyE = yt + 3.4, tyP = yt + 6.2, mw = 10;
+    const tz0 = fz(yt) + 3.5, tz1 = zGB + 5.5, tyE = yt + 3.0, tyP = yt + 5.0, mw = 10;
     for (let x = x0 + 2; x < x1 - mw + 0.1; x += mw) {
       const xa = x, xb = x + mw, xm = x + mw / 2, zm = (tz0 + tz1) / 2; const mem = C(0xf6f7f6), memU = C(0xd7dadb);
       const pk = P(xm, tyP, zm), c4 = [P(xa, tyE, tz0), P(xb, tyE, tz0), P(xb, tyE, tz1), P(xa, tyE, tz1)];
@@ -355,8 +355,10 @@ window.EI = window.EI || {};
   // front of the pit building, white floor bands and mullions, an open white frame crown
   function buildTower(E, BK, F) {
     const { B, G, S, F: Fd, A } = BK; const m = F.m, X = F.X; const P = (x, y, z) => Env.xf(m, X(x), y, z);
-    const sd = F.xPod < (F.x0 + F.x1) / 2 ? 1 : -1; const w = 13, d = 11; const xc = U.clamp(F.xPod + sd * (10 + w / 2 + 4), F.x0 + w / 2, F.x1 - w / 2), zc = F.zG + d / 2 - 1.5;
-    const y0 = 15.75, nF = 5, fh = 3.7, yTop = y0 + nF * fh; const glass = C(0x7d98ac), glassD = C(0x58738a), white = C(0xf3f4f2);
+    // at the OSM 'Hospitality Building' (podium_tower_trackinvasion: the tall slim blue-green glass tower right of the straight near the line)
+    const t = E.t, f = Mz.fit(t), i0 = F.i0; const hb = EI.MONZA_OSM.buildings['Hospitality Building']; let hx = 0; for (const p of hb) { const q = f.W(p); hx += ((q[0] - t.x[i0]) * t.tx[i0] + (q[1] - t.z[i0]) * t.tz[i0]) / hb.length; }
+    const w = 14, d = 12; const xc = U.clamp(hx, F.x0 + w / 2, F.x1 - w / 2), zc = F.zGB + 1.2 + d / 2;
+    const y0 = 0, nF = 8, fh = 3.8, yTop = y0 + nF * fh; const glass = C(0x6f97a0), glassD = C(0x4f7781), white = C(0xf3f4f2);
     for (let k = 0; k < nF; k++) { const y = y0 + k * fh; G.box(m, w, fh - 0.35, d, X(xc), y, zc, k % 2 ? glass : glassD); B.box(m, w + 0.3, 0.35, d + 0.3, X(xc), y + fh - 0.35, zc, white); }
     for (let x = -w / 2; x <= w / 2 + 0.01; x += 1.6) for (const z of [zc - d / 2 - 0.05, zc + d / 2 + 0.05]) Fd.box(m, 0.09, nF * fh, 0.09, X(xc + x), y0, z, white);
     for (let z = -d / 2; z <= d / 2 + 0.01; z += 1.6) for (const x of [xc - w / 2 - 0.05, xc + w / 2 + 0.05]) Fd.box(m, 0.09, nF * fh, 0.09, X(x), y0, zc + z, white);

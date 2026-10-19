@@ -520,8 +520,9 @@ window.EI = window.EI || {};
       cs.fov += ((fov0 + Math.min(v, 95) * 0.03 + (car.drsOpen ? 1 : 0)) - cs.fov) * (snap ? 1 : Math.min(1, dt * 3)); cam.fov = viewFov(cam, cs.fov, 6); cam.updateProjectionMatrix();
       cam.near = 0.04; cam.updateProjectionMatrix();
       // split screen: one low-res mirror render per frame at most, taking turns between the players
-      // Low: a lite mirror (112 px target, scenery group hidden: road, barriers and the cars behind), one side every 2nd frame
-      const mir = car.screen && car.screen.userData.mirrors; if (mir && !EI.debug.noMirrors && (cameras.length < 2 || (frameNo & 1) === k)) { if (EI.Perf) EI.Perf.push('mirror'); mir.update(renderer, scene, cameras.length > 1 ? 2 : quality === 'high' ? 1 : 2, quality === 'low' ? mirrorLite() : null); if (EI.Perf) EI.Perf.pop(); }
+      // Low: a lite mirror (112 px target, scenery group hidden: road, barriers and the 8 nearest cars behind), one side every 2nd
+      // frame (every 4th below 15 m/s: on the grid and in the pit lane the view behind hardly changes)
+      const mir = car.screen && car.screen.userData.mirrors; if (mir && !EI.debug.noMirrors && (cameras.length < 2 || (frameNo & 1) === k)) { if (EI.Perf) EI.Perf.push('mirror'); mir.update(renderer, scene, cameras.length > 1 ? 2 : quality === 'high' ? 1 : quality === 'low' && v < 15 ? 4 : 2, quality === 'low' ? mirrorLite() : null); if (EI.Perf) EI.Perf.pop(); }
       return;
     }
     if (mode === 'tcam') {
@@ -535,7 +536,7 @@ window.EI = window.EI || {};
       _look.set(_tgt.x + fx * 30 + lx * jx * 0.15, _tgt.y + pitch * 30, _tgt.z + fz * 30 + lz * jx * 0.15); cam.up.set(0, 1, 0); cam.lookAt(_look);
       cs.roll += (U.clamp(-car.aLat * 0.0005, -0.012, 0.012) - cs.roll) * (snap ? 1 : 1 - Math.exp(-dt * 4)); cam.rotateZ(cs.roll);
       cs.fov += ((63 + Math.min(v, 95) * 0.035) - cs.fov) * (snap ? 1 : Math.min(1, dt * 3)); cam.fov = viewFov(cam, cs.fov, 6); cam.near = 0.04; cam.updateProjectionMatrix();
-      const mir = car.screen && car.screen.userData.mirrors; if (mir && !EI.debug.noMirrors && (cameras.length < 2 || (frameNo & 1) === k)) { if (EI.Perf) EI.Perf.push('mirror'); mir.update(renderer, scene, cameras.length > 1 ? 2 : quality === 'high' ? 1 : 2, quality === 'low' ? mirrorLite() : null); if (EI.Perf) EI.Perf.pop(); }
+      const mir = car.screen && car.screen.userData.mirrors; if (mir && !EI.debug.noMirrors && (cameras.length < 2 || (frameNo & 1) === k)) { if (EI.Perf) EI.Perf.push('mirror'); mir.update(renderer, scene, cameras.length > 1 ? 2 : quality === 'high' ? 1 : quality === 'low' && v < 15 ? 4 : 2, quality === 'low' ? mirrorLite() : null); if (EI.Perf) EI.Perf.pop(); }
       return;
     }
     if (cam.near !== 0.25) { cam.near = 0.25; cam.updateProjectionMatrix(); }

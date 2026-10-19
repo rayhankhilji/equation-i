@@ -879,7 +879,7 @@ window.EI = window.EI || {};
       sides.push({ rt, plane, cam, ar: w / h });
     }
     let frameN = 0, sideN = 0, hideList = null, carList = null, scanN = 0; const _p = new THREE.Vector3(), _d = new THREE.Vector3(), _u = new THREE.Vector3();
-    const hidden = [], lodSave = [];
+    const hidden = [], lodSave = [], LITE_CARS = 8, near8 = new Float64Array(LITE_CARS);
     const scan = (scene) => {
       hideList = []; carList = [];
       scene.traverse((o) => {
@@ -908,6 +908,9 @@ window.EI = window.EI || {};
         const R2 = lite ? 70 * 70 : 150 * 150;   // lite: the cars that matter (the next ~2 s behind) for (const o of carList) if (o.visible && o.position.distanceToSquared(cam.position) > R2) { o.visible = false; hidden.push(o); }
         // lite: the other cars draw from their far LOD (1 draw call, ~6k triangles each) - plenty for a 112 px mirror
         lodSave.length = 0;
+        // lite: at most the LITE_CARS nearest cars (a full grid behind would cost a draw call per car)
+        if (lite) { let n = 0; for (const o of carList) if (o.visible) { const q = o.position.distanceToSquared(cam.position); let i = Math.min(n, LITE_CARS - 1); if (n < LITE_CARS || q < near8[i]) { while (i > 0 && near8[i - 1] > q) { near8[i] = near8[i - 1]; i--; } near8[i] = q; if (n < LITE_CARS) n++; } }
+          if (n >= LITE_CARS) for (const o of carList) if (o.visible && o.position.distanceToSquared(cam.position) > near8[LITE_CARS - 1]) { o.visible = false; hidden.push(o); } }
         if (lite) for (const o of carList) { if (!o.visible) continue; let far = null; for (const c of o.children) if (c.name === 'car_far') far = c; if (!far) continue; for (const c of o.children) { lodSave.push(c, c.visible); c.visible = c === far; } }
         for (const s of sides) s.plane.visible = false;
         // the car's own bodywork renders from the lo LOD in the mirrors (~35k instead of ~130k triangles)
