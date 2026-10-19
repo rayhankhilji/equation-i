@@ -41,6 +41,10 @@
     const outline = () => { g.beginPath(); g.moveTo(-w * 0.17, h * 0.5); g.lineTo(-w * 0.2, h * 0.36); g.bezierCurveTo(-w * 0.5, h * 0.3, -w * 0.52, h * 0.05, -w * 0.47, -h * 0.08);
       g.bezierCurveTo(-w * 0.42, -h * 0.38, -w * 0.2, -h * 0.5, 0, -h * 0.5); g.bezierCurveTo(w * 0.2, -h * 0.5, w * 0.42, -h * 0.38, w * 0.47, -h * 0.08);
       g.bezierCurveTo(w * 0.52, h * 0.05, w * 0.5, h * 0.3, w * 0.2, h * 0.36); g.lineTo(w * 0.17, h * 0.5); g.closePath(); };
+    if (EI.Ads.hasPartner('shellpecten')) {   // the real pecten artwork in Shell red over a yellow ground (the art is single colour)
+      g.save(); g.scale(0.94, 0.94); outline(); g.fillStyle = YEL; g.fill(); g.restore();
+      EI.Ads.drawPartner(g, 'shellpecten', 0, 0, w, h, { tone: 'mono:#dd1d21' }); g.restore(); return;
+    }
     outline(); g.fillStyle = '#dd1d21'; g.fill(); g.save(); g.translate(0, 0); g.scale(0.86, 0.86); outline(); g.fillStyle = YEL; g.fill(); g.restore();
     g.strokeStyle = '#dd1d21'; g.lineWidth = h * 0.045; g.lineCap = 'round';
     for (let i = -3; i <= 3; i++) { if (!i) continue; const a = i * 0.21; g.beginPath(); g.moveTo(Math.sin(a) * h * 0.12, h * 0.3); g.lineTo(Math.sin(a) * h * 0.47, h * 0.3 - Math.cos(a) * h * 0.66); g.stroke(); }

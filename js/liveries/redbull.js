@@ -80,7 +80,7 @@
       keyline(L, 'redbull', -0.98, 0.58, 0.53, 0.17, 'color', 'white', 0.008);
       wordW(L, 'ROKT', 0.05, 0.76, 0.2, 0.055, W, { w: 900, ls: 0.04 });
       wordW(L, 'CARLYLE', 1.0, 0.62, 0.32, 0.045, W, { ff: 'Georgia, "Times New Roman", serif', w: 700, ls: 0.12 });
-      L.partnerAt('1password', 1.0, 0.54, 0.24, 0.04, 'white');
+      if (EI.Ads.hasPartner('1password')) { L.partnerAt('1password', 0.88, 0.54, 0.04, 0.04, 'white'); wordW(L, '1Password', 1.03, 0.54, 0.22, 0.036, W, { w: 700 }); } else fitW(L, '1password', 1.0, 0.54, 0.24, 'white');
       L.partnerAt('hardrock', 0.6, 0.47, 0.1, 0.05, 'white');
       L.partnerAt('indeed', 0.85, 0.26, 0.24, 0.055, 'white');
       L.wordmark('CLEAR', -0.5, 0.21, 0.03, W, { w: 700, ls: 0.06 }); L.partnerAt('siemens', -0.82, 0.21, 0.2, 0.03, 'white');

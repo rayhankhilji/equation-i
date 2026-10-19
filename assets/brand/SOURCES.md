@@ -201,4 +201,8 @@ Allwyn, OKX, BWT, TGR, MoneyGram ...) are set as wordmarks in code (js/ads.js `P
 | `partners/servicenow.svg` | Aston Martin F1 Team partners page (https://www.astonmartinf1.com/en-GB/partners), the team's own logo file `ServiceNow-Mono-Black.svg` (assets.astonmartinf1.com) (LIVERY-C) |
 | `partners/ukg.svg` | Aston Martin F1 Team partners page (https://www.astonmartinf1.com/en-GB/partners), the team's own logo file `UKG-Mono-Black.svg` (assets.astonmartinf1.com) (LIVERY-C) |
 | `partners/zscaler.svg` | Aston Martin F1 Team partners page (https://www.astonmartinf1.com/en-GB/partners), the team's own logo file `Zscaler-Mono-Black.svg` (assets.astonmartinf1.com) (LIVERY-C) |
+| `partners/allwyn.svg` | allwyn.com header logo https://www.allwyn.com/img/allwyn.svg (staged by LOGO-HUNT-1; sanitised, trimmed viewBox; LIVERY-A) |
+| `partners/shellpecten.svg` | simple-icons 11.14.0 `icons/shell.svg` https://cdn.jsdelivr.net/npm/simple-icons@11.14.0/icons/shell.svg (monochrome pecten; the livery colours it red over a yellow ground; staged by LOGO-HUNT-1; LIVERY-A) |
+| `partners/1password.svg` | simple-icons 11.14.0 `icons/1password.svg` https://cdn.jsdelivr.net/npm/simple-icons@11.14.0/icons/1password.svg (the round "1" mark only; the livery sets the wordmark next to it; staged by LOGO-HUNT-1; LIVERY-A) |
+| `partners/signify.svg` | signify.com header logo https://www.signify.com/content/dam/signify-multibrand/master/navigation/logo/signify-logo.svg (its gradient-filled clip path rebuilt as a solid #00a989 path so every renderer draws it; staged by LOGO-HUNT-1; LIVERY-A) |
 <!--/PARTNER-TABLE-->

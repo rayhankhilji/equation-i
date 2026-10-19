@@ -228,7 +228,8 @@ window.EI = window.EI || {};
     // (the mapping flips it), so the number reads correctly on both sides.
     helmet(g, W, H, driver, team, num) {
       const d = D[team.id]; if (d && d.helmet) return d.helmet(g, W, H, driver, team, num);
-      const sp = (driver && driver.helmetSpec) || {}; const base = sp.base || (driver && driver.helmet) || team.accent;
+      const sp = (driver && driver.helmetSpec) || null; const base = (sp && sp.base) || (driver && driver.helmet) || team.accent;
+      if (!sp) { g.fillStyle = base; g.fillRect(0, 0, W, H); return; }   // no verified design: the plain per-driver colour
       const c2 = sp.c2 || (lum(base) > 0.6 ? team.primary : '#ffffff'), c3 = sp.c3 || (lum(c2) > 0.6 ? '#16181c' : '#ffffff');
       g.fillStyle = base; g.fillRect(0, 0, W, H);
       const pat = sp.pattern || 'band';
