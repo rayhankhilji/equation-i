@@ -2,28 +2,54 @@
 window.EI = window.EI || {};
 (function () {
   const U = EI.U, L = U.lerp;
-  // Seven bot levels. Every level fields the same drivers in the same order with the same personalities (from EI.SEASON); the
-  // level only sets how close to the limit of the car the whole field runs:
-  //   lapLoss = lap time the FASTEST car + driver gives away to the limit (ultra: 0 = on the limit of the car physics)
-  //   brake   = share of the brake force used into corners (lower = brakes earlier and more gently)
-  //   gapMul  = share of the real relative gaps kept (1 = the real qualifying gaps; < 1 = the same order, a slightly closer field)
-  //   form    = race-to-race form, one standard deviation of lap time (seeded per race and driver)
-  //   formMul = scales the lap-to-lap drift (consistency); noise = steering error; reaction = start reaction range (s)
-  //   speed   = level index used for the mistake rate; brakeMargin stays 1 (pace lives in the profile, never on the straights)
-  // The corner speed of each driver is solved from these (gripFor, in derive()) so the lap time hits the target whatever the braking style.
-  // There is no speed cap anywhere: straights and corner exits are driven at full throttle with the car's full power at every level.
-  const DIFF = {
-    veryeasy: { lapLoss: 0.21,  brake: 0.8,  gapMul: 0.8,  form: 0.0016, formMul: 0.4,  speed: 0.93,  brakeMargin: 1, aggression: 0.6,  noise: 0.012,  reaction: [0.42, 0.85] },
-    easy:     { lapLoss: 0.155, brake: 0.85, gapMul: 0.84, form: 0.0015, formMul: 0.37, speed: 0.945, brakeMargin: 1, aggression: 0.7,  noise: 0.009,  reaction: [0.34, 0.7] },
-    average:  { lapLoss: 0.11,  brake: 0.89, gapMul: 0.88, form: 0.0014, formMul: 0.34, speed: 0.96,  brakeMargin: 1, aggression: 0.8,  noise: 0.007,  reaction: [0.27, 0.55] },
-    above:    { lapLoss: 0.075, brake: 0.93, gapMul: 0.92, form: 0.0013, formMul: 0.31, speed: 0.97,  brakeMargin: 1, aggression: 0.87, noise: 0.005,  reaction: [0.22, 0.42] },
-    hard:     { lapLoss: 0.045, brake: 0.96, gapMul: 0.95, form: 0.0012, formMul: 0.29, speed: 0.98,  brakeMargin: 1, aggression: 0.93, noise: 0.003,  reaction: [0.17, 0.32] },
-    veryhard: { lapLoss: 0.02,  brake: 0.98, gapMul: 0.98, form: 0.0011, formMul: 0.27, speed: 0.99,  brakeMargin: 1, aggression: 0.97, noise: 0.0015, reaction: [0.13, 0.25] },
-    ultra:    { lapLoss: 0,     brake: 1,    gapMul: 1,    form: 0.001,  formMul: 0.25, speed: 1.0,   brakeMargin: 1, aggression: 1.0,  noise: 0,      reaction: [0.1, 0.2], frontier: true },
-    // legacy names
-    rookie: null, pro: null, legend: null,
-  };
-  DIFF.rookie = DIFF.easy; DIFF.pro = DIFF.average; DIFF.legend = DIFF.veryhard;
+  // Bot skill 0..100 (the menu slider). Every skill fields the same drivers in the same order with the same personalities and the
+  // same real gaps (car gap per team per track + driver delta, from EI.SEASON / EI.RACEPACE); the skill only moves the whole field:
+  //   100 = the limit of the game car (the fastest real car + driver on the limit of the car physics)
+  //    80 = official F1: the fastest car + driver laps the track's real 2026 pole time, everyone else at his real gap, real style
+  //   < 80 = uniformly softer: slower corners, earlier braking, slower reactions, a little more drift; ~+25 % lap time at 0
+  // Straights and corner exits are driven at full throttle with the car's full power at every skill (no speed cap anywhere).
+  // Level fields: lapLoss = lap time the FASTEST car + driver gives away to the limit (per track); brake = share of the brake force
+  // used into corners; form = race-to-race form (1 sd of lap time, seeded per race and driver); formMul = lap-to-lap drift;
+  // noise = steering error; reaction = start reaction range (s); speed = index for the mistake rate; frontierW 0..1 = how far the
+  // level is towards the frontier (narrower pressure / tyre effects); gapMul = 1 and brakeMargin = 1 always.
+  const STOPS = [
+    { v: 10, id: 'veryeasy', label: 'Very easy' }, { v: 30, id: 'easy', label: 'Easy' }, { v: 50, id: 'average', label: 'Average' },
+    { v: 65, id: 'above', label: 'Above average' }, { v: 80, id: 'official', label: 'Official F1' }, { v: 90, id: 'veryhard', label: 'Very hard' },
+    { v: 100, id: 'ultra', label: 'Ultra (car limit)' },
+  ];
+  const LEGACY = { veryeasy: 10, easy: 30, rookie: 30, average: 50, pro: 50, above: 65, hard: 80, official: 80, veryhard: 90, legend: 90, ultra: 100 };
+  const SKILL_DEFAULT = 80, SKILL_OFFICIAL = 80, LOSS_AT_ZERO = 0.25;
+  function normSkill(x) {
+    if (typeof x === 'number' && isFinite(x)) return U.clamp(x, 0, 100);
+    if (typeof x === 'string') { if (LEGACY[x] != null) return LEGACY[x]; const n = parseFloat(x); if (isFinite(n)) return U.clamp(n, 0, 100); }
+    return SKILL_DEFAULT;
+  }
+  // the parameters of a skill value (track-independent part); lapLoss(tid) is per circuit (officialLoss below)
+  function skillParams(v) {
+    const s = normSkill(v), u = U.clamp(s / SKILL_OFFICIAL, 0, 1), f = U.clamp((s - SKILL_OFFICIAL) / (100 - SKILL_OFFICIAL), 0, 1);
+    return {
+      skill: s, gapMul: 1, brakeMargin: 1,
+      brake: L(0.78, 1, u),                                   // official F1 and above brake on the limit; below, earlier and gentler
+      aggression: L(0.55, 1, u), noise: L(0.014, 0, u),
+      reaction: [L(0.45, L(0.15, 0.1, f), u), L(0.9, L(0.26, 0.2, f), u)],
+      form: L(0.0016, 0.001, u), formMul: L(0.42, 0.25, u), speed: L(0.92, 1, u),
+      frontierW: U.clamp((s - 50) / 30, 0, 1), frontier: s >= SKILL_OFFICIAL,
+      lapLoss: (tid) => lapLossAt(s, tid),
+    };
+  }
+  function lapLossAt(s, tid) {
+    const L80 = officialLoss(tid);
+    if (s >= SKILL_OFFICIAL) return L80 * (100 - s) / (100 - SKILL_OFFICIAL);
+    return (1 + L80) * (1 + LOSS_AT_ZERO * (SKILL_OFFICIAL - s) / SKILL_OFFICIAL) - 1;
+  }
+  // the level of a driver at a circuit (cached: every bot of a race shares it)
+  const levelCache = {};
+  function levelFor(difficulty, tid) {
+    const s = normSkill(difficulty), key = s + ':' + tid; let d = levelCache[key]; if (d) return d;
+    d = skillParams(s); d.lapLoss = lapLossAt(s, tid); return (levelCache[key] = d);
+  }
+  // legacy table (EI.AI_DIFF): the old level names at their slider stops (lapLoss here at a typical circuit)
+  const DIFF = {}; for (const k in LEGACY) { DIFF[k] = skillParams(LEGACY[k]); }
   // corner-grip scale of the profile for the fastest car + driver at ultra, per circuit: the limit of the car. The racing-line
   // profile at grip 1 is conservative (the car's actual path through a corner is straighter than the line's curvature), so the
   // limit sits above 1: just below the scale at which a bot starts to leave the track limits (headless sim on the full-width
@@ -36,9 +62,30 @@ window.EI = window.EI || {};
   // the braking trait, measured in the headless sim. The corner grip is solved against it so braking style never changes the pace.
   // Monza: braking trait 0 -> 1 = -0.067 s on a 76.2 s solo lap (grip 1.16) -> 0.001
   const K_BRAKE = { silverstone: 0.001, monaco: 0.002, abudhabi: 0.001, monza: 0.001 }, K_BRAKE_DEFAULT = 0.0015;
-  // the bots realise ~93% of the lap-time difference the profile predicts between two corner-grip scales (fit over 3 tracks x
-  // 7 levels x 22 drivers, residual ~0.1%), so the gap is asked for 1/0.93 larger to come out right on the stopwatch
-  const GAP_STRETCH = 1.075;
+  // the bots realise ~92-97% of the lap-time difference the profile predicts between two corner-grip scales (fit per circuit over
+  // 7 skills x 22 drivers, residual ~0.1%), so the lap ratio is asked for that much larger to come out right on the stopwatch
+  const GAP_STRETCH = { silverstone: 1.09, monaco: 1.09, abudhabi: 1.07, monza: 1.04 }, GAP_STRETCH_DEFAULT = 1.075;
+
+  // lap time of the season's fastest car + driver at skill 100 (no form), headless sim on the circuit (qsim.js, solo flying laps):
+  // the anchor that turns a real lap time into the game's scale. Re-measure with C_LIMIT.
+  const LIMIT_LAP = { silverstone: 80.7, monaco: 64.0, abudhabi: 79.23, monza: 76.5 }, OFFICIAL_LOSS_DEFAULT = 0.08;
+  // real 2026 pole lap of a circuit (s): EI.RACEPACE (real lap data) > EI.SEASON.tracks > the season's real grids (pole time)
+  const GRID_NAME = { silverstone: /british/i, monaco: /monaco/i, abudhabi: /abu dhabi/i, monza: /italian/i };
+  const parseLap = t => { if (typeof t === 'number') return t; const m = /^(?:(\d+):)?(\d+(?:\.\d+)?)$/.exec(String(t || '').trim()); return m ? (+(m[1] || 0)) * 60 + (+m[2]) : 0; };
+  function realPole(tid) {
+    const RP = EI.RACEPACE && EI.RACEPACE[tid]; if (RP) { if (RP.pole && RP.pole.s) return +RP.pole.s; if (RP.q) { const v = Object.values(RP.q).map(parseLap).filter(x => x > 0); if (v.length) return Math.min(...v); } }
+    const S = EI.SEASON, tr = S && S.tracks && S.tracks[tid];
+    if (tr) { if (tr.pole && tr.pole.s && (!tr.pole.year || tr.pole.year === (S.season || 2026))) return +tr.pole.s; if (tr.poleEst2026 && tr.poleEst2026.s) return +tr.poleEst2026.s; }
+    const g = S && S.grids && GRID_NAME[tid] && S.grids.find(x => GRID_NAME[tid].test(x.name || '')); if (g && g.poleTime) return parseLap(g.poleTime);
+    return 0;
+  }
+  // lap time the fastest car + driver gives away to the game car's limit at skill 80: real pole / limit lap - 1
+  const officialCache = {};
+  function officialLoss(tid) {
+    if (officialCache[tid] != null) return officialCache[tid];
+    const p = realPole(tid), lim = LIMIT_LAP[tid];
+    return (officialCache[tid] = p > 0 && lim > 0 ? Math.max(0, p / lim - 1) : OFFICIAL_LOSS_DEFAULT);
+  }
 
   // ---------------------------------------------------------------- personality
   // Every driver carries these twelve indices (0.01 .. 1.00), taken from the season data (EI.SEASON). lo / hi say what the ends mean.
@@ -109,22 +156,55 @@ window.EI = window.EI || {};
     const team = (S.teams || []).find(t => t.id === rec.team) || null;
     return { rec, team };
   }
-  // relative one-lap pace in fraction of a lap (0 = the fastest car + driver of the season; 0.01 = one percent slower):
-  // EI.SEASON driver.q (car + driver gap to pole in %, current form) + the circuit's team and driver modifiers (%)
-  function seasonGap(e, tid) {
-    const rec = e.rec, team = e.team || {}, tr = (EI.SEASON.tracks && EI.SEASON.tracks[tid]) || {};
-    let g = rec.q != null ? pct(rec.q) : pct(team.carQ) + pct(rec.dq);
-    g += pct(tr.team && tr.team[rec.team]) + pct(tr.driver && tr.driver[rec.code]);
-    return g;
+  // ---- car performance and driver performance, separately (fractions of a lap; 0 = the fastest car / the faster team-mate)
+  // the user's own teams (Lumi Racing, Intake Racing): their own car (gap % to the fastest car at the circuit, corner character,
+  // circuit modifiers %); EI.SEASON.ownTeams.<id> overrides any field (the user's tweak point). Their driver - inherited from the
+  // entry they take over - keeps his own driver delta and style.
+  const OWN_TEAMS = {
+    lumi:   { carQ: 0.6, highSpeed: 0.92, lowSpeed: 0.72, straight: 0.8,  traction: 0.75, track: { silverstone: -0.15, monaco: 0.15, abudhabi: 0, monza: 0.1 }, note: 'upper midfield, strong in fast corners' },
+    intake: { carQ: 1.1, highSpeed: 0.7,  lowSpeed: 0.75, straight: 0.95, traction: 0.95, track: { silverstone: 0.1, monaco: 0, abudhabi: -0.1, monza: -0.2 }, note: 'midfield, strong traction and straight line' },
+  };
+  function ownTeam(id) {
+    const o = OWN_TEAMS[id]; if (!o) return null; const S = EI.SEASON, x = S && S.ownTeams && S.ownTeams[id];
+    return x ? Object.assign({}, o, x, { track: Object.assign({}, o.track, x.track || {}) }) : o;
   }
-  // the season's fastest (smallest) gap at this track, so the best car + driver of the year runs on the limit
+  const seasonTeam = id => (EI.SEASON && EI.SEASON.teams || []).find(t => t.id === id) || null;
+  // real lap data for a circuit (EI.RACEPACE.<tid>.q = { CODE: best qualifying lap s }): a driver's gap to the real pole
+  function rpGap(code, tid) {
+    const RP = EI.RACEPACE && EI.RACEPACE[tid], t = RP && RP.q && parseLap(RP.q[code]), p = realPole(tid);
+    return t > 0 && p > 0 ? Math.max(0, t / p - 1) : null;
+  }
+  // car gap of a real team at a circuit: its faster driver's real lap there, else the season car gap + the circuit's team modifier
+  const carCache = {};
+  function carGap(teamId, tid) {
+    const key = teamId + ':' + tid; if (carCache[key] != null) return carCache[key];
+    const S = EI.SEASON, tm = seasonTeam(teamId) || {}; let g = Infinity;
+    for (const d of (S && S.drivers) || []) if (d.team === teamId) { const r = rpGap(d.code, tid); if (r != null) g = Math.min(g, r); }
+    if (!isFinite(g)) { const tr = (S && S.tracks && S.tracks[tid]) || {}; g = pct(tm.carQ) + pct(tr.team && tr.team[teamId]); }
+    return (carCache[key] = g);
+  }
+  // the fastest real car at a circuit (the reference for the own teams' car gap)
+  function fastestCar(tid) { let m = Infinity; for (const t of (EI.SEASON && EI.SEASON.teams) || []) m = Math.min(m, carGap(t.id, tid)); return isFinite(m) ? m : 0; }
+  // driver delta: his real lap minus his car's at the circuit, else (season q - car gap) + the circuit's driver modifier
+  function driverDelta(rec, tid) {
+    const r = rpGap(rec.code, tid); if (r != null) return Math.max(0, r - carGap(rec.team, tid));
+    const tm = seasonTeam(rec.team) || {}, tr = (EI.SEASON.tracks && EI.SEASON.tracks[tid]) || {};
+    return Math.max(0, pct(rec.q != null ? rec.q - (tm.carQ || 0) : rec.dq)) + pct(tr.driver && tr.driver[rec.code]);
+  }
+  // the car under this car's paint: an own team's car, or the real entry
+  function ownCarGap(own, tid) { return fastestCar(tid) + pct(own.carQ) + pct(trackVal(own.track, tid)); }
+  function seasonGap(e, tid, own) { return (own ? ownCarGap(own, tid) : carGap(e.rec.team, tid)) + driverDelta(e.rec, tid); }
+  // the season's fastest car + driver at this circuit runs on the limit at skill 100 and laps the real pole at 80
   const minGapCache = {};
   function seasonMinGap(tid) {
     if (minGapCache[tid] != null) return minGapCache[tid];
     const S = EI.SEASON; let m = Infinity;
-    for (const rec of S.drivers) { const team = (S.teams || []).find(t => t.id === rec.team) || null; m = Math.min(m, seasonGap({ rec, team }, tid)); }
+    for (const rec of S.drivers) m = Math.min(m, seasonGap({ rec }, tid));
     return (minGapCache[tid] = isFinite(m) ? m : 0);
   }
+  // corner character of a car: + = stronger in fast corners / weaker in slow ones (EI.SEASON teams[].car highSpeed - lowSpeed)
+  const CHAR_K = 0.05;
+  function carChar(teamId, own) { const c = own || (seasonTeam(teamId) || {}).car; return c && c.highSpeed != null && c.lowSpeed != null ? U.clamp((c.highSpeed - c.lowSpeed) * CHAR_K, -0.03, 0.03) : 0; }
   function seasonTraits(e) {
     const src = e.rec.traits; if (!src) return null;
     const t = {}; for (const tr of TRAITS) t[tr.id] = q(src[tr.id] != null ? +src[tr.id] : 0.5); return t;
@@ -149,16 +229,18 @@ window.EI = window.EI || {};
     for (let it = 0; it < 24; it++) { const v = (lo + hi) / 2, dMax = Math.max(0.42 / (1 + v / 18), 0.55 / (1 + Math.pow(v / 16, 3))); if (Math.tan(dMax) / EI.CAR.WB >= k * LOCKF) lo = v; else hi = v; }
     return lo;
   }
-  function buildSpeedProfile(track, dec, grip, ceil, mode) {
+  // chi = corner character: grip x (1 + chi) in fast corners (base speed > ~60 m/s), x (1 - chi) in slow ones (< ~28 m/s)
+  function buildSpeedProfile(track, dec, grip, ceil, mode, chi) {
     if (typeof raceLine === 'function') raceLine(track); // full-width minimum-curvature line (f1-DRIVING's half), once per track
     dec = dec || 0.88; grip = grip || 1; ceil = ceil || CEIL();
     const n = track.n, ds = track.ds;
     const vmax = new Float32Array(n);
     const G = EI.CAR.GRIP, B = EI.CAR.BRAKE, PM = EI.CAR.PM, CD = EI.CAR.CD;
+    const vAt = (k, g) => { let v = Math.sqrt(g * G.cap / k); if (k > g * G.a1) v = Math.min(v, Math.sqrt(g * G.a0 / (k - g * G.a1))); return v; };
     for (let i = 0; i < n; i++) {
       const k = Math.abs(track.lineK[i]) + 1e-6;
-      let v = Math.sqrt(grip * G.cap / k);
-      if (k > grip * G.a1) v = Math.min(v, Math.sqrt(grip * G.a0 / (k - grip * G.a1)));
+      let v = vAt(k, grip);
+      if (chi) { const w = U.smoothstep(28, 60, vAt(k, 1)); v = vAt(k, grip * (1 + chi * (2 * w - 1))); }
       if (k > 0.03) v = Math.min(v, lockSpeed(k));   // hairpins: the steering lock, not the grip, sets the speed
       vmax[i] = Math.min(v, ceil);
     }
@@ -186,22 +268,24 @@ window.EI = window.EI || {};
   // the shared reference profile (pit approach, cool-down lap): the original 0.88 braking profile with its VMAX + 6 ceiling
   const sharedProfile = track => buildSpeedProfile(track, 0.88, 1, EI.CAR.VMAX + 6, 2);
   // profiles are shared between bots with the same braking level and corner grip (quantised)
-  function profileFor(track, dec, grip) {
+  function profileFor(track, dec, grip, chi) {
     grip = grip || 1;
-    const kd = Math.round(dec * 200), kg = Math.round(grip * 2000);
-    const c = track.aiSpeedByDec || (track.aiSpeedByDec = {}), key = kd + ':' + kg;
-    return c[key] || (c[key] = buildSpeedProfile(track, kd / 200, kg / 2000));
+    const kd = Math.round(dec * 200), kg = Math.round(grip * 2000), kc = Math.round((chi || 0) * 1000);
+    const c = track.aiSpeedByDec || (track.aiSpeedByDec = {}), key = kd + ':' + kg + ':' + kc;
+    return c[key] || (c[key] = buildSpeedProfile(track, kd / 200, kg / 2000, 0, 0, kc / 1000));
   }
   // lap time of a speed profile driven exactly (top speed capped at the car's VMAX)
   function profileLap(prof, ds) { let T = 0; const vm = EI.CAR.VMAX; for (let i = 0; i < prof.length; i++) T += ds / Math.max(1, Math.min(vm, prof[i])); return T; }
   // per track: lap time vs corner grip (at a reference braking level) and vs braking level (at full grip), built once per circuit
   const calCache = new Map();
-  const CAL_G = [0.45, 0.55, 0.65, 0.75, 0.85, 0.95, 1.05, 1.15, 1.25, 1.35], CAL_D = [0.68, 0.8, 0.92, 1.0], CAL_DREF = 0.92;
+  const CAL_G = [0.12, 0.18, 0.25, 0.33, 0.42, 0.52, 0.63, 0.75, 0.87, 0.97, 1.07, 1.17, 1.27, 1.37], CAL_D = [0.68, 0.8, 0.92, 1.0], CAL_DREF = 0.92;
   function calibration(track) {
     const key = track.data || track; let c = calCache.get(key); if (c) return c;
     const tg = CAL_G.map(g => profileLap(buildSpeedProfile(track, CAL_DREF, g, EI.CAR.VMAX + 6, 1), track.ds));
     const td = CAL_D.map(d => profileLap(buildSpeedProfile(track, d, 1, EI.CAR.VMAX + 6, 1), track.ds));
-    c = { tg, td, tdRef: interp(CAL_D, td, CAL_DREF) }; calCache.set(key, c); return c;
+    // lap-time effect of the corner character (per unit chi, at grip 1), so a car's character never changes its lap
+    const t0 = profileLap(buildSpeedProfile(track, CAL_DREF, 1, EI.CAR.VMAX + 6, 1), track.ds), t1 = profileLap(buildSpeedProfile(track, CAL_DREF, 1, EI.CAR.VMAX + 6, 1, 0.02), track.ds);
+    c = { tg, td, tdRef: interp(CAL_D, td, CAL_DREF), chiSens: (t1 / t0 - 1) / 0.02 }; calCache.set(key, c); return c;
   }
   function interp(xs, ys, x) {
     let k = 0; while (k < xs.length - 2 && x > xs[k + 1]) k++;
@@ -213,7 +297,7 @@ window.EI = window.EI || {};
   function gripFor(track, ratio, d, decRef) {
     const lim = C_LIMIT[trackOf(track)] || C_LIMIT_DEFAULT;
     const cal = calibration(track), want = calLap(cal, lim, decRef) * ratio;
-    let lo = 0.4, hi = 1.4;
+    let lo = 0.12, hi = 1.37;
     for (let it = 0; it < 40; it++) { const m = (lo + hi) / 2; if (calLap(cal, m, d) > want) lo = m; else hi = m; }
     return (lo + hi) / 2;
   }
@@ -221,14 +305,33 @@ window.EI = window.EI || {};
   const decOf = (braking, d) => L(0.89, 0.97, braking) * d.brake;
   const DEC_REF = 0.93;
 
+  // ---------------------------------------------------------------- public skill API (menu slider, HUD hints, race.js)
+  const tidOf = t => (typeof t === 'string' ? t : trackOf(t));
+  EI.Skill = {
+    STOPS, DEFAULT: SKILL_DEFAULT, OFFICIAL: SKILL_OFFICIAL,
+    normalize: normSkill,
+    label(v) { const s = normSkill(v), st = STOPS.find(x => x.v === Math.round(s)); return st ? st.label : 'Skill ' + Math.round(s); },
+    fromSlider: skillParams,
+    lapLoss: (v, t) => lapLossAt(normSkill(v), tidOf(t)),
+    // seconds the fastest bot laps at this skill on this circuit (0 if unknown)
+    expectedPole(t, v) {
+      const tid = tidOf(t), s = normSkill(v), lim = LIMIT_LAP[tid];
+      if (lim > 0) return lim * (1 + lapLossAt(s, tid));
+      const p = realPole(tid); return p > 0 ? p * (1 + lapLossAt(s, tid)) / (1 + officialLoss(tid)) : 0;
+    },
+    realPole: t => realPole(tidOf(t)),
+    ownTeam,
+  };
+
   class AIDriver {
     // opts.seed: race seed (per-race form); opts.slot: seat index. The driver's profile comes from EI.SEASON by car.driver.
     constructor(car, track, difficulty, rng, opts) {
       opts = opts || {};
-      this.car = car; this.track = track; this.d = DIFF[difficulty] || DIFF.pro; const d = this.d;
+      const tid = trackOf(track);
+      this.car = car; this.track = track; this.skill = normSkill(difficulty); this.d = levelFor(this.skill, tid); const d = this.d;
       if (!track.aiSpeed) track.aiSpeed = sharedProfile(track);
       // ---- who is driving: the season profile (real pace and style) or, for unknown drivers, a seeded stand-in from team strength
-      const tid = trackOf(track), e = seasonEntry(car);
+      const e = seasonEntry(car), tm = car.team || {}, own = ownTeam(tm.id);
       const name = (car.driver && (car.driver.code || car.driver.name)) || car.name || 'bot';
       const prng = U.rng(mixSeed(hashStr(String(name)), 0x51ed));              // per-driver stream: the same driver every race
       for (let k = 0; k < 4; k++) prng();
@@ -236,7 +339,8 @@ window.EI = window.EI || {};
       this.lineBias = U.clamp(gaussOf(prng) * 0.15, -0.3, 0.3);
       this.profile = e ? e.rec.code : null;
       if (e) {
-        this.realGap = Math.max(0, seasonGap(e, tid) - seasonMinGap(tid));
+        this.realGap = Math.max(0, seasonGap(e, tid, own) - seasonMinGap(tid));
+        this.chi = carChar(e.rec.team, own);
         this.traits = seasonTraits(e) || rollTraits(prng, ARCH.allrounder);
         this.archetype = seasonStyle(e) || nearestArchetype(this.traits, seasonMean(), /rookie/i.test(e.rec.note || ''));
         const tr = EI.SEASON.tracks && EI.SEASON.tracks[tid];                 // circuits where a driver tends to err (Monaco walls)
@@ -244,10 +348,11 @@ window.EI = window.EI || {};
       } else {
         // a driver the season does not know: the real car under the paint (team.entry for a taken-over entry) + a stand-in's
         // deficit, or the team strength when there is no season data at all
-        const S = EI.SEASON, tm = car.team || {}, st = S && S.teams && S.teams.find(x => x.id === (tm.entry || tm.id));
+        const S = EI.SEASON, st = S && S.teams && S.teams.find(x => x.id === (tm.entry || tm.id));
         const skill = tm.skill != null ? tm.skill : 0.95;
-        this.realGap = st ? Math.max(0, pct(st.carQ) + 0.004 - seasonMinGap(tid)) + Math.abs(gaussOf(prng)) * 0.001
+        this.realGap = (own || st) && S ? Math.max(0, (own ? ownCarGap(own, tid) : carGap(st.id, tid)) + 0.004 - seasonMinGap(tid)) + Math.abs(gaussOf(prng)) * 0.001
           : U.clamp((0.99 - skill) * 0.45, 0, 0.04) + Math.abs(gaussOf(prng)) * 0.002;
+        this.chi = carChar(st && st.id, own);
         this.archetype = ARCHETYPES[Math.floor(prng() * (ARCHETYPES.length - 1))]; if (opts.avoid && opts.avoid.indexOf(this.archetype.id) >= 0) this.archetype = ARCH.allrounder;
         this.traits = rollTraits(prng, this.archetype);
       }
@@ -278,7 +383,7 @@ window.EI = window.EI || {};
 
     // turn the traits into driving parameters
     derive() {
-      const T = this.traits, d = this.d, span = d.frontier ? 0.5 : 1, P = this.par = {};
+      const T = this.traits, d = this.d, fw = d.frontierW != null ? d.frontierW : (d.frontier ? 1 : 0), span = L(1, 0.5, fw), P = this.par = {};
       P.agg = T.aggression * (0.5 + 0.5 * d.aggression);                      // the level caps how hard anyone attacks
       // aggression: closing speed needed to try, distance it pulls out at, lateral gap it accepts, how close it follows
       P.passClosing = L(3.2, 0.5, P.agg);
@@ -298,14 +403,15 @@ window.EI = window.EI || {};
       P.carry = 1 + L(0.006, 0.022, T.braking);                               // trail-braking: speed carried towards the apex
       // (both the same on every level: the level's earlier braking is in d.brake, so the style costs the same everywhere)
       P.brakeGain = L(7, 5, T.braking);                                       // late brakers stamp on the pedal, early ones squeeze it
-      const kb = K_BRAKE[trackOf(this.track)]; this.cornerScale = gripFor(this.track, (1 + d.lapLoss) * (1 + GAP_STRETCH * this.expGap) * (1 + (kb != null ? kb : K_BRAKE_DEFAULT) * (T.braking - 0.5)), P.decel, DEC_REF);
-      this.prof = profileFor(this.track, P.decel, this.cornerScale);
-      this.profDive = profileFor(this.track, Math.min(0.96, P.decel + L(0.0, 0.05, U.clamp((T.risk - 0.55) / 0.45, 0, 1))), this.cornerScale);
+      const kb = K_BRAKE[trackOf(this.track)]; const gs = GAP_STRETCH[trackOf(this.track)] || GAP_STRETCH_DEFAULT;
+      this.cornerScale = gripFor(this.track, (1 + gs * (this.lapRatio - 1)) * (1 + (kb != null ? kb : K_BRAKE_DEFAULT) * (T.braking - 0.5)) / (1 + calibration(this.track).chiSens * (this.chi || 0)), P.decel, DEC_REF);
+      this.prof = profileFor(this.track, P.decel, this.cornerScale, this.chi);
+      this.profDive = profileFor(this.track, Math.min(0.96, P.decel + L(0.0, 0.05, U.clamp((T.risk - 0.55) / 0.45, 0, 1))), this.cornerScale, this.chi);
       // consistency and composure: lap-to-lap drift (narrower on the higher levels), steering noise, mistake rate, pressure
       P.formStep = L(0.045, 0.006, T.consistency) * d.formMul; P.formMax = L(0.024, 0.006, T.consistency) * d.formMul;
       P.noiseMul = L(1.5, 0.45, T.consistency);
       P.mistakeMul = L(1.45, 0.3, T.consistency) * L(0.85, 1.25, T.braking) * (this.riskMul || 1);
-      P.overshoot = L(0.35, 0.7, T.braking) * (d.frontier ? 0.6 : 1); P.overshootK = d.frontier ? 1.025 : 1.03;
+      P.overshoot = L(0.35, 0.7, T.braking) * L(1, 0.6, fw); P.overshootK = L(1.03, 1.025, fw);
       P.pressMul = L(2.6, 0.9, T.composure);
       P.pressureSlow = span * L(0.014, 0, T.composure);
       // racecraft: room given alongside, momentum kept alongside, avoidance window, choice of side
@@ -317,7 +423,7 @@ window.EI = window.EI || {};
       P.tyreEarly = 1 + span * L(0.004, -0.011, T.tyres); P.tyreLate = 1 + span * L(-0.004, 0.006, T.tyres); P.wearK = L(0.34, 0.08, T.tyres);
       // ERS: free deployment threshold, reserve kept for fights, last-lap dump; attack or defence focus
       P.ersFree = L(0.2, 0.98, T.ers); P.ersFight = L(0.3, 0.06, T.ers); P.ersLast = T.ers > 0.3; P.ersAttack = T.aggression >= T.defending || T.ers > 0.6; P.ersDefend = T.defending > T.aggression || T.ers > 0.6;
-      P.ersK = T.ers < 0.4 && !d.frontier ? 1 / 250 : 1 / 400;                                 // the spenders fire it up earlier on corner exit
+      P.ersK = T.ers < 0.4 && fw < 1 ? 1 / 250 : 1 / 400;                                 // the spenders fire it up earlier on corner exit
       // starts: reaction time inside the level's range, launch throttle, first-lap boldness
       const rr = d.reaction || [0.15, 0.6]; this.reaction = rr[0] + (rr[1] - rr[0]) * U.clamp((1 - T.starts) * 0.85 + (this._react || 0) * 0.15, 0, 1);
       P.launch = L(0.55, 1.0, T.starts); P.lap1Agg = (T.starts - 0.5) * 0.3;

@@ -32,7 +32,7 @@ window.EI = window.EI || {};
       if (!THREE.GLTFLoader) return reject(new Error('GLTFLoader not available'));
       const loader = new THREE.GLTFLoader();
       const glb = (f) => new Promise((res, rej) => loader.load(BASE + f, res, undefined, rej));
-      const img = (f) => new Promise((res, rej) => { const im = new Image(); im.onload = () => res(im); im.onerror = () => rej(new Error('failed to load ' + f)); im.src = BASE + f; });
+      const img = (f) => new Promise((res, rej) => { const im = new Image(); im.crossOrigin = 'anonymous'; im.onload = () => res(im); im.onerror = () => rej(new Error('failed to load ' + f)); im.src = BASE + f; });
       Promise.all([glb('ei-car-hi.glb'), glb('ei-car-lo.glb'), img('ei-car-id.png'), img('ei-car-ao.png')]).then(([hi, lo, idImg, aoImg]) => {
         cache.hi = hi.scene; cache.lo = lo.scene; cache.idImg = idImg; cache.aoImg = aoImg;
         cache.meta = hi.scene.userData && hi.scene.userData.anchors ? hi.scene.userData : (lo.scene.userData || {});

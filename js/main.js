@@ -77,6 +77,9 @@ window.EI = window.EI || {};
     skyMesh = new THREE.Sky(); skyMesh.scale.setScalar(5500); const su = skyMesh.material.uniforms; su.turbidity.value = LK.turb; su.rayleigh.value = LK.ray; su.mieCoefficient.value = LK.mie; su.mieDirectionalG.value = LK.mieG || 0.85;
     // the sky may put its sun lower than the light's (a sunset glow without shadows stretched across the whole circuit)
     const skySun = LK.skyElev != null ? new THREE.Vector3().setFromSphericalCoords(1, THREE.MathUtils.degToRad(90 - LK.skyElev), theta) : sunDir; su.sunPosition.value.copy(skySun); scene.add(skyMesh);
+    // drawn after every opaque surface (it sits on the far plane): the scattering shader then only runs where the sky shows - early
+    // depth rejection skips the pixels the city, the trees and the stands already cover (PERF)
+    skyMesh.renderOrder = 100;
     // the scattering sky comes out bright enough that ACES flattens it to near-white: a gain per circuit (LOOKS sky: [gain,
     // zenith deepening]) keeps a clear blue overhead fading to a paler, hazier horizon - only on screen (the environment map
     // that lights and reflects the scene keeps the full sky)
@@ -246,21 +249,20 @@ window.EI = window.EI || {};
     const tight = Object.assign({}, T, { treeNear: m(T.treeNear, 0.7), treeFar: m(T.treeFar, 0.75, 1600), grass: [T.grass[0] * 0.8, T.grass[1] * 0.8], crowd: m(T.crowd, 0.75), cars: m(T.cars, 0.7, 700), tents: m(T.tents, 1, 700), clutter: m(T.clutter, 0.7, 900) });
     S.TIERS[q] = tight; try { scenery.setQuality(q); } finally { S.TIERS[q] = T; }
   }
-  // ---- Bot skill slider (0-100). Stops = the old level names; 80 = Official F1 (real 2026 pace), 100 = Limit.
-  // EI.Skill (js/ai.js, f1-PERSONALITY) may supply { stops:[{v,name,id}], legacy(n), describe(n) }; the table below is the fallback.
-  const SKILL_STOPS = [{ v: 0, name: 'Very easy', id: 'veryeasy' }, { v: 17, name: 'Easy', id: 'easy' }, { v: 33, name: 'Average', id: 'average' }, { v: 50, name: 'Above', id: 'above' }, { v: 65, name: 'Hard', id: 'hard' }, { v: 80, name: 'Very hard', id: 'veryhard', mark: 'Official F1' }, { v: 100, name: 'Ultra', id: 'ultra', mark: 'Limit' }];
-  const SKILL_TXT = { veryeasy: 'slow and forgiving, easy to pass', easy: 'well below F1 pace, still forgiving', average: 'steady club pace with the odd mistake', above: 'quick and tidy, but beatable', hard: 'close to F1 pace, rarely errs', veryhard: 'Official F1: real lap times and driving styles', ultra: 'the limit of the car, flawless' };
-  const skillStops = () => (EI.Skill && EI.Skill.stops && EI.Skill.stops.length ? EI.Skill.stops : SKILL_STOPS);
+  // ---- Bot skill slider (0-100). Stops = the old level names; 80 = Official F1 (real 2026 pace, the old "Hard" slot), 100 = Limit.
+  // Numbers agreed with f1-PERSONALITY (BOARD 19:20): EI.Skill.STOPS in js/ai.js is used when it exists, the table below is the same list.
+  const SKILL_STOPS = [{ v: 10, id: 'veryeasy', name: 'Very easy' }, { v: 30, id: 'easy', name: 'Easy' }, { v: 50, id: 'average', name: 'Average' }, { v: 65, id: 'above', name: 'Above' }, { v: 80, id: 'hard', name: 'Hard', mark: 'Official F1' }, { v: 90, id: 'veryhard', name: 'Very hard' }, { v: 100, id: 'ultra', name: 'Ultra', mark: 'Limit' }];
+  const SKILL_NAME = { veryeasy: 'Very easy', easy: 'Easy', average: 'Average', above: 'Above', official: 'Hard', hard: 'Hard', veryhard: 'Very hard', ultra: 'Ultra' };
+  const SKILL_TXT = { veryeasy: 'slow and forgiving, easy to pass', easy: 'well below F1 pace, still forgiving', average: 'steady club pace with the odd mistake', above: 'quick and tidy, but beatable', hard: 'close to F1 pace, rarely errs', veryhard: 'past real F1 pace, almost flawless', ultra: 'the limit of the car, flawless' };
+  const skillStops = () => (EI.Skill && EI.Skill.STOPS && EI.Skill.STOPS.length ? EI.Skill.STOPS.map(x => ({ v: x.v, id: x.id, name: SKILL_NAME[x.id] || x.label, mark: x.id === 'official' || x.id === 'hard' ? 'Official F1' : x.id === 'ultra' ? 'Limit' : null })) : SKILL_STOPS);
   const skillClamp = (n) => Math.max(0, Math.min(100, Math.round(+n))) || 0;
   const skillNearest = (n) => { const st = skillStops(); let b = st[0]; for (const x of st) if (Math.abs(x.v - n) < Math.abs(b.v - n)) b = x; return b; };   // a tie keeps the lower stop
-  const skillLegacy = (n) => (EI.Skill && EI.Skill.legacy ? EI.Skill.legacy(n) : skillNearest(n).id);
+  const skillLegacy = (n) => { const id = skillNearest(n).id; return id === 'official' ? 'hard' : id; };   // legacy level name for ai.js without the new API
   const skillDescribe = (n) => {
-    if (EI.Skill && EI.Skill.describe) return EI.Skill.describe(n);
-    if (n >= 100) return 'Limit: the limit of the car, flawless';
-    if (n > 80) return 'Beyond F1: faster than the real 2026 pace';
-    const s = skillNearest(n); return n === 80 ? SKILL_TXT.veryhard : s.name + ': ' + SKILL_TXT[s.id];
+    if (n === 80) return 'Official F1: real lap times and driving styles';
+    if (n === 100) return 'Limit: the limit of the car, flawless';
+    const s = skillNearest(n), id = s.id === 'official' ? 'hard' : s.id; return s.name + ': ' + (n > 80 ? 'past real F1 pace, almost flawless' : (SKILL_TXT[id] || ''));
   };
-  EI.skillLabel = skillLabel;
   function skillValue() { const el = $('opt-skill'); return el ? skillClamp(el.value) : 80; }
   function skillLabel(n) { const m = skillStops().find(x => x.v === n && x.mark); return 'Skill ' + n + (m ? ' \u00b7 ' + m.mark : ''); }   // pause / start screen: next to "Grid: ..."
   function initSkill() {
@@ -282,7 +284,7 @@ window.EI = window.EI || {};
     // two players on the default names: P1 / P2 (otherwise player 2's own tower and tags call the other car "YOU")
     const nm = (k) => { const v = ($('p' + (k + 1) + '-name').value || (k ? 'RIVAL' : 'YOU')).toUpperCase(); return np > 1 && v === (k ? 'RIVAL' : 'YOU') ? 'P' + (k + 1) : v; };
     for (let k = 0; k < np; k++) players.push({ name: nm(k), teamIndex: /^own:/.test($('p' + (k + 1) + '-team').value) ? 0 : +$('p' + (k + 1) + '-team').value, own: /^own:/.test($('p' + (k + 1) + '-team').value) ? $('p' + (k + 1) + '-team').value.slice(4) : null, seat: $('p' + (k + 1) + '-seat') ? +$('p' + (k + 1) + '-seat').value || 0 : 0, tyre: $('p' + (k + 1) + '-tyre').value });
-    return { players, bots: +$('opt-bots').value, laps: +$('opt-laps').value, skill: skillValue(), difficulty: skillLegacy(skillValue()), grid: $('opt-grid').value, assist: $('opt-assist').value, seed: (Math.random() * 1e9) | 0, envMap };
+    return { players, bots: +$('opt-bots').value, laps: +$('opt-laps').value, skill: skillValue(), difficulty: EI.Skill ? skillValue() : skillLegacy(skillValue()), grid: $('opt-grid').value, assist: $('opt-assist').value, seed: (Math.random() * 1e9) | 0, envMap };
   }
   function setPaused(p) { paused = p; $('pause').classList.toggle('hidden', !p); if (!p) lastT = performance.now(); }
 
