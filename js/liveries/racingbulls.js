@@ -97,8 +97,8 @@
       k.poly([[0.12, TOP_V], [0.12, 0.8], [-0.1, 0.74], [-0.75, 0.74], [-0.75, TOP_V]], ga);
       k.poly([[-1.0, TOP_V], [-1.0, 0.86], [-1.12, 0.78], [-1.75, 0.8], [-1.75, TOP_V]], NVD);
       // logos
-      L.partnerAt('redbull', -0.74, 0.665, 0.42, 0.085, 'color');                       // "Red Bull" red under the cover bull
-      k.at(-0.72, 0.8, () => bull(g, 0.84, 0.22, flip));                                  // the big cover bull, charging rearwards
+      L.partnerAt('redbull', -0.66, 0.65, 0.44, 0.085, 'color');                       // "Red Bull" red under the cover bull
+      k.at(-0.66, 0.85, () => bull(g, 0.66, 0.33, flip));   // bull aspect ~1.9: 0.63 x 0.33 m as measured                                  // the big cover bull, charging rearwards
       k.at(2.26, 0.375, () => bull(g, 0.34, 0.11, flip));                                 // the nose bull
       k.at(0.02, 0.7, () => cashApp(g, 0.46, 0.09, '#16171b', true));                  // $ Cash App on the cockpit shoulder
       k.at(1.0, 0.61, () => logo(g, 'hugo', 0.36, 0.085, 'color', FB.hugo));            // HUGO red ahead of the sidepod

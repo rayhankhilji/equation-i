@@ -122,11 +122,11 @@
       // nose: number + flag + Haas emblem + partner column, reading along the car
       t.poly([[3.1, -0.08], [3.1, 0.08], [2.6, 0.095], [2.6, -0.095]], RD);
       L.number(1.8, 0, 0.17, BK);
-      t.at(1.55, 0, () => { const w = 0.07 * MM, h = 0.045 * MM; for (let i = 0; i < 7; i++) { g.fillStyle = i % 2 ? '#ffffff' : '#b22234'; g.fillRect(-w / 2, -h / 2 + i * h / 7, w, h / 7); } g.fillStyle = '#3c3b6e'; g.fillRect(-w / 2, -h / 2, w * 0.42, h * 4 / 7); }, ALONG);
-      t.at(1.42, 0, () => haasMark(g, 0.07, 'color'), ALONG);
-      t.at(1.28, 0, () => logo(g, 'ic', 0.1, 0.04, 'black', FB.ic), ALONG);
-      t.at(1.18, 0, () => logo(g, 'zoomex', 0.12, 0.025, 'black', Object.assign({}, FB.zoomex, { col: '#111214' })), ALONG);
-      L.partnerTop('pirelli', 1.08, 0, 0.11, 0.025, 'color', ALONG);
+      t.at(1.56, 0, () => { const w = 0.1 * MM, h = 0.064 * MM; for (let i = 0; i < 7; i++) { g.fillStyle = i % 2 ? '#ffffff' : '#b22234'; g.fillRect(-w / 2, -h / 2 + i * h / 7, w, h / 7); } g.fillStyle = '#3c3b6e'; g.fillRect(-w / 2, -h / 2, w * 0.42, h * 4 / 7); }, ALONG);
+      t.at(1.4, 0, () => haasMark(g, 0.11, 'color'), ALONG);
+      t.at(1.24, 0, () => logo(g, 'ic', 0.13, 0.055, 'black', FB.ic), ALONG);
+      t.at(1.13, 0, () => logo(g, 'zoomex', 0.16, 0.035, 'black', Object.assign({}, FB.zoomex, { col: '#111214' })), ALONG);
+      L.partnerTop('pirelli', 1.04, 0, 0.15, 0.032, 'color', ALONG);
       t.at(2.25, 0, () => logo(g, 'mphasis', 0.13, 0.03, 'white', FB.mphasis), ALONG);
       // rear wing: red with the white HAAS; front-wing flaps: the GR in black / red
       t.at(-2.12, 0, () => haasWord(g, 0.1, '#ffffff'));
