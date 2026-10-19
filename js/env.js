@@ -262,6 +262,7 @@ window.EI = window.EI || {};
         if (this.data.dem) this.initStreetGround();
       }
       if (this.data.kind === 'desert') this.initDesert();
+      if (this.data.kind === 'park' && this.initPark) this.initPark();   // env_park.js (Royal Park of Monza)
     }
     // ------------------------------------------------ desert circuit (Yas Marina): flat ground round the circuit, low dunes far out, the sea and the
     // marina basin from the map's water polygons as a raster mask (isSea), with a seabed a few metres below the quays
@@ -561,6 +562,7 @@ window.EI = window.EI || {};
   // terrain height: flat at track level near the circuit (and a touch below the verge ribbons), rolling countryside beyond
   Ctx.prototype.terrainHeight = function (x, z) {
     if (this.dem) return this.streetHeight(x, z);
+    if (this.parkOn) return this.parkHeight(x, z);
     if (this.data.kind === 'desert') return this.desertHeight(x, z);
     const t = this.t; const f = this.fAt(x, z), fs = this.fsAt(x, z); const ty = this.tyAt(x, z);
     const w = this.data.kind === 'street' ? U.smoothstep(55, 330, f) : U.smoothstep(25, 220, f);
@@ -778,11 +780,12 @@ window.EI = window.EI || {};
   // writes sRGB bytes into `out` (reused array) and returns it
   // venue grass colour, or false when (x, z) is out in the farmland
   Ctx.prototype.venueRGB = function (x, z, out) {
-    const f = this.fAt(x, z); if (!(f < this.VENUE_F || (f < 900 && this.inside(x, z)))) return false;
+    const f = this.fAt(x, z); if (!(f < this.VENUE_F || (f < 900 && this.inside(x, z)))) return false; if (this.parkOn && f >= 48) return false;
     return this.fieldRGB(x, z, null, out, f);
   };
   Ctx.prototype.fieldRGB = function (x, z, cell, out, fpre) {
     out = out || [0, 0, 0];
+    if (this.parkOn) return this.parkRGB(x, z, out, fpre);
     if (this.dem) return this.streetRGB(x, z, out);
     if (this.data.kind === 'desert') return this.desertRGB(x, z, out, fpre);
     if (this.data.kind === 'street') { const n0 = U.noise2(x / 23 + 1.7, z / 23 + 4.2); const g = 118 + n0 * 22; const h = this.hillRaw(x, z); const k = U.smoothstep(14, 60, h); out[0] = (g + 6) * (1 - k) + 92 * k; out[1] = (g + 3) * (1 - k) + 104 * k; out[2] = (g - 4) * (1 - k) + 66 * k; return out; }
@@ -977,6 +980,7 @@ window.EI = window.EI || {};
       for (let j = 0; j < BN; j++) for (let i = 0; i < BN; i++) { const x = -H + (i + 0.5) * 2 * H / BN, z = -H + (j + 0.5) * 2 * H / BN; this.desertRGB(x, z, col); const o = (j * BN + i) * 4; bi.data[o] = col[0]; bi.data[o + 1] = col[1]; bi.data[o + 2] = col[2]; bi.data[o + 3] = 255; }
       bctx.putImageData(bi, 0, 0); ctx.imageSmoothingEnabled = true; ctx.drawImage(bc, 0, 0, S, S);
     }
+    if (this.parkOn) this.parkBase(ctx, S, H);   // satellite-classified ground cover (env_park.js)
     if (street && this.dem) {
       // natural / built-up ground per 9 m pixel, smoothed up to the full map (the overlays add the streets, paving, parks...)
       const BN = 512; const [bc, bctx] = Env.canvas(BN, BN); const bi = bctx.createImageData(BN, BN); const col = [0, 0, 0];
@@ -993,7 +997,7 @@ window.EI = window.EI || {};
     const path = (poly) => { ctx.beginPath(); ctx.moveTo(poly[0][0], poly[0][1]); for (let i = 1; i < poly.length; i++) ctx.lineTo(poly[i][0], poly[i][1]); ctx.closePath(); };
     const R = this.FR, W = this.FW; const polys = []; this.fieldPolys = polys;
     for (let k = 0; k < W * W; k++) {
-      if (street || desert) break;
+      if (street || desert || this.parkOn) break;
       const sx = this.seedX[k], sz = this.seedZ[k]; if (Math.abs(sx) > H + FC * 1.5 || Math.abs(sz) > H + FC * 1.5) continue;
       const poly = this.fieldPoly(k); if (poly.length < 3) continue; polys.push([k, poly]);
       const ty = this.fType[k], tone = this.fTone[k]; path(poly); ctx.fillStyle = rgb(PAL.fields[ty], 0.88 + tone * 0.16); ctx.fill();
