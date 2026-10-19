@@ -104,4 +104,6 @@
       L.haloTop('@MercedesAMGF1', W, -1); L.haloTop('mercedesamgf1.com', W, 1); L.haloFront('crowdstrike', 'white');
     },
   });
+  // front-wing main planes (LIVERY-LEAD default from the 2026 photos; a frontWing in the design above takes precedence)
+  if (LV.designs['mercedes'] && !LV.designs['mercedes'].frontWing) LV.designs['mercedes'].frontWing = function (L) { L.t.rect(2.15, 3.25, -1.1, 1.1, '#0e0f11'); for (const z of [-0.55, 0.55]) L.wordmark('PETRONAS', 2.62, z, 0.07, '#ffffff', { w: 900, ls: 0.06 }, false, Math.PI); };
 })();

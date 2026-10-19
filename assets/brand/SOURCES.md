@@ -207,4 +207,6 @@ Allwyn, OKX, BWT, TGR, MoneyGram ...) are set as wordmarks in code (js/ads.js `P
 | `partners/signify.svg` | signify.com header logo https://www.signify.com/content/dam/signify-multibrand/master/navigation/logo/signify-logo.svg (its gradient-filled clip path rebuilt as a solid #00a989 path so every renderer draws it; staged by LOGO-HUNT-1; LIVERY-A) |
 | `partners/confluent.svg` | Confluent's own logo file, https://images.ctfassets.net/8vofjvai1hpv/3YxxHIezkZt1v5mroo76ym/47e73d34ed8b7218d172a1f79d2da2b3/Confluent__Inc._logo_1.svg (staged by LOGO-HUNT-1; LIVERY-B) |
 | `partners/pumacat.svg` | simple-icons 11.14.0 `icons/puma.svg` https://cdn.jsdelivr.net/npm/simple-icons@11.14.0/icons/puma.svg (the PUMA leaping cat, single colour; staged by LOGO-HUNT; LIVERY-A) |
+| `partners/solera.svg` | solera.com master logo https://www.solera.com/wp-content/uploads/2022/01/Solera_Logo_CMYK-master.svg (staged by LOGO-HUNT; sanitised, trimmed viewBox; LIVERY-A) |
+| `partners/hugo.svg` | HUGO's own logo file, https://www.hugoboss.com/on/demandware.static/Sites-US-Site/-/default/dwe9f5759d/svg/output_files/hugo_logo.svg (staged by LOGO-HUNT; the HUGO line mark, not BOSS), filled HUGO red `#e4002b` as on the VCARB 03 (LIVERY-B) |
 <!--/PARTNER-TABLE-->

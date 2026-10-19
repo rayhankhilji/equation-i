@@ -349,7 +349,8 @@ window.EI = window.EI || {};
   }
   function updateTags(r, list) {
     while (r.tagEls.length < list.length) {
-      const d = document.createElement('div'); d.className = 'tag'; d.innerHTML = '<div class="tg"><b class="tp"></b><i class="tb"></i><span class="tn"></span></div>';
+      const d = document.createElement('div'); d.className = 'tag'; d.style.display = 'none';   // hidden until placed (an unplaced tag would sit empty at 0,0)
+      d.innerHTML = '<div class="tg"><b class="tp"></b><i class="tb"></i><span class="tn"></span></div>';
       r.tags.appendChild(d); const g = d.firstChild; r.tagEls.push({ el: d, p: g.children[0], b: g.children[1], n: g.children[2], on: false, col: '' });
     }
     if (!r._tagBox || r._tagBox.length < list.length * 4) r._tagBox = new Float32Array(Math.max(32, list.length * 4));

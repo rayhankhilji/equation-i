@@ -1136,9 +1136,11 @@ window.EI = window.EI || {};
   // frame, nearest car first; finished sheets stay cached for later races.
   const jobs = []; let jobRun = null;
   // Proximity resolution: every half second the NEAR_N[quality] bots closest to a camera (within NEAR_IN m, kept until NEAR_OUT m)
-  // are queued for a NEAR_RES[quality] sheet (Medium 4 cars at 2048, High 2 at 4096; Low none); a bot that drops out goes back to its cached base sheet and the big one is freed, so VRAM
-  // stays bounded (base sheets for the field + NEAR_N big ones).
-  const NEAR_RES = { low: 0, medium: 2048, high: 4096 }, NEAR_N = { low: 0, medium: 4, high: 2 }, NEAR_IN = 45, NEAR_OUT = 75; let nearT = 0;
+  // are queued for a NEAR_RES[quality] sheet (High 2 at 4096; Low / Medium none); a bot that drops out goes back to its cached base sheet and the big one is freed, so VRAM
+  // stays bounded (base sheets for the field + NEAR_N big ones). Medium stays on its 1536 base sheets (>= 1 texel per pixel for a car
+  // ahead in the chase / cockpit view at Medium's canvas): every swap to 2048 was ~0.8-1.2 s of canvas painting on the main thread
+  // (3 ms of every frame for ~300 frames) plus a 16 MB upload, again each time a bot came back into range (PERF).
+  const NEAR_RES = { low: 0, medium: 0, high: 4096 }, NEAR_N = { low: 0, medium: 0, high: 2 }, NEAR_IN = 45, NEAR_OUT = 75; let nearT = 0;
   const nearList = [];
   function proximity(cars, eyes) {
     const now = performance.now(); if (now - nearT < 500) return; nearT = now;

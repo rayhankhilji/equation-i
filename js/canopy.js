@@ -69,7 +69,7 @@
     if (THREE.ShaderChunk.lights_fragment_begin.indexOf('eiCanopy') < 0) THREE.ShaderChunk.lights_fragment_begin = THREE.ShaderChunk.lights_fragment_begin.replace(LINE, LINE + '\n\t\t#ifdef EI_CANOPY\n\t\tdirectLight.color *= eiCanopy();\n\t\t#endif');
     // what receives shadows (ground, track, verges, stands, statics) gets the shade; the trees and the cars do not
     scene.traverse(o => { if (!o.isMesh || !o.receiveShadow || !o.material || o.name === 'trees') return; (Array.isArray(o.material) ? o.material : [o.material]).forEach(patch); });
-    Canopy.stats = { trees: used, px: +px.toFixed(2), N };
+    Canopy.stats = { trees: used, px: +px.toFixed(2), N }; Canopy.map = tex;
   };
   EI.Canopy = Canopy;
 })();

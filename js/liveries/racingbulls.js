@@ -157,4 +157,6 @@
       L.haloFront('visa', 'white');
     },
   });
+  // front-wing main planes (LIVERY-LEAD default from the 2026 photos; a frontWing in the design above takes precedence)
+  if (LV.designs['racingbulls'] && !LV.designs['racingbulls'].frontWing) LV.designs['racingbulls'].frontWing = function (L) { L.t.rect(2.15, 3.25, -1.1, 1.1, '#f4f6fa');  };
 })();

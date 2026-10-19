@@ -51,7 +51,7 @@ html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text);
 .vp .tw-lap b { font-size: 19px; font-weight: 800; display: inline-block; }
 .vp .tw-lap i { font-size: 13px; font-weight: 500; font-style: normal; color: #d9dbe2; }
 .vp .tw-lap.bump b { animation: lapSlide 0.55s cubic-bezier(.2,.9,.3,1.2); }
-@keyframes lapSlide { 0% { transform: translateY(12px); opacity: 0; } 100% { transform: none; opacity: 1; } }
+@keyframes lapSlide { 0% { transform: translateY(8px); opacity: 0.35; } 100% { transform: none; opacity: 1; } }
 .vp .tw-rows { background: var(--hud-bg); }
 .vp .lp-row { display: grid; grid-template-columns: 30px 3px 30px minmax(0, 1fr) auto auto 26px 76px; align-items: center; height: 30px; padding-right: 10px; font-size: 14px; font-weight: 600; letter-spacing: 0.3px; border-top: 1px solid var(--hud-line); position: relative; }
 .vp .lp-row:first-child { border-top: 0; }

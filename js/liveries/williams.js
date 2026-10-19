@@ -77,4 +77,6 @@
       L.partner('barclays', 'mirrorTop', 'white');
     },
   });
+  // front-wing main planes (LIVERY-LEAD default from the 2026 photos; a frontWing in the design above takes precedence)
+  if (LV.designs['williams'] && !LV.designs['williams'].frontWing) LV.designs['williams'].frontWing = function (L) { L.t.rect(2.15, 3.25, -1.1, 1.1, '#0a1433');  };
 })();

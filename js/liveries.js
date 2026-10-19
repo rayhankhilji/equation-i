@@ -177,7 +177,7 @@ window.EI = window.EI || {};
       emblem(name, x, z, ...args) { t.at(x, z, () => EMBLEM[name](g, ...args)); },
       mark(id, x, z, w, h, tone, name, ...args) { t.at(x, z, () => (EI.Ads && EI.Ads.hasPartner && EI.Ads.hasPartner(id) ? partner(g, id, w, h, tone) : EMBLEM[name](g, ...args))); },
       number(x, z, cap, col) { t.at(x, z, () => styledText(g, String(num), cap, col, st), Math.PI); },   // reads from the front
-      wordmark(str, x, z, cap, col, o, along) { t.at(x, z, () => styledText(g, str, cap, col, o), along ? -Math.PI / 2 : 0); },
+      wordmark(str, x, z, cap, col, o, along, rot) { t.at(x, z, () => styledText(g, str, cap, col, o), rot != null ? rot : along ? -Math.PI / 2 : 0); },
       // text along one arm of the halo's top bar, reading from the cockpit with the letters' tops outward (side -1 left arm,
       // +1 right arm), e.g. a team / driver handle like '@McLarenF1'; cap = letter height (m, the bar is ~0.07 wide)
       haloTop(str, col, side, o, cap) { if (!haloOn) return; const pts = HALO_ARM.map(([x, z]) => [z * (side < 0 ? -1 : 1) * MM, -x * MM]); if (side > 0) pts.reverse(); textOnPath(g, str, pts, cap || 0.04, col, o); },

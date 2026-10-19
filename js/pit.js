@@ -879,7 +879,11 @@ window.EI = window.EI || {};
         // the garage interiors, lane paint, screens and signs (small, many draws) also drop out beyond ~380 m; the lane and the garage shells stay
         if (V._crewVis !== vis || V._pitVis !== vis2) { V._crewVis = vis; V._pitVis = vis2; V.group.traverse(o => { if (o.isInstancedMesh && /^pit-/.test(o.name)) o.visible = vis; else if (o.isMesh && o.userData.pitFar) o.visible = vis2; }); } }
       // street circuit: no pose work at all while the crews are hidden (they are re-posed the frame they come back into range)
-      if ((V._crewVis && near) || !V.posed) { animatePeople(race, dt); V.posed = true; }
+      // all boxes idle (no car coming in, in service or just released): the slow idle sway and the walkers are posed at ~20 Hz
+      // instead of every frame (~1.3-2.2 ms a frame on the grid with 11 crews in view, PERF); a stop anywhere animates every frame
+      let busy = false; for (const b of V.boxes) if (b.state !== 'idle') { busy = true; break; }
+      V._animDt = Math.min(0.25, (V._animDt || 0) + dt);
+      if ((V._crewVis && near && (busy || V._animDt >= 0.05)) || !V.posed) { animatePeople(race, V._animDt); V._animDt = 0; V.posed = true; }
       updateLamps();
       updateUI(race, dt);
     } catch (e) { if (!V.err) { V.err = true; console.error('Pit.frame', e); } }

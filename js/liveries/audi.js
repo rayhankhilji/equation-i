@@ -101,4 +101,6 @@
       L.haloFront('audi', 'black');
     },
   });
+  // front-wing main planes (LIVERY-LEAD default from the 2026 photos; a frontWing in the design above takes precedence)
+  if (LV.designs['audi'] && !LV.designs['audi'].frontWing) LV.designs['audi'].frontWing = function (L) { L.t.rect(2.15, 3.25, -1.1, 1.1, '#151515'); for (const z of [-0.55, 0.55]) L.partnerTop('revolut', 2.62, z, 0.4, 0.09, 'white', Math.PI); };
 })();

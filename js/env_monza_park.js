@@ -22,18 +22,20 @@
       const hd = S.map((q) => Math.atan2(q.tz, q.tx)); const kr = S.map((q, i) => i > 1 && i < S.length - 2 ? Math.abs(U.wrapAngle(hd[i + 2] - hd[i - 2])) / (4 * Ltot / n) : 0);
       for (let i = 0; i < S.length; i++) { let a = 0, c = 0; for (let j = -12; j <= 12; j++) { const q = kr[U.clamp(i + j, 0, S.length - 1)]; a += q; c++; } S[i].bank = U.clamp((a / c - 0.0009) / 0.0019, 0, 1); }
       // relation to the GP track: dist beyond the barrier; ends (junctions with the main straight) are clipped, the middle crossing is a bridge
-      for (const q of S) { t.project(q.x, q.z, null, pr); const w = Math.max(t.wallL[pr.i], t.wallR[pr.i]); q.gp = pr.dist - w; q.gpI = pr.i; q.end = Math.min(q.a, Ltot - q.a) < 200; }
+      for (const q of S) { t.project(q.x, q.z, null, pr); const w = Math.max(t.wallL[pr.i], t.wallR[pr.i]); q.gp = pr.dist - w; q.gpI = pr.i; q.lat = pr.lat; q.end = Math.min(q.a, Ltot - q.a) < 200; }
       out.push({ name, S, Ltot });
     }
     // bridge spans: middle samples that pass over the GP track's corridor
     for (const r of out) {
       const S = r.S; r.spans = [];
-      for (let i = 0; i < S.length; i++) if (!S[i].end && S[i].gp < 4) { let j = i; while (j + 1 < S.length && S[j + 1].gp < 4) j++; let yT = -Infinity; for (let k = i; k <= j; k++) yT = Math.max(yT, t.y[S[k].gpI]); r.spans.push({ i0: i, i1: j, yT, ac: (S[i].a + S[j].a) / 2 }); i = j; }
+      // a span only where the ring really crosses the circuit (the signed lateral flips); runs that merely pass close are clipped
+      for (let i = 0; i < S.length; i++) if (S[i].gp < 4) { let j = i; while (j + 1 < S.length && S[j + 1].gp < 4) j++; let cross = false; for (let k = Math.max(1, i - 1); k <= Math.min(S.length - 1, j + 1); k++) if (Math.sign(S[k].lat) !== Math.sign(S[k - 1].lat) && Math.abs(S[k].lat) < 40) cross = true; if (!cross) { i = j; continue; } let yT = -Infinity; for (let k = i; k <= j; k++) yT = Math.max(yT, t.y[S[k].gpI]); r.spans.push({ i0: i, i1: j, yT, ac: (S[i].a + S[j].a) / 2 }); i = j; }
       // deck base: ground + 0.2, raised to clear the GP track near a span (ramps of 70 m either side)
       for (const q of S) {
         let y = E.ground(q.x, q.z) + 0.15;
         for (const sp of r.spans) { const d = Math.max(0, Math.abs(q.a - sp.ac) - (S[sp.i1].a - S[sp.i0].a) / 2 - 6); const w = 1 - U.smoothstep(0, 70, d); y = Math.max(y, U.lerp(y, sp.yT + 6.6, w)); }
-        q.y = y; q.skip = q.end && q.gp < 10;
+        const inSpan = r.spans.some(sp => q === S[sp.i0] || (S.indexOf(q) >= sp.i0 && S.indexOf(q) <= sp.i1)); q.span = inSpan;
+        q.y = y; q.skip = !inSpan && q.gp < (q.end ? 10 : 6);
       }
     }
     return (E.mzRing = out);
@@ -41,7 +43,7 @@
 
   Pk.layout = function (E) {
     const OCC = Env.OCC; const R = ring(E);
-    for (const r of R) for (const q of r.S) { if (q.skip) continue; if (E.occAt(q.x, q.z) & OCC.BUILT && q.end) { q.skip = true; continue; } }
+    for (const r of R) for (const q of r.S) { if (q.skip) continue; if (!q.span && (E.occAt(q.x, q.z) & OCC.BUILT)) { q.skip = true; continue; } }
     for (const r of R) { let cur = []; for (const q of r.S) { if (q.skip) { if (cur.length > 1) E.markLine(cur, RW / 2 + 2.5, OCC.BUILT); cur = []; } else cur.push([q.x, q.z]); } if (cur.length > 1) E.markLine(cur, RW / 2 + 2.5, OCC.BUILT); }
   };
 

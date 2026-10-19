@@ -102,4 +102,6 @@
       L.haloTop('@McLarenF1', W, -1); L.haloTop('mclaren.com', W, 1); t.at(0.76, 0, () => okx(g, 0.12, W));
     },
   });
+  // front-wing main planes (LIVERY-LEAD default from the 2026 photos; a frontWing in the design above takes precedence)
+  if (LV.designs['mclaren'] && !LV.designs['mclaren'].frontWing) LV.designs['mclaren'].frontWing = function (L) { L.t.rect(2.15, 3.25, -1.1, 1.1, '#ff8000');  };
 })();

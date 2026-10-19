@@ -123,4 +123,6 @@
       L.haloTop('DXC', W, -1, { w: 900, ls: 0.12 }, 0.06); L.haloTop('DXC', W, 1, { w: 900, ls: 0.12 }, 0.06);   // DXC big on both halo arms (2026 photos) L.haloFront('dxc', 'white');
     },
   });
+  // front-wing main planes (LIVERY-LEAD default from the 2026 photos; a frontWing in the design above takes precedence)
+  if (LV.designs['ferrari'] && !LV.designs['ferrari'].frontWing) LV.designs['ferrari'].frontWing = function (L) { L.t.rect(2.15, 3.25, -1.1, 1.1, '#e10a17');  };
 })();
