@@ -843,7 +843,7 @@ window.EI = window.EI || {};
   // other car beyond 150 m.
   const MIRROR_HIDE = /^(trees|treesFar|treeStripsNear|treeShadows|grassCards|crowd|crowdFar|flags|tents|campervans|parkedCars|runoffLogos|perimeterPosts|tyreStacks|fencePosts|fenceRails|hoardingPosts|pit-tyre|cityFar|cityPines|cityCypresses)$|tuft|detail|grass|^pit-fig-/i;
   function buildMirrors(glassMeshes, body, carGroup, swap) {
-    const EYE = V(0.23, 0.842, 0);
+    const EYE = V(0.3, 0.815, 0);   // the cockpit camera eye (main.js placeCamera)
     const mask = (() => { const c = document.createElement('canvas'); c.width = 128; c.height = 64; const x = c.getContext('2d'); x.fillStyle = '#000'; x.fillRect(0, 0, 128, 64); x.fillStyle = '#fff'; roundRect(x, 2, 2, 124, 60, 22); x.fill(); return new THREE.CanvasTexture(c); })();
     const sides = [];
     for (const sgn of [-1, 1]) {

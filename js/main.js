@@ -485,7 +485,7 @@ window.EI = window.EI || {};
   const _f = new THREE.Vector3(), _l = new THREE.Vector3(), _tgt = new THREE.Vector3(), _look = new THREE.Vector3(), _q = new THREE.Quaternion();
   function camState(cam) { const u = cam.userData; if (!u.cs) u.cs = { yaw: null, roll: 0, lat: 0, fov: 60, sway: 0, dip: 0, shake: 0, blend: 0 }; return u.cs; }
   function surfaceShake(car) { const v = Math.abs(car.v); const base = { asphalt: 0, runoff: 0.001 * v, kerb: 0.035 + 0.001 * v, grass: 0.05 + 0.002 * v, gravel: 0.07 + 0.002 * v }[car.surface] || 0; return base * Math.min(1, v / 8); }
-  const TCAM = { x: 0.04, y: 1.112, p: -0.13 };   // T-camera lens (body metres: x forward, y up) and pitch
+  const TCAM = { x: -0.02, y: 1.16, p: -0.17 };   // T-camera lens (body metres: x forward, y up) and pitch
   const _mirLite = []; function mirrorLite() { _mirLite.length = 0; if (scenery && scenery.group) _mirLite.push(scenery.group); return _mirLite; }
   function placeCamera(cam, car, k, snap, dt) {
     const mode = CAM_MODES[camModes[k] || 0]; const cs = camState(cam);
@@ -497,7 +497,7 @@ window.EI = window.EI || {};
     if (mode === 'cockpit') {
       // eye at the visor: halo blade dead centre, halo hoop across the upper third, wheel + gloves filling the bottom,
       // both front tyre tops and the mirrors at the edges. Head physics: g-force sway / brake dip, rpm buzz, look-to-apex.
-      const glb = EI.CarGLB && EI.CarGLB.ready; const eyeX = EI.debug.eye ? EI.debug.eye.x : (glb ? 0.26 : 0.45), eyeY = EI.debug.eye ? EI.debug.eye.y : (glb ? 0.842 : 0.9);
+      const glb = EI.CarGLB && EI.CarGLB.ready; const eyeX = EI.debug.eye ? EI.debug.eye.x : (glb ? 0.3 : 0.45), eyeY = EI.debug.eye ? EI.debug.eye.y : (glb ? 0.815 : 0.9);   // low in the tub as in the F1 games: the halo bar heavy across the top
       car._cockpitT = performance.now();
       const fov0 = EI.debug.ckFov || 55;   // ~84 deg across a 16:9 screen: the wheel fills the lower third as in the F1 games
       if (snap) { cs.sway = 0; cs.dip = 0; cs.apex = 0; cs.roll = 0; cs.fov = fov0 + 1; }
@@ -528,7 +528,7 @@ window.EI = window.EI || {};
       // a little roll with the car (it is bolted to the chassis, no head physics).
       if (snap) { cs.roll = 0; cs.fov = 64; }
       const vib = (0.0002 + car.rpm * 0.0005) * Math.sin(tN * 6.283 * (29 + car.rpm * 13)); const g = car.gradeNow || 0;
-      const TC = EI.debug.tcam || TCAM; _tgt.set(cx + fx * TC.x, cy + TC.y + vib + jy * 0.01, cz + fz * TC.x); cam.position.copy(_tgt);   // the lens: just ahead of the T-cam housing (x -0.125..0.025)
+      const TC = EI.debug.tcam || TCAM; _tgt.set(cx + fx * TC.x, cy + TC.y + vib + jy * 0.01, cz + fz * TC.x); cam.position.copy(_tgt);   // the lens: over the front of the T-cam housing (x -0.125..0.025, top y 1.135)
       const pitch = (cameras.length > 1 && cam.aspect > 1.6 ? TC.p + 0.045 : TC.p) + g + jy * 0.01;
       _look.set(_tgt.x + fx * 30 + lx * jx * 0.15, _tgt.y + pitch * 30, _tgt.z + fz * 30 + lz * jx * 0.15); cam.up.set(0, 1, 0); cam.lookAt(_look);
       cs.roll += (U.clamp(-car.aLat * 0.0005, -0.012, 0.012) - cs.roll) * (snap ? 1 : 1 - Math.exp(-dt * 4)); cam.rotateZ(cs.roll);
