@@ -265,7 +265,7 @@ window.EI = window.EI || {};
     engines = race.players.map(() => EI.Audio.createEngine());
     $('menu').classList.add('hidden'); $('results').classList.add('hidden');
     $('touch').classList.toggle('hidden', !(U.isTouch() && race.players.length === 1));
-    resultsShown = false; paused = false; lastT = performance.now(); acc = 0; introT = 0; autopilots = []; tunF[0] = tunF[1] = 0;   // (a race quit inside the tunnel must not start the next one over-exposed) applySplitTier(race.players.length > 1); onResize();
+    resultsShown = false; paused = false; lastT = performance.now(); acc = 0; introT = 0; autopilots = []; tunF[0] = tunF[1] = 0; applySplitTier(race.players.length > 1); onResize();   // tunF: a race quit inside the tunnel must not start the next one over-exposed. onResize sizes the HUD viewports (setRect)
     if (document.activeElement && document.activeElement.blur) document.activeElement.blur();   // Enter / Space must not press a menu button
     race.players.forEach((car, k) => placeCamera(cameras[k], car, k, true, 0));
     EI.HUD.banner('EQUATION I · ' + track.name.toUpperCase() + ' GP', race.gridInfo ? 3400 : 2400, null, race.gridInfo ? 'Grid: ' + race.gridInfo.label : null);
