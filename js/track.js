@@ -1045,7 +1045,7 @@ window.EI = window.EI || {};
       // debris fence
       const fenceTex = (function () { const c = document.createElement('canvas'); c.width = 64; c.height = 64; const ctx = c.getContext('2d'); ctx.clearRect(0, 0, 64, 64); ctx.strokeStyle = 'rgba(30,30,30,0.85)'; ctx.lineWidth = 1.2;
         for (let i = 0; i <= 64; i += 6) { ctx.beginPath(); ctx.moveTo(i, 0); ctx.lineTo(i, 64); ctx.stroke(); ctx.beginPath(); ctx.moveTo(0, i); ctx.lineTo(64, i); ctx.stroke(); } ctx.fillStyle = '#555'; ctx.fillRect(0, 0, 3, 64);
-        const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; return t; })();
+        const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.anisotropy = 8; return t; })();
       const FD = this.data.fence || {}; const TD0 = this.data.tunnel;   // data.fence { h, op }: catch-fence height and opacity (Monza: 4.5 m)
       const fenceMat = new THREE.MeshBasicMaterial({ map: fenceTex, transparent: true, side: THREE.DoubleSide, depthWrite: false, opacity: FD.op || 0.7, color: FD.color != null ? FD.color : 0xffffff });
       // data.fence.runs [[s0, s1, side (0 = both), height m]]: later runs override earlier ones, height 0 = no fence (Monza: tall catch fence by the stands, low along the pit wall)
