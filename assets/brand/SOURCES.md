@@ -190,4 +190,5 @@ Allwyn, OKX, BWT, TGR, MoneyGram ...) are set as wordmarks in code (js/ads.js `P
 | `partners/delltechnologies.svg` | [File:Dell Technologies logo black.svg](https://commons.wikimedia.org/wiki/File:Dell_Technologies_logo_black.svg) (https://commons.wikimedia.org/wiki/Special:FilePath/Dell_Technologies_logo_black.svg) (LIVERY-A) |
 | `partners/dropbox.svg` | [File:Dropbox Logo 01.svg](https://commons.wikimedia.org/wiki/File:Dropbox_Logo_01.svg) (https://commons.wikimedia.org/wiki/Special:FilePath/Dropbox_Logo_01.svg) (LIVERY-A) |
 | `partners/richardmille.svg` | [File:Richard Mille Logo.svg](https://commons.wikimedia.org/wiki/File:Richard_Mille_Logo.svg) (https://commons.wikimedia.org/wiki/Special:FilePath/Richard_Mille_Logo.svg) (LIVERY-A) |
+| `partners/alpinef1.svg` | [File:Alpine F1 Team Logo.svg](https://commons.wikimedia.org/wiki/File:Alpine_F1_Team_Logo.svg) (https://commons.wikimedia.org/wiki/Special:FilePath/Alpine_F1_Team_Logo.svg) (LIVERY-B; the cars use the "A" mark part) |
 <!--/PARTNER-TABLE-->

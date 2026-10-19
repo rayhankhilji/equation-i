@@ -10,6 +10,27 @@
 (function () {
   const LV = EI.LIVERIES; if (!LV) return;
   const { TOP_V, LOW_V, W, MM } = LV.K;
+  // national flag of the car's driver (by code, from EI.SEASON) next to the code on the cockpit side; h = flag height (m).
+  // Shared by the LIVERY-A team files (defined once on EI).
+  const FLAG = EI.liveryFlag || (EI.liveryFlag = function (g, nat, h) {
+    const H = h * 1000, Wd = H * 1.5, x0 = -Wd / 2, y0 = -H / 2; const R = (c, x, y, w, hh) => { g.fillStyle = c; g.fillRect(x0 + x * Wd, y0 + y * H, w * Wd, hh * H); };
+    if (nat === 'ITA') { R('#009246', 0, 0, 1 / 3, 1); R('#ffffff', 1 / 3, 0, 1 / 3, 1); R('#ce2b37', 2 / 3, 0, 1 / 3, 1); }
+    else if (nat === 'FRA') { R('#0055a4', 0, 0, 1 / 3, 1); R('#ffffff', 1 / 3, 0, 1 / 3, 1); R('#ef4135', 2 / 3, 0, 1 / 3, 1); }
+    else if (nat === 'MON') { R('#ce1126', 0, 0, 1, 0.5); R('#ffffff', 0, 0.5, 1, 0.5); }
+    else if (nat === 'NED') { R('#ae1c28', 0, 0, 1, 1 / 3); R('#ffffff', 0, 1 / 3, 1, 1 / 3); R('#21468b', 0, 2 / 3, 1, 1 / 3); }
+    else if (nat === 'GBR' || nat === 'AUS') {
+      const uj = (w, hh) => { g.save(); g.beginPath(); g.rect(x0, y0, w, hh); g.clip(); g.fillStyle = '#012169'; g.fillRect(x0, y0, w, hh);
+        g.strokeStyle = '#ffffff'; g.lineWidth = hh * 0.2; g.beginPath(); g.moveTo(x0, y0); g.lineTo(x0 + w, y0 + hh); g.moveTo(x0 + w, y0); g.lineTo(x0, y0 + hh); g.stroke();
+        g.strokeStyle = '#c8102e'; g.lineWidth = hh * 0.07; g.stroke();
+        g.fillStyle = '#ffffff'; g.fillRect(x0 + w * 0.4, y0, w * 0.2, hh); g.fillRect(x0, y0 + hh * 0.333, w, hh * 0.333);
+        g.fillStyle = '#c8102e'; g.fillRect(x0 + w * 0.44, y0, w * 0.12, hh); g.fillRect(x0, y0 + hh * 0.4, w, hh * 0.2); g.restore(); };
+      if (nat === 'GBR') uj(Wd, H);
+      else { g.fillStyle = '#012169'; g.fillRect(x0, y0, Wd, H); uj(Wd / 2, H / 2); g.fillStyle = '#ffffff';
+        for (const [sx, sy, r] of [[0.25, 0.75, 0.09], [0.75, 0.25, 0.05], [0.62, 0.5, 0.05], [0.88, 0.45, 0.05], [0.75, 0.82, 0.05]]) { g.beginPath(); for (let i = 0; i < 10; i++) { const a = -Math.PI / 2 + i * Math.PI / 5, rr = (i % 2 ? 0.45 : 1) * r * H; g.lineTo(x0 + sx * Wd + Math.cos(a) * rr, y0 + sy * H + Math.sin(a) * rr); } g.fill(); } }
+    } else return;
+    g.strokeStyle = 'rgba(0,0,0,0.35)'; g.lineWidth = H * 0.04; g.strokeRect(x0, y0, Wd, H);
+  });
+  const natOf = (code) => { const S = EI.SEASON; const d = S && S.drivers && S.drivers.find((v) => v.code === code); return d ? d.nat : null; };
   const BK = '#0b0c0e', SIL = '#b9bfc5', SIL2 = '#9aa1a8', TEAL = '#00a19c';
   // a small three-pointed star (the Mercedes star without its ring), r = tip radius in metres, at the current origin
   function star3(g, r, col) {
@@ -33,12 +54,11 @@
       const { k, g } = L;
       // silver nose + chassis shoulder above the teal stripe, ending at the sidepod inlet (the halo / cockpit rim stay black)
       const EDGE = [[3.1, 0.24], [2.7, 0.24], [2.2, 0.28], [1.7, 0.36], [1.25, 0.43], [0.95, 0.47], [0.7, 0.5]];
-      g.save(); k.path([[2.28, 0.0], [2.28, 0.6], [0.5, 0.9], [0.5, 0.0]]); g.clip(); k.region(EDGE, [[0.7, 0.74], [0.95, 0.74], [1.25, 0.72], [2.2, 0.62], [3.2, 0.5]], SIL); k.stroke(EDGE, 0.03, TEAL); g.restore();
-      g.save(); k.path([[2.74, 0.0], [2.74, 0.6], [3.3, 0.6], [3.3, 0.0]]); g.clip(); k.region(EDGE, [[3.2, 0.6]], SIL); k.stroke(EDGE, 0.03, TEAL); g.restore();
+      k.region(EDGE, [[0.7, 0.74], [0.95, 0.74], [1.25, 0.72], [2.2, 0.62], [3.2, 0.5]], SIL); k.stroke(EDGE, 0.03, TEAL);
       // sidepod: silver pillars leaning forward over the black flank, boxed below by the teal swoosh
       const SW = [[-1.2, 0.42], [-0.7, 0.43], [-0.25, 0.45], [0.15, 0.5], [0.45, 0.58], [0.62, 0.68]];
-      g.save(); k.curve(SW, [[0.9, 0.7], [0.9, 0.84], [-1.35, 0.84], [-1.35, 0.42]]); g.closePath(); g.clip();
-      for (let i = 0; i < 5; i++) { const x = 0.36 - i * 0.235, w = 0.17 - i * 0.012; k.poly([[x + 0.24, 0.84], [x + 0.24 + w, 0.84], [x + w - 0.04, 0.4], [x - 0.04, 0.4]], i % 2 ? SIL2 : SIL); }
+      g.save(); k.curve(SW, [[0.9, 0.7], [0.9, 0.74], [-1.35, 0.7], [-1.35, 0.42]]); g.closePath(); g.clip();
+      for (let i = 0; i < 5; i++) { const x = 0.36 - i * 0.235, w = 0.17 - i * 0.012; k.poly([[x + 0.2, 0.76], [x + 0.2 + w, 0.76], [x + w - 0.06, 0.4], [x - 0.06, 0.4]], i % 2 ? SIL2 : SIL); }
       g.restore();
       k.stroke(SW, 0.04, TEAL);
       L.wordmark('PETRONAS', -0.3, 0.335, 0.12, W, { w: 900, ls: 0.02 });
@@ -49,17 +69,19 @@
       L.partnerAt('solera', -0.3, 0.86, 0.28, 0.045, 'white');
       L.partnerAt('teamviewer', -0.42, 0.72, 0.42, 0.065, 'white');
       L.partnerAt('amd', 0.25, 0.78, 0.13, 0.04, 'white');
-      L.partnerAt('nubank', 1.0, 0.66, 0.08, 0.045, 'white');
+      L.partnerAt('nubank', 0.55, 0.79, 0.08, 0.045, 'white');
       L.partnerAt('amg', 1.1, 0.6, 0.25, 0.045, 'black');
       L.partnerAt('einhell', 2.3, 0.37, 0.22, 0.035, 'white');
       L.partnerAt('signify', 0.95, 0.24, 0.3, 0.05, 'white');
-      // front-wing endplates: INEOS / IWC / Microsoft
-      L.partnerAt('ineos', 2.5, 0.42, 0.3, 0.06, 'white'); L.partnerAt('iwc', 2.5, 0.3, 0.26, 0.07, 'white'); k.at(2.5, 0.19, () => msft(g, 0.32, 0.06));
       // rear-wing endplates: Snapdragon / CrowdStrike / PETRONAS PRIMAX
       L.partnerAt('snapdragon', -2.17, 0.86, 0.4, 0.075, 'white'); L.partnerAt('crowdstrike', -2.17, 0.76, 0.4, 0.05, 'white');
       L.wordmark('PETRONAS', -2.2, 0.6, 0.03, W, { w: 900, ls: 0.04 }); L.wordmark('PRIMAX', -2.2, 0.56, 0.03, W, { w: 900, ls: 0.04 });
-      L.number(1.5, 0.56, 0.06, BK); L.codeText(1.75, 0.53, 0.04, BK);
+      L.number(1.5, 0.56, 0.06, BK); L.codeText(1.27, 0.525, 0.036, BK); k.at(1.09, 0.525, () => FLAG(g, natOf(L.code), 0.03));
       L.haloHandle('mercedesamgf1.com', W, -1); L.haloHandle('@MercedesAMGF1', W, 1);
+    },
+    endplate(L) {   // front-wing endplates (black): INEOS / IWC / Microsoft
+      const { k, g } = L;
+      L.partnerAt('ineos', 2.5, 0.42, 0.3, 0.06, 'white'); L.partnerAt('iwc', 2.5, 0.3, 0.26, 0.07, 'white'); k.at(2.5, 0.19, () => msft(g, 0.32, 0.06));
     },
     top(L) {
       const { t, g } = L;

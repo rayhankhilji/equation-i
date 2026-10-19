@@ -34,9 +34,9 @@
       k.stroke(SWEEP.map(([x, y]) => [x - 0.065, y - 0.065]), 0.011, C.markGreen);
       k.region(LOWER, [[-1.3, LOW_V], [3.25, LOW_V]], C.plumDeep);
       // the mark's quarter discs blown up on the cream sidepod front (right angles bottom-right, as in the logo)
-      k.at(0.38, 0.2, () => { g.scale(0.62, 0.62); quarter(g, 0, 0, 300, C.markLilac); quarter(g, -12, -288, 288, C.markGreen); g.fillStyle = C.markPlum; g.beginPath(); g.arc(90, -242, 88, 0, Math.PI * 2); g.fill(); });
+      k.at(0.15, 0.25, () => { g.scale(0.56, 0.56); quarter(g, 0, 0, 300, C.markLilac); quarter(g, -12, -288, 288, C.markGreen); g.fillStyle = C.markPlum; g.beginPath(); g.arc(90, -242, 88, 0, Math.PI * 2); g.fill(); });
       // title lock-up, reversed, big on the plum sidepod / cover
-      k.at(-0.78, 0.47, () => Ads().lockupCentered(g, 'lumi', 0, 0, 165, 760, C.bg, true));
+      k.at(-0.85, 0.46, () => Ads().lockupCentered(g, 'lumi', 0, 0, 190, 860, C.bg, true));
       k.text('trylumi.co', -0.62, 0.86, 0.05, C.bg, TXT, { ls: -0.02 });
       k.text('Learn anything. Actually understand it.', -0.95, 0.31, 0.026, C.lilac, TXT, { ls: -0.01 });
       // cockpit side: the driver code + number in the brand face; strapline on the chassis

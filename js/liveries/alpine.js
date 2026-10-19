@@ -10,7 +10,7 @@
 (function () {
   const LV = EI.LIVERIES; if (!LV) return;
   const { TOP_V, LOW_V, W, MM } = LV.K;
-  const BL = '#1b4bb0', BLL = '#2768cc', NV = '#111845', NVD = '#0c1131', PK = '#f78fc3', PKD = '#ec6fae', BK = '#15161a', BN = '#1b2a8c';
+  const BL = '#1f56c4', BLL = '#2c73d8', NV = '#15205a', NVD = '#0c1131', PK = '#f78fc3', PKD = '#ec6fae', BK = '#15161a', BN = '#1b2a8c';
   const A = () => EI.Ads;
   const has = (id) => !!(A() && A().hasPartner && A().hasPartner(id));
   function logo(g, id, w, h, tone, fb) {
@@ -50,7 +50,7 @@
   }
   // the Alpine "A" (team mark): artwork when installed, else two slanted strokes + the arrow cross-bar, pink with a white keyline
   function alpA(g, h, col, key) {
-    if (has('alpinef1')) return LV.partner(g, 'alpinef1', h * 1.2, h, col === '#ffffff' ? 'white' : 'mono:' + col);
+    if (has('alpinef1') && logoPart(g, 'alpinef1', h * 2.9, h, 'mono:' + col, [0.02, 0, 0.98, 0.37], key)) return;
     h *= MM; const w = h * 1.05; const draw = () => { g.beginPath(); g.moveTo(-w * 0.5, h * 0.5); g.lineTo(-w * 0.08, -h * 0.5); g.lineTo(w * 0.14, -h * 0.5); g.lineTo(-w * 0.22, h * 0.5); g.closePath();
       g.moveTo(w * 0.06, h * 0.5); g.lineTo(w * 0.26, -h * 0.02); g.lineTo(w * 0.5, h * 0.5); g.closePath(); g.moveTo(-w * 0.32, h * 0.14); g.lineTo(w * 0.36, h * 0.14); g.lineTo(w * 0.3, h * 0.27); g.lineTo(-w * 0.37, h * 0.27); g.closePath(); };
     if (key) { draw(); g.lineWidth = h * 0.09; g.lineJoin = 'round'; g.strokeStyle = key; g.stroke(); } draw(); g.fillStyle = col; g.fill();
@@ -64,8 +64,10 @@
       // body: Alpine blue on top, deepening to navy low down and towards the tail (the paint's metallic flop)
       const gv = g.createLinearGradient(0, k.Y(0.95), 0, k.Y(0.15)); gv.addColorStop(0, BLL); gv.addColorStop(0.35, BL); gv.addColorStop(0.75, '#173e9c'); gv.addColorStop(1, NV);
       k.poly([[3.2, TOP_V], [3.2, LOW_V], [-1.88, LOW_V], [-1.88, TOP_V]], gv);
-      const gt = g.createLinearGradient(k.X(-0.6), 0, k.X(-1.8), 0); gt.addColorStop(0, 'rgba(18,26,74,0)'); gt.addColorStop(1, NVD);
+      const gt = g.createLinearGradient(k.X(-0.6), 0, k.X(-1.8), 0); gt.addColorStop(0, 'rgba(18,26,74,0)'); gt.addColorStop(1, 'rgba(12,17,49,0.75)');
       k.poly([[-0.6, TOP_V], [-0.6, LOW_V], [-1.88, LOW_V], [-1.88, TOP_V]], gt);
+      // the halo stays pink on its sides too (it shares this view with the cockpit sides: only above the cockpit rim, ahead of the airbox)
+      k.region([[1.2, 0.66], [0.9, 0.7], [0.5, 0.745], [0.16, 0.79]], [[0.16, TOP_V], [1.2, TOP_V]], PK);
       // pink nose top: the upper band of the nose / chassis side from the tip back to the cockpit
       k.region([[3.2, 0.25], [2.7, 0.31], [2.2, 0.41], [1.7, 0.5], [1.3, 0.56], [1.05, 0.6]], [[1.0, TOP_V], [3.2, TOP_V]], PK);
       k.stroke([[3.15, 0.25], [2.7, 0.31], [2.2, 0.41], [1.7, 0.5], [1.3, 0.56], [1.05, 0.6]], 0.008, PKD);
@@ -80,7 +82,7 @@
       k.at(-0.22, 0.745, () => logo(g, 'avature', 0.16, 0.035, 'white', FB.avature));
       L.partnerAt('mercadolibre', -0.5, 0.745, 0.12, 0.04, 'white');
       k.at(0.06, 0.745, () => logo(g, 'modo', 0.13, 0.035, 'white', FB.modo));
-      k.at(-0.98, 0.7, () => alpA(g, 0.27, PK, '#ffffff'));
+      k.at(-1.0, 0.8, () => alpA(g, 0.12, PK, '#ffffff'));
       L.number(-1.24, 0.875, 0.08, '#ffffff');
       L.codeText(1.42, 0.535, 0.04, '#ffffff');
       // nose: eToro (white, on the blue under the pink band), the Alpine A at the tip

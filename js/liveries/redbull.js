@@ -8,6 +8,27 @@
 (function () {
   const LV = EI.LIVERIES; if (!LV) return;
   const { W, MM } = LV.K;
+  // national flag of the car's driver (by code, from EI.SEASON) next to the code on the cockpit side; h = flag height (m).
+  // Shared by the LIVERY-A team files (defined once on EI).
+  const FLAG = EI.liveryFlag || (EI.liveryFlag = function (g, nat, h) {
+    const H = h * 1000, Wd = H * 1.5, x0 = -Wd / 2, y0 = -H / 2; const R = (c, x, y, w, hh) => { g.fillStyle = c; g.fillRect(x0 + x * Wd, y0 + y * H, w * Wd, hh * H); };
+    if (nat === 'ITA') { R('#009246', 0, 0, 1 / 3, 1); R('#ffffff', 1 / 3, 0, 1 / 3, 1); R('#ce2b37', 2 / 3, 0, 1 / 3, 1); }
+    else if (nat === 'FRA') { R('#0055a4', 0, 0, 1 / 3, 1); R('#ffffff', 1 / 3, 0, 1 / 3, 1); R('#ef4135', 2 / 3, 0, 1 / 3, 1); }
+    else if (nat === 'MON') { R('#ce1126', 0, 0, 1, 0.5); R('#ffffff', 0, 0.5, 1, 0.5); }
+    else if (nat === 'NED') { R('#ae1c28', 0, 0, 1, 1 / 3); R('#ffffff', 0, 1 / 3, 1, 1 / 3); R('#21468b', 0, 2 / 3, 1, 1 / 3); }
+    else if (nat === 'GBR' || nat === 'AUS') {
+      const uj = (w, hh) => { g.save(); g.beginPath(); g.rect(x0, y0, w, hh); g.clip(); g.fillStyle = '#012169'; g.fillRect(x0, y0, w, hh);
+        g.strokeStyle = '#ffffff'; g.lineWidth = hh * 0.2; g.beginPath(); g.moveTo(x0, y0); g.lineTo(x0 + w, y0 + hh); g.moveTo(x0 + w, y0); g.lineTo(x0, y0 + hh); g.stroke();
+        g.strokeStyle = '#c8102e'; g.lineWidth = hh * 0.07; g.stroke();
+        g.fillStyle = '#ffffff'; g.fillRect(x0 + w * 0.4, y0, w * 0.2, hh); g.fillRect(x0, y0 + hh * 0.333, w, hh * 0.333);
+        g.fillStyle = '#c8102e'; g.fillRect(x0 + w * 0.44, y0, w * 0.12, hh); g.fillRect(x0, y0 + hh * 0.4, w, hh * 0.2); g.restore(); };
+      if (nat === 'GBR') uj(Wd, H);
+      else { g.fillStyle = '#012169'; g.fillRect(x0, y0, Wd, H); uj(Wd / 2, H / 2); g.fillStyle = '#ffffff';
+        for (const [sx, sy, r] of [[0.25, 0.75, 0.09], [0.75, 0.25, 0.05], [0.62, 0.5, 0.05], [0.88, 0.45, 0.05], [0.75, 0.82, 0.05]]) { g.beginPath(); for (let i = 0; i < 10; i++) { const a = -Math.PI / 2 + i * Math.PI / 5, rr = (i % 2 ? 0.45 : 1) * r * H; g.lineTo(x0 + sx * Wd + Math.cos(a) * rr, y0 + sy * H + Math.sin(a) * rr); } g.fill(); } }
+    } else return;
+    g.strokeStyle = 'rgba(0,0,0,0.35)'; g.lineWidth = H * 0.04; g.strokeRect(x0, y0, Wd, H);
+  });
+  const natOf = (code) => { const S = EI.SEASON; const d = S && S.drivers && S.drivers.find((v) => v.code === code); return d ? d.nat : null; };
   const NAVY = '#1c2658', DK = '#0b0d16', YEL = '#ffc906', RED = '#db0a40';
   // a partner logo with a keyline (drawn in `line` tone at 8 offsets, then the logo on top); d = keyline width (m)
   function keyline(L, id, x, y, w, h, tone, line, d) { for (let i = 0; i < 8; i++) { const a = i * Math.PI / 4; L.partnerAt(id, x + Math.cos(a) * d, y + Math.sin(a) * d, w, h, line); } L.partnerAt(id, x, y, w, h, tone); }
@@ -27,6 +48,12 @@
     g.restore();
     if (one) { const bx = (w / 2 - h * 0.42) * MM, s = h * 0.8 * MM; g.strokeStyle = W; g.lineWidth = s * 0.09; g.strokeRect(bx - s / 2, -s / 2, s, s); g.fillStyle = W; g.font = '700 ' + (s * 0.8).toFixed(1) + 'px Arial, Helvetica, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('1', bx, s * 0.05); }
   }
+  // Mobil's red Pegasus (flying horse, facing forward on this side), drawn as a simple silhouette ~0.1 m wide
+  function bullOrPegasus(L, x, y) {
+    const { k, g } = L; k.at(x, y, () => { g.scale(-k.s, 1); const s = 4.2; g.fillStyle = '#ef1c25'; g.beginPath();
+      [[-12, 4], [-6, -2], [0, -2], [6, -10], [14, -14], [8, -6], [12, -4], [16, 0], [10, 2], [6, 2], [4, 8], [8, 14], [4, 14], [0, 8], [-4, 8], [-8, 14], [-12, 14], [-8, 6]].forEach(([a, b], i) => (i ? g.lineTo(a * s, b * s) : g.moveTo(a * s, b * s)));
+      g.closePath(); g.fill(); });
+  }
   LV.register('redbull', {
     parts: { body: NAVY, fwFlap: NAVY, fwEnd: NAVY, fwTip: NAVY, rwMain: NAVY, rwEnd: NAVY, rwFlap: DK, halo: DK, mirror: NAVY, fin: NAVY },
     num: { ff: '"Titillium Web", Arial, sans-serif', w: 900, it: 1, sx: 0.84, skew: 0.12 },
@@ -37,9 +64,9 @@
       g.save(); g.globalAlpha = 0.06; for (let x = -2.6; x < 3.2; x += 0.05) k.stroke([[x, -0.1], [x + 0.6, 1.3]], 0.012, '#9fb4ff'); g.restore();
       k.region([[3.15, 0.12], [1.8, 0.2], [0.9, 0.22], [-0.5, 0.2], [-1.6, 0.24]], [[-2.6, -0.1], [3.2, -0.1]], DK);
       // yellow -> orange nose tip with the red bull
-      const gr = g.createLinearGradient(k.X(3.1), 0, k.X(2.75), 0); gr.addColorStop(0, YEL); gr.addColorStop(0.7, '#ffb000'); gr.addColorStop(1, '#ff8a00');
-      k.poly([[2.75, 0.24], [3.12, 0.24], [3.12, 0.6], [2.75, 0.6]], gr);
-      bull(L, 2.93, 0.33, 0.3, 0.13, 0);
+      const gr = g.createLinearGradient(k.X(3.1), 0, k.X(2.2), 0); gr.addColorStop(0, YEL); gr.addColorStop(0.7, '#ffb000'); gr.addColorStop(1, '#ff8a00');
+      k.region([[2.2, 0.6], [2.28, 0.4], [2.38, 0.26], [2.5, 0.2]], [[3.12, 0.22], [3.12, 0.6]], gr);
+      bull(L, 2.72, 0.33, 0.36, 0.15, 0);
       // sun-yellow airbox, the big bull over the engine cover
       k.poly([[0.1, 1.2], [0.1, 0.86], [-0.36, 0.86], [-0.4, 1.2]], YEL);
       bull(L, -0.64, 0.89, 1.0, 0.36, 0.012);
@@ -57,11 +84,14 @@
       k.at(-1.3, 0.8, () => { g.fillStyle = W; EI.Ads.rr(g, -60, -55, 120, 110, 12); g.fill(); });
       L.number(-1.3, 0.8, 0.095, RED);
       // front-wing endplates: Mobil + Pegasus; rear-wing endplates: Mobil 1, Heineken 0.0
-      k.at(2.5, 0.38, () => mobil(g, 0.3, 0.07, false));
       k.at(-2.17, 0.88, () => mobil(g, 0.38, 0.08, true));
       L.partnerAt('heineken', -2.17, 0.62, 0.22, 0.06, 'whiteKeepRed');
-      L.codeText(1.6, 0.5, 0.045, W);
+      L.codeText(1.27, 0.46, 0.036, W); k.at(1.09, 0.46, () => FLAG(g, natOf(L.code), 0.03));
       L.haloHandle('redbullracing.com', W, -1); L.haloHandle('@redbullracing', W, 1);
+    },
+    endplate(L) {   // front-wing endplates (navy): Mobil + the red Pegasus
+      const { k, g } = L;
+      k.at(2.5, 0.38, () => mobil(g, 0.3, 0.07, false)); bullOrPegasus(L, 2.5, 0.25);
     },
     top(L) {
       const { t, g } = L;

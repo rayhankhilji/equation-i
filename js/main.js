@@ -886,7 +886,7 @@ window.EI = window.EI || {};
   function handleEvents() {
     for (const e of race.pollEvents()) {
       switch (e.type) {
-        case 'light': EI.HUD.setLights(e.data); EI.Audio.beep(440, 0.25, 0.25); if (e.data === 1) { if (race.players.length > 1) { EI.HUD.toast('W A S D · L Shift DRS · Space ERS · C camera · P pit', 'keys', 0); EI.HUD.toast('Arrows · R Shift DRS · Enter ERS · / camera · Backspace pit', 'keys', 1); } else EI.HUD.toast('P1: W A S D · Shift = DRS · Ctrl/Space = ERS boost · C = camera'); } break;
+        case 'light': EI.HUD.setLights(e.data); EI.Audio.beep(440, 0.25, 0.25); if (e.data === 1) { if (race.players.length > 1) { EI.HUD.toast('W A S D · L Shift straight mode · Space ERS · C camera · P pit', 'keys', 0); EI.HUD.toast('Arrows · R Shift straight mode · Enter ERS · / camera · Backspace pit', 'keys', 1); } else EI.HUD.toast('W A S D · Shift = straight mode · Ctrl/Space = ERS boost · C = camera · P = pit'); } break;
         case 'go': $('lights').classList.add('hidden'); EI.HUD.setLights(-1); EI.HUD.banner('LIGHTS OUT!', 1500, '#37d67a'); EI.Audio.beep(880, 0.6, 0.3); break;
         case 'penalty': viewports[e.data.playerIndex].showMsg('JUMP START  +5s', 'bad', 3); if (race.players.length === 1) EI.HUD.toast(e.data.name + ': jump start, +5 s penalty'); break;
         case 'fastest': EI.HUD.toast('Fastest lap: ' + e.data.name + ' ' + U.fmtTime(race.fastest.time)); if (e.data.isPlayer) viewports[e.data.playerIndex].showMsg('FASTEST LAP ' + U.fmtTime(race.fastest.time), 'good', 2.5); break;

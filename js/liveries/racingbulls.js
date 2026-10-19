@@ -98,8 +98,8 @@
       k.poly([[0.12, TOP_V], [0.12, 0.8], [-0.1, 0.74], [-0.75, 0.74], [-0.75, TOP_V]], ga);
       k.poly([[-1.0, TOP_V], [-1.0, 0.86], [-1.12, 0.78], [-1.75, 0.8], [-1.75, TOP_V]], NVD);
       // logos
-      L.partnerAt('redbull', -0.6, 0.7, 0.38, 0.075, 'color');                       // "Red Bull" red under the cover bull
-      k.at(-0.5, 0.83, () => bull(g, 0.66, 0.17, flip));                                  // the big cover bull, charging rearwards
+      L.partnerAt('redbull', -0.62, 0.69, 0.34, 0.062, 'color');                       // "Red Bull" red under the cover bull
+      k.at(-0.74, 0.795, () => bull(g, 0.56, 0.145, flip));                                  // the big cover bull, charging rearwards
       k.at(2.13, 0.45, () => bull(g, 0.24, 0.075, flip));                                 // the nose bull (behind the endplate)
       k.at(0.05, 0.705, () => cashApp(g, 0.42, 0.07, '#16171b', true));                  // $ Cash App on the cockpit shoulder
       k.at(1.02, 0.628, () => logo(g, 'hugo', 0.3, 0.058, 'color', FB.hugo));            // HUGO red ahead of the sidepod
@@ -130,8 +130,7 @@
       // the big cover bull from above: the two flanks' bulls meet over the spine, on the yellow airbox sun
       const ga = g.createRadialGradient(0, 0.1 * MM, 10, 0, 0.1 * MM, 330); ga.addColorStop(0, YL); ga.addColorStop(0.6, '#ffc400'); ga.addColorStop(1, 'rgba(255,196,0,0)');
       t.poly([[0.3, -0.33], [0.3, 0.33], [-0.5, 0.33], [-0.5, -0.33]], ga);
-      for (const s of [-1, 1]) t.at(-0.62, s * 0.1, () => { g.save(); g.rotate(s < 0 ? 0 : 0); g.scale(-1, s); bull(g, 0.62, 0.18); g.restore(); });
-      for (const s of [-1, 1]) L.partnerTop('redbull', -0.62, s * 0.24, 0.42, 0.06, 'color', 0);
+      for (const s of [-1, 1]) t.at(-0.5, s * 0.055, () => { g.save(); g.rotate(Math.PI / 2); if (s > 0) g.scale(1, -1); bull(g, 0.7, 0.11); g.restore(); });   // heads to the rear, legs outboard
       // nose: the race number (navy, white keyline) and the partner column, all reading along the car
       L.wordmark(String(L.num), 1.72, 0, 0.22, NV, { ff: '"Titillium Web", Arial, sans-serif', w: 900, it: 1, sx: 0.92, outline: [0.012, '#ffffff'] }, true);
       L.partnerTop('visa', 1.42, -0.035, 0.13, 0.045, 'mono:' + NV, ALONG);
@@ -143,7 +142,7 @@
       L.partnerTop('visa', 0.96, -0.03, 0.12, 0.04, 'mono:' + NV, ALONG);
       L.partnerTop('redbull', 0.86, 0, 0.16, 0.04, 'color', ALONG);
       // sidepod tops: CONFLUENT (black), the white panels; Cash App badges by the cockpit
-      for (const s of [-1, 1]) { L.t.at(-0.35, s * 0.47, () => logo(g, 'confluent', 0.36, 0.05, 'color', FB.confluent), 0); L.partnerTop('cashapp', 0.42, s * 0.36, 0.05, 0.05, 'color', 0); }
+      for (const s of [-1, 1]) { L.t.at(-0.3, s * 0.4, () => logo(g, 'confluent', 0.3, 0.045, 'color', FB.confluent), 0); L.partnerTop('cashapp', 0.42, s * 0.36, 0.05, 0.05, 'color', 0); }
       // rear wing: white main plane with TUDOR (shield + wordmark) on each half; the DRS flap carries Cash App in white
       for (const s of [-1, 1]) { t.at(-2.04, s * 0.27, () => logoPart(g, 'tudor', 0.34, 0.07, 'black', [0, 0.62, 1, 1])); t.at(-2.04, s * 0.5, () => logoPart(g, 'tudor', 0.05, 0.06, 'color', [0.3, 0, 0.7, 0.42])); }
       t.at(-2.2, -0.12, () => cashApp(g, 0.6, 0.1, '#ffffff', false)); L.partnerTop('cashapp', -2.2, 0.38, 0.09, 0.09, 'color', 0);

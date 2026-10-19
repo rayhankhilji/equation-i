@@ -8,6 +8,27 @@
 (function () {
   const LV = EI.LIVERIES; if (!LV) return;
   const { W, MM } = LV.K;
+  // national flag of the car's driver (by code, from EI.SEASON) next to the code on the cockpit side; h = flag height (m).
+  // Shared by the LIVERY-A team files (defined once on EI).
+  const FLAG = EI.liveryFlag || (EI.liveryFlag = function (g, nat, h) {
+    const H = h * 1000, Wd = H * 1.5, x0 = -Wd / 2, y0 = -H / 2; const R = (c, x, y, w, hh) => { g.fillStyle = c; g.fillRect(x0 + x * Wd, y0 + y * H, w * Wd, hh * H); };
+    if (nat === 'ITA') { R('#009246', 0, 0, 1 / 3, 1); R('#ffffff', 1 / 3, 0, 1 / 3, 1); R('#ce2b37', 2 / 3, 0, 1 / 3, 1); }
+    else if (nat === 'FRA') { R('#0055a4', 0, 0, 1 / 3, 1); R('#ffffff', 1 / 3, 0, 1 / 3, 1); R('#ef4135', 2 / 3, 0, 1 / 3, 1); }
+    else if (nat === 'MON') { R('#ce1126', 0, 0, 1, 0.5); R('#ffffff', 0, 0.5, 1, 0.5); }
+    else if (nat === 'NED') { R('#ae1c28', 0, 0, 1, 1 / 3); R('#ffffff', 0, 1 / 3, 1, 1 / 3); R('#21468b', 0, 2 / 3, 1, 1 / 3); }
+    else if (nat === 'GBR' || nat === 'AUS') {
+      const uj = (w, hh) => { g.save(); g.beginPath(); g.rect(x0, y0, w, hh); g.clip(); g.fillStyle = '#012169'; g.fillRect(x0, y0, w, hh);
+        g.strokeStyle = '#ffffff'; g.lineWidth = hh * 0.2; g.beginPath(); g.moveTo(x0, y0); g.lineTo(x0 + w, y0 + hh); g.moveTo(x0 + w, y0); g.lineTo(x0, y0 + hh); g.stroke();
+        g.strokeStyle = '#c8102e'; g.lineWidth = hh * 0.07; g.stroke();
+        g.fillStyle = '#ffffff'; g.fillRect(x0 + w * 0.4, y0, w * 0.2, hh); g.fillRect(x0, y0 + hh * 0.333, w, hh * 0.333);
+        g.fillStyle = '#c8102e'; g.fillRect(x0 + w * 0.44, y0, w * 0.12, hh); g.fillRect(x0, y0 + hh * 0.4, w, hh * 0.2); g.restore(); };
+      if (nat === 'GBR') uj(Wd, H);
+      else { g.fillStyle = '#012169'; g.fillRect(x0, y0, Wd, H); uj(Wd / 2, H / 2); g.fillStyle = '#ffffff';
+        for (const [sx, sy, r] of [[0.25, 0.75, 0.09], [0.75, 0.25, 0.05], [0.62, 0.5, 0.05], [0.88, 0.45, 0.05], [0.75, 0.82, 0.05]]) { g.beginPath(); for (let i = 0; i < 10; i++) { const a = -Math.PI / 2 + i * Math.PI / 5, rr = (i % 2 ? 0.45 : 1) * r * H; g.lineTo(x0 + sx * Wd + Math.cos(a) * rr, y0 + sy * H + Math.sin(a) * rr); } g.fill(); } }
+    } else return;
+    g.strokeStyle = 'rgba(0,0,0,0.35)'; g.lineWidth = H * 0.04; g.strokeRect(x0, y0, Wd, H);
+  });
+  const natOf = (code) => { const S = EI.SEASON; const d = S && S.drivers && S.drivers.find((v) => v.code === code); return d ? d.nat : null; };
   const RED = '#e2131f', BK = '#141518', WH = '#f6f6f4', YEL = '#fbd70c';
   // the Shell pecten (scallop): yellow shell, red rim and grooves; h = height in metres, centred on the origin
   function pecten(g, h) {
@@ -55,7 +76,7 @@
       // race number on the red cover behind the white
       L.number(-1.1, 0.82, 0.15, W);
       L.partnerAt('hp', -0.14, 0.9, 0.23, 0.23, 'color');
-      L.partnerAt('zyn', 0.52, 0.81, 0.13, 0.04, 'black');
+      L.partnerAt('zyn', 0.52, 0.81, 0.13, 0.045, 'black', W);
       L.partnerAt('ibm', 0.22, 0.81, 0.13, 0.04, 'black');
       // sidepod: Puma, Shell pecten, CEVA; UniCredit on the cover rear
       k.at(0.4, 0.53, () => { g.scale(k.s, 1); pumaCat(g, 0.13, W); });
@@ -66,14 +87,16 @@
       L.partnerAt('richardmille', 1.25, 0.6, 0.36, 0.04, 'white');
       k.at(0.98, 0.56, () => shield(g, 0.11));
       L.partnerAt('ambipar', 0.95, 0.24, 0.3, 0.05, 'white');
-      // front-wing endplates: UniCredit + tricolore
-      L.partnerAt('unicredit', 2.5, 0.36, 0.34, 0.07, 'white'); k.at(2.5, 0.24, () => tricolore(g, 0.2, 0.035));
       // rear-wing endplates: tricolore strip, Shell V-Power, Peroni Nastro Azzurro 0.0%
       k.at(-2.17, 0.95, () => tricolore(g, 0.3, 0.03));
       k.at(-2.04, 0.84, () => pecten(g, 0.07)); L.wordmark('V-Power', -2.22, 0.84, 0.05, W, { w: 700, it: 1 });
       L.wordmark('PERONI', -2.17, 0.71, 0.045, W, { w: 700, ff: 'Georgia, "Times New Roman", serif', ls: 0.06 }); L.wordmark('NASTRO AZZURRO 0.0%', -2.17, 0.655, 0.024, W, { w: 700, ls: 0.06 });
-      L.codeText(1.55, 0.55, 0.045, W);
+      L.codeText(1.27, 0.48, 0.036, W); k.at(1.09, 0.48, () => FLAG(g, natOf(L.code), 0.03));
       L.haloHandle('ferrari.com', W, -1); L.haloHandle('@ScuderiaFerrari', W, 1);
+    },
+    endplate(L) {   // front-wing endplates (black): UniCredit + tricolore
+      const { k, g } = L;
+      L.partnerAt('unicredit', 2.5, 0.36, 0.34, 0.07, 'white'); k.at(2.5, 0.24, () => tricolore(g, 0.2, 0.035));
     },
     top(L) {
       const { t, g } = L;

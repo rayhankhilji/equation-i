@@ -57,9 +57,9 @@
   // Gazoo Racing GR (G black, R red), artwork when installed, else heavy italic type cut to the GR shapes
   function gr(g, w, h, cG, cR) {
     if (has('tgremblem')) return LV.partner(g, 'tgremblem', w, h, 'color');
-    const ff = '"Titillium Web", Arial, sans-serif'; g.save(); g.font = 'italic 900 100px ' + ff; const tg = g.measureText('G').width / 100, tr = g.measureText('R').width / 100;
-    const cap = Math.min(h * 1.25, w / (tg + tr) / 0.95); const fs = cap * MM; g.font = 'italic 900 ' + fs.toFixed(1) + 'px ' + ff; g.textBaseline = 'middle'; g.textAlign = 'left';
-    g.scale(1.12, 0.86); const x0 = -(tg + tr) * fs / 2 * 0.95; g.fillStyle = cG; g.fillText('G', x0, fs * 0.05); g.fillStyle = cR; g.fillText('R', x0 + tg * fs * 0.9, fs * 0.05); g.restore();
+    const ff = '"Unbounded", "Titillium Web", Arial, sans-serif'; g.save(); g.font = '800 100px ' + ff; const tg = g.measureText('G').width / 100, tr = g.measureText('R').width / 100;
+    const cap = Math.min(h / 0.74, w / ((tg + tr) * 0.94)); const fs = cap * MM; g.font = '800 ' + fs.toFixed(1) + 'px ' + ff; g.textBaseline = 'middle'; g.textAlign = 'left';
+    g.transform(1, 0, -0.22, 1, 0, 0); const x0 = -(tg + tr) * 0.94 * fs / 2; g.fillStyle = cG; g.fillText('G', x0, fs * 0.04); g.fillStyle = cR; g.fillText('R', x0 + tg * fs * 0.94, fs * 0.04); g.restore();
   }
   // Play'n GO: the blue pill with PLAY'n and the red GO badge
   function playngo(g, w, h) {
@@ -114,8 +114,6 @@
       // tail carbon, red airbox top, the red stripe edges of the sidepods
       t.poly([[-1.35, -0.5], [-1.35, 0.5], [-1.95, 0.3], [-1.95, -0.3]], BK);
       t.poly([[0.14, -0.13], [0.14, 0.13], [-0.45, 0.12], [-0.45, -0.12]], RD);
-      // GR along the engine cover (each flank's letters seen from above)
-      for (const s of [-1, 1]) t.at(-0.82, s * 0.14, () => gr(g, 0.5, 0.13, BK, RD), s < 0 ? 0 : Math.PI);
       // nose: number + flag + Haas emblem + partner column, reading along the car
       t.poly([[3.1, -0.08], [3.1, 0.08], [2.6, 0.095], [2.6, -0.095]], RD);
       L.number(1.78, 0, 0.13, BK);

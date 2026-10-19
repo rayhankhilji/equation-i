@@ -17,7 +17,7 @@
   const { LOW_V, W } = LV.K;
   const BRG = '#07584f', BLK = '#101413', LM = '#cedc00', SKY = '#45b2e6';
   LV.register('astonmartin', {
-    parts: { body: BRG, fwFlap: BLK, fwEnd: BRG, fwTip: BLK, rwMain: BRG, rwEnd: BRG, rwFlap: SKY, halo: BRG, mirror: BRG, fin: BRG },
+    parts: { body: BRG, fwFlap: BLK, fwEnd: BRG, fwTip: BLK, rwMain: SKY, rwEnd: BRG, rwFlap: SKY, halo: BRG, mirror: BRG, fin: BRG },
     num: { ff: '"Titillium Web", Arial, sans-serif', w: 700, ls: 0.04 },
     halo: { inner: ['breitling', '@AstonMartinF1'] },
     side(L) {
@@ -36,7 +36,7 @@
       L.partnerAt('aramco', -0.32, 0.34, 0.98, 0.17, 'white');
       L.partnerAt('boss', 0.28, 0.43, 0.22, 0.06, 'white');
       L.partnerAt('cohere', -0.42, 0.63, 0.3, 0.055, 'white');
-      L.partnerAt('maaden', -0.55, 0.86, 0.5, 0.09, 'white');
+      L.partnerAt('maaden', -0.55, 0.86, 0.56, 0.11, 'white');
       L.partnerAt('coreweave', -0.08, 1.0, 0.16, 0.08, 'white');
       L.partnerAt('honda2026', -1.08, 0.7, 0.12, 0.1, 'white');
       L.wordmark('powered by', -1.08, 0.78, 0.022, W, { w: 600, ls: 0.02 });
@@ -58,8 +58,8 @@
     },
     top(L) {
       // nose: lime number (reads from ahead), Honda H, then NexGen / xerox / NetApp / Pirelli, the wings at the tip
-      L.number(2.15, 0, 0.11, LM);
-      const stack = [['honda2026', 2.45, 0.08, 0.07], ['nexgen', 1.95, 0.12, 0.045], ['xerox', 1.8, 0.13, 0.04], ['netapp', 1.66, 0.13, 0.035], ['pirelli', 1.53, 0.12, 0.03], ['astonmartin', 2.72, 0.12, 0.04]];
+      L.number(1.5, 0, 0.1, LM);
+      const stack = [['honda2026', 1.72, 0.08, 0.07], ['nexgen', 1.95, 0.12, 0.04], ['xerox', 2.07, 0.12, 0.035], ['netapp', 2.18, 0.12, 0.03], ['pirelli', 2.29, 0.11, 0.026], ['valvolinev', 2.42, 0.06, 0.045], ['astonmartin', 2.66, 0.12, 0.04]];
       for (const [id, x, w, h] of stack) L.partnerTop(id, x, 0, w, h, id === 'pirelli' ? 'color' : 'white', Math.PI);
       // sidepod tops: aramco; engine cover spine: MAADEN; rear wing top element (light blue): aramco
       L.partner('aramco', 'spTop', 'white'); L.partner('maaden', 'ecTop', 'white');

@@ -22,19 +22,19 @@
     side(L) {
       const { k } = L;
       // black: nose / chassis side under the white top, the sidepod undercut and floor, the lower rear body
-      k.region([[3.25, 0.3], [2.6, 0.38], [2.0, 0.46], [1.5, 0.54], [1.05, 0.6], [0.8, 0.6], [0.6, 0.5], [0.45, 0.24], [0.0, 0.18], [-0.8, 0.2], [-1.3, 0.3], [-1.6, 0.48], [-2.0, 0.56]],
+      k.region([[3.25, 0.36], [2.6, 0.44], [2.0, 0.52], [1.5, 0.6], [1.05, 0.66], [0.8, 0.64], [0.6, 0.52], [0.45, 0.24], [0.0, 0.18], [-0.8, 0.2], [-1.3, 0.3], [-1.6, 0.48], [-2.0, 0.56]],
         [[-2.6, 0.56], [-2.6, LOW_V], [3.25, LOW_V]], BK);
       // the "glitch": black bars breaking up the white at the back of the engine cover / sidepod
-      const bars = [[-0.85, 0.82, 0.18], [-0.95, 0.77, 0.3], [-1.0, 0.72, 0.22], [-1.05, 0.67, 0.36], [-1.1, 0.62, 0.28], [-1.08, 0.57, 0.42], [-1.15, 0.52, 0.3], [-0.98, 0.47, 0.5], [-1.2, 0.42, 0.36], [-1.0, 0.37, 0.6]];
-      for (const [x, y, w] of bars) k.poly([[x, y + 0.016], [x - w, y + 0.016], [x - w, y - 0.016], [x, y - 0.016]], BK);
+      const bars = [[-0.42, 0.93, 0.16], [-0.5, 0.88, 0.3], [-0.62, 0.83, 0.22], [-0.66, 0.78, 0.42], [-0.8, 0.73, 0.3], [-0.78, 0.68, 0.5], [-0.95, 0.63, 0.36], [-0.9, 0.58, 0.55], [-1.05, 0.53, 0.42], [-1.0, 0.48, 0.62], [-1.15, 0.43, 0.5]];
+      for (const [x, y, w] of bars) k.poly([[x, y + 0.019], [x - w, y + 0.019], [x - w, y - 0.019], [x, y - 0.019]], BK);
       // sidepod title + engine cover
-      L.partnerAt('twgai', -0.3, 0.4, 0.82, 0.19, 'black');
+      L.partnerAt('twgai', -0.25, 0.4, 1.05, 0.24, 'black');
       L.partnerAt('cadillaccrest', -0.18, 0.95, 0.2, 0.08, 'color');
-      L.partnerAt('corescientific', -0.62, 0.8, 0.46, 0.045, 'black');
+      L.partnerAt('corescientific', 0.05, 0.76, 0.42, 0.045, 'black');
       // chassis side: Cadillac script, Claro, the number; floor fence: Jim Beam
-      L.wordmark('Cadillac', 1.12, 0.52, 0.06, W, { ff: 'Georgia, "Times New Roman", serif', w: 700, it: 1, ls: 0.0 });
-      L.partnerAt('clarowordmark', 1.05, 0.42, 0.18, 0.05, 'white');
-      L.number(1.75, 0.42, 0.065, W);
+      L.wordmark('Cadillac', 1.15, 0.585, 0.06, W, { ff: 'Georgia, "Times New Roman", serif', w: 700, it: 1, ls: 0.0 });
+      L.partnerAt('clarowordmark', 1.0, 0.47, 0.18, 0.05, 'white');
+      L.number(1.85, 0.5, 0.065, W);
       L.partnerAt('jimbeam', 0.7, 0.28, 0.16, 0.12, 'white');
       L.partnerAt('tenneco', -1.8, 0.4, 0.22, 0.04, 'white');
       L.codeText(0.55, 0.69, 0.04, BK);
@@ -45,6 +45,8 @@
       L.haloSide('IFS', BK, { w: 700, ls: 0.1 });
     },
     top(L) {
+      // black nose flanks: only a white band runs down the nose top (narrow at the tip, widening to the cockpit)
+      for (const sg of [-1, 1]) L.t.poly([[3.25, sg * 0.045], [2.4, sg * 0.07], [1.6, sg * 0.1], [1.05, sg * 0.13], [1.05, sg * 0.6], [3.25, sg * 0.6]], BK);
       // nose top (reads from ahead): crest at the tip, then the number, Tommy Hilfiger flag, TWG AI, Pirelli, Tenneco, Core Scientific
       L.partnerTop('cadillaccrest', 2.62, 0, 0.1, 0.045, 'color', Math.PI);
       const stack = [['corescientific', 2.4, 0.16, 0.025], ['tenneco', 2.25, 0.14, 0.026], ['pirelli', 2.1, 0.12, 0.028], ['twgai', 1.92, 0.13, 0.035], ['tommyhilfiger', 1.75, 0.07, 0.045]];

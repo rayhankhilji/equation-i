@@ -291,6 +291,12 @@ window.EI = window.EI || {};
     const tick = (s, col, len, w) => { const i = t.idxAtS(s); const p = P(t.x[i], t.z[i]); const nx = t.nx[i] * fit.ca - t.nz[i] * fit.sa, ny = t.nx[i] * fit.sa + t.nz[i] * fit.ca; g.beginPath(); g.moveTo(p[0] - nx * len * k, p[1] - ny * len * k); g.lineTo(p[0] + nx * len * k, p[1] + ny * len * k); g.strokeStyle = col; g.lineWidth = w * k; g.lineCap = 'butt'; g.stroke(); };
     if (t.sectors) for (const s of t.sectors) tick(s, '#ffd23f', 5, 2);
     tick(t.sf, '#0b0c10', 7, 4.2); tick(t.sf, '#ffffff', 6, 2.4);
+    // sector numbers beside the start of each sector (as on the F1 game maps)
+    g.font = '700 ' + (10 * k).toFixed(1) + 'px "F1 HUD", "Titillium Web", sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.lineJoin = 'round';
+    [t.sf].concat(t.sectors || []).forEach((s, si) => {
+      const i = t.idxAtS(s + 25); const p = P(t.x[i], t.z[i]); const nx = t.nx[i] * fit.ca - t.nz[i] * fit.sa, ny = t.nx[i] * fit.sa + t.nz[i] * fit.ca;
+      const x = p[0] + nx * 11 * k, y = p[1] + ny * 11 * k; g.lineWidth = 3 * k; g.strokeStyle = 'rgba(6,7,11,0.85)'; g.strokeText(String(si + 1), x, y); g.fillStyle = '#ffffff'; g.fillText(String(si + 1), x, y);
+    });
     r.mapGeo = { t, P, oc, k, cw, ch };
     return r.mapGeo;
   }

@@ -9,6 +9,27 @@
 (function () {
   const LV = EI.LIVERIES; if (!LV) return;
   const { W, MM } = LV.K;
+  // national flag of the car's driver (by code, from EI.SEASON) next to the code on the cockpit side; h = flag height (m).
+  // Shared by the LIVERY-A team files (defined once on EI).
+  const FLAG = EI.liveryFlag || (EI.liveryFlag = function (g, nat, h) {
+    const H = h * 1000, Wd = H * 1.5, x0 = -Wd / 2, y0 = -H / 2; const R = (c, x, y, w, hh) => { g.fillStyle = c; g.fillRect(x0 + x * Wd, y0 + y * H, w * Wd, hh * H); };
+    if (nat === 'ITA') { R('#009246', 0, 0, 1 / 3, 1); R('#ffffff', 1 / 3, 0, 1 / 3, 1); R('#ce2b37', 2 / 3, 0, 1 / 3, 1); }
+    else if (nat === 'FRA') { R('#0055a4', 0, 0, 1 / 3, 1); R('#ffffff', 1 / 3, 0, 1 / 3, 1); R('#ef4135', 2 / 3, 0, 1 / 3, 1); }
+    else if (nat === 'MON') { R('#ce1126', 0, 0, 1, 0.5); R('#ffffff', 0, 0.5, 1, 0.5); }
+    else if (nat === 'NED') { R('#ae1c28', 0, 0, 1, 1 / 3); R('#ffffff', 0, 1 / 3, 1, 1 / 3); R('#21468b', 0, 2 / 3, 1, 1 / 3); }
+    else if (nat === 'GBR' || nat === 'AUS') {
+      const uj = (w, hh) => { g.save(); g.beginPath(); g.rect(x0, y0, w, hh); g.clip(); g.fillStyle = '#012169'; g.fillRect(x0, y0, w, hh);
+        g.strokeStyle = '#ffffff'; g.lineWidth = hh * 0.2; g.beginPath(); g.moveTo(x0, y0); g.lineTo(x0 + w, y0 + hh); g.moveTo(x0 + w, y0); g.lineTo(x0, y0 + hh); g.stroke();
+        g.strokeStyle = '#c8102e'; g.lineWidth = hh * 0.07; g.stroke();
+        g.fillStyle = '#ffffff'; g.fillRect(x0 + w * 0.4, y0, w * 0.2, hh); g.fillRect(x0, y0 + hh * 0.333, w, hh * 0.333);
+        g.fillStyle = '#c8102e'; g.fillRect(x0 + w * 0.44, y0, w * 0.12, hh); g.fillRect(x0, y0 + hh * 0.4, w, hh * 0.2); g.restore(); };
+      if (nat === 'GBR') uj(Wd, H);
+      else { g.fillStyle = '#012169'; g.fillRect(x0, y0, Wd, H); uj(Wd / 2, H / 2); g.fillStyle = '#ffffff';
+        for (const [sx, sy, r] of [[0.25, 0.75, 0.09], [0.75, 0.25, 0.05], [0.62, 0.5, 0.05], [0.88, 0.45, 0.05], [0.75, 0.82, 0.05]]) { g.beginPath(); for (let i = 0; i < 10; i++) { const a = -Math.PI / 2 + i * Math.PI / 5, rr = (i % 2 ? 0.45 : 1) * r * H; g.lineTo(x0 + sx * Wd + Math.cos(a) * rr, y0 + sy * H + Math.sin(a) * rr); } g.fill(); } }
+    } else return;
+    g.strokeStyle = 'rgba(0,0,0,0.35)'; g.lineWidth = H * 0.04; g.strokeRect(x0, y0, Wd, H);
+  });
+  const natOf = (code) => { const S = EI.SEASON; const d = S && S.drivers && S.drivers.find((v) => v.code === code); return d ? d.nat : null; };
   const PAP = '#ff8000', AN = '#1d1e21', TEAL = '#0e4a40';
   LV.register('mclaren', {
     parts: { body: PAP, fwFlap: AN, fwEnd: PAP, fwTip: PAP, rwMain: AN, rwEnd: PAP, rwFlap: AN, halo: AN, mirror: '#14302b', fin: PAP },
@@ -34,16 +55,18 @@
       L.partnerAt('mastercard', -0.66, 0.24, 0.22, 0.12, 'color');
       L.partnerAt('cisco', 0.42, 0.68, 0.2, 0.085, 'mono:#9c3d00');
       L.wordmark('ClubAvolta', 0.3, 0.6, 0.04, W, { w: 700 });
-      L.partnerAt('richardmille', 1.4, 0.58, 0.36, 0.04, 'mono:#7d1a12');
-      L.partnerAt('dpworld', 1.0, 0.47, 0.22, 0.07, 'white', '#23286a');
+      L.partnerAt('richardmille', 1.12, 0.6, 0.32, 0.036, 'mono:#7d1a12');
+      L.partnerAt('dpworld', 0.84, 0.46, 0.2, 0.065, 'white', '#23286a');
       if (EI.Ads.hasPartner('delltechnologies')) L.partnerAt('delltechnologies', -1.2, 0.75, 0.36, 0.07, 'mono:#3a1f0c');
       else { L.wordmark('DELL', -1.2, 0.78, 0.05, '#3a1f0c', { w: 900, ls: 0.12 }); L.wordmark('Technologies', -1.2, 0.735, 0.024, '#3a1f0c', { w: 600 }); }
       L.partnerAt('mclarenspeedmark', 0.98, 0.25, 0.2, 0.06, 'color');
       // front-wing endplates: workday; rear-wing endplates: Dropbox
-      L.partnerAt('workday', 2.5, 0.3, 0.3, 0.09, 'mono:#3a1f0c');
       L.partnerAt('dropbox', -2.17, 0.86, 0.4, 0.075, 'black'); L.partnerAt('groq', -2.17, 0.56, 0.14, 0.05, 'white');
-      L.number(1.62, 0.52, 0.07, AN); L.codeText(1.85, 0.47, 0.045, AN);
+      L.number(1.62, 0.52, 0.07, AN); L.codeText(1.27, 0.5, 0.036, AN); k.at(1.09, 0.5, () => FLAG(g, natOf(L.code), 0.03));
       L.haloHandle('mclaren.com', W, -1); L.haloHandle('@McLarenF1', W, 1);
+    },
+    endplate(L) {   // front-wing endplates (papaya): workday
+      L.partnerAt('workday', 2.5, 0.3, 0.3, 0.09, 'mono:#3a1f0c');
     },
     top(L) {
       const { t } = L;

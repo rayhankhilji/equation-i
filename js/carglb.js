@@ -854,9 +854,9 @@ window.EI = window.EI || {};
       const plane = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshBasicMaterial({ map: rt.texture, alphaMap: mask, alphaTest: 0.5, toneMapped: false }));
       plane.position.copy(cc); plane.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(rx, up, nrm)); body.add(plane);
       // reflected eye ray -> camera direction (body space)
-      const d = cc.clone().sub(EYE).normalize(); const refl = d.clone().addScaledVector(nrm, -2 * d.dot(nrm)).normalize();
+      const d = cc.clone().sub(EYE).normalize(); const refl = d.clone().addScaledVector(nrm, -2 * d.dot(nrm)); refl.z += sgn * 0.16; refl.y += 0.035; refl.normalize();   // aimed ~9 deg further out and a touch up: the rear tyre at the inner edge, the track behind filling the rest
       const cam = new THREE.PerspectiveCamera(16, w / h, 0.3, 260); cam.userData = { local: cc.clone(), dir: refl };
-      cam.fov = 2 * Math.atan(Math.tan(THREE.MathUtils.degToRad(17)) / (w / h)) * 180 / Math.PI;   // ~34 deg horizontal
+      cam.fov = 2 * Math.atan(Math.tan(THREE.MathUtils.degToRad(20)) / (w / h)) * 180 / Math.PI;   // ~40 deg horizontal
       cam.updateProjectionMatrix();
       sides.push({ rt, plane, cam, ar: w / h });
     }
