@@ -58,22 +58,27 @@
       for (let i = 0; i < 7; i++) { const x = -0.48 - i * 0.08; k.poly([[x, 0.8], [x - 0.025, 0.8], [x - 0.025, 0.7 - (i % 2) * 0.02], [x, 0.7 - (i % 2) * 0.02]], 'rgba(20,10,10,0.55)'); }
       // logos
       L.partnerAt('revolut', -0.06, 0.45, 0.66, 0.16, 'black');
-      L.partnerAt('castrol', 0.05, 0.6, 0.3, 0.055, 'black');
-      L.partnerAt('ninjaone', 1.32, 0.36, 0.26, 0.05, 'white');
-      k.at(1.02, 0.555, () => logo(g, 'nexo', 0.26, 0.055, 'black', FB.nexo));
+      L.partnerAt('castrol', -0.04, 0.545, 0.32, 0.062, 'black');
+      k.region([[1.25, 0.42], [0.9, 0.42], [0.55, 0.38], [0.25, 0.3], [-0.05, 0.2]], [[-0.05, 0.1], [1.25, 0.1]], BK);   // carbon undercut / inlet vane
+      L.partnerAt('ninjaone', 0.82, 0.33, 0.36, 0.07, 'white');
+      k.at(1.02, 0.56, () => logo(g, 'nexo', 0.36, 0.07, 'black', FB.nexo));
       k.at(-0.6, 0.9, () => LV.partner(g, 'audi', 0.3, 0.09, 'mono:' + LR));        // the red-outlined rings on the black cover
       k.at(-1.36, 0.8, () => bp(g, 0.22, 0.07));
       k.at(0.0, 0.98, () => visitQatar(g, 0.16, 0.07, '#111214'));                     // on the titanium airbox
-      k.at(2.05, 0.36, () => logo(g, 'elevenlabs', 0.24, 0.035, 'black', FB.elevenlabs));
+      k.at(2.05, 0.37, () => logo(g, 'elevenlabs', 0.28, 0.045, 'black', FB.elevenlabs));
       L.number(-1.62, 0.66, 0.08, '#ffffff'); L.codeText(1.42, 0.535, 0.04, '#111214');
       // front-wing endplate (carbon): visit QATAR white; rear-wing endplate (carbon): Revolut white
-      k.poly([[2.8, 0.04], [2.8, 0.5], [2.28, 0.5], [2.28, 0.04]], BK);
-      k.at(2.54, 0.26, () => visitQatar(g, 0.3, 0.14, '#ffffff'));
       k.poly([[-1.88, 1.1], [-1.88, 0.4], [-2.6, 0.4], [-2.6, 1.1]], BK);
       L.partnerAt('revolut', -2.14, 0.84, 0.36, 0.09, 'white');
       L.partnerAt('audi', -2.14, 0.68, 0.22, 0.06, 'mono:' + LR);
       // halo side: WORLD OF HYATT (inner), Gillette on top (see top)
       L.haloSide('WORLD OF HYATT', '#111214', { ff: 'Georgia, serif', w: 700, ls: 0.1 });
+    },
+    // front-wing endplates (own pass): carbon with visit QATAR white
+    endplate(L) {
+      const { k, g } = L;
+      k.poly([[3.2, 0.0], [3.2, 0.6], [2.0, 0.6], [2.0, 0.0]], BK);
+      k.at(2.52, 0.28, () => visitQatar(g, 0.32, 0.16, '#ffffff'));
     },
     top(L) {
       const { t, g } = L; const FRONT = Math.PI;   // the R26 nose column reads from the front

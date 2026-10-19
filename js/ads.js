@@ -231,9 +231,9 @@
   // LIVERY-C (williams / astonmartin / cadillac) partner artwork, same pipeline (see SOURCES.md; team-site logos are the teams' own partner files)
   Object.assign(PARTNERS, { '3m': { n: '3M' }, alpinestars: { n: 'Alpinestars' }, arm: { n: 'Arm' }, astonmartin: { n: 'Aston Martin' }, betway: { n: 'betway' }, boss: { n: 'BOSS' },
     breitling: { n: 'Breitling' }, cadillaccrest: { n: 'Cadillac' }, cognition: { n: 'Cognition' }, cohere: { n: 'cohere' }, coinpayments: { n: 'CoinPayments' }, estrellagalicia: { n: 'Estrella Galicia' },
-    keeper: { n: 'Keeper' }, clarowordmark: { n: 'Claro' }, honda2026: { n: 'Honda' }, valvolinev: { n: 'Valvoline' }, netapp: { n: 'NetApp' }, nexgen: { n: 'NexGen' }, pepperstone: { n: 'Pepperstone' }, vastdata: { n: 'VAST Data' }, williams: { n: 'Williams' }, xerox: { n: 'xerox' } });
+    keeper: { n: 'Keeper' }, clarowordmark: { n: 'Claro' }, honda2026: { n: 'Honda' }, valvolinev: { n: 'Valvoline' }, hondawordmark: { n: 'Honda' }, valvolinemark: { n: 'Valvoline' }, valvolinewordmark: { n: 'Valvoline' }, netapp: { n: 'NetApp' }, nexgen: { n: 'NexGen' }, pepperstone: { n: 'Pepperstone' }, vastdata: { n: 'VAST Data' }, williams: { n: 'Williams' }, xerox: { n: 'xerox' } });
   ['3m', 'alpinestars', 'aramco', 'arm', 'astonmartin', 'barclays', 'betway', 'boss', 'breitling', 'cadillac', 'cadillaccrest', 'cognition', 'cohere', 'coinpayments', 'estrellagalicia', 'glenfiddich',
-    'ifs', 'jcb', 'jimbeam', 'keeper', 'kraken', 'maaden', 'netapp', 'nexgen', 'pepperstone', 'tommyhilfiger', 'twgai', 'vastdata', 'williams', 'xerox', 'clarowordmark', 'honda2026', 'valvolinev'].forEach((id) => ART.add(id));
+    'ifs', 'jcb', 'jimbeam', 'keeper', 'kraken', 'maaden', 'netapp', 'nexgen', 'pepperstone', 'tommyhilfiger', 'twgai', 'vastdata', 'williams', 'xerox', 'clarowordmark', 'honda2026', 'valvolinev', 'hondawordmark', 'valvolinemark', 'valvolinewordmark'].forEach((id) => ART.add(id));
   // trimmed aspect (width / height) of each artwork, measured offline (the SVGs carry the same trimmed viewBox)
   Ads.PARTNER_DIR = Ads.BRAND_DIR + 'partners/';
   const PIMG = {};   // id -> decoded SVG image

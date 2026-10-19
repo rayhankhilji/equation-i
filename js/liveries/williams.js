@@ -31,29 +31,29 @@
       // red + white keyline along the top of the black on the nose (FW14B / FW18 homage)
       k.stroke(NOSE.map(([x, y]) => [x, y + 0.012]), 0.009, W); k.stroke(NOSE.map(([x, y]) => [x, y + 0.024]), 0.008, RED);
       // sidepod: light-blue Barclays band sweeping down to the rear, the white KOMATSU block under it
-      k.region([[0.6, 0.64], [0.2, 0.63], [-0.3, 0.6], [-0.85, 0.55], [-1.25, 0.49]], [[-1.3, 0.38], [-0.8, 0.43], [-0.3, 0.47], [0.2, 0.5], [0.55, 0.52]], LB);
-      k.region([[0.4, 0.5], [-0.3, 0.47], [-0.8, 0.43], [-1.3, 0.38]], [[-1.32, 0.27], [-0.9, 0.26], [-0.4, 0.27], [0.0, 0.31], [0.32, 0.42]], '#f6f8fa');
+      k.region([[0.6, 0.66], [0.2, 0.65], [-0.3, 0.62], [-0.85, 0.57], [-1.25, 0.51]], [[-1.3, 0.44], [-0.8, 0.47], [-0.3, 0.5], [0.2, 0.52], [0.55, 0.54]], LB);
+      k.region([[0.45, 0.52], [-0.3, 0.5], [-0.8, 0.47], [-1.3, 0.44]], [[-1.34, 0.25], [-0.9, 0.22], [-0.4, 0.22], [0.0, 0.26], [0.35, 0.4]], '#f6f8fa');
       // airbox + roll hoop block (black) and the Atlassian mark on the cover above the title
       k.poly([[0.12, TOP_V], [0.12, 1.0], [-0.1, 0.98], [-0.42, 0.96], [-0.6, TOP_V]], BLK);
-      L.partnerAt('duracell', -0.2, 1.0, 0.24, 0.05, 'white');
-      L.partnerAt('atlassian', -0.88, 0.85, 0.76, 0.105, 'white');
-      L.partnerAt('claude', 0.22, 0.75, 0.24, 0.05, 'white'); L.partnerAt('kraken', -0.12, 0.75, 0.26, 0.05, 'white');
-      L.partnerAt('barclays', -0.3, 0.55, 0.52, 0.075, 'white');
-      L.partnerAt('komatsu', -0.62, 0.37, 0.68, 0.09, 'color');
-      L.partnerAt('gulf', -1.5, 0.52, 0.13, 0.13, 'color');
+      L.partnerAt('duracell', -0.15, 1.0, 0.3, 0.06, 'white');   // sizes / positions measured on axle-aligned photos (liveryC/measure)
+      L.partnerAt('atlassian', -0.88, 0.84, 0.88, 0.125, 'white');
+      L.partnerAt('claude', 0.04, 0.745, 0.3, 0.06, 'white'); L.partnerAt('kraken', -0.28, 0.745, 0.3, 0.06, 'white');
+      L.partnerAt('barclays', -0.1, 0.565, 0.6, 0.08, 'white');
+      L.partnerAt('komatsu', -0.6, 0.36, 0.95, 0.14, 'color');
+      L.partnerAt('gulf', -1.25, 0.57, 0.2, 0.2, 'color');
       L.partnerAt('vastdata', -1.6, 0.85, 0.16, 0.04, 'white');
       // chassis / cockpit / floor
-      L.wordmark('Stephens', 1.2, 0.5, 0.065, W, { ff: 'Georgia, "Times New Roman", serif', w: 700, ls: 0.0 });
-      L.wordmark('brillio', 1.08, 0.63, 0.036, W, { ff: '"Plus Jakarta Sans", Arial, sans-serif', w: 800, ls: -0.02 });
-      L.partnerAt('keeper', 0.86, 0.2, 0.3, 0.05, 'color');
+      L.wordmark('Stephens', 1.15, 0.5, 0.09, W, { ff: 'Georgia, "Times New Roman", serif', w: 700, ls: 0.0 });
+      L.wordmark('brillio', 1.0, 0.63, 0.05, W, { ff: '"Plus Jakarta Sans", Arial, sans-serif', w: 800, ls: -0.02 });
+      L.partnerAt('keeper', 0.72, 0.36, 0.42, 0.07, 'color');
       L.partnerAt('betway', 2.25, 0.33, 0.2, 0.045, 'white');
       L.partnerAt('claude', 1.75, 0.43, 0.16, 0.035, 'white');
       // rear-wing endplate: navy KOMATSU box over the white lower half with the Estrella Galicia badge
       k.poly([[-1.88, 1.02], [-2.4, 1.02], [-2.4, 0.8], [-1.88, 0.8]], NAVY);
-      L.partnerAt('komatsu', -2.13, 0.905, 0.4, 0.075, 'white');
+      L.partnerAt('komatsu', -2.13, 0.905, 0.44, 0.085, 'white');
       L.partnerAt('estrellagalicia', -2.13, 0.66, 0.16, 0.11, 'color');
       // front-wing endplate
-      L.partnerAt('betway', 2.68, 0.17, 0.3, 0.075, 'white');
+      L.partnerAt('betway', 2.66, 0.17, 0.34, 0.09, 'white');
       // driver name on the cockpit rim, number on the engine cover rear
       L.codeText(0.55, 0.69, 0.04, W);
       L.number(-1.62, 0.83, 0.07, W);

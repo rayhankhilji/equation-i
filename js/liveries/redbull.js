@@ -29,6 +29,11 @@
     g.strokeStyle = 'rgba(0,0,0,0.35)'; g.lineWidth = H * 0.04; g.strokeRect(x0, y0, Wd, H);
   });
   const natOf = (code) => { const S = EI.SEASON; const d = S && S.drivers && S.drivers.find((v) => v.code === code); return d ? d.nat : null; };
+  // real-size placement (measured on the 2026 photos, scale from the 3.6 m wheelbase): a partner logo `w` metres wide (height from its
+  // aspect, capped at hMax), and a set-in-code wordmark stretched / condensed to exactly `w` metres at cap height `cap`
+  const fitW = (L, id, x, y, w, tone, plate, hMax) => { const I = EI.Ads.partnerInfo ? EI.Ads.partnerInfo(id) : null; const a = (I && I.aspect) || 4; let h = w / a; if (hMax && h > hMax) h = hMax; L.partnerAt(id, x, y, w * (plate ? 1.3 : 1), h * (plate ? 1.3 : 1), tone, plate); };
+  const wordW = (L, str, x, y, w, cap, col, st) => { st = st || {}; const g = L.g; g.save(); g.font = (st.it ? 'italic ' : '') + (st.w || 900) + ' ' + (cap * MM).toFixed(1) + 'px ' + (st.ff || '"Titillium Web", Arial, sans-serif');
+    const tw = g.measureText(str).width + (st.ls || 0) * cap * MM * (str.length - 1); g.restore(); L.wordmark(str, x, y, cap, col, Object.assign({}, st, { sx: w * MM / Math.max(1, tw) })); };
   const NAVY = '#1c2658', DK = '#0b0d16', YEL = '#ffc906', RED = '#db0a40';
   // a partner logo with a keyline (drawn in `line` tone at 8 offsets, then the logo on top); d = keyline width (m)
   function keyline(L, id, x, y, w, h, tone, line, d) { for (let i = 0; i < 8; i++) { const a = i * Math.PI / 4; L.partnerAt(id, x + Math.cos(a) * d, y + Math.sin(a) * d, w, h, line); } L.partnerAt(id, x, y, w, h, tone); }
@@ -64,27 +69,27 @@
       g.save(); g.globalAlpha = 0.06; for (let x = -2.6; x < 3.2; x += 0.05) k.stroke([[x, -0.1], [x + 0.6, 1.3]], 0.012, '#9fb4ff'); g.restore();
       k.region([[3.15, 0.12], [1.8, 0.2], [0.9, 0.22], [-0.5, 0.2], [-1.6, 0.24]], [[-2.6, -0.1], [3.2, -0.1]], DK);
       // yellow -> orange nose tip with the red bull
-      const gr = g.createLinearGradient(k.X(3.1), 0, k.X(2.2), 0); gr.addColorStop(0, YEL); gr.addColorStop(0.7, '#ffb000'); gr.addColorStop(1, '#ff8a00');
-      k.region([[2.2, 0.6], [2.28, 0.46], [2.3, 0.42]], [[2.3, 0.6]], gr); k.poly([[2.75, 0.22], [3.12, 0.22], [3.12, 0.6], [2.75, 0.6]], gr);
-      bull(L, 2.93, 0.33, 0.3, 0.13, 0);
+      const gr = g.createLinearGradient(k.X(3.1), 0, k.X(2.05), 0); gr.addColorStop(0, YEL); gr.addColorStop(0.7, '#ffb000'); gr.addColorStop(1, '#ff8a00');
+      k.region([[2.05, 0.62], [2.15, 0.45], [2.3, 0.33], [2.5, 0.26], [2.8, 0.22]], [[3.12, 0.22], [3.12, 0.62]], gr);
+      bull(L, 2.62, 0.36, 0.38, 0.16, 0);
       // sun-yellow airbox, the big bull over the engine cover
       k.poly([[0.1, 1.2], [0.1, 0.86], [-0.36, 0.86], [-0.4, 1.2]], YEL);
       bull(L, -0.64, 0.89, 1.0, 0.36, 0.012);
       // sidepod: ORACLE, Red Bull wordmark; cockpit: ROKT; chassis: CARLYLE / 1Password / Hard Rock
       L.partnerAt('oracle', -0.2, 0.4, 0.9, 0.13, 'white');
-      keyline(L, 'redbull', -0.95, 0.58, 0.48, 0.1, 'color', 'white', 0.007);
-      L.wordmark('ROKT', 0.05, 0.76, 0.045, W, { w: 900, ls: 0.04 });
-      L.wordmark('CARLYLE', 1.0, 0.62, 0.04, W, { ff: 'Georgia, "Times New Roman", serif', w: 700, ls: 0.12 });
+      keyline(L, 'redbull', -0.98, 0.58, 0.53, 0.17, 'color', 'white', 0.008);
+      wordW(L, 'ROKT', 0.05, 0.76, 0.2, 0.055, W, { w: 900, ls: 0.04 });
+      wordW(L, 'CARLYLE', 1.0, 0.62, 0.32, 0.045, W, { ff: 'Georgia, "Times New Roman", serif', w: 700, ls: 0.12 });
       L.partnerAt('1password', 1.0, 0.54, 0.24, 0.04, 'white');
       L.partnerAt('hardrock', 0.6, 0.47, 0.1, 0.05, 'white');
       L.partnerAt('indeed', 0.85, 0.26, 0.24, 0.055, 'white');
       L.wordmark('CLEAR', -0.5, 0.21, 0.03, W, { w: 700, ls: 0.06 }); L.partnerAt('siemens', -0.82, 0.21, 0.2, 0.03, 'white');
       // Ford Racing on the cover rear, race number on a white tag by the fin
-      L.partnerAt('ford', -1.28, 0.63, 0.14, 0.06, 'color'); L.wordmark('RACING', -1.28, 0.575, 0.022, W, { w: 700, ls: 0.12 });
-      k.at(-1.3, 0.8, () => { g.fillStyle = W; EI.Ads.rr(g, -60, -55, 120, 110, 12); g.fill(); });
-      L.number(-1.3, 0.8, 0.095, RED);
+      fitW(L, 'ford', -1.28, 0.64, 0.18, 'color'); wordW(L, 'RACING', -1.28, 0.575, 0.18, 0.026, W, { w: 700, ls: 0.12 });
+      k.at(-1.3, 0.8, () => { g.fillStyle = W; EI.Ads.rr(g, -80, -72, 160, 144, 14); g.fill(); });
+      L.number(-1.3, 0.8, 0.125, RED);
       // front-wing endplates: Mobil + Pegasus; rear-wing endplates: Mobil 1, Heineken 0.0
-      k.at(-2.17, 0.88, () => mobil(g, 0.38, 0.08, true));
+      k.at(-2.2, 0.88, () => mobil(g, 0.34, 0.075, true));
       L.partnerAt('heineken', -2.17, 0.62, 0.22, 0.06, 'whiteKeepRed');
       L.codeText(1.27, 0.46, 0.036, W); k.at(1.09, 0.46, () => FLAG(g, natOf(L.code), 0.03));
       L.haloHandle('redbullracing.com', W, -1); L.haloHandle('@redbullracing', W, 1);

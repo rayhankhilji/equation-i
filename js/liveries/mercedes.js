@@ -31,6 +31,11 @@
     g.strokeStyle = 'rgba(0,0,0,0.35)'; g.lineWidth = H * 0.04; g.strokeRect(x0, y0, Wd, H);
   });
   const natOf = (code) => { const S = EI.SEASON; const d = S && S.drivers && S.drivers.find((v) => v.code === code); return d ? d.nat : null; };
+  // real-size placement (measured on the 2026 photos, scale from the 3.6 m wheelbase): a partner logo `w` metres wide (height from its
+  // aspect, capped at hMax), and a set-in-code wordmark stretched / condensed to exactly `w` metres at cap height `cap`
+  const fitW = (L, id, x, y, w, tone, plate, hMax) => { const I = EI.Ads.partnerInfo ? EI.Ads.partnerInfo(id) : null; const a = (I && I.aspect) || 4; let h = w / a; if (hMax && h > hMax) h = hMax; L.partnerAt(id, x, y, w * (plate ? 1.3 : 1), h * (plate ? 1.3 : 1), tone, plate); };
+  const wordW = (L, str, x, y, w, cap, col, st) => { st = st || {}; const g = L.g; g.save(); g.font = (st.it ? 'italic ' : '') + (st.w || 900) + ' ' + (cap * MM).toFixed(1) + 'px ' + (st.ff || '"Titillium Web", Arial, sans-serif');
+    const tw = g.measureText(str).width + (st.ls || 0) * cap * MM * (str.length - 1); g.restore(); L.wordmark(str, x, y, cap, col, Object.assign({}, st, { sx: w * MM / Math.max(1, tw) })); };
   const BK = '#0b0c0e', SIL = '#b9bfc5', SIL2 = '#9aa1a8', TEAL = '#00a19c';
   // a small three-pointed star (the Mercedes star without its ring), r = tip radius in metres, at the current origin
   function star3(g, r, col) {
@@ -61,27 +66,27 @@
       for (let i = 0; i < 5; i++) { const x = 0.36 - i * 0.235, w = 0.17 - i * 0.012; k.poly([[x + 0.2, 0.76], [x + 0.2 + w, 0.76], [x + w - 0.06, 0.4], [x - 0.06, 0.4]], i % 2 ? SIL2 : SIL); }
       g.restore();
       k.stroke(SW, 0.04, TEAL);
-      L.wordmark('PETRONAS', -0.3, 0.335, 0.12, W, { w: 900, ls: 0.02 });
+      wordW(L, 'PETRONAS', -0.3, 0.335, 0.76, 0.1, W, { w: 900, ls: 0.02 });
       // stars over the engine cover, denser and brighter towards the airbox
       for (let i = 0; i < 60; i++) { const x = -0.15 - rnd(i) * 1.15, y = 0.6 + rnd(i + 99) * 0.42; const a = 1.0 - (-0.15 - x) * 0.55; if (a < 0.3 || (x > -0.5 && y > 0.84) || (x > -0.75 && y < 0.78 && y > 0.66)) continue; k.at(x, y, () => { g.globalAlpha = a; star3(g, 0.034 + rnd(i + 7) * 0.012, SIL); g.globalAlpha = 1; }); }
       // airbox / engine cover / cockpit partners
-      k.at(-0.16, 0.97, () => msft(g, 0.34, 0.075));
-      L.partnerAt('solera', -0.3, 0.86, 0.28, 0.045, 'white');
-      L.partnerAt('teamviewer', -0.42, 0.72, 0.42, 0.065, 'white');
-      L.partnerAt('amd', 0.25, 0.78, 0.13, 0.04, 'white');
-      L.partnerAt('nubank', 0.55, 0.79, 0.08, 0.045, 'white');
-      L.partnerAt('amg', 1.1, 0.6, 0.25, 0.045, 'black');
-      L.partnerAt('einhell', 2.3, 0.37, 0.22, 0.035, 'white');
-      L.partnerAt('signify', 0.95, 0.24, 0.3, 0.05, 'white');
+      k.at(-0.17, 0.955, () => msft(g, 0.45, 0.1));
+      fitW(L, 'solera', -0.3, 0.86, 0.39, 'white', null, 0.06);
+      fitW(L, 'teamviewer', -0.45, 0.72, 0.51, 'white');
+      fitW(L, 'amd', 0.25, 0.78, 0.18, 'white');
+      fitW(L, 'nubank', 0.55, 0.79, 0.11, 'white');
+      fitW(L, 'amg', 1.08, 0.6, 0.36, 'black');
+      fitW(L, 'einhell', 2.3, 0.37, 0.26, 'white', null, 0.05);
+      fitW(L, 'signify', 0.95, 0.24, 0.36, 'white', null, 0.07);
       // rear-wing endplates: Snapdragon / CrowdStrike / PETRONAS PRIMAX
-      L.partnerAt('snapdragon', -2.17, 0.86, 0.4, 0.075, 'white'); L.partnerAt('crowdstrike', -2.17, 0.76, 0.4, 0.05, 'white');
-      L.wordmark('PETRONAS', -2.2, 0.6, 0.03, W, { w: 900, ls: 0.04 }); L.wordmark('PRIMAX', -2.2, 0.56, 0.03, W, { w: 900, ls: 0.04 });
+      fitW(L, 'snapdragon', -2.2, 0.87, 0.38, 'white'); fitW(L, 'crowdstrike', -2.2, 0.78, 0.36, 'white');
+      wordW(L, 'PETRONAS', -2.2, 0.61, 0.2, 0.038, W, { w: 900 }); wordW(L, 'PRIMAX', -2.2, 0.565, 0.2, 0.04, W, { w: 900, it: 1 });
       L.number(1.5, 0.56, 0.06, BK); L.codeText(1.27, 0.525, 0.036, BK); k.at(1.09, 0.525, () => FLAG(g, natOf(L.code), 0.03));
       L.haloHandle('mercedesamgf1.com', W, -1); L.haloHandle('@MercedesAMGF1', W, 1);
     },
     endplate(L) {   // front-wing endplates (black): INEOS / IWC / Microsoft
       const { k, g } = L;
-      L.partnerAt('ineos', 2.5, 0.42, 0.3, 0.06, 'white'); L.partnerAt('iwc', 2.5, 0.3, 0.26, 0.07, 'white'); k.at(2.5, 0.19, () => msft(g, 0.32, 0.06));
+      fitW(L, 'ineos', 2.47, 0.42, 0.29, 'white'); fitW(L, 'iwc', 2.5, 0.3, 0.26, 'white', null, 0.08); k.at(2.5, 0.19, () => msft(g, 0.36, 0.08));
     },
     top(L) {
       const { t, g } = L;

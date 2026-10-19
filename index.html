@@ -109,6 +109,7 @@
             <label class="field"><span class="fl">Resolution</span>
               <select id="opt-res" title="3D resolution. Auto keeps the frame rate up (and the controls direct) by easing off anti-aliasing, then resolution, only when needed">
                 <option value="auto" selected>Auto (smooth)</option>
+                <option value="native">Native (1x, sharpened)</option>
                 <option value="100">100% (sharpest)</option>
                 <option value="85">85%</option>
                 <option value="70">70%</option>
@@ -119,6 +120,12 @@
               <select id="opt-sync" title="Low latency draws each frame straight to the screen (least input delay; some systems may show tearing). VSync waits for the screen refresh (no tearing, a frame more delay). Applies when the page reloads.">
                 <option value="low" selected>Low latency</option>
                 <option value="vsync">VSync (no tearing)</option>
+              </select>
+            </label>
+            <label class="field"><span class="fl">Perf overlay</span>
+              <select id="opt-perf" title="Frame rate, frame time (average and 1% high), CPU / GPU time per frame and input-to-frame delay. F toggles it in a race.">
+                <option value="off" selected>Off</option>
+                <option value="on">On (F)</option>
               </select>
             </label>
           </div>
@@ -240,10 +247,10 @@
       <button id="btn-quit">Back to menu</button>
       <label class="field pause-res"><span class="fl">Resolution</span>
         <select id="pause-res">
-          <option value="auto">Auto (smooth)</option><option value="100">100% (sharpest)</option><option value="85">85%</option><option value="70">70%</option><option value="50">50% (fastest)</option>
+          <option value="auto">Auto (smooth)</option><option value="native">Native (1x, sharpened)</option><option value="100">100% (sharpest)</option><option value="85">85%</option><option value="70">70%</option><option value="50">50% (fastest)</option>
         </select>
       </label>
-      <div class="keys-hint"><span><kbd>Esc</kbd>resume</span><span><kbd>M</kbd>mute</span><span><kbd>R</kbd>restart</span></div>
+      <div class="keys-hint"><span><kbd>Esc</kbd>resume</span><span><kbd>M</kbd>mute</span><span><kbd>R</kbd>restart</span><span><kbd>F</kbd>perf</span></div>
       <div class="partners partners-sm" aria-label="Race partners"><span class="partners-label">Race partners</span><a class="partner" href="https://www.trylumi.co" target="_blank" rel="noopener" title="trylumi.co"><span class="pchip lumi"><img src="assets/brand/lumi-logo.png" alt="" width="20" height="20"><b>lumi</b></span></a><a class="partner" href="https://www.intake.ink" target="_blank" rel="noopener" title="intake.ink"><span class="pchip intake"><img src="assets/brand/intake-icon.svg" alt="" width="16" height="16"><b>intake</b></span></a></div>
       <div id="controls-card" style="text-align:left;font-size:12px;line-height:1.7;margin-top:10px;border-top:1px solid rgba(255,255,255,0.1);padding-top:8px;color:#cfd6e0">
         <div style="display:grid;grid-template-columns:auto 1fr 1fr;gap:2px 14px;font-variant-numeric:tabular-nums">
@@ -348,6 +355,7 @@
 <script src="js/race.js"></script>
 <script src="js/replay.js"></script>
 <script src="js/pit.js"></script>
+<script src="js/perfhud.js"></script>
 <script src="js/main.js"></script>
 </body>
 </html>

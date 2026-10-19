@@ -29,6 +29,11 @@
     g.strokeStyle = 'rgba(0,0,0,0.35)'; g.lineWidth = H * 0.04; g.strokeRect(x0, y0, Wd, H);
   });
   const natOf = (code) => { const S = EI.SEASON; const d = S && S.drivers && S.drivers.find((v) => v.code === code); return d ? d.nat : null; };
+  // real-size placement (measured on the 2026 photos, scale from the 3.6 m wheelbase): a partner logo `w` metres wide (height from its
+  // aspect, capped at hMax), and a set-in-code wordmark stretched / condensed to exactly `w` metres at cap height `cap`
+  const fitW = (L, id, x, y, w, tone, plate, hMax) => { const I = EI.Ads.partnerInfo ? EI.Ads.partnerInfo(id) : null; const a = (I && I.aspect) || 4; let h = w / a; if (hMax && h > hMax) h = hMax; L.partnerAt(id, x, y, w * (plate ? 1.3 : 1), h * (plate ? 1.3 : 1), tone, plate); };
+  const wordW = (L, str, x, y, w, cap, col, st) => { st = st || {}; const g = L.g; g.save(); g.font = (st.it ? 'italic ' : '') + (st.w || 900) + ' ' + (cap * MM).toFixed(1) + 'px ' + (st.ff || '"Titillium Web", Arial, sans-serif');
+    const tw = g.measureText(str).width + (st.ls || 0) * cap * MM * (str.length - 1); g.restore(); L.wordmark(str, x, y, cap, col, Object.assign({}, st, { sx: w * MM / Math.max(1, tw) })); };
   const RED = '#e2131f', BK = '#141518', WH = '#f6f6f4', YEL = '#fbd70c';
   // the Shell pecten (scallop): yellow shell, red rim and grooves; h = height in metres, centred on the origin
   function pecten(g, h) {
@@ -70,38 +75,42 @@
     side(L) {
       const { k, g } = L;
       // white block: cockpit rear, airbox and engine-cover spine, diagonal rear cut, red pinstripe along its lower edge
-      const LOW = [[0.6, 0.76], [0.3, 0.72], [-0.1, 0.7], [-0.45, 0.69], [-0.62, 0.69]];
-      k.region(LOW, [[-0.92, 1.2], [0.6, 1.2]], WH);
-      k.stroke(LOW.map(([x, y]) => [x, y + 0.025]).concat([[-0.68, 0.73], [-0.94, 1.12]]), 0.012, RED);
+      const LOW = [[0.62, 0.74], [0.3, 0.67], [-0.1, 0.63], [-0.5, 0.61], [-0.7, 0.61]];
+      k.region(LOW, [[-1.0, 1.2], [0.62, 1.2]], WH);
+      k.stroke(LOW.map(([x, y]) => [x, y + 0.025]).concat([[-0.76, 0.65], [-1.02, 1.12]]), 0.012, RED);
       // race number on the red cover behind the white
-      L.number(-1.1, 0.82, 0.15, W);
+      L.number(-1.2, 0.8, 0.2, W);
       L.partnerAt('hp', -0.14, 0.9, 0.23, 0.23, 'color');
-      L.partnerAt('zyn', 0.52, 0.81, 0.13, 0.045, 'black', W);
-      L.partnerAt('ibm', 0.22, 0.81, 0.13, 0.04, 'black');
+      fitW(L, 'zyn', 0.52, 0.81, 0.17, 'black', W, 0.05);
+      fitW(L, 'ibm', 0.22, 0.81, 0.17, 'black');
       // sidepod: Puma, Shell pecten, CEVA; UniCredit on the cover rear
       k.at(0.4, 0.53, () => { g.scale(k.s, 1); pumaCat(g, 0.13, W); });
       k.at(0.04, 0.45, () => pecten(g, 0.24));
-      L.partnerAt('cevalogistics', -0.45, 0.36, 0.4, 0.11, 'white');
-      L.partnerAt('unicredit', -0.95, 0.58, 0.44, 0.07, 'white');
+      fitW(L, 'cevalogistics', -0.45, 0.36, 0.36, 'white');
+      fitW(L, 'unicredit', -0.95, 0.58, 0.4, 'white');
       // chassis: Richard Mille + the shield; floor: ambipar
-      L.partnerAt('richardmille', 1.25, 0.6, 0.36, 0.04, 'white');
+      fitW(L, 'richardmille', 1.25, 0.6, 0.31, 'white');
       k.at(0.98, 0.56, () => shield(g, 0.11));
-      L.partnerAt('ambipar', 0.95, 0.24, 0.3, 0.05, 'white');
+      fitW(L, 'ambipar', 0.95, 0.24, 0.29, 'white', null, 0.07);
       // rear-wing endplates: tricolore strip, Shell V-Power, Peroni Nastro Azzurro 0.0%
       k.at(-2.17, 0.95, () => tricolore(g, 0.3, 0.03));
-      k.at(-2.04, 0.84, () => pecten(g, 0.07)); L.wordmark('V-Power', -2.22, 0.84, 0.05, W, { w: 700, it: 1 });
-      L.wordmark('PERONI', -2.17, 0.71, 0.045, W, { w: 700, ff: 'Georgia, "Times New Roman", serif', ls: 0.06 }); L.wordmark('NASTRO AZZURRO 0.0%', -2.17, 0.655, 0.024, W, { w: 700, ls: 0.06 });
+      k.at(-2.0, 0.85, () => pecten(g, 0.1)); wordW(L, 'V-Power', -2.23, 0.85, 0.27, 0.07, W, { w: 700, it: 1 });
+      wordW(L, 'PERONI', -2.17, 0.72, 0.26, 0.06, W, { w: 700, ff: 'Georgia, "Times New Roman", serif', ls: 0.06 }); wordW(L, 'NASTRO AZZURRO 0.0%', -2.17, 0.66, 0.26, 0.03, W, { w: 700 });
       L.codeText(1.27, 0.48, 0.036, W); k.at(1.09, 0.48, () => FLAG(g, natOf(L.code), 0.03));
-      L.haloHandle('ferrari.com', W, -1); L.haloHandle('@ScuderiaFerrari', W, 1);
+      fitW(L, 'dxc', 0.55, 0.885, 0.3, 'white', null, 0.05);   // DXC big and white on the halo side (2026 photos)
     },
     endplate(L) {   // front-wing endplates (black): UniCredit + tricolore
       const { k, g } = L;
-      L.partnerAt('unicredit', 2.5, 0.36, 0.34, 0.07, 'white'); k.at(2.5, 0.24, () => tricolore(g, 0.2, 0.035));
+      fitW(L, 'unicredit', 2.5, 0.36, 0.25, 'white'); k.at(2.5, 0.26, () => tricolore(g, 0.2, 0.035));
     },
     top(L) {
       const { t, g } = L;
       // white spine over the airbox and the engine cover, pinstripe edges
-      t.poly([[0.55, -0.2], [0.55, 0.2], [0.0, 0.2], [-0.55, 0.16], [-0.75, 0.0], [-0.55, -0.16], [0.0, -0.2]], WH);
+      t.poly([[0.6, -0.3], [0.6, 0.3], [0.0, 0.36], [-0.6, 0.3], [-0.95, 0.0], [-0.6, -0.3], [0.0, -0.36]], WH);
+      // keep the halo's top bar black where the white shoulders run under it (its arms, rear mount -> front pillar)
+      g.save(); g.strokeStyle = BK; g.lineWidth = 0.085 * MM; g.lineJoin = g.lineCap = 'round';
+      for (const s of [-1, 1]) { g.beginPath(); [[-0.04, 0.32], [0.2, 0.322], [0.34, 0.297], [0.45, 0.247], [0.54, 0.172], [0.61, 0.092], [0.67, 0.02], [0.7, 0.0]].forEach(([x, z], i) => (i ? g.lineTo(s * z * MM, -x * MM) : g.moveTo(s * z * MM, -x * MM))); g.stroke(); }
+      g.restore();
       t.at(2.62, 0, () => pecten(g, 0.09), Math.PI);
       L.number(2.25, 0, 0.12, W);
       L.partnerTop('ibm', 1.97, 0, 0.12, 0.04, 'white', Math.PI); L.partnerTop('whoop', 1.6, 0, 0.14, 0.03, 'white', Math.PI); L.partnerTop('unicredit', 1.75, 0, 0.17, 0.035, 'white', Math.PI);
@@ -110,7 +119,7 @@
       for (const z of [-0.3, 0.3]) L.partnerTop('hp', -2.06, z, 0.15, 0.15, 'color');
       L.partnerTop('ibm', -2.26, 0, 0.3, 0.07, 'white');
       for (const z of [-0.62, 0.62]) L.partnerTop('hp', 2.72, z, 0.12, 0.12, 'color');
-      L.haloTop('@ScuderiaFerrari', W, -1); L.haloTop('ferrari.com', W, 1); L.haloFront('dxc', 'white');
+      for (const s of [-1, 1]) t.at(0.26, s * 0.318, () => EI.Ads.drawPartner(g, 'dxc', 0, 0, 0.24 * MM, 0.045 * MM, { tone: 'white' }), -s * Math.PI / 2);   // DXC along both halo arms L.haloFront('dxc', 'white');
     },
   });
 })();

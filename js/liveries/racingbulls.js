@@ -72,18 +72,17 @@
     side(L) {
       const { k, g } = L; const flip = k.s > 0;   // the bulls charge rearwards on both sides
       // carbon / black lower chassis from the nose underside to the sidepod inlet (Mobil sits on it in white)
-      k.region([[3.2, 0.17], [2.6, 0.27], [2.0, 0.37], [1.5, 0.45], [1.2, 0.5], [0.95, 0.53], [0.78, 0.47], [0.72, 0.3], [0.62, 0.13]], [[0.62, LOW_V], [3.2, LOW_V]], BK);
+      k.region([[3.2, 0.17], [2.6, 0.27], [2.0, 0.37], [1.5, 0.46], [1.2, 0.52], [0.98, 0.56], [0.8, 0.555], [0.74, 0.3], [0.62, 0.13]], [[0.62, LOW_V], [3.2, LOW_V]], BK);
       // yellow nose tip (orange at the very tip) with a navy keel line under it
       const gy = g.createLinearGradient(k.X(3.05), 0, k.X(2.3), 0); gy.addColorStop(0, YO); gy.addColorStop(0.45, YL); gy.addColorStop(1, '#ffd84a');
       // (the front-wing endplate, x 2.3..2.78, shares this side view with the nose: it stays white for its Cash App, so the yellow is
       //  painted ahead of it (nose tip) and behind it (nose flank), where the endplate does not cover the nose)
-      k.region([[3.2, 0.2], [2.8, 0.27], [2.45, 0.34], [2.25, 0.38]], [[2.0, 0.6], [2.0, TOP_V], [3.2, TOP_V]], gy);
-      k.poly([[2.79, 0.06], [2.79, 0.5], [2.29, 0.5], [2.29, 0.06]], WH);
-      k.stroke([[3.15, 0.19], [2.8, 0.255], [2.45, 0.325], [2.1, 0.385], [1.6, 0.455], [1.2, 0.505], [0.98, 0.535]], 0.026, NV);
+      k.region([[3.2, 0.2], [2.8, 0.27], [2.45, 0.34], [2.25, 0.38]], [[2.05, 0.6], [2.05, TOP_V], [3.2, TOP_V]], gy);
+      k.stroke([[3.15, 0.19], [2.8, 0.255], [2.45, 0.325], [2.1, 0.385], [1.6, 0.47], [1.2, 0.53], [1.0, 0.56]], 0.026, NV);
       // thin navy line along the chassis shoulder towards HUGO
       k.stroke([[1.85, 0.6], [1.5, 0.585], [1.2, 0.565]], 0.018, NV);
       // the navy band (starts at the cockpit, widens backwards into the dark tail) and the white VISA blade under it
-      const BAND_UP = [[0.95, 0.6], [0.5, 0.66], [0.0, 0.66], [-0.5, 0.65], [-0.9, 0.67], [-1.25, 0.72], [-1.6, 0.8]];
+      const BAND_UP = [[0.95, 0.6], [0.5, 0.65], [0.0, 0.645], [-0.5, 0.615], [-0.9, 0.615], [-1.15, 0.66], [-1.6, 0.8]];
       const BLADE_UP = [[-1.3, 0.3], [-1.0, 0.43], [-0.6, 0.51], [-0.2, 0.555], [0.3, 0.58], [0.7, 0.585], [0.95, 0.585]];
       const BLADE_LO = [[0.95, 0.58], [0.75, 0.42], [0.5, 0.3], [0.1, 0.24], [-0.4, 0.2], [-0.85, 0.2], [-1.1, 0.23], [-1.3, 0.3]];
       const gn = g.createLinearGradient(k.X(0.9), 0, k.X(-1.6), 0); gn.addColorStop(0, NV); gn.addColorStop(0.6, NV); gn.addColorStop(1, NVD);
@@ -98,24 +97,29 @@
       k.poly([[0.12, TOP_V], [0.12, 0.8], [-0.1, 0.74], [-0.75, 0.74], [-0.75, TOP_V]], ga);
       k.poly([[-1.0, TOP_V], [-1.0, 0.86], [-1.12, 0.78], [-1.75, 0.8], [-1.75, TOP_V]], NVD);
       // logos
-      L.partnerAt('redbull', -0.62, 0.69, 0.34, 0.062, 'color');                       // "Red Bull" red under the cover bull
-      k.at(-0.74, 0.795, () => bull(g, 0.56, 0.145, flip));                                  // the big cover bull, charging rearwards
-      k.at(2.13, 0.45, () => bull(g, 0.24, 0.075, flip));                                 // the nose bull (behind the endplate)
-      k.at(0.05, 0.705, () => cashApp(g, 0.42, 0.07, '#16171b', true));                  // $ Cash App on the cockpit shoulder
-      k.at(1.02, 0.628, () => logo(g, 'hugo', 0.3, 0.058, 'color', FB.hugo));            // HUGO red ahead of the sidepod
-      k.at(1.32, 0.42, () => mobil(g, 0.22, 0.06, '#ffffff'));                          // Mobil (white) on the carbon chassis side
+      L.partnerAt('redbull', -0.74, 0.665, 0.42, 0.085, 'color');                       // "Red Bull" red under the cover bull
+      k.at(-0.72, 0.8, () => bull(g, 0.84, 0.22, flip));                                  // the big cover bull, charging rearwards
+      k.at(2.26, 0.375, () => bull(g, 0.34, 0.11, flip));                                 // the nose bull
+      k.at(0.02, 0.7, () => cashApp(g, 0.46, 0.09, '#16171b', true));                  // $ Cash App on the cockpit shoulder
+      k.at(1.0, 0.61, () => logo(g, 'hugo', 0.36, 0.085, 'color', FB.hugo));            // HUGO red ahead of the sidepod
+      k.at(0.86, 0.49, () => mobil(g, 0.28, 0.085, '#ffffff'));                          // Mobil (white) on the carbon chassis side
       L.partnerAt('visa', -0.3, 0.38, 0.7, 0.2, 'mono:' + NV);                         // VISA navy on the white blade
-      L.partnerAt('ford', -1.2, 0.56, 0.2, 0.075, 'color');                              // Ford oval + RACING on the navy tail
-      L.wordmark('RACING', -1.2, 0.495, 0.03, '#ffffff', { ff: '"Titillium Web", Arial, sans-serif', w: 700, ls: 0.12 });
-      k.at(1.66, 0.36, () => { g.fillStyle = '#ffffff'; g.beginPath(); g.arc(0, 0, 0.045 * MM, 0, 7); g.fill(); logo(g, 'yugo', 0.07, 0.03, 'black', FB.yugo); });
-      k.at(1.5, 0.36, () => logo(g, 'octave', 0.15, 0.03, 'white', FB.octave));
-      L.number(-1.24, 0.875, 0.085, '#e1001a');                                            // red italic number, white keyline, on the tail
+      L.partnerAt('ford', -1.18, 0.56, 0.25, 0.085, 'color');                              // Ford oval + RACING on the navy tail
+      L.wordmark('RACING', -1.18, 0.49, 0.036, '#ffffff', { ff: '"Titillium Web", Arial, sans-serif', w: 700, ls: 0.12 });
+      k.at(1.0, 0.33, () => { g.fillStyle = '#ffffff'; g.beginPath(); g.arc(0, 0, 0.05 * MM, 0, 7); g.fill(); logo(g, 'yugo', 0.075, 0.032, 'black', FB.yugo); });
+      k.at(0.78, 0.3, () => logo(g, 'octave', 0.2, 0.04, 'white', FB.octave));
+      L.number(-1.26, 0.84, 0.12, '#e1001a');                                            // red italic number, white keyline, on the tail
       L.codeText(1.42, 0.535, 0.04, '#ffffff');
       // front-wing endplate (white): Cash App black; rear-wing endplate (navy): the VISA RB stack
-      k.at(2.54, 0.3, () => cashApp(g, 0.42, 0.1, '#16171b', false));
-      k.at(-2.13, 0.72, () => teamStack(g, 0.5));
+      k.at(-2.13, 0.72, () => teamStack(g, 0.56));
       // halo side (carbon): small white partner text
       L.haloSide('vugo.com', '#ffffff', { w: 700 });
+    },
+    // front-wing endplates (their own pass: the nose's yellow stays off them): white, Cash App in black, carbon foot
+    endplate(L) {
+      const { k, g } = L;
+      k.poly([[3.2, 0.0], [3.2, 0.6], [2.0, 0.6], [2.0, 0.0]], WH); k.poly([[3.2, 0.0], [3.2, 0.1], [2.0, 0.1], [2.0, 0.0]], BK);
+      k.at(2.5, 0.27, () => cashApp(g, 0.42, 0.11, '#16171b', false));
     },
     top(L) {
       const { t, g } = L; const ALONG = -Math.PI / 2;   // text along the car, glyph tops to the car's left (as the nose 30 / VISA)

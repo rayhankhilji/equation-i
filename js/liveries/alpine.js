@@ -66,40 +66,42 @@
       k.poly([[3.2, TOP_V], [3.2, LOW_V], [-1.88, LOW_V], [-1.88, TOP_V]], gv);
       const gt = g.createLinearGradient(k.X(-0.6), 0, k.X(-1.8), 0); gt.addColorStop(0, 'rgba(18,26,74,0)'); gt.addColorStop(1, 'rgba(12,17,49,0.75)');
       k.poly([[-0.6, TOP_V], [-0.6, LOW_V], [-1.88, LOW_V], [-1.88, TOP_V]], gt);
-      // the halo stays pink on its sides too (it shares this view with the cockpit sides: only above the cockpit rim, ahead of the airbox)
-      k.region([[1.2, 0.66], [0.9, 0.7], [0.5, 0.745], [0.16, 0.79]], [[0.16, TOP_V], [1.2, TOP_V]], PK);
       // pink nose top: the upper band of the nose / chassis side from the tip back to the cockpit
       k.region([[3.2, 0.25], [2.7, 0.31], [2.2, 0.41], [1.7, 0.5], [1.3, 0.56], [1.05, 0.6]], [[1.0, TOP_V], [3.2, TOP_V]], PK);
       k.stroke([[3.15, 0.25], [2.7, 0.31], [2.2, 0.41], [1.7, 0.5], [1.3, 0.56], [1.05, 0.6]], 0.008, PKD);
       // carbon floor edge
       k.region([[3.2, 0.13], [0.8, 0.14], [-0.6, 0.15], [-2.0, 0.17]], [[-2.6, LOW_V], [3.2, LOW_V]], BK);
       // big pink BWT on the sidepod, MSC ahead of it, Delphi under it
-      k.at(-0.34, 0.41, () => bwt(g, 0.92, 0.28, 'mono:' + PK));
-      k.at(0.42, 0.56, () => msc(g, 0.36, 0.085, '#ffffff'));
-      k.at(-0.1, 0.205, () => logo(g, 'delphi', 0.17, 0.045, 'white', FB.delphi));
+      k.at(-0.34, 0.41, () => bwt(g, 0.92, 0.28, 'mono:#ff9fd2'));
+      k.at(0.4, 0.56, () => msc(g, 0.5, 0.12, '#ffffff'));
+      k.at(-0.1, 0.21, () => logo(g, 'delphi', 0.22, 0.055, 'white', FB.delphi));
       // engine cover: enilive (the eni artwork + "live"), the small partners row under it; the pink A on the tail; the number
-      k.at(-0.4, 0.865, () => logo(g, 'enilive', 0.5, 0.11, 'white', FB.enilive));
-      k.at(-0.22, 0.745, () => logo(g, 'avature', 0.16, 0.035, 'white', FB.avature));
-      L.partnerAt('mercadolibre', -0.5, 0.745, 0.12, 0.04, 'white');
-      k.at(0.06, 0.745, () => logo(g, 'modo', 0.13, 0.035, 'white', FB.modo));
-      k.at(-1.0, 0.8, () => alpA(g, 0.12, PK, '#ffffff'));
-      L.number(-1.24, 0.875, 0.08, '#ffffff');
+      k.at(-0.42, 0.82, () => logo(g, 'enilive', 0.5, 0.11, 'white', FB.enilive));
+      k.at(-0.2, 0.74, () => logo(g, 'avature', 0.2, 0.045, 'white', FB.avature));
+      L.partnerAt('mercadolibre', -0.52, 0.74, 0.14, 0.05, 'white');
+      k.at(0.1, 0.74, () => logo(g, 'modo', 0.17, 0.045, 'white', FB.modo));
+      k.at(-1.04, 0.81, () => alpA(g, 0.13, PK, '#ffffff'));
+      L.number(-1.36, 0.81, 0.11, '#ffffff');
       L.codeText(1.42, 0.535, 0.04, '#ffffff');
       // nose: eToro (white, on the blue under the pink band), the Alpine A at the tip
-      L.partnerAt('etoro', 2.02, 0.385, 0.24, 0.05, 'white');
+      L.partnerAt('etoro', 2.0, 0.39, 0.3, 0.06, 'white');
       k.at(2.88, 0.24, () => alpA(g, 0.05, '#ffffff'));
       k.at(1.3, 0.48, () => logo(g, 'moser', 0.2, 0.025, 'white', FB.moser));
-      // front-wing endplate (carbon): OAKBERRY / businessolver white, its foot pink
-      k.poly([[2.8, 0.04], [2.8, 0.5], [2.28, 0.5], [2.28, 0.04]], BK); k.poly([[2.8, 0.04], [2.8, 0.17], [2.28, 0.17], [2.28, 0.04]], PK);
-      k.at(2.54, 0.34, () => logo(g, 'oakberry', 0.3, 0.05, 'white', FB.oakberry));
-      k.at(2.54, 0.25, () => logo(g, 'businessolver', 0.3, 0.04, 'white', FB.businessolver));
       // rear-wing endplate: pink front panel with eni (black), MSC + EURODATACAR white on the carbon
-      k.poly([[-1.88, 1.1], [-1.88, 0.4], [-2.6, 0.4], [-2.6, 1.1]], BK); k.poly([[-1.88, 1.05], [-1.88, 0.6], [-2.02, 0.6], [-2.02, 1.05]], PK);
-      L.partnerAt('eni', -1.96, 0.86, 0.1, 0.06, 'black');
-      k.at(-2.2, 0.8, () => msc(g, 0.26, 0.07, '#ffffff'));
-      k.at(-2.2, 0.71, () => logo(g, 'eurodatacar', 0.26, 0.03, 'white', FB.eurodatacar));
+      k.poly([[-1.88, 1.1], [-1.88, 0.4], [-2.6, 0.4], [-2.6, 1.1]], BK); k.poly([[-1.88, 1.05], [-1.88, 0.6], [-2.1, 0.6], [-2.1, 1.05]], PK);
+      L.partnerAt('eni', -1.99, 0.86, 0.18, 0.08, 'black');
+      k.at(-2.24, 0.8, () => msc(g, 0.24, 0.07, '#ffffff'));
+      k.at(-2.24, 0.71, () => logo(g, 'eurodatacar', 0.24, 0.032, 'white', FB.eurodatacar));
       // halo (pink): businessolver along the side
       L.haloSide('businessolver', '#16171b', { ff: '"Plus Jakarta Sans", Arial, sans-serif', w: 700 });
+    },
+    // front-wing endplates (own pass): carbon with OAKBERRY / businessolver / eni white, the pink foot
+    endplate(L) {
+      const { k, g } = L;
+      k.poly([[3.2, 0.0], [3.2, 0.6], [2.0, 0.6], [2.0, 0.0]], BK); k.poly([[3.2, 0.0], [3.2, 0.17], [2.0, 0.17], [2.0, 0.0]], PK);
+      k.at(2.52, 0.36, () => logo(g, 'oakberry', 0.34, 0.06, 'white', FB.oakberry));
+      k.at(2.52, 0.27, () => logo(g, 'businessolver', 0.34, 0.05, 'white', FB.businessolver));
+      L.partnerAt('eni', 2.52, 0.205, 0.12, 0.04, 'white');
     },
     top(L) {
       const { t, g } = L; const ALONG = -Math.PI / 2;

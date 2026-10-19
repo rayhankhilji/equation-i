@@ -30,7 +30,19 @@
     g.strokeStyle = 'rgba(0,0,0,0.35)'; g.lineWidth = H * 0.04; g.strokeRect(x0, y0, Wd, H);
   });
   const natOf = (code) => { const S = EI.SEASON; const d = S && S.drivers && S.drivers.find((v) => v.code === code); return d ? d.nat : null; };
+  // real-size placement (measured on the 2026 photos, scale from the 3.6 m wheelbase): a partner logo `w` metres wide (height from its
+  // aspect, capped at hMax), and a set-in-code wordmark stretched / condensed to exactly `w` metres at cap height `cap`
+  const fitW = (L, id, x, y, w, tone, plate, hMax) => { const I = EI.Ads.partnerInfo ? EI.Ads.partnerInfo(id) : null; const a = (I && I.aspect) || 4; let h = w / a; if (hMax && h > hMax) h = hMax; L.partnerAt(id, x, y, w * (plate ? 1.3 : 1), h * (plate ? 1.3 : 1), tone, plate); };
+  const wordW = (L, str, x, y, w, cap, col, st) => { st = st || {}; const g = L.g; g.save(); g.font = (st.it ? 'italic ' : '') + (st.w || 900) + ' ' + (cap * MM).toFixed(1) + 'px ' + (st.ff || '"Titillium Web", Arial, sans-serif');
+    const tw = g.measureText(str).width + (st.ls || 0) * cap * MM * (str.length - 1); g.restore(); L.wordmark(str, x, y, cap, col, Object.assign({}, st, { sx: w * MM / Math.max(1, tw) })); };
   const PAP = '#ff8000', AN = '#1d1e21', TEAL = '#0e4a40';
+  // OKX: the logotype built from squares (white on the black sidepod); w = overall width (m)
+  function okx(g, w, col) {
+    const c = w * MM / 11; g.fillStyle = col; const sq = (i, j) => g.fillRect(-w * MM / 2 + i * c, -1.5 * c + j * c, c * 1.0, c * 1.0);
+    for (let j = 0; j < 3; j++) for (let i = 0; i < 3; i++) if (!(i === 1 && j === 1)) sq(i, j);          // O
+    for (const [i, j] of [[4, 0], [4, 1], [4, 2], [5, 1], [6, 0], [6, 2]]) sq(i, j);                      // K
+    for (const [i, j] of [[8, 0], [10, 0], [9, 1], [8, 2], [10, 2]]) sq(i, j);                            // X
+  }
   LV.register('mclaren', {
     parts: { body: PAP, fwFlap: AN, fwEnd: PAP, fwTip: PAP, rwMain: AN, rwEnd: PAP, rwFlap: AN, halo: AN, mirror: '#14302b', fin: PAP },
     num: { ff: '"Plus Jakarta Sans", "Titillium Web", Arial, sans-serif', w: 800, ls: -0.02 },
@@ -50,8 +62,8 @@
       const gr = g.createLinearGradient(0, k.Y(1.1), 0, k.Y(0.82)); gr.addColorStop(0, TEAL); gr.addColorStop(1, AN);
       k.poly([[0.08, 1.2], [0.08, 0.86], [-0.4, 0.86], [-0.42, 1.2]], gr);
       L.wordmark('allwyn', -0.15, 0.99, 0.065, W, { ff: '"Plus Jakarta Sans", Arial, sans-serif', w: 800, ls: -0.02 });
-      L.partnerAt('googlegemini', -0.52, 0.76, 0.52, 0.1, 'rev');
-      L.partnerAt('okx', -0.22, 0.34, 0.4, 0.1, 'white');
+      fitW(L, 'googlegemini', -0.45, 0.665, 0.52, 'rev');
+      k.at(-0.2, 0.36, () => okx(g, 0.3, W));
       L.partnerAt('mastercard', -0.66, 0.24, 0.22, 0.12, 'color');
       L.partnerAt('cisco', 0.42, 0.68, 0.2, 0.085, 'mono:#9c3d00');
       L.wordmark('ClubAvolta', 0.3, 0.6, 0.04, W, { w: 700 });
@@ -69,7 +81,7 @@
       L.partnerAt('workday', 2.5, 0.3, 0.3, 0.09, 'mono:#3a1f0c');
     },
     top(L) {
-      const { t } = L;
+      const { t, g } = L;
       // black engine-cover top behind the airbox, papaya tail
       t.poly([[0.05, -0.26], [0.05, 0.26], [-0.75, 0.3], [-0.75, -0.3]], AN);
       t.poly([[0.05, -0.12], [0.05, 0.12], [-0.42, 0.12], [-0.42, -0.12]], TEAL);
@@ -77,9 +89,11 @@
       L.number(2.25, 0, 0.12, AN);
       L.partnerTop('mastercard', 1.85, 0, 0.12, 0.07, 'color', Math.PI);
       L.partnerTop('googlegemini', -0.45, 0, 0.36, 0.08, 'rev');
-      L.partnerTop('etihadairways', -2.1, 0, 0.85, 0.12, 'white');
+      t.at(-2.1, 0, () => {   // the rear wing carries only the Latin ETIHAD, full width (the artwork's lower line, Arabic above clipped off)
+        const I = EI.Ads.partnerInfo('etihadairways'); const w = 0.86 * MM, h = w / ((I && I.aspect) || 2.6);
+        g.save(); g.beginPath(); g.rect(-w, -h * 0.2, w * 2, h * 0.6); g.clip(); EI.Ads.drawPartner(g, 'etihadairways', 0, -h * 0.25, w, h, { tone: 'white' }); g.restore(); });
       for (const z of [-0.62, 0.62]) L.partnerTop('mastercard', 2.72, z, 0.14, 0.09, 'color');
-      L.haloTop('@McLarenF1', W, -1); L.haloTop('mclaren.com', W, 1); L.haloFront('okx', 'white');
+      L.haloTop('@McLarenF1', W, -1); L.haloTop('mclaren.com', W, 1); t.at(0.76, 0, () => okx(g, 0.12, W));
     },
   });
 })();

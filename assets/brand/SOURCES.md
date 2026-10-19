@@ -172,7 +172,7 @@ Allwyn, OKX, BWT, TGR, MoneyGram ...) are set as wordmarks in code (js/ads.js `P
 | `partners/maaden.svg` | Aston Martin F1 Team partners page (https://www.astonmartinf1.com/en-GB/partners), the team's own logo file `Maaden-Mono-Black_2.svg` (assets.astonmartinf1.com) (the current MAADEN identity) (LIVERY-C) |
 | `partners/netapp.svg` | Aston Martin F1 Team partners page (https://www.astonmartinf1.com/en-GB/partners), the team's own logo file `Netapp-Mono-Black.svg` (assets.astonmartinf1.com) (LIVERY-C) |
 | `partners/nexgen.svg` | Aston Martin F1 Team partners page (https://www.astonmartinf1.com/en-GB/partners), the team's own logo file `NexGen-Mono-Black.svg` (assets.astonmartinf1.com) (LIVERY-C) |
-| `partners/pepperstone.svg` | Aston Martin F1 Team partners page (https://www.astonmartinf1.com/en-GB/partners), the team's own logo file `Pepperstone-Mono-Black.svg` (assets.astonmartinf1.com) (LIVERY-C) |
+| `partners/pepperstone.svg` | [File:Pepperstone.svg](https://commons.wikimedia.org/wiki/File:Pepperstone.svg) (https://commons.wikimedia.org/wiki/Special:FilePath/Pepperstone.svg) (horizontal mark + wordmark, as on the car) (LIVERY-C) |
 | `partners/tommyhilfiger.svg` | Cadillac Formula 1 Team site (https://www.cadillacf1team.com/), the team's own partner logo file `Partner-Tommy.svg` (cadillacf1team.com/ctfassets) (LIVERY-C) |
 | `partners/twgai.svg` | TWG AI site (https://www.twg.ai/), its menu logo file `Menu Logo.svg` (cdn.prod.website-files.com): TWG + the outlined AI diamond, as on the car (LIVERY-C) |
 | `partners/vastdata.svg` | [File:VAST Data logo.svg](https://commons.wikimedia.org/wiki/File:VAST_Data_logo.svg) (https://commons.wikimedia.org/wiki/Special:FilePath/VAST_Data_logo.svg) (LIVERY-C) |
@@ -191,4 +191,7 @@ Allwyn, OKX, BWT, TGR, MoneyGram ...) are set as wordmarks in code (js/ads.js `P
 | `partners/dropbox.svg` | [File:Dropbox Logo 01.svg](https://commons.wikimedia.org/wiki/File:Dropbox_Logo_01.svg) (https://commons.wikimedia.org/wiki/Special:FilePath/Dropbox_Logo_01.svg) (LIVERY-A) |
 | `partners/richardmille.svg` | [File:Richard Mille Logo.svg](https://commons.wikimedia.org/wiki/File:Richard_Mille_Logo.svg) (https://commons.wikimedia.org/wiki/Special:FilePath/Richard_Mille_Logo.svg) (LIVERY-A) |
 | `partners/alpinef1.svg` | [File:Alpine F1 Team Logo.svg](https://commons.wikimedia.org/wiki/File:Alpine_F1_Team_Logo.svg) (https://commons.wikimedia.org/wiki/Special:FilePath/Alpine_F1_Team_Logo.svg) (LIVERY-B; the cars use the "A" mark part) |
+| `partners/hondawordmark.svg` | Aston Martin F1 Team partners page (https://www.astonmartinf1.com/en-GB/partners), the team's own logo file `Honda_2026-Mono-Black__1_.svg` (assets.astonmartinf1.com); viewBox trimmed to the Honda wordmark (LIVERY-C) |
+| `partners/valvolinemark.svg` | Aston Martin F1 Team partners page (https://www.astonmartinf1.com/en-GB/partners), the team's own logo file `Valvoline-Mono-Black.svg` (assets.astonmartinf1.com); viewBox trimmed to the V mark (LIVERY-C) |
+| `partners/valvolinewordmark.svg` | Aston Martin F1 Team partners page (https://www.astonmartinf1.com/en-GB/partners), the team's own logo file `Valvoline-Mono-Black.svg` (assets.astonmartinf1.com); viewBox trimmed to the wordmark (LIVERY-C) |
 <!--/PARTNER-TABLE-->

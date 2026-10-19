@@ -86,28 +86,33 @@
       k.poly([[0.62, 0.59], [-1.05, 0.66], [-1.15, 0.69], [0.62, 0.615]], RD); k.poly([[0.5, 0.575], [-0.9, 0.635], [-0.95, 0.65], [0.5, 0.585]], BK);
       // red airbox (RUCKUS NETWORKS), its red running back under the GR
       k.poly([[0.14, TOP_V], [0.14, 0.82], [-0.05, 0.8], [-0.42, 0.86], [-0.42, TOP_V]], RD);
-      k.at(-0.2, 0.9, () => logo(g, 'ruckus', 0.3, 0.06, 'white', FB.ruckus));
+      k.at(-0.18, 0.89, () => logo(g, 'ruckus', 0.38, 0.075, 'white', FB.ruckus));
       // the giant GR on the engine cover; the giant HAAS on the sidepod
-      k.at(-0.72, 0.84, () => gr(g, 0.7, 0.17, BK, RD));
-      k.at(-0.22, 0.4, () => haasWord(g, 0.25, BK));
+      k.at(-0.78, 0.77, () => gr(g, 0.86, 0.2, BK, RD));
+      k.at(-0.22, 0.4, () => haasWord(g, 0.27, BK));
       // cockpit side / sidepod front partners
-      k.at(1.1, 0.53, () => twoTone(g, 'ORION', '#111214', '180', RD, 0.32, 0.075, '"Unbounded", "Titillium Web", Arial, sans-serif', 800, 'INSURANCE', '#111214'));
-      k.at(0.52, 0.5, () => twoTone(g, 'FIX', '#111214', '', '#111214', 0.12, 0.07, '"Titillium Web", Arial, sans-serif', 900, 'NETWORK', '#111214'));
-      k.at(1.3, 0.37, () => logo(g, 'zoomex', 0.24, 0.045, 'white', FB.zoomex));
+      k.at(1.1, 0.53, () => twoTone(g, 'ORION', '#111214', '180', RD, 0.36, 0.085, '"Unbounded", "Titillium Web", Arial, sans-serif', 800, 'INSURANCE', '#111214'));
+      k.at(0.52, 0.5, () => twoTone(g, 'FIX', '#111214', '', '#111214', 0.15, 0.09, '"Titillium Web", Arial, sans-serif', 900, 'NETWORK', '#111214'));
+      k.at(0.74, 0.33, () => logo(g, 'zoomex', 0.3, 0.055, 'white', FB.zoomex));
       k.at(1.05, 0.62, () => logo(g, 'emburse', 0.14, 0.03, 'black', FB.emburse));
       // nose: Mphasis white on the red band, UChicago Medicine under it; race number + code by the cockpit
-      k.at(2.42, 0.38, () => logo(g, 'mphasis', 0.26, 0.05, 'white', FB.mphasis));
+      k.at(2.45, 0.37, () => logo(g, 'mphasis', 0.3, 0.06, 'white', FB.mphasis));
       k.at(2.05, 0.33, () => logo(g, 'uchicago', 0.2, 0.03, 'black', FB.uchicago));
       L.number(1.62, 0.505, 0.07, BK); L.codeText(1.38, 0.5, 0.04, BK);
       // front-wing endplate (white): HAAS TOOLING red; rear-wing endplate (white): Play'n GO + SINGHA
-      k.poly([[2.8, 0.04], [2.8, 0.5], [2.28, 0.5], [2.28, 0.04]], WH);
-      k.at(2.54, 0.24, () => logo(g, 'haastooling', 0.4, 0.06, 'color', FB.tooling));
       k.poly([[-1.88, 1.1], [-1.88, 0.4], [-2.6, 0.4], [-2.6, 1.1]], WH); k.poly([[-1.88, 1.1], [-1.88, 0.98], [-2.6, 0.98], [-2.6, 1.1]], BK);
-      k.at(-2.16, 0.88, () => playngo(g, 0.34, 0.08));
-      k.at(-2.16, 0.74, () => logo(g, 'singha', 0.3, 0.06, 'black', FB.singha));
+      k.at(-2.14, 0.88, () => playngo(g, 0.38, 0.1));
+      k.at(-2.14, 0.74, () => logo(g, 'singha', 0.34, 0.075, 'black', FB.singha));
       L.wordmark('LEMON SODA', -2.16, 0.69, 0.022, '#111214', { w: 700, ls: 0.2 });
       // halo (white): the HAAS wordmark small on the side, Play'n GO
       L.haloSide('HAAS', '#111214', { it: 1, w: 900 });
+    },
+    // front-wing endplates (own pass, the red nose band stays off them): white, HAAS TOOLING red with its red speed bars
+    endplate(L) {
+      const { k, g } = L;
+      k.poly([[3.2, 0.0], [3.2, 0.6], [2.0, 0.6], [2.0, 0.0]], WH);
+      k.poly([[2.78, 0.15], [2.74, 0.21], [2.32, 0.21], [2.36, 0.15]], RD);
+      k.at(2.54, 0.28, () => logo(g, 'haastooling', 0.44, 0.07, 'color', FB.tooling));
     },
     top(L) {
       const { t, g } = L; const ALONG = Math.PI;   // the VF-26 nose column reads from the front

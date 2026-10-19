@@ -213,6 +213,15 @@ window.EI = window.EI || {};
       d.top(L);
     },
     numStyle: (team) => (D[team.id] && D[team.id].num) || {},
+    // wheel cover (S x S canvas = the 0.56 m disc, centre S/2; the visible cover is a ring r 0.05..0.27 m = S*0.09..S*0.48):
+    // default = dark satin with a team-colour ring and the team wordmark; a design may override with design.cover(g, S, team)
+    cover(g, S, team) {
+      const d = D[team.id]; if (d && d.cover) return d.cover(g, S, team);
+      const r = (m) => m / 0.56 * S; const cx = S / 2;
+      g.fillStyle = '#141518'; g.beginPath(); g.arc(cx, cx, r(0.27), 0, 7); g.fill();
+      g.strokeStyle = team.primary; g.lineWidth = r(0.012); g.beginPath(); g.arc(cx, cx, r(0.25), 0, 7); g.stroke();
+      g.save(); g.translate(cx, cx + r(0.16)); styledText(g, (team.brand || team.name).toUpperCase(), r(0.032) / MM, '#e8e8e8', { w: 700, ls: 0.12 }); g.restore();
+    },
     // driver helmet (256 x 128 canvas; x: 0 = back, 64 = left side, 128 = visor centre, 192 = right side, 256 = back; y: 0 = crown,
     // 128 = neck). driver.helmetSpec = { base, c2, c3, pattern: 'band' | 'stripe' | 'split' | 'chevron' | 'halves', num: bool }
     // (from the 2026 helmet photos); a design may override with design.helmet(g, W, H, driver, team, num). Text is drawn mirrored

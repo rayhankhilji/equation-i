@@ -937,6 +937,7 @@ window.EI = window.EI || {};
     const n = (mat && mat.name) || '';
     if ((n === 'paint' && !node.startsWith('body_cockpit')) || node === 'halo_main') return { s: 1, m: 0.18, r: 0.42, c: 1, col: [1, 1, 1] };
     if (n === 'paint' || n === 'carbon') return FLOOR_RE.test(node) && n === 'carbon' ? { s: 0, m: 0.2, r: 0.55, c: 0.18, col: FLOOR_AVG } : { s: 0, m: 0.2, r: 0.5, c: 0.45, col: CARBON_AVG };
+    if (n === 'cover') return { s: 6, m: 0.15, r: 0.45, c: 0.6, col: [1, 1, 1] };   // wheel covers: the team's cover design (uCover)
     if (n === 'helmet') return { s: 3, m: 0.1, r: 0.35, c: 1, col: [1, 1, 1] };
     if (n === 'led') return { s: 2, m: 0, r: 0.4, c: 0, col: [1, 0.1, 0.1] };
     const c = mat && mat.color ? mat.color : new THREE.Color(0x202020);
@@ -1051,33 +1052,43 @@ window.EI = window.EI || {};
     if (EI.LIVERIES && EI.LIVERIES.helmet) EI.LIVERIES.helmet(g, 256, 128, d, car.team, car.num);
     const t = new THREE.CanvasTexture(c); t.encoding = THREE.sRGBEncoding; t.anisotropy = 4; return (helmetTex[key] = t);
   }
+  // wheel-cover design per team (EI.LIVERIES.cover), mapped as a disc in the wheel plane (outer faces read correctly on both sides)
+  const coverTex = {};
+  function coverTexture(team) {
+    const key = team.id; if (coverTex[key]) return coverTex[key];
+    const S = 256, c = document.createElement('canvas'); c.width = c.height = S; const g = c.getContext('2d');
+    g.fillStyle = '#121316'; g.fillRect(0, 0, S, S);
+    if (EI.LIVERIES && EI.LIVERIES.cover) EI.LIVERIES.cover(g, S, team);
+    const t = new THREE.CanvasTexture(c); t.encoding = THREE.sRGBEncoding; t.anisotropy = 4; return (coverTex[key] = t);
+  }
   function lodMaterial(tex, car, T) {
     const m = new THREE.MeshPhysicalMaterial({ map: tex, vertexColors: true, metalness: 1, roughness: 1, clearcoat: 1, clearcoatRoughness: 0.04, envMapIntensity: 0.55, side: THREE.DoubleSide });
     const u = m.userData.u = {
       uBody: { value: new THREE.Matrix4() }, uSpin: { value: 0 }, uSteer: { value: 0 }, uFlap: { value: 0 }, uHelm: { value: 0 }, uHelmVis: { value: 1 },
-      uWheel: { value: T.wheels }, uHinge: { value: T.hinge }, uAccent: { value: new THREE.Color((car.driver && car.driver.helmet) || car.team.helmet || car.team.accent) }, uTcam: { value: new THREE.Color(tcamYellow(car) ? 0xf2e600 : 0x0c0c0e) }, uHelmet: { value: helmetTexture(car) }, uLed: { value: 0.6 }, uTyre: { value: tyreWallTexture(car.tyre) },
+      uWheel: { value: T.wheels }, uHinge: { value: T.hinge }, uAccent: { value: new THREE.Color((car.driver && car.driver.helmet) || car.team.helmet || car.team.accent) }, uTcam: { value: new THREE.Color(tcamYellow(car) ? 0xf2e600 : 0x0c0c0e) }, uHelmet: { value: helmetTexture(car) }, uCover: { value: coverTexture(car.team) }, uLed: { value: 0.6 }, uTyre: { value: tyreWallTexture(car.tyre) },
     };
     m.onBeforeCompile = (sh) => {
       Object.assign(sh.uniforms, u);
       sh.vertexShader = [
-        'attribute vec4 lodk;', 'attribute float lodg;', 'varying vec4 vLodk;', 'varying vec3 vHelmP;',
+        'attribute vec4 lodk;', 'attribute float lodg;', 'varying vec4 vLodk;', 'varying vec3 vHelmP;', 'varying vec2 vCov;',
         'uniform mat4 uBody;', 'uniform float uSpin;', 'uniform float uSteer;', 'uniform float uFlap;', 'uniform float uHelm;', 'uniform float uHelmVis;', 'uniform vec3 uWheel[4];', 'uniform vec2 uHinge;',
         'mat3 lodRz(float a) { float c = cos(a), s = sin(a); return mat3(c, s, 0.0, -s, c, 0.0, 0.0, 0.0, 1.0); }',
         'mat3 lodRy(float a) { float c = cos(a), s = sin(a); return mat3(c, 0.0, -s, 0.0, 1.0, 0.0, s, 0.0, c); }', ''].join('\n') +
         sh.vertexShader.replace('#include <beginnormal_vertex>', [
           '#include <beginnormal_vertex>',
-          'vLodk = lodk; vHelmP = position; mat3 lodR = mat3(1.0); vec3 lodC = vec3(0.0); float lodB = 1.0; float lodH = 1.0;',
-          'if (lodg > 2.5) { lodB = 0.0; lodC = lodg < 3.5 ? uWheel[0] : lodg < 4.5 ? uWheel[1] : lodg < 5.5 ? uWheel[2] : uWheel[3]; lodR = lodRz(uSpin); if (lodg < 4.5) lodR = lodRy(uSteer) * lodR; }',
+          'vLodk = lodk; vHelmP = position; vCov = vec2(0.5); mat3 lodR = mat3(1.0); vec3 lodC = vec3(0.0); float lodB = 1.0; float lodH = 1.0;',
+          'if (lodg > 2.5) { lodB = 0.0; lodC = lodg < 3.5 ? uWheel[0] : lodg < 4.5 ? uWheel[1] : lodg < 5.5 ? uWheel[2] : uWheel[3]; lodR = lodRz(uSpin); if (lodg < 4.5) lodR = lodRy(uSteer) * lodR; vCov = (position.xy - lodC.xy) / 0.56 + 0.5; if (position.z < lodC.z) vCov.x = 1.0 - vCov.x; }',
           'else if (lodg > 1.5) { lodR = lodRy(uHelm); lodH = uHelmVis; }',
           'else if (lodg > 0.5) { lodC = vec3(uHinge, 0.0); lodR = lodRz(uFlap); }',
           'objectNormal = lodR * objectNormal; if (lodB > 0.5) objectNormal = mat3(uBody) * objectNormal;'].join('\n'))
           .replace('#include <begin_vertex>', ['#include <begin_vertex>',
             'transformed = lodC + lodR * (transformed - lodC); if (lodB > 0.5) transformed = (uBody * vec4(transformed, 1.0)).xyz; transformed *= lodH;'].join('\n'));
-      sh.fragmentShader = 'varying vec4 vLodk;\nvarying vec3 vHelmP;\nuniform sampler2D uHelmet;\nuniform vec3 uAccent;\nuniform vec3 uTcam;\nuniform float uLed;\nuniform sampler2D uTyre;\n' + sh.fragmentShader
+      sh.fragmentShader = 'varying vec4 vLodk;\nvarying vec3 vHelmP;\nvarying vec2 vCov;\nuniform sampler2D uHelmet;\nuniform sampler2D uCover;\nuniform vec3 uAccent;\nuniform vec3 uTcam;\nuniform float uLed;\nuniform sampler2D uTyre;\n' + sh.fragmentShader
         .replace('#include <map_fragment>', [
           'float lodS = vLodk.x; vec3 lodCol = vColor;',
           'if (lodS > 0.5 && lodS < 1.5) lodCol = mapTexelToLinear(texture2D(map, vUv)).rgb;',
           'else if (lodS > 2.5 && lodS < 3.5) { vec2 hu = vec2(atan(vHelmP.z, vHelmP.x - 0.16) * 0.159155 + 0.5, clamp((vHelmP.y - 0.665) / 0.21, 0.0, 1.0)); lodCol = mapTexelToLinear(texture2D(uHelmet, hu)).rgb; }',
+          'else if (lodS > 5.5) lodCol = mapTexelToLinear(texture2D(uCover, vCov)).rgb;',
           'else if (lodS > 4.5) lodCol = uTcam;',
           'else if (lodS > 3.5) { vec4 lodT = mapTexelToLinear(texture2D(uTyre, vUv)); lodCol = mix(vColor, lodT.rgb, lodT.a); }',
           'diffuseColor.rgb *= lodCol;'].join('\n'))

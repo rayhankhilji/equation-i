@@ -27,33 +27,36 @@
       k.region(FLOOR, [[-2.6, 0.26], [-2.6, LOW_V], [3.25, LOW_V]], BLK);
       k.stroke([[0.65, 0.205], [-0.2, 0.215], [-1.0, 0.225]], 0.014, LM);
       // lime keyline: nose side -> chassis -> sidepod inlet edge
-      k.stroke([[3.1, 0.22], [2.4, 0.3], [1.7, 0.38], [1.15, 0.45], [0.82, 0.5], [0.7, 0.58]], 0.014, LM);
+      // dark-green band behind the title, as on the car (sizes / positions measured on axle-aligned photos, liveryC/measure)
+      k.region([[0.6, 0.6], [0.0, 0.64], [-0.6, 0.6], [-1.05, 0.5]], [[-1.05, 0.26], [0.0, 0.24], [0.6, 0.28]], '#0a302a');
+      k.stroke([[3.0, 0.27], [2.5, 0.37], [2.0, 0.45], [1.5, 0.42], [1.0, 0.36], [0.5, 0.29], [0.15, 0.25]], 0.022, LM);
       // lime hatching on the sidepod shoulder ahead of the title
-      g.save(); k.path([[0.5, 0.6], [0.5, 0.48], [-0.3, 0.47], [-0.3, 0.57]]); g.clip();
-      for (let i = 0; i < 16; i++) { const x = 0.5 - i * 0.055; k.stroke([[x, 0.46], [x - 0.05, 0.6]], 0.012, LM); }
+      g.save(); k.path([[0.1, 0.62], [0.1, 0.55], [-0.75, 0.52], [-0.75, 0.6]]); g.clip();
+      for (let i = 0; i < 18; i++) { const x = 0.1 - i * 0.05; k.stroke([[x, 0.5], [x - 0.04, 0.63]], 0.011, LM); }
       g.restore();
       // sidepod + engine cover partners
-      L.partnerAt('aramco', -0.32, 0.34, 0.98, 0.17, 'white');
-      L.partnerAt('boss', 0.28, 0.43, 0.22, 0.06, 'white');
-      L.partnerAt('cohere', -0.42, 0.63, 0.3, 0.055, 'white');
-      L.partnerAt('maaden', -0.55, 0.86, 0.56, 0.11, 'white');
-      L.partnerAt('coreweave', -0.08, 1.0, 0.16, 0.08, 'white');
-      L.partnerAt('honda2026', -1.08, 0.7, 0.12, 0.1, 'white');
-      L.wordmark('powered by', -1.08, 0.78, 0.022, W, { w: 600, ls: 0.02 });
+      L.partnerAt('aramco', -0.32, 0.43, 0.86, 0.15, 'white');
+      L.partnerAt('boss', 0.3, 0.56, 0.24, 0.07, 'white');
+      L.partnerAt('cohere', -0.12, 0.72, 0.41, 0.08, 'white');
+      L.partnerAt('maaden', -0.64, 0.8, 0.46, 0.17, 'white');
+      L.partnerAt('coreweave', -0.12, 0.94, 0.32, 0.16, 'white');
+      L.partnerAt('cognizant', -1.22, 0.8, 0.46, 0.07, 'white');
+      L.partnerAt('hondawordmark', -1.1, 0.67, 0.34, 0.05, 'white');
+      L.wordmark('Powered by', -1.06, 0.72, 0.026, W, { w: 600, ls: 0.02 });
       L.partnerAt('aramco', -1.35, 0.9, 0.22, 0.04, 'white');
       L.partnerAt('glenfiddich', -1.4, 1.02, 0.1, 0.07, 'white');
-      L.partnerAt('valvolinev', -1.38, 0.5, 0.12, 0.08, 'white');
+      L.partnerAt('valvolinemark', -1.05, 0.52, 0.09, 0.05, 'color'); L.partnerAt('valvolinewordmark', -1.27, 0.52, 0.3, 0.05, 'white');
       // chassis / cockpit / floor
-      L.partnerAt('pepperstone', 1.25, 0.6, 0.2, 0.045, 'white');
-      L.partnerAt('astonmartin', 1.2, 0.5, 0.22, 0.06, 'white');
-      L.partnerAt('cognizant', 0.82, 0.27, 0.3, 0.055, 'white');
+      L.partnerAt('pepperstone', 1.22, 0.62, 0.42, 0.07, 'white');
+      L.partnerAt('astonmartin', 1.2, 0.52, 0.36, 0.09, 'white');
+      L.partnerAt('cognizant', 0.72, 0.28, 0.4, 0.07, 'white');
       L.partnerAt('cognition', 1.62, 0.42, 0.2, 0.04, 'white');
       L.number(2.05, 0.36, 0.07, LM);
       L.codeText(0.55, 0.69, 0.04, W);
       // rear-wing endplate (green) and front-wing endplate
-      L.partnerAt('coinbase', -2.13, 0.88, 0.34, 0.07, 'white');
+      L.partnerAt('coinbase', -2.13, 0.9, 0.42, 0.09, 'white');
       L.partnerAt('jcb', -2.13, 0.66, 0.2, 0.06, 'white');
-      L.partnerAt('glenfiddich', 2.68, 0.17, 0.32, 0.09, 'white');
+      L.partnerAt('glenfiddich', 2.66, 0.19, 0.42, 0.16, 'white');
       L.haloSide('Breitling', W, { w: 600, ls: 0.12 });
     },
     top(L) {
