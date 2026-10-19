@@ -81,7 +81,7 @@ window.EI = window.EI || {};
   const F1_LOGO = 'assets/brand/f1/f1-logo.svg';
   function markup(k, split) {
     let lights = ''; for (let i = 0; i < 5; i++) lights += '<div class="light-col"><span></span><span></span></div>';
-    return '<div class="hud">' +
+    return '<div class="hud"><div class="tags"></div>' +
       '<div class="tower"><div class="tw-head"><i class="tw-f1" style="background-image:url(' + F1_LOGO + ')"></i><span class="tw-sess">RACE</span>' + (split ? '<span class="tw-pl">P' + (k + 1) + '</span>' : '') + '</div>' +
         '<div class="tw-lap"><span>LAP</span><b>1</b><i>/ 1</i></div><div class="tw-rows"></div></div>' +
       '<div class="timing"><div class="tm-sec"><span><em>S1</em><i></i></span><span><em>S2</em><i></i></span><span><em>S3</em><i></i></span></div>' +
@@ -97,7 +97,7 @@ window.EI = window.EI || {};
       '<div class="flb"><div class="flb-tag"><span>FASTEST</span><span>LAP</span></div><div class="flb-main"><i></i><b></b><span></span></div></div>' +
       '<div class="msg"><span></span></div>' +
       (split ? '<div class="sp-fin"><b></b><span></span></div><div class="sp-lights">' + lights + '</div><div class="sp-banner"></div><div class="sp-toasts"></div>' : '') +
-      '<div class="tags"></div></div>';
+      '</div>';
   }
   function makeViewport(k, car, nPlayers) {
     const split = nPlayers > 1;
@@ -127,6 +127,7 @@ window.EI = window.EI || {};
       } else u = U.clamp(Math.min(w / 1280, h / 720), 0.5, 2);
       r.s = u; r.u = u; el.style.setProperty('--u', u.toFixed(3)); el.style.setProperty('--s', u.toFixed(3));
       r.mapGeo = null;   // the minimap canvas is re-sized for the new scale
+      r.blkT = 0;        // panel boxes for the name tags are measured again
     };
     // finished (two players): a card that stays up for the rest of the race while the cool-down lap is driven
     r.setFinished = (pos) => { const f = q('.sp-fin'); if (!f) return; f.children[0].textContent = 'P' + pos + ' · FINISHED'; f.children[1].textContent = 'Cool-down lap'; f.classList.add('show'); r.msgT = 0; r.msg.classList.remove('show'); r.fin = true; };
@@ -137,11 +138,11 @@ window.EI = window.EI || {};
       if (/^FASTEST LAP/.test(text)) return;   // the purple fastest-lap banner carries it
       r.msgText.textContent = text; r.msg.className = 'msg ' + (cls || ''); void r.msg.offsetWidth; r.msg.classList.add('show'); r.msgT = dur || 2.5;
     };
-    r.setFull = (on) => { r.full = !split && on; el.classList.toggle('tw-full', r.full); };
+    r.setFull = (on) => { r.full = !split && on; el.classList.toggle('tw-full', r.full); r.blkT = 0; };
     r.update = (race, dt) => {
       const c = car, t = race.track;
       // cockpit view: the wheel display carries gear / speed / ERS, so the dash goes away (I brings it back); split screen keeps it
-      const ck = !!(c._cockpitT && performance.now() - c._cockpitT < 400); if (ck !== r.ck) { r.ck = ck; el.classList.toggle('cockpit', ck); }
+      const ck = !!(c._cockpitT && performance.now() - c._cockpitT < 400); if (ck !== r.ck) { r.ck = ck; el.classList.toggle('cockpit', ck); r.blkT = 0; }
       if (!ck || split || prefs.ckDash) updateDash(r, race, c);
       updateTower(r, race, c);
       updateTiming(r, race, c);
@@ -318,6 +319,19 @@ window.EI = window.EI || {};
   }
 
   // ---------------------------------------------------------------- name tags (main.js projects them; positions via transforms)
+  // the boxes of the HUD panels in this view (px, view-local), measured at most once a second or after a layout change (one
+  // layout read): name tags never draw over them
+  const BLK = ['.tower', '.timing', '.dash', '.mapwrap', '.flb-tag', '.flb-main', '.corner', '.sp-keys'];
+  function panelBoxes(r) {
+    const now = performance.now(); if (r.blk && now - r.blkT < 1000) return r.blk;
+    r.blkT = now; const v = r.el.getBoundingClientRect(); const out = r.blk || (r.blk = []); out.length = 0;
+    for (const sel of BLK) for (const e of r.el.querySelectorAll(sel)) {
+      const b = e.getBoundingClientRect(); if (b.width < 1 || b.height < 1) continue;
+      const cs = getComputedStyle(e.closest('.flb, .dash, .corner, .sp-keys') || e); if (cs.visibility === 'hidden' || cs.opacity === '0' || cs.display === 'none') continue;
+      out.push([b.left - v.left - 4, b.top - v.top - 4, b.right - v.left + 4, b.bottom - v.top + 4]);
+    }
+    return out;
+  }
   function updateTags(r, list) {
     while (r.tagEls.length < list.length) {
       const d = document.createElement('div'); d.className = 'tag'; d.innerHTML = '<div class="tg"><b class="tp"></b><i class="tb"></i><span class="tn"></span></div>';
@@ -326,11 +340,14 @@ window.EI = window.EI || {};
     // declutter: nearest cars keep their spot, farther tags that would overlap are stacked upwards (split: one step, else dropped)
     const ord = r._tagOrd || (r._tagOrd = []); ord.length = 0; for (let i = 0; i < list.length; i++) ord.push(i); ord.sort((i, j) => list[j].alpha - list[i].alpha);
     const placed = []; const s = r.u || 1; const ys = r._tagYs || (r._tagYs = []); ys.length = list.length;
+    const blk = panelBoxes(r);
     for (const i of ord) {
       const tg = list[i]; const sc = s * (0.72 + 0.28 * Math.min(1, tg.alpha)); const w = (46 + String(tg.text).length * 8.4) * sc, h = 21 * sc; let y = tg.y;
       const maxTries = r.split ? 1 : 2; let hit = null;
       for (let tries = 0; tries <= maxTries; tries++) { hit = placed.find(p => Math.abs(p.x - tg.x) < (p.w + w) / 2 && Math.abs(p.y - y) < (p.h + h) / 2); if (!hit || tries === maxTries) break; y = hit.y - (hit.h + h) / 2 - 2; }
-      if (hit || y < h * 1.5) { ys[i] = null; continue; }
+      const x0 = tg.x - w / 2, x1 = tg.x + w / 2, y0 = y - h - 6 * sc, y1 = y; let under = false;
+      for (const b of blk) if (x0 < b[2] && x1 > b[0] && y0 < b[3] && y1 > b[1]) { under = true; break; }
+      if (hit || under || y < h * 1.5) { ys[i] = null; continue; }
       placed.push({ x: tg.x, y, w, h }); ys[i] = y;
     }
     for (let i = 0; i < r.tagEls.length; i++) {

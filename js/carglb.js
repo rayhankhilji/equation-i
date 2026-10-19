@@ -367,6 +367,15 @@ window.EI = window.EI || {};
   function teamSide(k, team, o) {   // generic scheme for a team without a design in js/liveries.js
     k.region(UPPER_LINE.map(([x, y]) => [x, y + 0.04]), [[-2.4, TOP_V], [3.2, TOP_V]], o.S);
   }
+  // top-view drawing kit (mm canvas units, X = z, Y = -x): shared by the top view and the halo's top view
+  function topKit(g) {
+    const at = (x, z, fn, rot) => { g.save(); g.translate(z * MM, -x * MM); if (rot) g.rotate(rot); fn(); g.restore(); };
+    const txt = (str, x, z, cap, col, font, rot, ls) => at(x, z, () => { g.font = font.replace('%', (cap * MM).toFixed(1) + 'px'); Ads().setLS(g, (ls || 0) * cap * MM); g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillStyle = col; g.fillText(str, 0, cap * MM * 0.04); Ads().setLS(g, 0); }, rot);
+    const dec = (spec, x, z, cap, maxW, rot) => at(x, z, () => Ads().drawDecal(g, spec, 0, 0, cap * MM, maxW * MM), rot);
+    const rect = (x0, x1, z0, z1, col) => { g.fillStyle = col; g.fillRect(z0 * MM, -x1 * MM, (z1 - z0) * MM, (x1 - x0) * MM); };
+    const poly = (pts, col) => { g.beginPath(); pts.forEach(([x, z], i) => (i ? g.lineTo(z * MM, -x * MM) : g.moveTo(z * MM, -x * MM))); g.closePath(); g.fillStyle = col; g.fill(); };
+    return { at, txt, dec, rect, poly };
+  }
   function liveryViews(team, num, code, o) {
     const { P, S, A, NC, SC, sp, works } = o; const id = team.id;
     const tname = (team.name.length > 13 ? team.short : team.name).toUpperCase();
@@ -398,7 +407,8 @@ window.EI = window.EI || {};
     // A design with an endplate(L) callback paints the front-wing endplates from their own small side views, so the nose's colour
     // blocks (same x / y range) stay off them.
     const ep = EI.LIVERIES && EI.LIVERIES.hasEndplate && EI.LIVERIES.hasEndplate(id);
-    const FWEND = ROLE_NAMES.indexOf('fwEnd'), noEp = ep ? { [FWEND]: 1 } : null;
+    const FWEND = ROLE_NAMES.indexOf('fwEnd'), HALO = ROLE_NAMES.indexOf('halo'), real = EI.LIVERIES && EI.LIVERIES.has(id) && EI.LIVERIES.sideHalo;
+    const noEp = ep || real ? Object.assign({}, ep ? { [FWEND]: 1 } : null, real ? { [HALO]: 1 } : null) : null;
     views.push({ cls: 1, also: [4], notRoles: noEp, map: (x, y) => [-x, -y], x0: -3.2, x1: 3.2, y0: -1.25, y1: 0.05, draw: side(-1) });
     views.push({ cls: 2, also: [5], notRoles: noEp, map: (x, y) => [x, -y], x0: -3.2, x1: 3.2, y0: -1.25, y1: 0.05, draw: side(1) });
     if (ep) for (const s of [-1, 1]) {
@@ -406,14 +416,18 @@ window.EI = window.EI || {};
       views.push(s < 0 ? { cls: 1, also: [4], roles: { [FWEND]: 1 }, map: (x, y) => [-x, -y], x0: -3.2, x1: -2.1, y0: -0.65, y1: 0.05, draw }
         : { cls: 2, also: [5], roles: { [FWEND]: 1 }, map: (x, y) => [x, -y], x0: 2.1, x1: 3.2, y0: -0.65, y1: 0.05, draw });
     }
+    // the halo's own small views (halo text only; see EI.LIVERIES.sideHalo / topHalo)
+    if (real) {
+      for (const s of [-1, 1]) {
+        const draw = (g) => { g.scale(1 / MM, 1 / MM); EI.LIVERIES.sideHalo(g, sideKit(g, s), team, num, code); };
+        views.push(s < 0 ? { cls: 1, also: [4], roles: { [HALO]: 1 }, map: (x, y) => [-x, -y], x0: -1.3, x1: 0.05, y0: -0.96, y1: -0.6, draw }
+          : { cls: 2, also: [5], roles: { [HALO]: 1 }, map: (x, y) => [x, -y], x0: -0.05, x1: 1.3, y0: -0.96, y1: -0.6, draw });
+      }
+      views.push({ cls: 3, roles: { [HALO]: 1 }, map: (x, y, z) => [z, -x], x0: -0.45, x1: 0.45, y0: -1.3, y1: 0.05, draw: (g) => { g.scale(1 / MM, 1 / MM); EI.LIVERIES.topHalo(g, topKit(g), team, num); } });
+    }
     // top view: X = z (right), Y = -x (nose up), text upright reads from behind
     views.push({ cls: 3, notRoles: noEp, map: (x, y, z) => [z, -x], x0: -1.1, x1: 1.1, y0: -3.2, y1: 3.2, draw: (g) => {
-      g.scale(1 / MM, 1 / MM);
-      const at = (x, z, fn, rot) => { g.save(); g.translate(z * MM, -x * MM); if (rot) g.rotate(rot); fn(); g.restore(); };
-      const txt = (str, x, z, cap, col, font, rot, ls) => at(x, z, () => { g.font = font.replace('%', (cap * MM).toFixed(1) + 'px'); Ads().setLS(g, (ls || 0) * cap * MM); g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillStyle = col; g.fillText(str, 0, cap * MM * 0.04); Ads().setLS(g, 0); }, rot);
-      const dec = (spec, x, z, cap, maxW, rot) => at(x, z, () => Ads().drawDecal(g, spec, 0, 0, cap * MM, maxW * MM), rot);
-      const rect = (x0, x1, z0, z1, col) => { g.fillStyle = col; g.fillRect(z0 * MM, -x1 * MM, (z1 - z0) * MM, (x1 - x0) * MM); };
-      const poly = (pts, col) => { g.beginPath(); pts.forEach(([x, z], i) => (i ? g.lineTo(z * MM, -x * MM) : g.moveTo(z * MM, -x * MM))); g.closePath(); g.fillStyle = col; g.fill(); };
+      g.scale(1 / MM, 1 / MM); const { at, txt, dec, rect, poly } = topKit(g);
       if (EI.LIVERIES && EI.LIVERIES.has(id)) return EI.LIVERIES.top(g, { at, txt, dec, rect, poly }, team, num);
       // customer teams: nose tip and centre stripe, number on the nose (reads from the front), partner on the rear wing
       rect(2.6, 3.2, -1, 1, S);
@@ -749,7 +763,7 @@ window.EI = window.EI || {};
     //      wheel turns. Two-bone IK with the elbow hanging down and out; radius tapers shoulder -> biceps -> elbow -> forearm -> wrist.
     const suitTex = suitTextures(team);
     const suitOpts = { map: suitTex.map, bumpMap: suitTex.bump, bumpScale: 0.0015, roughness: 0.74, metalness: 0.0, envMapIntensity: 0.4 };
-    const suit = new THREE.MeshPhysicalMaterial(suitOpts); if ('sheen' in suit) suit.sheen = new THREE.Color(kit.suit).lerp(new THREE.Color(0xffffff), 0.5).multiplyScalar(0.35);
+    const suit = new THREE.MeshPhysicalMaterial(suitOpts); if ('sheen' in suit) suit.sheen = kit.suit.clone().convertSRGBToLinear().lerp(new THREE.Color(0x404040), 0.25).multiplyScalar(0.5);   // a faint fabric sheen in the suit's own (linear) colour: a black suit stays black
     const plainSuit = new THREE.MeshStandardMaterial({ color: kit.suit.clone().convertSRGBToLinear(), roughness: 0.8, envMapIntensity: 0.35 });
     const RINGS = 26, SEG = 18;
     const shoulder = [V(0.06, 0.6, -0.2), V(0.06, 0.6, 0.2)];
@@ -887,7 +901,7 @@ window.EI = window.EI || {};
         for (const o of hideList) if (o.visible) { o.visible = false; hidden.push(o); }
         if (lite) for (const o of lite) if (o && o.visible) { o.visible = false; hidden.push(o); }
         if (swap && swap.ck) for (const o of swap.ck) if (o.visible) { o.visible = false; hidden.push(o); }   // wheel, arms, torso: never in a rear view
-        const R2 = lite ? 120 * 120 : 150 * 150; for (const o of carList) if (o.visible && o.position.distanceToSquared(cam.position) > R2) { o.visible = false; hidden.push(o); }
+        const R2 = lite ? 70 * 70 : 150 * 150;   // lite: the cars that matter (the next ~2 s behind) for (const o of carList) if (o.visible && o.position.distanceToSquared(cam.position) > R2) { o.visible = false; hidden.push(o); }
         // lite: the other cars draw from their far LOD (1 draw call, ~6k triangles each) - plenty for a 112 px mirror
         lodSave.length = 0;
         if (lite) for (const o of carList) { if (!o.visible) continue; let far = null; for (const c of o.children) if (c.name === 'car_far') far = c; if (!far) continue; for (const c of o.children) { lodSave.push(c, c.visible); c.visible = c === far; } }
@@ -1027,33 +1041,43 @@ window.EI = window.EI || {};
   // part animation in the vertex shader. One program for every car.
   // T-cam colour: driver.tcam ('y' / 'b', from race photos) or the FIA default (black on a team's first car, yellow on the second)
   const tcamYellow = (car) => { const d = car.driver; if (d && d.tcam) return d.tcam === 'y'; return !!(car.team && car.team.drivers && car.team.drivers.indexOf(d) === 1); };
+  // per-driver helmet design (EI.LIVERIES.helmet paints it), mapped onto the helmet by a cylindrical projection in the LOD shader
+  // (u = angle round the helmet's vertical axis, 0.5 = visor centre, left side u < 0.5; v = height). One small canvas per driver.
+  const helmetTex = {};
+  function helmetTexture(car) {
+    const d = car.driver || {}; const key = (d.code || d.name || '') + ':' + car.team.id; if (helmetTex[key]) return helmetTex[key];
+    const c = document.createElement('canvas'); c.width = 256; c.height = 128; const g = c.getContext('2d');
+    g.fillStyle = d.helmet || car.team.helmet || car.team.accent; g.fillRect(0, 0, 256, 128);
+    if (EI.LIVERIES && EI.LIVERIES.helmet) EI.LIVERIES.helmet(g, 256, 128, d, car.team, car.num);
+    const t = new THREE.CanvasTexture(c); t.encoding = THREE.sRGBEncoding; t.anisotropy = 4; return (helmetTex[key] = t);
+  }
   function lodMaterial(tex, car, T) {
     const m = new THREE.MeshPhysicalMaterial({ map: tex, vertexColors: true, metalness: 1, roughness: 1, clearcoat: 1, clearcoatRoughness: 0.04, envMapIntensity: 0.55, side: THREE.DoubleSide });
     const u = m.userData.u = {
       uBody: { value: new THREE.Matrix4() }, uSpin: { value: 0 }, uSteer: { value: 0 }, uFlap: { value: 0 }, uHelm: { value: 0 }, uHelmVis: { value: 1 },
-      uWheel: { value: T.wheels }, uHinge: { value: T.hinge }, uAccent: { value: new THREE.Color((car.driver && car.driver.helmet) || car.team.helmet || car.team.accent) }, uTcam: { value: new THREE.Color(tcamYellow(car) ? 0xf2e600 : 0x0c0c0e) }, uLed: { value: 0.6 }, uTyre: { value: tyreWallTexture(car.tyre) },
+      uWheel: { value: T.wheels }, uHinge: { value: T.hinge }, uAccent: { value: new THREE.Color((car.driver && car.driver.helmet) || car.team.helmet || car.team.accent) }, uTcam: { value: new THREE.Color(tcamYellow(car) ? 0xf2e600 : 0x0c0c0e) }, uHelmet: { value: helmetTexture(car) }, uLed: { value: 0.6 }, uTyre: { value: tyreWallTexture(car.tyre) },
     };
     m.onBeforeCompile = (sh) => {
       Object.assign(sh.uniforms, u);
       sh.vertexShader = [
-        'attribute vec4 lodk;', 'attribute float lodg;', 'varying vec4 vLodk;',
+        'attribute vec4 lodk;', 'attribute float lodg;', 'varying vec4 vLodk;', 'varying vec3 vHelmP;',
         'uniform mat4 uBody;', 'uniform float uSpin;', 'uniform float uSteer;', 'uniform float uFlap;', 'uniform float uHelm;', 'uniform float uHelmVis;', 'uniform vec3 uWheel[4];', 'uniform vec2 uHinge;',
         'mat3 lodRz(float a) { float c = cos(a), s = sin(a); return mat3(c, s, 0.0, -s, c, 0.0, 0.0, 0.0, 1.0); }',
         'mat3 lodRy(float a) { float c = cos(a), s = sin(a); return mat3(c, 0.0, -s, 0.0, 1.0, 0.0, s, 0.0, c); }', ''].join('\n') +
         sh.vertexShader.replace('#include <beginnormal_vertex>', [
           '#include <beginnormal_vertex>',
-          'vLodk = lodk; mat3 lodR = mat3(1.0); vec3 lodC = vec3(0.0); float lodB = 1.0; float lodH = 1.0;',
+          'vLodk = lodk; vHelmP = position; mat3 lodR = mat3(1.0); vec3 lodC = vec3(0.0); float lodB = 1.0; float lodH = 1.0;',
           'if (lodg > 2.5) { lodB = 0.0; lodC = lodg < 3.5 ? uWheel[0] : lodg < 4.5 ? uWheel[1] : lodg < 5.5 ? uWheel[2] : uWheel[3]; lodR = lodRz(uSpin); if (lodg < 4.5) lodR = lodRy(uSteer) * lodR; }',
           'else if (lodg > 1.5) { lodR = lodRy(uHelm); lodH = uHelmVis; }',
           'else if (lodg > 0.5) { lodC = vec3(uHinge, 0.0); lodR = lodRz(uFlap); }',
           'objectNormal = lodR * objectNormal; if (lodB > 0.5) objectNormal = mat3(uBody) * objectNormal;'].join('\n'))
           .replace('#include <begin_vertex>', ['#include <begin_vertex>',
             'transformed = lodC + lodR * (transformed - lodC); if (lodB > 0.5) transformed = (uBody * vec4(transformed, 1.0)).xyz; transformed *= lodH;'].join('\n'));
-      sh.fragmentShader = 'varying vec4 vLodk;\nuniform vec3 uAccent;\nuniform vec3 uTcam;\nuniform float uLed;\nuniform sampler2D uTyre;\n' + sh.fragmentShader
+      sh.fragmentShader = 'varying vec4 vLodk;\nvarying vec3 vHelmP;\nuniform sampler2D uHelmet;\nuniform vec3 uAccent;\nuniform vec3 uTcam;\nuniform float uLed;\nuniform sampler2D uTyre;\n' + sh.fragmentShader
         .replace('#include <map_fragment>', [
           'float lodS = vLodk.x; vec3 lodCol = vColor;',
           'if (lodS > 0.5 && lodS < 1.5) lodCol = mapTexelToLinear(texture2D(map, vUv)).rgb;',
-          'else if (lodS > 2.5 && lodS < 3.5) lodCol = uAccent;',
+          'else if (lodS > 2.5 && lodS < 3.5) { vec2 hu = vec2(atan(vHelmP.z, vHelmP.x - 0.16) * 0.159155 + 0.5, clamp((vHelmP.y - 0.665) / 0.21, 0.0, 1.0)); lodCol = mapTexelToLinear(texture2D(uHelmet, hu)).rgb; }',
           'else if (lodS > 4.5) lodCol = uTcam;',
           'else if (lodS > 3.5) { vec4 lodT = mapTexelToLinear(texture2D(uTyre, vUv)); lodCol = mix(vColor, lodT.rgb, lodT.a); }',
           'diffuseColor.rgb *= lodCol;'].join('\n'))
@@ -1093,7 +1117,33 @@ window.EI = window.EI || {};
   // Bots start a race on a 512 livery (fast to paint) and get their full sheet composed in the background, a few milliseconds per
   // frame, nearest car first; finished sheets stay cached for later races.
   const jobs = []; let jobRun = null;
+  // Proximity resolution: every half second the NEAR_N[quality] bots closest to a camera (within NEAR_IN m, kept until NEAR_OUT m)
+  // are queued for a NEAR_RES[quality] sheet (Medium 4 cars at 2048, High 2 at 4096; Low none); a bot that drops out goes back to its cached base sheet and the big one is freed, so VRAM
+  // stays bounded (base sheets for the field + NEAR_N big ones).
+  const NEAR_RES = { low: 0, medium: 2048, high: 4096 }, NEAR_N = { low: 0, medium: 4, high: 2 }, NEAR_IN = 45, NEAR_OUT = 75; let nearT = 0;
+  const nearList = [];
+  function proximity(cars, eyes) {
+    const now = performance.now(); if (now - nearT < 500) return; nearT = now;
+    const n = NEAR_N[EI.quality] != null ? NEAR_N[EI.quality] : 4; nearList.length = 0;
+    for (const c of cars) { const L = c._livery; if (!L || L.near <= L.base) continue; let d = Infinity; for (const e of eyes) d = Math.min(d, Math.hypot(c.x - e.x, c.z - e.z)); c._livD = d; nearList.push(c); }
+    nearList.sort((a, b) => a._livD - b._livD);
+    nearList.forEach((c, i) => {
+      const L = c._livery; const isNear = i < n && c._livD < (L.cur >= L.near ? NEAR_OUT : NEAR_IN);
+      const want = isNear ? L.near : L.base; if (want === L.cur && !jobs.some(j => j.car === c)) return;
+      for (let k = jobs.length - 1; k >= 0; k--) if (jobs[k].car === c && jobs[k].size !== want) jobs.splice(k, 1);
+      if (want === L.cur) return;
+      const key = liveryKey(c.team, c.num, L.code, want);
+      if (want < L.cur && texCache[key]) {   // back to the cached base sheet; free the big one
+        const big = texCache[liveryKey(c.team, c.num, L.code, L.cur)]; L.apply(texCache[key]);
+        if (big) { big.dispose(); delete texCache[liveryKey(c.team, c.num, L.code, big.image.width)]; }
+        return;
+      }
+      if (texCache[key]) { L.apply(texCache[key]); return; }
+      if (!jobs.some(j => j.car === c && j.size === want) && !(jobRun && jobRun.j.car === c && jobRun.j.size === want)) jobs.push({ car: c, code: L.code, size: want, apply: L.apply });
+    });
+  }
   CarGLB.pump = function (budgetMs, cars, eyes) {
+    proximity(cars, eyes);
     const t0 = performance.now();
     while (performance.now() - t0 < budgetMs) {
       if (!jobRun) {
@@ -1124,10 +1174,15 @@ window.EI = window.EI || {};
     let tex = texCache[liveryKey(car.team, car.num, code, full)];
     if (!tex) tex = composeLivery(car.team, car.num, code, lo && !CarGLB.syncLiveries ? 512 : Math.min(full, 2048));
     const paint = paintMaterial(tex), lm = lodMaterial(tex, car, T), U = lm.userData.u;
-    if (tex.image.width < liverySize(car.team, full)) {
-      jobs.push({ car, code, size: full, apply: (t) => { paint.map = t; lm.map = t; } });
-      posMap(Math.min(liverySize(car.team, full), 2048));   // rasterised now, at the race build, not in the first upgrade mid-race
+    // per-car livery state for the background upgrades: base = this quality's size, near = the size the cars closest to a camera
+    // get (see pump); cur = what the car wears now
+    const LV = car._livery = { code, base: liverySize(car.team, full), near: lo && NEAR_N[EI.quality] ? liverySize(car.team, Math.max(full, NEAR_RES[EI.quality] || 0)) : liverySize(car.team, full), cur: tex.image.width,
+      apply: (t) => { paint.map = t; lm.map = t; LV.cur = t.image.width; } };
+    if (tex.image.width < LV.base) {
+      jobs.push({ car, code, size: LV.base, apply: LV.apply });
+      posMap(Math.min(LV.base, 2048));   // rasterised now, at the race build, not in the first upgrade mid-race
     }
+    if (LV.near > LV.base) posMap(Math.min(LV.near, 2048));
     if (!shared._floor) shared._floor = carbonMaterial({ dark: 0x010102, light: 0x07080a, clearcoat: 0.18, env: 0.22, ckMask: 0 });
     const g = new THREE.Group(); const body = new THREE.Group(); g.add(body);
     const mk = (geo, mat, parent, name) => { const m = new THREE.Mesh(geo, mat); m.name = name; m.castShadow = false; m.receiveShadow = false; parent.add(m); return m; };

@@ -58,6 +58,10 @@ window.EI = window.EI || {};
         // the cyan sky in the reflections tinted the shaded asphalt teal: a greyer environment, a little less saturation boost and
         // more contrast for the hard May sun; the Tete de Chien / Mont Agel ridge painted into the sky to the north (west to east-north-east)
         envSat: 0.4, grade: { sat: 1.3, con: 1.12, warm: [1.03, 1.0, 0.975] }, ridge: [-3.05, -0.3, 0.38] },
+      // Monza: an early-September Lombardy afternoon - the sun from the south-west, a hazy pale-blue summer sky (more turbidity and
+      // haze, the horizon milky), the deep greens of the Royal Park bouncing up as a green-olive ground light, a softer grade
+      monza: { elev: 41, azim: 320, turb: 3.6, ray: 2.2, mie: 0.0065, mieG: 0.82, horizon: 0xbcc8d4, sky: [0.46, 0.75], fog: [520, 2400], fogLow: [330, 1450],
+        hemi: [0xa9c3de, 0x4d6634, 0.4], sun: [0xffeccc, 2.45], envSat: 0.5, grade: { sat: 1.32, con: 1.06, warm: [1.035, 1.0, 0.965] } },
       // Yas Marina: the race starts at sunset - the sun low over the Gulf in the west-south-west, warm haze, long shadows
       // Yas Marina: a night race under floodlights (js/night.js: night sky, the light map, glows); the 'sun' is dim moonlight from
       // high up so the cars keep their contact shadows
@@ -528,7 +532,7 @@ window.EI = window.EI || {};
     }
     if (cam.near !== 0.25) { cam.near = 0.25; cam.updateProjectionMatrix(); }
     if (mode === 'tv') {
-      const t = track; const seg = Math.floor(car.trk.s / 120); if (cam.userData.seg !== seg) { cam.userData.seg = seg; const i = t.idxAtS(seg * 120 + 80); const side = t.lineOff[i] > 0 ? -1 : 1; cam.userData.pos = new THREE.Vector3(t.x[i] + t.nx[i] * side * (t.halfWidth + 6), t.y[i] + 5, t.z[i] + t.nz[i] * side * (t.halfWidth + 6)); }
+      const t = track; const seg = Math.floor(car.trk.s / 120); if (cam.userData.seg !== seg) { cam.userData.seg = seg; const i = t.idxAtS(seg * 120 + 80); const side = t.lineOff[i] > 0 ? -1 : 1; cam.userData.pos = new THREE.Vector3(t.x[i] + t.nx[i] * side * (t.halfWidth + 6), t.y[i] + 5, t.z[i] + t.nz[i] * side * (t.halfWidth + 6)); keepInside(cam.userData.pos); }
       cam.position.copy(cam.userData.pos); _look.set(cx, cy + 0.6, cz); cam.up.set(0, 1, 0); cam.lookAt(_look);
       const d = cam.position.distanceTo(_look); cam.fov = viewFov(cam, U.clamp(1800 / d, 18, 60)); cam.updateProjectionMatrix(); return;
     }
@@ -579,17 +583,25 @@ window.EI = window.EI || {};
   function chaseRig(cam) { return cameras.length > 1 && cam.aspect > 1.6 ? RIG_WIDE : RIG_1P; }
   // pre-race cinematic: a slow dolly down the grid, then an orbit around the player's car, then cut to the player camera
   let introT = 0, introLen = 8.2;
+  // a TV camera never stands in the crowd or behind the debris fence: projected onto the circuit, it is pulled back to 1.2 m inside
+  // the barrier line on its side (track.wallL / wallR) and rises by part of that distance so it still looks over the cars
+  const _pj = { i: -1, s: 0, lat: 0, along: 0, dist: 0 };
+  function keepInside(p) {
+    const t = track; t.project(p.x, p.z, -1, _pj); const i = _pj.i, lat = _pj.lat; if (!t.wallL || !t.wallR) return;
+    const over = Math.abs(lat) - ((lat < 0 ? t.wallL[i] : t.wallR[i]) - 1.2); if (!(over > 0)) return;
+    const k = Math.sign(lat) * over; p.x -= t.nx[i] * k; p.z -= t.nz[i] * k; p.y += Math.min(over, 6) * 0.35;
+  }
   function introCamera(cam, car) {
     const t = track, g0 = t.gridSlot(0); const n = race.cars.length; const gl = t.gridSlot(n - 1);
     const i0 = g0.i; const fx = t.tx[i0], fz = t.tz[i0], nx = t.nx[i0], nz = t.nz[i0];
     if (introT < 4.0) {
       const u = U.smoothstep(0, 4.0, introT);
       const sx = U.lerp(gl.x, g0.x, u), sz = U.lerp(gl.z, g0.z, u);
-      cam.position.set(sx - fx * 6 + nx * 9, t.y[i0] + 4.5 - u * 1.5, sz - fz * 6 + nz * 9);
+      cam.position.set(sx - fx * 6 + nx * 9, t.y[i0] + 4.5 - u * 1.5, sz - fz * 6 + nz * 9); keepInside(cam.position);
       _look.set(sx + fx * 10, t.y[i0] + 0.8, sz + fz * 10); cam.up.set(0, 1, 0); cam.lookAt(_look); cam.fov = 48; cam.updateProjectionMatrix();
     } else {
       const a = (introT - 4.0) * 0.6 + 2.4; const r = 5.2;
-      cam.position.set(car.x + Math.cos(a) * r, car.y + 1.3, car.z + Math.sin(a) * r);
+      cam.position.set(car.x + Math.cos(a) * r, car.y + 1.3, car.z + Math.sin(a) * r); keepInside(cam.position);
       _look.set(car.x, car.y + 0.55, car.z); cam.up.set(0, 1, 0); cam.lookAt(_look); cam.fov = 40; cam.updateProjectionMatrix();
     }
   }

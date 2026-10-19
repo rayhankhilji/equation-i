@@ -177,8 +177,8 @@ html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text);
 .vp .flb { left: 0; right: 0; top: var(--pad); zoom: var(--u); display: flex; justify-content: center; opacity: 0; visibility: hidden; }
 .vp .flb.show { opacity: 1; visibility: visible; animation: flbIn 0.45s cubic-bezier(.2,.9,.3,1.1); }
 @keyframes flbIn { 0% { opacity: 0; transform: translateY(-10px); } 100% { opacity: 1; transform: none; } }
-.vp .flb-tag { display: flex; flex-direction: column; justify-content: center; padding: 0 10px; height: 40px; background: var(--fp); font-size: 11px; font-weight: 800; letter-spacing: 0.6px; line-height: 1.05; border-radius: 6px 0 0 6px; }
-.vp .flb-main { display: flex; align-items: center; gap: 10px; height: 40px; padding: 0 16px 0 10px; background: rgba(14,14,20,0.94); border-radius: 0 6px 6px 0; }
+.vp .flb-tag { display: flex; flex-direction: column; justify-content: center; padding: 0 20px 0 10px; margin-right: -10px; height: 40px; background: var(--fp); font-size: 11px; font-weight: 800; letter-spacing: 0.6px; line-height: 1.05; border-radius: 6px 0 0 6px; clip-path: polygon(0 0, calc(100% - 11px) 0, 100% 50%, calc(100% - 11px) 100%, 0 100%); position: relative; z-index: 1; }
+.vp .flb-main { display: flex; align-items: center; gap: 10px; height: 40px; padding: 0 16px 0 20px; background: rgba(14,14,20,0.94); border-radius: 0 6px 6px 0; }
 .vp .flb-main i { display: block; width: 3px; height: 20px; border-radius: 1px; }
 .vp .flb-main b { font-size: 18px; font-weight: 700; font-style: italic; color: #c99bff; letter-spacing: 0.3px; }
 .vp .flb-main span { font-size: 18px; font-weight: 600; color: #fff; margin-left: 8px; }

@@ -148,7 +148,7 @@ window.EI = window.EI || {};
     const def = { body: team.primary, fwFlap: team.secondary, fwEnd: team.primary, fwTip: team.primary, rwMain: team.primary, rwEnd: team.secondary, rwFlap: team.secondary, halo: null, mirror: team.primary, fin: team.secondary };
     const out = {}; for (const key of PART_KEYS) out[key] = p[key] || def[key]; return out;
   }
-  function helpersSide(g, k, team, num, code) {
+  function helpersSide(g, k, team, num, code, haloOn) {
     const d = D[team.id]; const st = (d && d.num) || {};
     const at = (x, y, fn) => k.at(x, y, fn);
     return {
@@ -161,13 +161,13 @@ window.EI = window.EI || {};
       codeText(x, y, cap, col) { if (code) at(x, y, () => styledText(g, code, cap, col, { ff: st.ff, w: st.w, it: st.it, sx: st.sx, skew: st.skew, ls: 0.06 })); },
       wordmark(str, x, y, cap, col, o) { at(x, y, () => styledText(g, str, cap, col, o)); },
       // text along the halo side (e.g. a team / driver handle), fitted to the bar
-      haloSide(str, col, o) { const b = SIDE.haloSide; at(b[0], b[1], () => styledText(g, str, b[3] * 0.8, col, Object.assign({ w: 700, ls: 0.02 }, o))); },
+      haloSide(str, col, o) { if (!haloOn) return; const b = SIDE.haloSide; at(b[0], b[1], () => styledText(g, str, b[3] * 0.8, col, Object.assign({ w: 700, ls: 0.02 }, o))); },
       // a handle on the halo ARM as the driver sees it from the cockpit (arm -1 = left, +1 = right): the inner face of an arm takes
       // the OPPOSITE side view, so it is drawn there only (it also shows on the outside of the other arm, as on the real cars)
       haloHandle(str, col, arm, o) { if (k.s === -arm) this.haloSide(str, col, o); },
     };
   }
-  function helpersTop(g, t, team, num) {
+  function helpersTop(g, t, team, num, haloOn) {
     const d = D[team.id]; const st = (d && d.num) || {};
     return {
       g, t, team, num,
@@ -180,10 +180,12 @@ window.EI = window.EI || {};
       wordmark(str, x, z, cap, col, o, along) { t.at(x, z, () => styledText(g, str, cap, col, o), along ? -Math.PI / 2 : 0); },
       // text along one arm of the halo's top bar, reading from the cockpit with the letters' tops outward (side -1 left arm,
       // +1 right arm), e.g. a team / driver handle like '@McLarenF1'; cap = letter height (m, the bar is ~0.07 wide)
-      haloTop(str, col, side, o, cap) { const pts = HALO_ARM.map(([x, z]) => [z * (side < 0 ? -1 : 1) * MM, -x * MM]); if (side > 0) pts.reverse(); textOnPath(g, str, pts, cap || 0.04, col, o); },
-      haloFront(id, tone) { const b = TOP.haloFront; t.at(b[0], b[1], () => partner(g, id, b[2], b[3], tone)); },
+      haloTop(str, col, side, o, cap) { if (!haloOn) return; const pts = HALO_ARM.map(([x, z]) => [z * (side < 0 ? -1 : 1) * MM, -x * MM]); if (side > 0) pts.reverse(); textOnPath(g, str, pts, cap || 0.04, col, o); },
+      haloFront(id, tone) { if (!haloOn) return; const b = TOP.haloFront; t.at(b[0], b[1], () => partner(g, id, b[2], b[3], tone)); },
     };
   }
+  let scratchCtx = null;
+  const scratch = () => { if (!scratchCtx) { const c = document.createElement('canvas'); c.width = c.height = 1; scratchCtx = c.getContext('2d'); } scratchCtx.setTransform(1, 0, 0, 1, 0, 0); return scratchCtx; };
   // the faces the numbers / wordmarks use must be loaded before the first livery is painted (Ads.ready() awaits Ads.FONTS)
   if (EI.Ads && Array.isArray(EI.Ads.FONTS)) ['900 24px "Titillium Web"', '700 24px "Titillium Web"', '600 24px "Titillium Web"', 'italic 900 24px "Titillium Web"', 'italic 700 24px "Titillium Web"']
     .forEach(f => { if (EI.Ads.FONTS.indexOf(f) < 0) EI.Ads.FONTS.push(f); });
@@ -196,6 +198,39 @@ window.EI = window.EI || {};
     hasEndplate: (id) => !!(D[id] && D[id].endplate),
     endplate(g, k, team, num, code) { const d = D[team.id]; if (d && d.endplate) d.endplate(helpersSide(g, k, team, num, code)); },
     top(g, t, team, num) { const d = D[team.id]; if (d) d.top(helpersTop(g, t, team, num)); },
+    // halo passes: only the halo helpers (haloSide / haloHandle / haloTop / haloFront) draw, into views that reach ONLY the halo's
+    // texels; the rest of the design runs against a 1 px scratch canvas. So halo text never spills onto the bodywork and the body's
+    // colour blocks stay off the halo (it keeps its part colour, parts.halo).
+    sideHalo(g, k, team, num, code) {
+      const d = D[team.id]; if (!d) return; const dg = scratch(); const R = helpersSide(g, k, team, num, code, true);
+      const L = helpersSide(dg, sideKit(dg, k.s), team, num, code, false); L.haloSide = R.haloSide.bind(R); L.haloHandle = R.haloHandle.bind(R);
+      d.side(L);
+    },
+    topHalo(g, t, team, num) {
+      const d = D[team.id]; if (!d) return; const dg = scratch(); const R = helpersTop(g, t, team, num, true);
+      const nop = () => { }; const dt = { at: (x, z, fn) => fn(), rect: nop, poly: nop, txt: nop, dec: nop };
+      const L = helpersTop(dg, dt, team, num, false); L.haloTop = R.haloTop.bind(R); L.haloFront = R.haloFront.bind(R);
+      d.top(L);
+    },
     numStyle: (team) => (D[team.id] && D[team.id].num) || {},
+    // driver helmet (256 x 128 canvas; x: 0 = back, 64 = left side, 128 = visor centre, 192 = right side, 256 = back; y: 0 = crown,
+    // 128 = neck). driver.helmetSpec = { base, c2, c3, pattern: 'band' | 'stripe' | 'split' | 'chevron' | 'halves', num: bool }
+    // (from the 2026 helmet photos); a design may override with design.helmet(g, W, H, driver, team, num). Text is drawn mirrored
+    // (the mapping flips it), so the number reads correctly on both sides.
+    helmet(g, W, H, driver, team, num) {
+      const d = D[team.id]; if (d && d.helmet) return d.helmet(g, W, H, driver, team, num);
+      const sp = (driver && driver.helmetSpec) || {}; const base = sp.base || (driver && driver.helmet) || team.accent;
+      const c2 = sp.c2 || (lum(base) > 0.6 ? team.primary : '#ffffff'), c3 = sp.c3 || (lum(c2) > 0.6 ? '#16181c' : '#ffffff');
+      g.fillStyle = base; g.fillRect(0, 0, W, H);
+      const pat = sp.pattern || 'band';
+      if (pat === 'band' || pat === 'chevron') { g.fillStyle = c2; g.fillRect(0, H * 0.48, W, H * 0.16); g.fillStyle = c3; g.fillRect(0, H * 0.46, W, H * 0.025); g.fillRect(0, H * 0.64, W, H * 0.025); }
+      if (pat === 'chevron') { g.fillStyle = c2; g.beginPath(); g.moveTo(W * 0.5, H * 0.75); g.lineTo(W * 0.2, H * 0.1); g.lineTo(W * 0.3, H * 0.1); g.lineTo(W * 0.5, H * 0.55); g.lineTo(W * 0.7, H * 0.1); g.lineTo(W * 0.8, H * 0.1); g.closePath(); g.fill(); }
+      if (pat === 'stripe') { g.fillStyle = c2; g.fillRect(0, 0, W, H * 0.12); g.fillRect(W * 0.46, 0, W * 0.08, H * 0.6); g.fillRect(0, 0, W * 0.04, H * 0.6); g.fillRect(W * 0.96, 0, W * 0.04, H * 0.6); }
+      if (pat === 'split') { g.fillStyle = c2; g.fillRect(W * 0.5, 0, W * 0.5, H); }
+      if (pat === 'halves') { g.fillStyle = c2; g.fillRect(0, H * 0.5, W, H * 0.5); g.fillStyle = c3; g.fillRect(0, H * 0.48, W, H * 0.04); }
+      if (sp.num !== false && num != null) for (const x of [W * 0.25, W * 0.75]) { g.save(); g.translate(x, H * 0.36); g.scale(-1, 1); styledText(g, String(num), H * 0.22 / MM, c3 === base ? c2 : c3, { w: 900 }); g.restore(); }
+      // visor strip above the visor (sponsor band on real helmets)
+      g.fillStyle = 'rgba(0,0,0,0.25)'; g.fillRect(W * 0.38, H * 0.3, W * 0.24, H * 0.06);
+    },
   };
 })();

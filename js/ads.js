@@ -444,7 +444,8 @@
   const VENUES = Ads.VENUES = {
     silverstone: { title: 'qatarairways', event: 'British Grand Prix', dark: false,
       tiles: ['aramco', 'qatarairways', 'L0', 'dhl', 'heineken', 'pirelli', 'I4', 'msccruises'],
-      barrier: ['aramco', 'L', 'qatarairways', 'dhl', 'I'], billboard: ['qatarairways', 'L0', 'aramco', 'I1'],
+      // wall panels avoid Qatar Airways (it is on the hoardings right behind them: no same-brand stacking), Lenovo instead
+      barrier: ['aramco', 'L', 'lenovo', 'dhl', 'I'], billboard: ['qatarairways', 'L0', 'aramco', 'I1'],
       runoff: ['aramco', 'L', 'pirelli', 'I'], bridge: { lumi: 'L', intake: 'qatarairways', lumi2: 'aramco', intake2: 'I' } },
     monaco: { title: 'louisvuitton', event: 'Grand Prix de Monaco', dark: false,
       tiles: ['tagheuer', 'louisvuitton', 'L1', 'aramco', 'msccruises', 'heineken', 'I5', 'dhl'],
@@ -455,6 +456,11 @@
       barrier: ['etihadairways', 'L', 'aramco', 'aws', 'I'], billboard: ['etihadairways', 'L2', 'aramco', 'I3'],
       runoff: ['aramco', 'L', 'pirelli', 'I'], bridge: { lumi: 'L', intake: 'etihadairways', lumi2: 'aramco', intake2: 'I' } },
   };
+  // Monza: Pirelli is the Italian GP's title partner ("Formula 1 Pirelli Gran Premio d'Italia") and its boards/bridges dominate the venue
+  VENUES.monza = { title: 'pirelli', event: "Gran Premio d'Italia", dark: false,
+    tiles: ['pirelli', 'aramco', 'L0', 'heineken', 'dhl', 'msccruises', 'I4', 'qatarairways'],
+    barrier: ['pirelli', 'L', 'aramco', 'dhl', 'I'], billboard: ['pirelli', 'L2', 'heineken', 'I3'],
+    runoff: ['pirelli', 'L', 'aramco', 'I'], bridge: { lumi: 'L', intake: 'pirelli', lumi2: 'aramco', intake2: 'I' } };
   const venue = Ads.venue = () => VENUES[EI.trackId] || VENUES.silverstone;
   // the track's width (m): the start gantry banner ((width + 2.6) x 0.9 m) and the bridge fascias ((width + 6.8) x 2.1 m) span it
   const trackW = () => (EI.TRACKS && EI.TRACKS[EI.trackId] && EI.TRACKS[EI.trackId].width) || 15;
@@ -756,7 +762,7 @@
   Ads.paintBillboard = function (ctx, k, x, y, w, h, aspect) {
     ctx.save(); ctx.beginPath(); ctx.rect(x, y, w, h); ctx.clip(); ctx.translate(x, y); const vw = h * (aspect || Ads.BILLBOARD_ASPECT); ctx.scale(w / vw, 1);
     const V = venue(); const slot = V.billboard[((k % 4) + 4) % 4];
-    if (slot[0] === 'L' || slot[0] === 'I') brandBillboard(ctx, slot.length > 1 ? +slot.slice(1) : 0, vw, h); else partnerBoard(ctx, slot, vw, h, { lh: 0.42, fill: 0.3 });
+    if (slot[0] === 'L' || slot[0] === 'I') brandBillboard(ctx, slot.length > 1 ? +slot.slice(1) : 0, vw, h); else partnerBoard(ctx, slot, vw, h, { lh: 0.56, fill: 0.46 });
     ctx.restore();
   };
   function brandBillboard(ctx, k, w, h) {
