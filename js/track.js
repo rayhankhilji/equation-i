@@ -1047,7 +1047,7 @@ window.EI = window.EI || {};
         for (let i = 0; i <= 64; i += 6) { ctx.beginPath(); ctx.moveTo(i, 0); ctx.lineTo(i, 64); ctx.stroke(); ctx.beginPath(); ctx.moveTo(0, i); ctx.lineTo(64, i); ctx.stroke(); } ctx.fillStyle = '#555'; ctx.fillRect(0, 0, 3, 64);
         const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; return t; })();
       const FD = this.data.fence || {}; const TD0 = this.data.tunnel;   // data.fence { h, op }: catch-fence height and opacity (Monza: 4.5 m)
-      const fenceMat = new THREE.MeshBasicMaterial({ map: fenceTex, transparent: true, side: THREE.DoubleSide, depthWrite: false, opacity: FD.op || 0.7 });
+      const fenceMat = new THREE.MeshBasicMaterial({ map: fenceTex, transparent: true, side: THREE.DoubleSide, depthWrite: false, opacity: FD.op || 0.7, color: FD.color != null ? FD.color : 0xffffff });
       // data.fence.runs [[s0, s1, side (0 = both), height m]]: later runs override earlier ones, height 0 = no fence (Monza: tall catch fence by the stands, low along the pit wall)
       const fenceH = (i, side, h0) => { let h = h0; if (FD.runs) for (const r of FD.runs) { if (r[2] && r[2] !== side) continue; const sv = this.s[i]; if (r[0] <= r[1] ? (sv >= r[0] && sv <= r[1]) : (sv >= r[0] || sv <= r[1])) h = r[3]; } return h; };
       this.fenceH = fenceH;

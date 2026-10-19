@@ -250,7 +250,10 @@ window.EI = window.EI || {};
       for (let z = b.z0; z <= b.z1; z += step) for (let x = b.x0 + ((Math.round(z / step) & 1) ? step / 2 : 0); x <= b.x1; x += step) {
         const px = x + (rng() - 0.5) * step * 0.9, pz = z + (rng() - 0.5) * step * 0.9; if (co && (px < co[0] || px >= co[2] || pz < co[1] || pz >= co[3])) continue; if (!U.pointInPoly(px, pz, w)) continue;
         if (w.holes) { let inHole = false; for (const h of w.holes) if (U.pointInPoly(px, pz, h)) { inHole = true; break; } if (inHole) continue; }
-        let de = E.distToPoly(px, pz, w); if (w.holes) for (const h of w.holes) de = Math.min(de, E.distToPoly(px, pz, h)); const p = de < 9 ? 1 : de < 22 ? 0.4 : 0.17; if (rng() > p) continue;
+        let de = E.distToPoly(px, pz, w); if (w.holes) for (const h of w.holes) de = Math.min(de, E.distToPoly(px, pz, h)); const p = de < 9 ? 1 : de < 22 ? 0.4 : park ? 0.3 : 0.17;
+        // park: a screen of understory shrubs along the woodland edge hides the trunks (closed canopy to the ground in the photos)
+        if (park && de < 16 && rng() < 0.75) { const sw = 5 + rng() * 3.5; if (ok(px + (rng() - 0.5) * 3, pz + (rng() - 0.5) * 3, sw * 0.5)) add(px, pz, SP.SHRUB, sw, 3.4 + rng() * 2.6, null, null, false); nWood++; }
+        if (rng() > p) continue;
         const k = rng(); let sp = SP.OAK, wd, ht;
         if (de < 4 && k < 0.4) { sp = SP.SHRUB; wd = 4 + rng() * 3; ht = 3 + rng() * 2.5; }
         else if (!farm && k < 0.1) { sp = SP.PINE; wd = 8 + rng() * 3; ht = 16 + rng() * 6; }

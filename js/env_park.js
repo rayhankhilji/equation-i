@@ -7,7 +7,7 @@ window.EI = window.EI || {};
   const U = EI.U, Env = EI.Env, Ctx = Env.Ctx;
   const P = {}; EI.EnvPark = P;
   // sRGB bytes (muted like env.js PAL: main.js grades the frame with a saturation boost)
-  const PAL = [[31, 40, 24], [58, 70, 40], [112, 100, 68], [116, 111, 103]];
+  const PAL = [[36, 50, 28], [58, 70, 40], [112, 100, 68], [116, 111, 103]];
   P.PAL = PAL;
   // run-length block: one byte per run, high 2 bits = class, low 6 bits = run length - 1
   P.decodeGround = function (G) {
@@ -54,7 +54,9 @@ window.EI = window.EI || {};
   Ctx.prototype.parkBase = function (ctx, S, H) {
     const g = this.parkGround; if (!g) return; const n = g.n, ppm = S / (2 * H);
     const [c, cx] = Env.canvas(n, n); const im = cx.createImageData(n, n), d = im.data;
-    for (let i = 0; i < n * n; i++) { const p = PAL[g.cls[i]]; const v = 0.94 + 0.12 * ((Math.imul(i, 2654435761) >>> 0) / 4294967296); d[i * 4] = p[0] * v; d[i * 4 + 1] = p[1] * v; d[i * 4 + 2] = p[2] * v; d[i * 4 + 3] = 255; }
+    for (let i = 0; i < n * n; i++) { const h = (Math.imul(i, 2654435761) >>> 0) / 4294967296; const cl = g.cls[i]; let p = PAL[cl]; let v = 0.94 + 0.12 * h;
+      // woodland: a mosaic of crown-sized (8 m) light and dark green cells so the canopy reads from the air / beyond the tree range
+      if (cl === 0) { const h2 = (Math.imul(i + 7919, 2246822519) >>> 0) / 4294967296; p = h2 < 0.45 ? [52, 74, 36] : [34, 48, 26]; v = 0.8 + 0.4 * h; } d[i * 4] = p[0] * v; d[i * 4 + 1] = p[1] * v; d[i * 4 + 2] = p[2] * v; d[i * 4 + 3] = 255; }
     cx.putImageData(im, 0, 0);
     ctx.save(); ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high';
     ctx.drawImage(c, (g.x0 + H) * ppm, (g.z0 + H) * ppm, n * g.cell * ppm, n * g.cell * ppm); ctx.restore();

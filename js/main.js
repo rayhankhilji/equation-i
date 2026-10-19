@@ -58,10 +58,11 @@ window.EI = window.EI || {};
         // the cyan sky in the reflections tinted the shaded asphalt teal: a greyer environment, a little less saturation boost and
         // more contrast for the hard May sun; the Tete de Chien / Mont Agel ridge painted into the sky to the north (west to east-north-east)
         envSat: 0.4, grade: { sat: 1.3, con: 1.12, warm: [1.03, 1.0, 0.975] }, ridge: [-3.05, -0.3, 0.38] },
-      // Monza: an early-September Lombardy afternoon - the sun from the south-west, a hazy pale-blue summer sky (more turbidity and
-      // haze, the horizon milky), the deep greens of the Royal Park bouncing up as a green-olive ground light, a softer grade
-      monza: { elev: 41, azim: 320, turb: 3.6, ray: 2.2, mie: 0.0065, mieG: 0.82, horizon: 0xbcc8d4, sky: [0.46, 0.75], fog: [520, 2400], fogLow: [330, 1450],
-        hemi: [0xa9c3de, 0x4d6634, 0.4], sun: [0xffeccc, 2.45], envSat: 0.5, grade: { sat: 1.32, con: 1.06, warm: [1.035, 1.0, 0.965] } },
+      // Monza: a late-afternoon Lombardy September - the sun low in the west-south-west (warm, long shadows across the straights), a
+      // hazy pale summer sky with a milky horizon, the Royal Park's deep greens bouncing up as a green-olive ground light, a softer
+      // grade; canopy: dappled sun under the park's trees (js/canopy.js)
+      monza: { elev: 29, azim: 300, turb: 4.2, ray: 2.0, mie: 0.007, mieG: 0.84, horizon: 0xc8c9c3, sky: [0.44, 0.8], fog: [480, 2300], fogLow: [320, 1400],
+        hemi: [0xb4c4d6, 0x4b6130, 0.42], sun: [0xffd9a6, 2.6], envSat: 0.5, grade: { sat: 1.3, con: 1.07, warm: [1.045, 1.0, 0.95] }, canopy: { k: 0.72 } },
       // Yas Marina: the race starts at sunset - the sun low over the Gulf in the west-south-west, warm haze, long shadows
       // Yas Marina: a night race under floodlights (js/night.js: night sky, the light map, glows); the 'sun' is dim moonlight from
       // high up so the cars keep their contact shadows
@@ -114,6 +115,7 @@ window.EI = window.EI || {};
     scene.add(track.build(scenery)); lap('track-mesh');
     if (EI.Night && EI.Night.on) { EI.Night.build(scene, track, scenery); lap('night'); } timings.pmrem = tPmrem; EI.debug.timings = timings;
     scene.traverse(o => { if (o.material && o.material.isMeshStandardMaterial && o.material.envMapIntensity === 1) o.material.envMapIntensity = 0.3; });
+    if (LK.canopy && EI.Canopy && !nightLook) { EI.Canopy.build(scene, track, sunDir, LK.canopy); lap('canopy'); }
     particles = new EI.Particles(scene);
     // post-processing (single viewport): bloom + FXAA
     composer = new THREE.EffectComposer(renderer);

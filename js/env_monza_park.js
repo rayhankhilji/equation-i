@@ -160,10 +160,10 @@
     const span = ub - ua;
     if (kind === 'sign') {
       const r = A.region('mzSignBridge', 1024, 96, (x2, w, h) => { if (EI.Ads && EI.Ads.paintBridge) { x2.fillStyle = '#0c5a3a'; x2.fillRect(0, 0, w, h); EI.Ads.paintBridge(x2, 'lumi2', w, h, (span - 1) / (dep - 0.3));   /* f1-BRAND: the venue's partner (EI.Ads.VENUES.monza.bridge.lumi2) */ } else Mz.paintText(x2, w, h, 'trylumi.co', { bg: '#0c5a3a', fg: '#ffffff' }); });
-      for (const v of [-hw - 0.03, hw + 0.03]) { const a = W(ua + 0.5, yD + 0.15, v), b = W(ub - 0.5, yD + 0.15, v), c = W(ub - 0.5, yD + dep - 0.15, v), d = W(ua + 0.5, yD + dep - 0.15, v); if (v < 0) A.quad(r, b, a, d, c, 1, 0, 0, 1); else A.quad(r, a, b, c, d); }
+      for (const v of [-hw - 0.03, hw + 0.03]) { const a = W(ua + 0.5, yD + 0.15, v), b = W(ub - 0.5, yD + 0.15, v), c = W(ub - 0.5, yD + dep - 0.15, v), d = W(ua + 0.5, yD + dep - 0.15, v); if (v < 0) A.quad(r, b, a, d, c); else A.quad(r, a, b, c, d);   /* far face: u runs the other way in world space, so it reads correctly (f1-BRAND) */ }
     } else {
       const ph = dep - 0.5, pw = ph * 5; const nP = Math.max(1, Math.floor(span / (pw + 0.4))); const x0 = ua + (span - nP * (pw + 0.4) + 0.4) / 2;
-      for (const v of [-hw - 0.03, hw + 0.03]) for (let k = 0; k < nP; k++) { const r = A.R['mzTile' + ((k + (v < 0 ? 3 : 0) + Math.round(s)) % 8)] || A.region('mzTile' + k, 320, 64, (x2, w, h) => Mz.paintAd(x2, w, h, k, 5)); const xa = x0 + k * (pw + 0.4); const a = W(xa, yD + 0.25, v), b = W(xa + pw, yD + 0.25, v), c = W(xa + pw, yD + 0.25 + ph, v), d = W(xa, yD + 0.25 + ph, v); if (v < 0) A.quad(r, b, a, d, c, 1, 0, 0, 1); else A.quad(r, a, b, c, d); }
+      for (const v of [-hw - 0.03, hw + 0.03]) for (let k = 0; k < nP; k++) { const r = A.R['mzTile' + ((k + (v < 0 ? 3 : 0) + Math.round(s)) % 8)] || A.region('mzTile' + k, 320, 64, (x2, w, h) => Mz.paintAd(x2, w, h, k, 5)); const xa = x0 + k * (pw + 0.4); const a = W(xa, yD + 0.25, v), b = W(xa + pw, yD + 0.25, v), c = W(xa + pw, yD + 0.25 + ph, v), d = W(xa, yD + 0.25 + ph, v); if (v < 0) A.quad(r, b, a, d, c); else A.quad(r, a, b, c, d);   /* far face: u runs the other way in world space, so it reads correctly (f1-BRAND) */ }
       // roof slab + glazing strip above the panels
       K.dq(B, W(ua - 0.3, yD + dep + 0.35, -hw - 0.4), W(ub + 0.3, yD + dep + 0.35, -hw - 0.4), W(ub + 0.3, yD + dep + 0.35, hw + 0.4), W(ua - 0.3, yD + dep + 0.35, hw + 0.4), white);
     }

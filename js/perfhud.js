@@ -34,8 +34,9 @@ window.EI = window.EI || {};
   function ensureEl() {
     if (el) return el;
     el = document.createElement('pre'); el.id = 'perf-hud';
-    el.style.cssText = 'position:fixed;right:8px;bottom:8px;z-index:60;margin:0;padding:6px 8px;font:11px/1.35 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;' +
-      'color:#e8edf2;background:rgba(8,10,14,0.72);border-radius:4px;pointer-events:none;white-space:pre;display:none;font-variant-numeric:tabular-nums';
+    // top centre, between the timing tower and the session panel (the start lights sit lower, the HUD panels are at the sides)
+    el.style.cssText = 'position:fixed;left:50%;top:6px;transform:translateX(-50%);z-index:60;margin:0;padding:4px 7px;font:10px/1.3 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;' +
+      'color:#e8edf2;background:rgba(8,10,14,0.66);border-radius:3px;pointer-events:none;white-space:pre;display:none;font-variant-numeric:tabular-nums';
     document.body.appendChild(el); return el;
   }
   function setShown(v) {
@@ -101,12 +102,11 @@ window.EI = window.EI || {};
   };
   const f1 = (v) => v.toFixed(1);
   function draw() {
-    const S = stats; let parts = ''; for (const p of PARTS) { const v = S.parts[p]; if (v >= 0.05) parts += ' ' + LABEL[p] + ' ' + f1(v); }
-    el.textContent = Math.round(S.fps) + ' fps   frame ' + f1(S.avg) + ' ms   1% high ' + f1(S.p99) + ' ms\n' +
-      'CPU ' + f1(S.cpu) + ' ms:' + parts + '\n' +
-      'GPU ' + (S.gpu < 0 ? 'n/a (no timer queries in this browser)' : f1(S.gpu) + ' ms') + '\n' +
-      'input -> frame ' + (S.lat < 0 ? '(press a key)' : f1(S.lat) + ' ms (wait ' + f1(S.latIn) + ' + CPU ' + f1(S.latCpu) + ' + GPU ' + f1(S.latGpu) + ') + display') + '\n' +
-      S.res + '   ' + S.calls + ' calls  ' + (S.tris / 1e6).toFixed(2) + 'M tris   [F] hide';
+    const S = stats; let parts = '', n = 0; for (const p of PARTS) { const v = S.parts[p]; if (v >= 0.05) { parts += (n && n % 5 === 0 ? '\n  ' : ' ') + LABEL[p] + ' ' + f1(v); n++; } }
+    el.textContent = Math.round(S.fps) + ' fps  ' + f1(S.avg) + ' ms  1% high ' + f1(S.p99) + ' ms\n' +
+      'CPU ' + f1(S.cpu) + ' ms   GPU ' + (S.gpu < 0 ? 'n/a' : f1(S.gpu) + ' ms') + '\n ' + parts + '\n' +
+      'input->frame ' + (S.lat < 0 ? '(press a key)' : f1(S.lat) + ' ms (CPU ' + f1(S.latCpu) + ' GPU ' + f1(S.latGpu) + ')') + '\n' +
+      S.res + '  ' + S.calls + ' calls ' + (S.tris / 1e6).toFixed(2) + 'M';
   }
   EI.Perf = P;
 })();
