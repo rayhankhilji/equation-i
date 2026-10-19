@@ -72,17 +72,13 @@
           <div class="settings">
             <label class="field wide"><span class="fl">Laps</span><input type="range" id="opt-laps" min="1" max="15" value="3"><output id="out-laps">3</output></label>
             <label class="field wide"><span class="fl">Bots</span><input type="range" id="opt-bots" min="0" max="21" value="9"><output id="out-bots">9</output></label>
-            <label class="field"><span class="fl">Bot skill</span>
-              <select id="opt-diff">
-                <option value="veryeasy">Very easy</option>
-                <option value="easy">Easy</option>
-                <option value="average" selected>Average</option>
-                <option value="above">Above average</option>
-                <option value="hard">Hard</option>
-                <option value="veryhard">Very hard</option>
-                <option value="ultra">Ultra (frontier)</option>
-              </select>
-            </label>
+            <div class="field wide skill-field" id="skill-field">
+              <span class="fl">Bot skill</span>
+              <input type="range" id="opt-skill" min="0" max="100" step="1" value="80" aria-describedby="skill-desc" aria-label="Bot skill, 0 to 100">
+              <output id="out-skill">80</output>
+              <div class="skill-scale" id="skill-scale"></div>
+              <div class="skill-desc" id="skill-desc" aria-live="polite"></div>
+            </div>
             <label class="field"><span class="fl">Grid</span>
               <select id="opt-grid">
                 <option value="season" selected>2026 grid (a real race)</option>

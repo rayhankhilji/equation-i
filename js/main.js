@@ -203,6 +203,7 @@ window.EI = window.EI || {};
       const maxBots = EI.TEAMS.reduce((n, t) => n + t.drivers.length, 0) - (+$('opt-players').value); $('opt-bots').max = maxBots; if (+$('opt-bots').value > maxBots) $('opt-bots').value = maxBots; $('out-bots').textContent = $('opt-bots').value;
     };
     ['p1-team', 'p2-team', 'p1-seat', 'p2-seat', 'p1-name', 'p2-name', 'opt-laps', 'opt-bots', 'opt-players'].forEach(id => $(id) && $(id).addEventListener('input', refresh)); refresh();
+    initSkill();
     const sp = $('opt-split'); if (sp) { sp.value = splitPref; sp.addEventListener('change', () => { splitPref = sp.value; try { localStorage.setItem('ei-split', splitPref); } catch (e) { } onResize(); }); }
     if ($('opt-quality')) { $('opt-quality').value = savedQ; $('opt-quality').addEventListener('change', () => { try { localStorage.setItem('ei-quality', $('opt-quality').value); } catch (e) { } }); }
     $('btn-start').addEventListener('click', () => { EI.Audio.resume(); setQuality($('opt-quality').value); try { localStorage.setItem('ei-quality', $('opt-quality').value); } catch (e) { } startRace(readConfig()); });
@@ -245,12 +246,43 @@ window.EI = window.EI || {};
     const tight = Object.assign({}, T, { treeNear: m(T.treeNear, 0.7), treeFar: m(T.treeFar, 0.75, 1600), grass: [T.grass[0] * 0.8, T.grass[1] * 0.8], crowd: m(T.crowd, 0.75), cars: m(T.cars, 0.7, 700), tents: m(T.tents, 1, 700), clutter: m(T.clutter, 0.7, 900) });
     S.TIERS[q] = tight; try { scenery.setQuality(q); } finally { S.TIERS[q] = T; }
   }
+  // ---- Bot skill slider (0-100). Stops = the old level names; 80 = Official F1 (real 2026 pace), 100 = Limit.
+  // EI.Skill (js/ai.js, f1-PERSONALITY) may supply { stops:[{v,name,id}], legacy(n), describe(n) }; the table below is the fallback.
+  const SKILL_STOPS = [{ v: 0, name: 'Very easy', id: 'veryeasy' }, { v: 17, name: 'Easy', id: 'easy' }, { v: 33, name: 'Average', id: 'average' }, { v: 50, name: 'Above', id: 'above' }, { v: 65, name: 'Hard', id: 'hard' }, { v: 80, name: 'Very hard', id: 'veryhard', mark: 'Official F1' }, { v: 100, name: 'Ultra', id: 'ultra', mark: 'Limit' }];
+  const SKILL_TXT = { veryeasy: 'slow and forgiving, easy to pass', easy: 'well below F1 pace, still forgiving', average: 'steady club pace with the odd mistake', above: 'quick and tidy, but beatable', hard: 'close to F1 pace, rarely errs', veryhard: 'Official F1: real lap times and driving styles', ultra: 'the limit of the car, flawless' };
+  const skillStops = () => (EI.Skill && EI.Skill.stops && EI.Skill.stops.length ? EI.Skill.stops : SKILL_STOPS);
+  const skillClamp = (n) => Math.max(0, Math.min(100, Math.round(+n))) || 0;
+  const skillNearest = (n) => { const st = skillStops(); let b = st[0]; for (const x of st) if (Math.abs(x.v - n) < Math.abs(b.v - n)) b = x; return b; };   // a tie keeps the lower stop
+  const skillLegacy = (n) => (EI.Skill && EI.Skill.legacy ? EI.Skill.legacy(n) : skillNearest(n).id);
+  const skillDescribe = (n) => {
+    if (EI.Skill && EI.Skill.describe) return EI.Skill.describe(n);
+    if (n >= 100) return 'Limit: the limit of the car, flawless';
+    if (n > 80) return 'Beyond F1: faster than the real 2026 pace';
+    const s = skillNearest(n); return n === 80 ? SKILL_TXT.veryhard : s.name + ': ' + SKILL_TXT[s.id];
+  };
+  EI.skillLabel = skillLabel;
+  function skillValue() { const el = $('opt-skill'); return el ? skillClamp(el.value) : 80; }
+  function skillLabel(n) { const m = skillStops().find(x => x.v === n && x.mark); return 'Skill ' + n + (m ? ' \u00b7 ' + m.mark : ''); }   // pause / start screen: next to "Grid: ..."
+  function initSkill() {
+    const el = $('opt-skill'); if (!el) return;
+    let v = 80; try { const q = localStorage.getItem('ei-skill'); if (q !== null && q !== '' && isFinite(+q)) v = skillClamp(q); } catch (e) { }
+    el.value = v;
+    const scale = $('skill-scale'), out = $('out-skill'), desc = $('skill-desc'); const st = skillStops(); const btns = [];
+    if (scale) st.forEach((x, i) => { const b = document.createElement('button'); b.type = 'button'; b.tabIndex = -1; b.className = 'sk' + (i % 2 ? ' lo' : ''); b.style.left = x.v + '%'; b.title = x.v + ' · ' + x.name + (x.mark ? ' (' + x.mark + ')' : ''); b.innerHTML = '<b>' + x.name + '</b>' + (x.mark ? '<i>' + x.mark + '</i>' : ''); b.addEventListener('click', () => { el.value = x.v; sync(true); }); scale.appendChild(b); btns.push(b); });
+    function sync(save) {
+      const n = skillClamp(el.value); out.textContent = n; el.style.setProperty('--fill', n + '%'); desc.innerHTML = '<b>' + n + '</b> \u00b7 ' + skillDescribe(n).replace(/</g, '&lt;');
+      const near = skillNearest(n); btns.forEach((b, i) => b.classList.toggle('on', st[i] === near && Math.abs(near.v - n) <= 6));
+      el.setAttribute('aria-valuetext', n + ', ' + skillDescribe(n));
+      if (save) { try { localStorage.setItem('ei-skill', String(n)); } catch (e) { } }
+    }
+    el.addEventListener('input', () => sync(true)); sync(false);
+  }
   function readConfig() {
     const np = +$('opt-players').value; const players = [];
     // two players on the default names: P1 / P2 (otherwise player 2's own tower and tags call the other car "YOU")
     const nm = (k) => { const v = ($('p' + (k + 1) + '-name').value || (k ? 'RIVAL' : 'YOU')).toUpperCase(); return np > 1 && v === (k ? 'RIVAL' : 'YOU') ? 'P' + (k + 1) : v; };
     for (let k = 0; k < np; k++) players.push({ name: nm(k), teamIndex: /^own:/.test($('p' + (k + 1) + '-team').value) ? 0 : +$('p' + (k + 1) + '-team').value, own: /^own:/.test($('p' + (k + 1) + '-team').value) ? $('p' + (k + 1) + '-team').value.slice(4) : null, seat: $('p' + (k + 1) + '-seat') ? +$('p' + (k + 1) + '-seat').value || 0 : 0, tyre: $('p' + (k + 1) + '-tyre').value });
-    return { players, bots: +$('opt-bots').value, laps: +$('opt-laps').value, difficulty: $('opt-diff').value, grid: $('opt-grid').value, assist: $('opt-assist').value, seed: (Math.random() * 1e9) | 0, envMap };
+    return { players, bots: +$('opt-bots').value, laps: +$('opt-laps').value, skill: skillValue(), difficulty: skillLegacy(skillValue()), grid: $('opt-grid').value, assist: $('opt-assist').value, seed: (Math.random() * 1e9) | 0, envMap };
   }
   function setPaused(p) { paused = p; $('pause').classList.toggle('hidden', !p); if (!p) lastT = performance.now(); }
 
@@ -275,7 +307,7 @@ window.EI = window.EI || {};
     resultsShown = false; paused = false; lastT = performance.now(); acc = 0; introT = 0; autopilots = []; tunF[0] = tunF[1] = 0; applySplitTier(race.players.length > 1); onResize();   // tunF: a race quit inside the tunnel must not start the next one over-exposed. onResize sizes the HUD viewports (setRect)
     if (document.activeElement && document.activeElement.blur) document.activeElement.blur();   // Enter / Space must not press a menu button
     race.players.forEach((car, k) => placeCamera(cameras[k], car, k, true, 0));
-    EI.HUD.banner('EQUATION I · ' + track.name.toUpperCase() + ' GP', race.gridInfo ? 3400 : 2400, null, race.gridInfo ? 'Grid: ' + race.gridInfo.label : null);
+    EI.HUD.banner('EQUATION I · ' + track.name.toUpperCase() + ' GP', race.gridInfo ? 3400 : 2400, null, [race.gridInfo ? 'Grid: ' + race.gridInfo.label : '', cfg.skill != null && race.ais && race.ais.length ? skillLabel(cfg.skill) : ''].filter(Boolean).join(' · ') || null);
     introLen = race.players.length === 1 ? 8.2 : 2.8;
     raceRenderSetup();
   }

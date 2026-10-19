@@ -46,7 +46,8 @@ window.EI = window.EI || {};
         for (const t of TR) { const v = ai.traits[t.id]; h += '<span class="fd-t" title="' + esc(t.name + ' ' + v.toFixed(2)) + '"><b style="width:' + Math.round(v * 100) + '%"></b><em>' + v.toFixed(2) + '</em></span>'; }
         h += '</div>';
       }
-      if (this.gridInfo) h = '<div class="fd-row fd-grid" style="display:block;opacity:.8;font-size:12px;padding:2px 0 6px">Grid: ' + esc(this.gridInfo.label) + '</div>' + h;
+      const sk = this.cfg && this.cfg.skill != null && this.ais.length ? (EI.skillLabel ? EI.skillLabel(this.cfg.skill) : 'Skill ' + this.cfg.skill) : '';   // SKILL-UI: bot skill next to the grid
+      if (this.gridInfo || sk) h = '<div class="fd-row fd-grid" style="display:block;opacity:.8;font-size:12px;padding:2px 0 6px">' + [this.gridInfo ? 'Grid: ' + esc(this.gridInfo.label) : '', esc(sk)].filter(Boolean).join(' · ') + '</div>' + h;
       el.innerHTML = h;
     }
 

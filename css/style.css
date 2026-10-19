@@ -325,6 +325,22 @@ kbd { display: inline-block; font-family: var(--font); font-size: 10.5px; font-w
 .field:focus-within { border-color: rgba(255,255,255,0.3); }
 .field .fl { font-size: 10px; letter-spacing: 2px; text-transform: uppercase; color: var(--muted); font-weight: 700; white-space: nowrap; min-width: 54px; }
 .field.wide { grid-column: 1 / -1; }
+/* bot skill slider: 0-100 with the old level names as stops, 80 = Official F1, 100 = Limit */
+.field.skill-field { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; column-gap: 10px; row-gap: 0; align-items: center; padding: 3px 10px 8px 12px; }
+.skill-field .fl { grid-column: 1; grid-row: 1; }
+.skill-field input[type=range] { grid-column: 2; grid-row: 1; width: 100%; }
+.skill-field output { grid-column: 3; grid-row: 1; min-width: 38px; }
+.skill-scale { grid-column: 2; grid-row: 2; position: relative; height: 46px; margin: 0 8px; min-width: 0; }
+.skill-scale .sk { position: absolute; top: 0; transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; background: none; border: 0; padding: 0; margin: 0; cursor: pointer; font: inherit; color: var(--dim); white-space: nowrap; }
+.skill-scale .sk::before { content: ""; width: 1px; height: 5px; background: var(--dim); }
+.skill-scale .sk.lo::before { height: 18px; }
+.skill-scale .sk b { font-size: 9.5px; letter-spacing: 0.4px; font-weight: 700; line-height: 12px; }
+.skill-scale .sk.on, .skill-scale .sk:hover { color: var(--text); }
+.skill-scale .sk.on::before { background: var(--red-2); }
+.skill-scale .sk i { font-style: normal; font-size: 8.5px; letter-spacing: 1.2px; text-transform: uppercase; font-weight: 800; color: var(--red-2); line-height: 11px; }
+.skill-desc { grid-column: 1 / -1; grid-row: 3; margin-top: 4px; font-size: 12px; font-weight: 600; color: var(--muted); line-height: 1.35; }
+.skill-desc b { color: #fff; font-weight: 900; font-style: italic; margin-right: 2px; }
+@media (max-width: 640px) { .field.skill-field { column-gap: 8px; } .skill-scale .sk b { font-size: 9px; letter-spacing: 0.2px; } }
 .field select, .field input[type=text] { flex: 1; min-width: 0; background: transparent; border: 0; color: var(--text); font-family: var(--font); font-size: 13.5px; font-weight: 700; padding: 8px 0; outline: none; text-align: right; }
 .field select { appearance: none; -webkit-appearance: none; padding-right: 20px; background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' fill='none' stroke='%239aa5b6' stroke-width='2'/%3E%3C/svg%3E") no-repeat right center; cursor: pointer; direction: rtl; }
 .field select option { direction: ltr; background: #12151c; color: var(--text); font-weight: 600; }
