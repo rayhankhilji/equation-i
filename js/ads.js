@@ -51,7 +51,7 @@
     // file:// pages cannot draw images into canvases that become WebGL textures (the canvas is tainted), so stay procedural there
     if (typeof location !== 'undefined' && location.protocol === 'file:') return Promise.resolve();
     const one = (key) => new Promise((res) => {
-      const im = new Image(); im.decoding = 'async';
+      const im = new Image(); im.crossOrigin = 'anonymous'; im.decoding = 'async';
       im.onload = () => { if (im.naturalWidth > 0) IMG[key] = im; res(); }; im.onerror = () => res();
       im.src = Ads.BRAND_DIR + IMG_SRC[key];
     });
@@ -239,8 +239,8 @@
   const PIMG = {};   // id -> decoded SVG image
   function loadPartners() {
     if (typeof location !== 'undefined' && location.protocol === 'file:') return Promise.resolve();
-    const one = (id) => new Promise((res) => { const im = new Image(); im.decoding = 'async'; im.onload = () => { if (im.naturalWidth > 0) PIMG[id] = im; res(); }; im.onerror = () => res(); im.src = Ads.PARTNER_DIR + id + '.svg'; });
-    const f1 = new Promise((res) => { const im = new Image(); im.onload = () => { if (im.naturalWidth > 0) PIMG.f1 = im; res(); }; im.onerror = () => res(); im.src = Ads.BRAND_DIR + 'f1/f1-logo.svg'; });
+    const one = (id) => new Promise((res) => { const im = new Image(); im.crossOrigin = 'anonymous'; im.decoding = 'async'; im.onload = () => { if (im.naturalWidth > 0) PIMG[id] = im; res(); }; im.onerror = () => res(); im.src = Ads.PARTNER_DIR + id + '.svg'; });
+    const f1 = new Promise((res) => { const im = new Image(); im.crossOrigin = 'anonymous'; im.onload = () => { if (im.naturalWidth > 0) PIMG.f1 = im; res(); }; im.onerror = () => res(); im.src = Ads.BRAND_DIR + 'f1/f1-logo.svg'; });
     return Promise.all([f1].concat([...ART].map(one)));
   }
   // the F1-style display face (Saira, OFL, at its widest setting) for the F1 / event branding and the fallback wordmarks

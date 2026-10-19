@@ -191,7 +191,7 @@ window.EI = window.EI || {};
     // optional external decal sheet replaces the painted one: only requested for teams listed in LIVERY_PNGS
     // (add a team id there after dropping assets/liveries/<id>.png in), so no 404s are logged on every load
     if (LIVERY_PNGS.indexOf(team.id) >= 0) {
-      const img = new Image();
+      const img = new Image(); img.crossOrigin = 'anonymous';
       img.onload = function () { ctx.drawImage(img, 0, 0, 1024, 1024); tex.needsUpdate = true; };
       img.onerror = function () { /* keep procedural livery */ };
       img.src = 'assets/liveries/' + team.id + '.png';
