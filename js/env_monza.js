@@ -281,6 +281,9 @@ window.EI = window.EI || {};
     const zt = fz(yt) - 6.2;
     for (let x = x0 + 1; x <= x1 - 0.5; x += 4.5) { S.beam(m, [X(x), yt + 0.3, fz(yt) + 0.2], [X(x), yt + 1.5, zt], 0.16, steel); Fd.beam(m, [X(x), yt - 1.2, fz(yt - 1.2) - 0.1], [X(x), yt + 0.9, (fz(yt) + zt) / 2], 0.08, steel); }
     for (const [yy, zz] of [[yt + 1.5, zt], [yt + 0.9, (fz(yt) + zt) / 2]]) S.beam(m, [X(x0 + 1), yy, zz], [X(x1 - 0.5), yy, zz], 0.14, steel);
+    // the light canopy skin on the brackets (pit_building_facade: a pale translucent-looking roof over the lane edge), slightly curved
+    for (let x = x0; x < x1 - 0.01; x += 9) { const xb = Math.min(x1, x + 9); const pts = [[fz(yt) + 0.2, yt + 0.42], [(fz(yt) * 2 + zt) / 3, yt + 1.02], [(fz(yt) + zt * 2) / 3, yt + 1.42], [zt - 0.2, yt + 1.62]];
+      for (let k = 0; k + 1 < pts.length; k++) { const [za, ya] = pts[k], [zb, yb2] = pts[k + 1]; B.quad(P(x, ya, za), P(x, yb2, zb), P(xb, yb2, zb), P(xb, ya, za), C(0xf2f3f1)); B.quad(P(xb, ya, za), P(xb, yb2, zb), P(x, yb2, zb), P(x, ya, za), C(0xdcdfe0)); } }
     // Paddock Club terrace: glass balustrade, white tensile tent roofs (peaked modules on a frame) over the back two thirds of the roof
     Fd.beam(m, [X(x0), yt + 1.6, fz(yt) + 0.4], [X(x1), yt + 1.6, fz(yt) + 0.4], 0.07, white);
     dq(G, P(x0, yt + 0.55, fz(yt) + 0.45), P(x1, yt + 0.55, fz(yt) + 0.45), P(x1, yt + 1.6, fz(yt) + 0.45), P(x0, yt + 1.6, fz(yt) + 0.45), C(0x9ec0c8));
@@ -300,43 +303,69 @@ window.EI = window.EI || {};
     buildTower(E, BK, F);
     buildPaddock(E, BK, F);
   }
-  // the podium over the track
+  // the podium over the track (refs podium_structure_bare / podium_over_crowd_a,b / podium_platform_close): a flat steel deck cantilevered
+  // from ONE big round grey column on the pit-wall strip, a red tube along its underside edge, a railing with flower boxes round the
+  // rounded tip, the rostrum and the tall backdrop (partner wall + flag screens) at the outer end over the track; the photographers'
+  // walkway back into the building
   function buildPodium(E, BK, F) {
     const t = E.t, { B, S, G, F: Fd, A } = BK; const m = F.m, X = F.X; const P = (x, y, z) => Env.xf(m, X(x), y, z);
-    const white = C(0xf1f2f2), grey = C(0x8e949a), dark = C(0x1b1e23), steel = C(0xe3e6e8), red = C(0xd0121f), green = C(0x009246);
-    const xc = F.xPod, W = 24, hw = W / 2; const i = t.idxAtS(t.sf + xc * F.dirX); const yTr = t.y[i] - F.y0;   // track level here, frame-relative
-    const zTip = Math.max(-1, t.halfWidth * 0.15 - 3), zBack = F.zG - 1.2;      // over the right part of the track .. into the building
-    const yU = yTr + 11.2, yD = yU + 1.8;                                       // deck underside / top
-    // deck: a white box with a red-white-green band along its nose, dark soffit
-    B.box(m, W, yD - yU, zBack - zTip, X(xc), yU, (zTip + zBack) / 2, white, { top: C(0xcfd3d6), bottom: true });
-    const nose = (y0, y1, col) => K.dq(B, P(xc - hw, y0, zTip - 0.03), P(xc + hw, y0, zTip - 0.03), P(xc + hw, y1, zTip - 0.03), P(xc - hw, y1, zTip - 0.03), col);
-    nose(yU + 0.2, yU + 0.5, green); nose(yU + 0.5, yU + 0.8, white); nose(yU + 0.8, yU + 1.1, red);
-    // two raking legs on the strip between the circuit barrier and the pit wall, and a truss back to the roof
-    const zLeg = F.maxWall + 1.4;
-    for (const dx of [-hw + 2.5, hw - 2.5]) { S.beam(m, [X(xc + dx), yTr, zLeg], [X(xc + dx), yU, zLeg], 0.9, steel); S.beam(m, [X(xc + dx), yU + 0.2, zTip + 1], [X(xc + dx), yD + 5.8, zBack - 2], 0.35, steel); }
-    S.box(m, 0.7, 0.9, 0.7, X(xc - hw + 2.5), yTr, zLeg, grey); S.box(m, 0.7, 0.9, 0.7, X(xc + hw - 2.5), yTr, zLeg, grey);
-    // podium steps (2 - 1 - 3) at the front, glass balustrade along the nose
-    for (const [dx, h] of [[-3.2, 0.6], [0, 1.0], [3.2, 0.35]]) B.box(m, 3.0, h, 2.6, X(xc + dx), yD, zTip + 4.0, dark);
-    Fd.beam(m, [X(xc - hw), yD + 1.1, zTip + 0.2], [X(xc + hw), yD + 1.1, zTip + 0.2], 0.08, steel);
-    K.dq(G, P(xc - hw, yD, zTip + 0.25), P(xc + hw, yD, zTip + 0.25), P(xc + hw, yD + 1.1, zTip + 0.25), P(xc - hw, yD + 1.1, zTip + 0.25), C(0x9ec0c8));
-    // backdrop: the big dark screen wall behind the drivers (event panel art), framed by two white arched tubes
-    const sb0 = zTip + 7.5, sw = W - 3, sh = 7.0;
-    B.box(m, sw + 0.6, sh + 0.6, 0.6, X(xc), yD - 0.1, sb0 + 0.35, dark);
-    const scrR = A.region('mzPodiumScreen', 512, 160, (x2, w, h) => { if (EI.Ads && EI.Ads.paintEventPanel) EI.Ads.paintEventPanel(x2, w, h, sw / sh); else Mz.paintText(x2, w, h, "GRAN PREMIO D'ITALIA", { bg: '#15151e', fg: '#ffffff' }); });
-    { const a = P(xc - sw / 2, yD + 0.2, sb0), b = P(xc + sw / 2, yD + 0.2, sb0), c = P(xc + sw / 2, yD + 0.2 + sh, sb0), d = P(xc - sw / 2, yD + 0.2 + sh, sb0); if (F.dirX > 0) A.quad(scrR, b, a, d, c); else A.quad(scrR, a, b, c, d); }
-    for (const sd of [-1, 1]) { let prev = null; for (let k = 0; k <= 10; k++) { const u = k / 10; const ang = u * Math.PI; const x = xc + sd * (hw - 0.5) - sd * Math.sin(ang) * 1.2; const y = yD + 0.2 + Math.sin(ang * 0.5) * (sh + 3.2); const z = zTip + 1.0 + u * (sb0 - zTip - 0.5); const p = [X(x), y, z]; if (prev) S.beam(m, prev, p, 0.3, steel); prev = p; } }
-    // the bridge deck back into the building (photographers' walkway), red underside band
-    B.box(m, 8, 0.9, 3, X(xc), yU + 0.4, zBack + 1.5, white);
+    const grey = C(0x8d939a), greyL = C(0xb4b9be), dark = C(0x24272c), steel = C(0xc9cdd1), red = C(0xc8102e), flowR = C(0xc0182a), flowW = C(0xf2f2f2), leaf = C(0x2f5a2a);
+    const xc = F.xPod, W = 20, hw = W / 2; const i = t.idxAtS(t.sf + xc * F.dirX); const yTr = t.y[i] - F.y0;   // track level here, frame-relative
+    const zTip = Math.max(-t.halfWidth * 0.2, -2), zBack = F.zG - 1.4, zCol = F.maxWall + 1.5;
+    const yU = yTr + 8.6, th = 0.7, yD = yU + th; const R = hw * 0.75;            // deck underside / top; radius of the rounded tip
+    // the column and its head
+    K.cyl(S, m, X(xc), zCol, yTr - 0.3, yU - 1.2 - yTr + 0.3, 1.15, 16, grey);
+    S.box(m, 3.4, 1.2, 4.6, X(xc), yU - 1.2, zCol, greyL, { bottom: true });
+    // two box girders under the deck along z, the deck plate (rectangle + rounded tip), red tube on the underside edge
+    for (const dx of [-hw + 2.2, hw - 2.2]) S.box(m, 0.8, 0.9, zBack - zTip - 1, X(xc + dx), yU - 0.9, (zTip + zBack) / 2 + 0.5, greyL, { bottom: true });
+    const zT0 = zTip + R;                        // where the round tip starts
+    B.box(m, W, th, zBack - zT0, X(xc), yU, (zT0 + zBack) / 2, greyL, { top: C(0x6f757b), bottom: true });
+    const N = 12, tip = []; for (let k = 0; k <= N; k++) { const a = Math.PI * k / N; tip.push([xc - Math.cos(a) * hw, zT0 - Math.sin(a) * R]); }
+    for (let k = 0; k < N; k++) { const p = tip[k], q = tip[k + 1];
+      K.dq(B, P(xc, yD, zT0), P(p[0], yD, p[1]), P(q[0], yD, q[1]), P(xc, yD, zT0), C(0x6f757b)); K.dq(B, P(xc, yU, zT0), P(p[0], yU, p[1]), P(q[0], yU, q[1]), P(xc, yU, zT0), greyL);
+      K.dq(B, P(p[0], yU, p[1]), P(q[0], yU, q[1]), P(q[0], yD, q[1]), P(p[0], yD, p[1]), greyL);
+      S.beam(m, [X(p[0]), yU - 0.15, p[1]], [X(q[0]), yU - 0.15, q[1]], 0.4, red);
+      // railing + flower boxes (red / white geraniums) round the tip
+      Fd.beam(m, [X(p[0]), yD + 1.05, p[1]], [X(q[0]), yD + 1.05, q[1]], 0.07, steel); Fd.beam(m, [X(p[0]), yD, p[1]], [X(p[0]), yD + 1.05, p[1]], 0.05, steel);
+      const pm = [(p[0] + q[0]) / 2, (p[1] + q[1]) / 2]; const ox = (pm[0] - xc), oz = (pm[1] - zT0); const ol = Math.hypot(ox, oz) || 1;
+      const fb = [pm[0] - ox / ol * 0.35, pm[1] - oz / ol * 0.35]; B.box(m, 1.6, 0.35, 0.45, X(fb[0]), yD + 0.65, fb[1], leaf);
+      for (let j = 0; j < 4; j++) Fd.box(m, 0.28, 0.2, 0.3, X(fb[0] - 0.6 + j * 0.4), yD + 0.98, fb[1], j % 2 ? flowW : flowR);
+    }
+    for (const sd of [-1, 1]) { S.beam(m, [X(xc + sd * hw), yU - 0.15, zT0], [X(xc + sd * hw), yU - 0.15, zBack], 0.4, red); Fd.beam(m, [X(xc + sd * hw), yD + 1.05, zT0], [X(xc + sd * hw), yD + 1.05, zBack], 0.07, steel); }
+    // rostrum (2 - 1 - 3) in front of the backdrop
+    const zr = zT0 + 2.2;
+    for (const [dx, h] of [[-2.6, 0.55], [0, 0.95], [2.6, 0.35]]) B.box(m, 2.4, h, 2.2, X(xc + dx), yD, zr, dark);
+    // backdrop: the partner wall (EI.Ads tiles) with three flag screens above, on a dark frame, facing the main straight
+    const zb = zr + 2.4, bw = 14, bh = 7.6;
+    B.box(m, bw + 0.8, bh + 0.6, 0.7, X(xc), yD - 0.05, zb + 0.4, dark);
+    const bdR = A.region('mzPodiumWall', 448, 240, (x2, w, h) => {
+      x2.fillStyle = '#111317'; x2.fillRect(0, 0, w, h); const fh = h * 0.26;
+      [['#000000', '#dd0000', '#ffce00'], ['#009246', '#f4f5f0', '#ce2b37'], ['#c8102e', '#ffffff', '#012169']].forEach((c3, k) => { const x0 = 14 + k * (w - 28) / 3, ww = (w - 28) / 3 - 10; for (let j = 0; j < 3; j++) { x2.fillStyle = c3[j]; if (k === 1) x2.fillRect(x0 + j * ww / 3, 8, ww / 3 + 1, fh); else x2.fillRect(x0, 8 + j * fh / 3, ww, fh / 3 + 1); } });
+      const ty = fh + 22, cw = (w - 20) / 4, ch = (h - ty - 8) / 3;
+      for (let r = 0; r < 3; r++) for (let c = 0; c < 4; c++) { const x0 = 10 + c * cw, y0 = ty + r * ch; if (r === 1 && (c === 1 || c === 2)) continue; if (EI.Ads && EI.Ads.paintTile) EI.Ads.paintTile(x2, 0, x0 + 4, y0 + 4, cw - 8, ch - 8, (cw - 8) / (ch - 8)); else Mz.paintText(x2, cw - 8, ch - 8, 'MONZA', { bg: '#ffd200', fg: '#111' }); }
+      x2.save(); x2.translate(10 + cw + 4, ty + ch + 4); if (EI.Ads && EI.Ads.drawF1) { x2.fillStyle = '#111317'; x2.fillRect(0, 0, cw * 2 - 8, ch - 8); EI.Ads.drawF1(x2, (cw * 2 - 8) * 0.3, (ch - 8) / 2, (cw * 2 - 8) * 0.4, (ch - 8) * 0.7); } x2.fillStyle = '#ffffff'; x2.font = '800 ' + Math.round(ch * 0.2) + 'px Arial'; x2.textBaseline = 'middle'; x2.fillText("GRAN PREMIO D'ITALIA", (cw * 2 - 8) * 0.52, (ch - 8) / 2); x2.restore();
+    });
+    { const a = P(xc - bw / 2, yD + 0.25, zb), b = P(xc + bw / 2, yD + 0.25, zb), c = P(xc + bw / 2, yD + 0.25 + bh, zb), d = P(xc - bw / 2, yD + 0.25 + bh, zb); if (F.dirX > 0) A.quad(bdR, b, a, d, c); else A.quad(bdR, a, b, c, d); }
+    for (const sd of [-1, 1]) S.beam(m, [X(xc + sd * (bw / 2 + 0.2)), yD, zb + 0.9], [X(xc + sd * (bw / 2 + 0.2)), yD + bh + 0.6, zb + 0.9], 0.3, dark);
+    // walkway to the building's upper floor (covered, glazed sides) and stairs down to the pit-wall strip at the column
+    G.box(m, 4.6, 2.6, zBack - zb - 1, X(xc), yD, (zb + 1 + zBack) / 2, C(0x6f8496)); B.box(m, 5.2, 0.3, zBack - zb - 0.6, X(xc), yD + 2.6, (zb + 0.8 + zBack) / 2, C(0xeef0f0), { bottom: true });
     E.stats.monza.podium = { x: Math.round(xc), zTip: +zTip.toFixed(1), y: +(yU).toFixed(1) };
   }
-  // glazed race-control / timing tower behind the podium (m15_party): stacked white floor bands, dark glass, a crown with a sign
+  // glazed race-control tower next to the podium (podium_structure_bare / m15_party): a slim glass curtain-wall tower rising from the
+  // front of the pit building, white floor bands and mullions, an open white frame crown
   function buildTower(E, BK, F) {
-    const { B, G, S, A } = BK; const m = F.m, X = F.X; const P = (x, y, z) => Env.xf(m, X(x), y, z);
-    const xc = U.clamp(F.xPod + (F.xPod < 0 ? 26 : -26), F.x0 + 8, F.x1 - 8), zc = F.zGB + 14, w = 16, d = 12, nF = 7, fh = 3.6;
-    for (let k = 0; k < nF; k++) { const y = k * fh; B.box(m, w + 0.6, 0.5, d + 0.6, X(xc), y + fh - 0.5, zc, C(0xf3f4f2)); G.box(m, w, fh - 0.5, d, X(xc), y, zc, k % 2 ? C(0x3c5468) : C(0x2f4558)); }
-    B.box(m, w + 1.4, 1.2, d + 1.4, X(xc), nF * fh, zc, C(0xf3f4f2), { bottom: true }); S.beam(m, [X(xc + 4), nF * fh + 1.2, zc], [X(xc + 4), nF * fh + 9, zc], 0.18, C(0xd9dde0));
-    const sR = A.region('mzTowerName', 512, 96, (x2, w2, h2) => { x2.fillStyle = '#c8102e'; x2.fillRect(0, 0, w2, h2); Mz.paintText(x2, w2, h2 * 0.98, 'MONZA', { bg: '#c8102e', fg: '#ffffff', size: 0.78 }); });
-    const zf = zc - d / 2 - 0.72, y0 = nF * fh + 0.05; const a = P(xc - w / 2 + 0.5, y0, zf), b = P(xc + w / 2 - 0.5, y0, zf), c = P(xc + w / 2 - 0.5, y0 + 1.1, zf), dd = P(xc - w / 2 + 0.5, y0 + 1.1, zf);
+    const { B, G, S, F: Fd, A } = BK; const m = F.m, X = F.X; const P = (x, y, z) => Env.xf(m, X(x), y, z);
+    const sd = F.xPod < (F.x0 + F.x1) / 2 ? 1 : -1; const w = 13, d = 11; const xc = U.clamp(F.xPod + sd * (10 + w / 2 + 4), F.x0 + w / 2, F.x1 - w / 2), zc = F.zG + d / 2 - 1.5;
+    const y0 = 15.75, nF = 5, fh = 3.7, yTop = y0 + nF * fh; const glass = C(0x7d98ac), glassD = C(0x58738a), white = C(0xf3f4f2);
+    for (let k = 0; k < nF; k++) { const y = y0 + k * fh; G.box(m, w, fh - 0.35, d, X(xc), y, zc, k % 2 ? glass : glassD); B.box(m, w + 0.3, 0.35, d + 0.3, X(xc), y + fh - 0.35, zc, white); }
+    for (let x = -w / 2; x <= w / 2 + 0.01; x += 1.6) for (const z of [zc - d / 2 - 0.05, zc + d / 2 + 0.05]) Fd.box(m, 0.09, nF * fh, 0.09, X(xc + x), y0, z, white);
+    for (let z = -d / 2; z <= d / 2 + 0.01; z += 1.6) for (const x of [xc - w / 2 - 0.05, xc + w / 2 + 0.05]) Fd.box(m, 0.09, nF * fh, 0.09, X(x), y0, zc + z, white);
+    // crown: four white corner posts, a roof frame, the lattice of the open top
+    for (const [dx, dz] of [[-1, -1], [1, -1], [1, 1], [-1, 1]]) S.box(m, 0.45, 3.2, 0.45, X(xc + dx * w / 2), yTop, zc + dz * d / 2, white);
+    B.box(m, w + 0.6, 0.45, d + 0.6, X(xc), yTop + 3.2, zc, white, { bottom: true });
+    for (let x = -w / 2 + 2; x < w / 2 - 1; x += 2.2) S.box(m, 0.18, 0.18, d, X(xc + x), yTop + 3.0, zc, white);
+    const sR = A.region('mzTowerName', 512, 96, (x2, w2, h2) => { Mz.paintText(x2, w2, h2, 'DIREZIONE GARA', { bg: '#f3f4f2', fg: '#b3121f', size: 0.6 }); });
+    const zf = zc - d / 2 - 0.36, ys = yTop + 3.2; const a = P(xc - w / 2, ys + 0.02, zf), b = P(xc + w / 2, ys + 0.02, zf), c = P(xc + w / 2, ys + 0.45, zf), dd = P(xc - w / 2, ys + 0.45, zf);
     if (F.dirX > 0) A.quad(sR, b, a, dd, c); else A.quad(sR, a, b, c, dd);
   }
   // paddock: rows of team motorhomes / hospitality units and tents behind the building (on the paddock side only)

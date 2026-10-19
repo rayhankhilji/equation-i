@@ -88,7 +88,8 @@
       fitW(L, 'zyn', 0.52, 0.81, 0.17, 'black', W, 0.05);
       fitW(L, 'ibm', 0.22, 0.81, 0.17, 'black');
       // sidepod: Puma, Shell pecten, CEVA; UniCredit on the cover rear
-      k.at(0.4, 0.53, () => { g.scale(k.s, 1); pumaCat(g, 0.13, W); });
+      if (EI.Ads.hasPartner('pumacat')) k.at(0.4, 0.53, () => EI.Ads.drawPartner(g, 'pumacat', 0, 0, 0.15 * MM, 0.12 * MM, { tone: 'white' }));   // brand art, unmirrored on both sides
+      else k.at(0.4, 0.53, () => { g.scale(k.s, 1); pumaCat(g, 0.13, W); });
       k.at(0.04, 0.45, () => pecten(g, 0.24));
       fitW(L, 'cevalogistics', -0.45, 0.36, 0.36, 'white');
       fitW(L, 'unicredit', -0.95, 0.58, 0.4, 'white');

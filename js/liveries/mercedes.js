@@ -79,7 +79,7 @@
       fitW(L, 'einhell', 2.3, 0.37, 0.26, 'white', null, 0.05);
       fitW(L, 'signify', 0.95, 0.24, 0.36, 'white', null, 0.07);
       // rear-wing endplates: Snapdragon / CrowdStrike / PETRONAS PRIMAX
-      fitW(L, 'snapdragon', -2.2, 0.87, 0.38, 'white'); fitW(L, 'crowdstrike', -2.2, 0.78, 0.36, 'white');
+      fitW(L, 'snapdragon', -2.16, 0.87, 0.33, 'white'); fitW(L, 'crowdstrike', -2.2, 0.78, 0.36, 'white');
       wordW(L, 'PETRONAS', -2.2, 0.61, 0.2, 0.038, W, { w: 900 }); wordW(L, 'PRIMAX', -2.2, 0.565, 0.2, 0.04, W, { w: 900, it: 1 });
       L.number(1.5, 0.56, 0.06, BK); L.codeText(1.27, 0.525, 0.036, BK); k.at(1.09, 0.525, () => FLAG(g, natOf(L.code), 0.03));
       L.haloHandle('mercedesamgf1.com', W, -1); L.haloHandle('@MercedesAMGF1', W, 1);

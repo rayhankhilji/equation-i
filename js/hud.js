@@ -332,23 +332,40 @@ window.EI = window.EI || {};
     }
     return out;
   }
+  // tag width in design px, measured with the tag's own face on a 2D canvas (no DOM layout), cached per string
+  let tagCtx = null; const tagW = new Map();
+  function textW(str, bold) {
+    const key = (bold ? 'b' : 'n') + str; let w = tagW.get(key); if (w != null) return w;
+    if (!tagCtx) { tagCtx = document.createElement('canvas').getContext('2d'); }
+    tagCtx.font = (bold ? '700' : '600') + ' 12.5px "F1 HUD", "Titillium Web", sans-serif'; try { tagCtx.fontStretch = 'semi-expanded'; tagCtx.letterSpacing = '0.4px'; } catch (e) { /* older canvas */ }
+    w = tagCtx.measureText(str).width * 1.04 + 1; if (tagW.size > 400) tagW.clear(); tagW.set(key, w); return w;
+  }
+  const TAG_MAX = 6, TAG_GAP = 3, PANEL_PAD = 12, EDGE = 6;
+  function tagFree(r, n, x0, y0, x1, y1, blk) {
+    if (x0 < EDGE || y0 < EDGE || x1 > r.w - EDGE || y1 > r.h - EDGE) return false;
+    for (const b of blk) if (x0 < b[2] + PANEL_PAD && x1 > b[0] - PANEL_PAD && y0 < b[3] + PANEL_PAD && y1 > b[1] - PANEL_PAD) return false;
+    const P = r._tagBox; for (let k = 0; k < n; k++) { const q = k * 4; if (x0 < P[q + 2] + TAG_GAP && x1 > P[q] - TAG_GAP && y0 < P[q + 3] + TAG_GAP && y1 > P[q + 1] - TAG_GAP) return false; }
+    return true;
+  }
   function updateTags(r, list) {
     while (r.tagEls.length < list.length) {
       const d = document.createElement('div'); d.className = 'tag'; d.innerHTML = '<div class="tg"><b class="tp"></b><i class="tb"></i><span class="tn"></span></div>';
       r.tags.appendChild(d); const g = d.firstChild; r.tagEls.push({ el: d, p: g.children[0], b: g.children[1], n: g.children[2], on: false, col: '' });
     }
-    // declutter: nearest cars keep their spot, farther tags that would overlap are stacked upwards (split: one step, else dropped)
+    if (!r._tagBox || r._tagBox.length < list.length * 4) r._tagBox = new Float32Array(Math.max(32, list.length * 4));
+    // declutter: nearest cars first; a tag that would touch a HUD panel, the view edge or a nearer tag is lifted (1P: up to two
+    // steps, split: one) and otherwise dropped, so a tag never draws over the tower / timing panel / dash / map
     const ord = r._tagOrd || (r._tagOrd = []); ord.length = 0; for (let i = 0; i < list.length; i++) ord.push(i); ord.sort((i, j) => list[j].alpha - list[i].alpha);
-    const placed = []; const s = r.u || 1; const ys = r._tagYs || (r._tagYs = []); ys.length = list.length;
-    const blk = panelBoxes(r);
+    const s = r.u || 1; const ys = r._tagYs || (r._tagYs = []); ys.length = list.length; for (let i = 0; i < list.length; i++) ys[i] = null;
+    const blk = panelBoxes(r); const max = r.split ? 3 : TAG_MAX; let n = 0;
     for (const i of ord) {
-      const tg = list[i]; const sc = s * (0.72 + 0.28 * Math.min(1, tg.alpha)); const w = (46 + String(tg.text).length * 8.4) * sc, h = 21 * sc; let y = tg.y;
-      const maxTries = r.split ? 1 : 2; let hit = null;
-      for (let tries = 0; tries <= maxTries; tries++) { hit = placed.find(p => Math.abs(p.x - tg.x) < (p.w + w) / 2 && Math.abs(p.y - y) < (p.h + h) / 2); if (!hit || tries === maxTries) break; y = hit.y - (hit.h + h) / 2 - 2; }
-      const x0 = tg.x - w / 2, x1 = tg.x + w / 2, y0 = y - h - 6 * sc, y1 = y; let under = false;
-      for (const b of blk) if (x0 < b[2] && x1 > b[0] && y0 < b[3] && y1 > b[1]) { under = true; break; }
-      if (hit || under || y < h * 1.5) { ys[i] = null; continue; }
-      placed.push({ x: tg.x, y, w, h }); ys[i] = y;
+      if (n >= max) break;
+      const tg = list[i]; const sc = s * (0.72 + 0.28 * Math.min(1, tg.alpha));
+      const w = (13 + textW(String(tg.pos), true) + 3 + 14 + textW(String(tg.text), false)) * sc, h = 28 * sc;   // 22 px tag + 6 px gap under it
+      const x0 = tg.x - w / 2, x1 = tg.x + w / 2; let y = tg.y; let ok = false;
+      for (let tries = 0, maxT = r.split ? 1 : 2; tries <= maxT; tries++) { if (tagFree(r, n, x0, y - h, x1, y, blk)) { ok = true; break; } y -= h * 0.92; }
+      if (!ok) continue;
+      const q = n * 4; r._tagBox[q] = x0; r._tagBox[q + 1] = y - h; r._tagBox[q + 2] = x1; r._tagBox[q + 3] = y; n++; ys[i] = y;
     }
     for (let i = 0; i < r.tagEls.length; i++) {
       const T = r.tagEls[i]; const tg = list[i];

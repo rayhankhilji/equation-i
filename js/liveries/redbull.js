@@ -89,7 +89,7 @@
       k.at(-1.3, 0.8, () => { g.fillStyle = W; EI.Ads.rr(g, -80, -72, 160, 144, 14); g.fill(); });
       L.number(-1.3, 0.8, 0.125, RED);
       // front-wing endplates: Mobil + Pegasus; rear-wing endplates: Mobil 1, Heineken 0.0
-      k.at(-2.2, 0.88, () => mobil(g, 0.34, 0.075, true));
+      k.at(-2.19, 0.85, () => mobil(g, 0.33, 0.075, true));
       L.partnerAt('heineken', -2.17, 0.62, 0.22, 0.06, 'whiteKeepRed');
       L.codeText(1.27, 0.46, 0.036, W); k.at(1.09, 0.46, () => FLAG(g, natOf(L.code), 0.03));
       L.haloHandle('redbullracing.com', W, -1); L.haloHandle('@redbullracing', W, 1);

@@ -194,14 +194,14 @@ window.EI = window.EI || {};
   // (EI.LIVERIES.partColours: body, wings, endplates, halo, mirrors, fins); 'carbon' / 'foam' stay bare.
   const PART_ROLES = {
     body: { red: 'body', yellow: 'body', orange: 'body', green: 'halo', blue: 'carbon' },
-    front_wing: { red: 'carbon', blue: 'fwFlap', yellow: 'fwTip', green: 'carbon', orange: 'fwEnd' },   // carbon main plane, painted flaps / endplates
+    front_wing: { red: 'fwMain', blue: 'fwFlap', yellow: 'fwTip', green: 'carbon', orange: 'fwEnd' },   // main plane (carbon unless a design paints it), flaps, endplates
     rear_wing: { green: 'rwMain', orange: 'rwFlap', blue: 'rwEnd', yellow: 'rwEnd', red: 'rwEnd' },
     mirrors: { red: 'mirror', yellow: 'mirror', orange: 'mirror', green: 'mirror', blue: 'mirror' },
     winglets: { blue: 'fin', green: 'fin', red: 'carbon', orange: 'carbon' },
     cockpit_foam: { green: 'foam' },
   };
-  const ROLE_NAMES = ['none', 'body', 'fwFlap', 'fwEnd', 'fwTip', 'rwMain', 'rwEnd', 'rwFlap', 'halo', 'mirror', 'fin', 'carbon', 'foam'];
-  const PAINT_ROLES = 10;   // roles 1..10 are painted (decals land on them)
+  const ROLE_NAMES = ['none', 'body', 'fwFlap', 'fwEnd', 'fwTip', 'rwMain', 'rwEnd', 'rwFlap', 'halo', 'mirror', 'fin', 'fwMain', 'carbon', 'foam'];
+  const PAINT_ROLES = 11;   // roles 1..11 are painted (decals land on them); fwMain only through a design's frontWing(L)
   const PAINTED = (o) => o.isMesh && o.material && (o.material.name === 'paint' || o.name === 'halo_main');   // the halo is livery-painted too
   function hexRgb(h) { const c = new THREE.Color(h); return [Math.round(c.r * 255), Math.round(c.g * 255), Math.round(c.b * 255)]; }
   function classify(r, g, b) {
@@ -408,7 +408,8 @@ window.EI = window.EI || {};
     // blocks (same x / y range) stay off them.
     const ep = EI.LIVERIES && EI.LIVERIES.hasEndplate && EI.LIVERIES.hasEndplate(id);
     const FWEND = ROLE_NAMES.indexOf('fwEnd'), HALO = ROLE_NAMES.indexOf('halo'), real = EI.LIVERIES && EI.LIVERIES.has(id) && EI.LIVERIES.sideHalo;
-    const noEp = ep || real ? Object.assign({}, ep ? { [FWEND]: 1 } : null, real ? { [HALO]: 1 } : null) : null;
+    const FWMAIN = ROLE_NAMES.indexOf('fwMain');
+    const noEp = Object.assign({ [FWMAIN]: 1 }, ep ? { [FWEND]: 1 } : null, real ? { [HALO]: 1 } : null);   // texels only their own pass paints
     views.push({ cls: 1, also: [4], notRoles: noEp, map: (x, y) => [-x, -y], x0: -3.2, x1: 3.2, y0: -1.25, y1: 0.05, draw: side(-1) });
     views.push({ cls: 2, also: [5], notRoles: noEp, map: (x, y) => [x, -y], x0: -3.2, x1: 3.2, y0: -1.25, y1: 0.05, draw: side(1) });
     if (ep) for (const s of [-1, 1]) {
@@ -416,6 +417,9 @@ window.EI = window.EI || {};
       views.push(s < 0 ? { cls: 1, also: [4], roles: { [FWEND]: 1 }, map: (x, y) => [-x, -y], x0: -3.2, x1: -2.1, y0: -0.65, y1: 0.05, draw }
         : { cls: 2, also: [5], roles: { [FWEND]: 1 }, map: (x, y) => [x, -y], x0: 2.1, x1: 3.2, y0: -0.65, y1: 0.05, draw });
     }
+    // the front-wing main planes (role fwMain): only a design's frontWing(L), drawn in top-view coordinates
+    if (EI.LIVERIES && EI.LIVERIES.hasFrontWing && EI.LIVERIES.hasFrontWing(id))
+      views.push({ cls: 3, also: [4, 5], roles: { [FWMAIN]: 1 }, map: (x, y, z) => [z, -x], x0: -1.1, x1: 1.1, y0: -3.25, y1: -2.15, draw: (g) => { g.scale(1 / MM, 1 / MM); EI.LIVERIES.frontWing(g, topKit(g), team, num); } });
     // the halo's own small views (halo text only; see EI.LIVERIES.sideHalo / topHalo)
     if (real) {
       for (const s of [-1, 1]) {
@@ -459,7 +463,7 @@ window.EI = window.EI || {};
     const roles = { carbon: [30, 31, 34], foam: [28, 28, 30], none: [26, 27, 30] };
     const parts = EI.LIVERIES ? EI.LIVERIES.partColours(team) : { body: team.primary, fwFlap: team.secondary, fwEnd: team.primary, fwTip: team.primary, rwMain: team.primary, rwEnd: team.secondary, rwFlap: team.secondary, mirror: team.primary, fin: team.secondary };
     for (const n of ROLE_NAMES) if (parts[n]) roles[n] = hexRgb(parts[n]); for (const n of ROLE_NAMES) if (!roles[n]) roles[n] = roles.carbon;
-    if (CarGLB.debugRoles) ROLE_NAMES.forEach((n, i) => { if (i >= 1 && i <= PAINT_ROLES) roles[n] = hexRgb(['', '#999999', '#ff0000', '#00ff00', '#0000ff', '#ffff00', '#ff00ff', '#00ffff', '#ff8800', '#8800ff', '#ffffff'][i]); });
+    if (CarGLB.debugRoles) ROLE_NAMES.forEach((n, i) => { if (i >= 1 && i <= PAINT_ROLES) roles[n] = hexRgb(['', '#999999', '#ff0000', '#00ff00', '#0000ff', '#ffff00', '#ff00ff', '#00ffff', '#ff8800', '#8800ff', '#ffffff', '#00ff88'][i]); });
     // per-pixel colour role, from the ID atlas (team independent, cached per resolution)
     if (!roleMaps[base]) {
       const src = new Uint8ClampedArray(d); const rm = new Uint8Array(base * base);

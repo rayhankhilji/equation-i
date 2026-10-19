@@ -142,7 +142,7 @@ window.EI = window.EI || {};
   const D = {};   // team designs, registered by js/liveries/<teamId>.js (one file per team, loaded after this core)
   // ---------------------------------------------------------------- the painter API used by carglb.js
   // part keys (colour roles of the model's painted parts) and their defaults from the team colours
-  const PART_KEYS = ['body', 'fwFlap', 'fwEnd', 'fwTip', 'rwMain', 'rwEnd', 'rwFlap', 'halo', 'mirror', 'fin'];
+  const PART_KEYS = ['body', 'fwFlap', 'fwEnd', 'fwTip', 'rwMain', 'rwEnd', 'rwFlap', 'halo', 'mirror', 'fin', 'fwMain'];
   function partColours(team) {
     const d = D[team.id]; const p = (d && d.parts) || {};
     const def = { body: team.primary, fwFlap: team.secondary, fwEnd: team.primary, fwTip: team.primary, rwMain: team.primary, rwEnd: team.secondary, rwFlap: team.secondary, halo: null, mirror: team.primary, fin: team.secondary };
@@ -196,6 +196,10 @@ window.EI = window.EI || {};
     side(g, k, team, num, code) { const d = D[team.id]; if (d) d.side(helpersSide(g, k, team, num, code)); },
     // front-wing endplates (optional per design): same side coordinates as side(); only the endplate texels receive it
     hasEndplate: (id) => !!(D[id] && D[id].endplate),
+    // front-wing main planes (optional per design; part key fwMain, default bare carbon): top-view coordinates / helpers as top(L),
+    // x 2.15..3.25, z -1..1; only the main-plane texels receive it (also their front / rear faces)
+    hasFrontWing: (id) => !!(D[id] && D[id].frontWing),
+    frontWing(g, t, team, num) { const d = D[team.id]; if (d && d.frontWing) d.frontWing(helpersTop(g, t, team, num)); },
     endplate(g, k, team, num, code) { const d = D[team.id]; if (d && d.endplate) d.endplate(helpersSide(g, k, team, num, code)); },
     top(g, t, team, num) { const d = D[team.id]; if (d) d.top(helpersTop(g, t, team, num)); },
     // halo passes: only the halo helpers (haloSide / haloHandle / haloTop / haloFront) draw, into views that reach ONLY the halo's

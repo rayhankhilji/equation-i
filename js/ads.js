@@ -226,8 +226,8 @@
   Object.assign(PARTNERS, { tudor: { n: 'TUDOR' }, redbullbull: { n: 'Red Bull' }, dynatrace: { n: 'dynatrace' }, ninjaone: { n: 'ninjaOne' }, etoro: { n: 'eToro' }, haasf1: { n: 'TGR Haas F1 Team' }, alpinef1: { n: 'Alpine F1 Team' }, confluent: { n: 'Confluent' } });
   ['tudor', 'redbullbull', 'dynatrace', 'ninjaone', 'mobil', 'etoro', 'haasf1', 'alpinef1', 'confluent'].forEach((id) => ART.add(id));
   // LIVERY-A (mercedes / ferrari / mclaren / redbull) partner artwork, same pipeline (see SOURCES.md)
-  Object.assign(PARTNERS, { amd: { n: 'AMD' }, amg: { n: 'AMG' }, cisco: { n: 'Cisco' }, dxc: { n: 'DXC Technology' }, groq: { n: 'Groq' }, mclarenspeedmark: { n: 'McLaren' }, nubank: { n: 'Nu' }, okta: { n: 'Okta' }, workday: { n: 'Workday' }, indeed: { n: 'Indeed' }, siemens: { n: 'SIEMENS' }, avolta: { n: 'Avolta' }, delltechnologies: { n: 'Dell Technologies' }, dropbox: { n: 'Dropbox' }, richardmille: { n: 'RICHARD MILLE' }, shellpecten: { n: 'Shell' }, '1password': { n: '1Password' }, signify: { n: 'Signify' } });
-  ['amd', 'amg', 'cisco', 'dxc', 'groq', 'mclarenspeedmark', 'nubank', 'okta', 'snapdragon', 'teamviewer', 'whoop', 'workday', 'indeed', 'siemens', 'avolta', 'delltechnologies', 'dropbox', 'richardmille', 'allwyn', 'shellpecten', '1password', 'signify'].forEach((id) => ART.add(id));
+  Object.assign(PARTNERS, { amd: { n: 'AMD' }, amg: { n: 'AMG' }, cisco: { n: 'Cisco' }, dxc: { n: 'DXC Technology' }, groq: { n: 'Groq' }, mclarenspeedmark: { n: 'McLaren' }, nubank: { n: 'Nu' }, okta: { n: 'Okta' }, workday: { n: 'Workday' }, indeed: { n: 'Indeed' }, siemens: { n: 'SIEMENS' }, avolta: { n: 'Avolta' }, delltechnologies: { n: 'Dell Technologies' }, dropbox: { n: 'Dropbox' }, richardmille: { n: 'RICHARD MILLE' }, shellpecten: { n: 'Shell' }, '1password': { n: '1Password' }, signify: { n: 'Signify' }, pumacat: { n: 'PUMA' } });
+  ['amd', 'amg', 'cisco', 'dxc', 'groq', 'mclarenspeedmark', 'nubank', 'okta', 'snapdragon', 'teamviewer', 'whoop', 'workday', 'indeed', 'siemens', 'avolta', 'delltechnologies', 'dropbox', 'richardmille', 'allwyn', 'shellpecten', '1password', 'signify', 'pumacat'].forEach((id) => ART.add(id));
   // LIVERY-C (williams / astonmartin / cadillac) partner artwork, same pipeline (see SOURCES.md; team-site logos are the teams' own partner files)
   Object.assign(PARTNERS, { '3m': { n: '3M' }, alpinestars: { n: 'Alpinestars' }, arm: { n: 'Arm' }, astonmartin: { n: 'Aston Martin' }, betway: { n: 'betway' }, boss: { n: 'BOSS' },
     breitling: { n: 'Breitling' }, cadillaccrest: { n: 'Cadillac' }, cognition: { n: 'Cognition' }, cohere: { n: 'cohere' }, coinpayments: { n: 'CoinPayments' }, estrellagalicia: { n: 'Estrella Galicia' },
@@ -461,7 +461,7 @@
   VENUES.monza = { title: 'pirelli', event: "Gran Premio d'Italia", dark: false, darkBoards: true, darkBg: '#0f2219',
     tiles: ['pirelli', 'aramco', 'L0', 'heineken', 'dhl', 'msccruises', 'I4', 'qatarairways'],
     barrier: ['pirelli', 'L', 'aramco', 'dhl', 'I'], billboard: ['pirelli', 'L2', 'heineken', 'I3'],
-    runoff: ['pirelli', 'L', 'aramco', 'I'], bridge: { lumi: 'L', intake: 'pirelli', lumi2: 'aramco', intake2: 'I' } };
+    runoff: ['pirelli', 'L', 'aramco', 'I'], bridge: { lumi: 'L', intake: 'pirelli', lumi2: 'tagheuer', intake2: 'I' } };   // lumi2 = the green sign bridge after the Rettifilo (Rolex until 2024 -> TAG Heuer, F1's timekeeper since 2025)
   const venue = Ads.venue = () => VENUES[EI.trackId] || VENUES.silverstone;
   // the track's width (m): the start gantry banner ((width + 2.6) x 0.9 m) and the bridge fascias ((width + 6.8) x 2.1 m) span it
   const trackW = () => (EI.TRACKS && EI.TRACKS[EI.trackId] && EI.TRACKS[EI.trackId].width) || 15;

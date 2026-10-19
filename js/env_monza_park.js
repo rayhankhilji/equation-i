@@ -52,6 +52,8 @@
     const conc = C(0xc9c7be), concD = C(0x8f8d86), concL = C(0xd8d6ce), moss = C(0x7c8466), yellow = C(0xe0b416), rail = C(0xb5bcc2), wallC = C(0xb4b1a7);
     const col = (base, k) => base.clone().multiplyScalar(k);
     const NU = 7; // banked strips across
+    // quads that must face up (the surface, the line, the lip top): flip the winding when the sample order would make them face down
+    const upQ = (a, b, c, d, cc) => { const ux = b[0] - a[0], uz = b[2] - a[2], vx = d[0] - a[0], vz = d[2] - a[2]; if (uz * vx - ux * vz >= 0) B.quad(a, b, c, d, cc); else B.quad(d, c, b, a, cc); };
     for (const r of R) {
       const Sm = r.S; const inSpan = (i) => r.spans.some(sp => i >= sp.i0 - 1 && i <= sp.i1 + 1);
       // cross-section points (world) for sample q: u from -RW/2 (inner) to +RW/2 (outer)
@@ -69,15 +71,15 @@
           for (let k = 0; k + 1 < cur.length; k++) {
             // weathering: darker tyre band in the middle of the banking, pale near the lip, green stains low on the apron
             const band = k >= 3 && k <= 5 ? 0.86 : 1; const cc = k === 0 ? col(moss, 0.95 + 0.1 * nz).lerp(conc, 0.55) : col(k >= cur.length - 2 ? concL : conc, (0.84 + 0.24 * nz) * band);
-            B.quad(prev[k], cur[k], cur[k + 1], prev[k + 1], cc);
+            upQ(prev[k], cur[k], cur[k + 1], prev[k + 1], cc);
           }
-          // yellow line on the apron
-          const yl = (p) => { const u = 1.1 / APRON; return [p[0][0] + (p[1][0] - p[0][0]) * u, p[0][1] + 0.03, p[0][2] + (p[1][2] - p[0][2]) * u]; }; const yl2 = (p) => { const u = 1.35 / APRON; return [p[0][0] + (p[1][0] - p[0][0]) * u, p[0][1] + 0.03, p[0][2] + (p[1][2] - p[0][2]) * u]; };
-          B.quad(yl(prev), yl(cur), yl2(cur), yl2(prev), yellow);
+          // the yellow line: a third of the way up, where the slope starts to steepen (m_oldring / m_bank_a*)
+          const yl = (p, f) => [p[2][0] + (p[3][0] - p[2][0]) * f, p[2][1] + (p[3][1] - p[2][1]) * f + 0.03, p[2][2] + (p[3][2] - p[2][2]) * f];
+          upQ(yl(prev, 0.3), yl(cur, 0.3), yl(cur, 0.48), yl(prev, 0.48), yellow);
           // the lip: a 0.5 m upstand on the outer edge, the outer wall down to the ground (or to the deck soffit over a span), the inner face
           const L0 = prev[prev.length - 1], L1 = cur[cur.length - 1]; const up = (p, d) => [p[0], p[1] + d, p[2]];
           const o0 = [L0[0] + prevQ.nx * 0.45, L0[1], L0[2] + prevQ.nz * 0.45], o1 = [L1[0] + q.nx * 0.45, L1[1], L1[2] + q.nz * 0.45];
-          K.dq(B, L0, L1, up(L1, 0.5), up(L0, 0.5), concL); B.quad(up(L0, 0.5), up(L1, 0.5), up(o1, 0.5), up(o0, 0.5), concL);
+          K.dq(B, L0, L1, up(L1, 0.5), up(L0, 0.5), concL); upQ(up(L0, 0.5), up(L1, 0.5), up(o1, 0.5), up(o0, 0.5), concL);
           const span = inSpan(i) || inSpan(prevI);
           const g0 = span ? prevQ.y - 1.3 : Math.min(E.ground(o0[0], o0[2]) - 0.4, prevQ.y - 0.2), g1 = span ? q.y - 1.3 : Math.min(E.ground(o1[0], o1[2]) - 0.4, q.y - 0.2);
           K.dq(B, [o0[0], g0, o0[2]], [o1[0], g1, o1[2]], up(o1, 0.5), up(o0, 0.5), col(wallC, 0.9 + 0.15 * nz));
@@ -109,6 +111,15 @@
           // the portal fascia facing the track (concrete band with dark stains)
           B.box(m, 0.4, 1.3, RW + 1.0, ie === sp.i0 - 2 ? 0.9 : -0.9, q.y - 1.3, 0.2, C(0x9a978e));
         }
+        // the partner hoarding hung on both faces of the bridge over the GP track (m_bank_sop1/2: white panel with the partner's logo)
+        { const ic = Math.round((sp.i0 + sp.i1) / 2); const q = Sm[ic]; const pw = 18, ph = 3.2;
+          const r = A.region('mzBankSign', 768, 136, (x2, w, h) => { x2.fillStyle = '#ffffff'; x2.fillRect(0, 0, w, h); if (EI.Ads && EI.Ads.paintBridge) EI.Ads.paintBridge(x2, 'intake', w, h, pw / ph); else Mz.paintText(x2, w, h, 'trylumi.co', { bg: '#ffffff', fg: '#c8102e' }); });
+          for (const sd of [-1, 1]) {
+            const off = RW / 2 + 0.55 + (sd > 0 ? 0.45 : 0); const cx = q.x + q.nx * sd * off, cz = q.z + q.nz * sd * off; const y0 = q.y - 1.25;
+            const a = [cx - q.tx * pw / 2, y0, cz - q.tz * pw / 2], b = [cx + q.tx * pw / 2, y0, cz + q.tz * pw / 2], c = [b[0], y0 + ph, b[2]], d = [a[0], y0 + ph, a[2]];
+            const nOut = (-q.tz) * q.nx * sd + q.tx * q.nz * sd; if (nOut > 0) A.quad(r, a, b, c, d); else A.quad(r, b, a, d, c);
+            K.dq(B, [a[0] - q.nx * sd * 0.1, y0 - 0.1, a[2] - q.nz * sd * 0.1], [b[0] - q.nx * sd * 0.1, y0 - 0.1, b[2] - q.nz * sd * 0.1], [b[0] - q.nx * sd * 0.1, y0 + ph + 0.1, b[2] - q.nz * sd * 0.1], [a[0] - q.nx * sd * 0.1, y0 + ph + 0.1, a[2] - q.nz * sd * 0.1], C(0xdfe1e2));
+          } }
         // Armco on the deck's inner edge over the span
         for (let i = sp.i0 - 2; i <= sp.i1 + 2; i++) { const a = Sm[Math.max(0, i)], b = Sm[Math.min(Sm.length - 1, i + 1)]; if (!a || !b) continue; const p0 = [a.x - a.nx * RW / 2, a.y + 0.75, a.z - a.nz * RW / 2], p1 = [b.x - b.nx * RW / 2, b.y + 0.75, b.z - b.nz * RW / 2]; S.beam(Env.frame(0, 0, 0, 1, 0, 0, 1), p0, p1, 0.3, rail); }
       }
@@ -148,7 +159,7 @@
     // partner panels on both faces (5:1 tiles; the sign bridge: one long panel per face from the bridge painter)
     const span = ub - ua;
     if (kind === 'sign') {
-      const r = A.region('mzSignBridge', 1024, 96, (x2, w, h) => { if (EI.Ads && EI.Ads.paintBridge) { x2.fillStyle = '#0c5a3a'; x2.fillRect(0, 0, w, h); EI.Ads.paintBridge(x2, 'lumi', w, h, (span - 1) / (dep - 0.3)); } else Mz.paintText(x2, w, h, 'trylumi.co', { bg: '#0c5a3a', fg: '#ffffff' }); });
+      const r = A.region('mzSignBridge', 1024, 96, (x2, w, h) => { if (EI.Ads && EI.Ads.paintBridge) { x2.fillStyle = '#0c5a3a'; x2.fillRect(0, 0, w, h); EI.Ads.paintBridge(x2, 'lumi2', w, h, (span - 1) / (dep - 0.3));   /* f1-BRAND: the venue's partner (EI.Ads.VENUES.monza.bridge.lumi2) */ } else Mz.paintText(x2, w, h, 'trylumi.co', { bg: '#0c5a3a', fg: '#ffffff' }); });
       for (const v of [-hw - 0.03, hw + 0.03]) { const a = W(ua + 0.5, yD + 0.15, v), b = W(ub - 0.5, yD + 0.15, v), c = W(ub - 0.5, yD + dep - 0.15, v), d = W(ua + 0.5, yD + dep - 0.15, v); if (v < 0) A.quad(r, b, a, d, c, 1, 0, 0, 1); else A.quad(r, a, b, c, d); }
     } else {
       const ph = dep - 0.5, pw = ph * 5; const nP = Math.max(1, Math.floor(span / (pw + 0.4))); const x0 = ua + (span - nP * (pw + 0.4) + 0.4) / 2;

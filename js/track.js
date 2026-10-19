@@ -425,7 +425,7 @@ window.EI = window.EI || {};
     cornerNameAt(s) { let name = ''; for (const c of this.data.corners) if (s >= c.s - 40) name = c.name; return name || this.data.corners[this.data.corners.length - 1].name; }
     sectorAt(s) { return s < this.sectors[0] ? 0 : s < this.sectors[1] ? 1 : 2; }
     gridSlot(pos) {
-      const s = this.sf - 10 - pos * 8; const i = this.idxAtS(s); const side = (pos % 2 === 0 ? -1 : 1) * 2.6;
+      const s = this.sf - 10 - pos * 8; const i = this.idxAtS(s); const side = (pos % 2 === 0 ? -1 : 1) * 2.6 * (this.data.gridPole === 'left' ? -1 : 1);   // data.gridPole 'left': pole on the +lat (driver's left) side
       return { x: this.x[i] + this.nx[i] * side, z: this.z[i] + this.nz[i] * side, y: this.y[i], heading: this.heading[i], i };
     }
 
@@ -929,7 +929,7 @@ window.EI = window.EI || {};
       this.addDecal(b, sf - 0.6, sf + 0.6, -hw + 0.2, hw - 0.2, (fs, fl) => A.cheq(fl, fs), 2);
       // grid: F1-style white slot brackets with painted position numbers
       for (let p = 0; p < GRID_SLOTS; p++) {
-        const s = sf - 10 - p * 8, side = (p % 2 === 0 ? -1 : 1) * 2.6; const cu = (p % 5) / 5, cv = Math.floor(p / 5) / 5;
+        const s = sf - 10 - p * 8, side = (p % 2 === 0 ? -1 : 1) * 2.6 * (this.data.gridPole === 'left' ? -1 : 1); const cu = (p % 5) / 5, cv = Math.floor(p / 5) / 5;
         // cell covers 3.6 m across x 7.2 m along, front of the slot 3.1 m ahead of the car's centre
         this.addDecal(b, s + 3.1 - 7.2 + 2.2, s + 3.1 + 2.2, side - 1.8, side + 1.8, (fs, fl) => A.grid(cu + (1 - fl) * 0.2, 1 - (cv + (1 - fs) * 0.2)), 3);
       }

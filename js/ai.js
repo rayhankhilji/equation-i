@@ -33,7 +33,8 @@ window.EI = window.EI || {};
   const C_LIMIT = { silverstone: 1.1, monaco: 1.25, abudhabi: 1.16, monza: 1.16 }, C_LIMIT_DEFAULT = 1.1;
   // lap time a late braker gains over an early one on top of the profile (trail-braking carry, later lift: update()), per unit of
   // the braking trait, measured in the headless sim. The corner grip is solved against it so braking style never changes the pace.
-  const K_BRAKE = { silverstone: 0.001, monaco: 0.002, abudhabi: 0.001 }, K_BRAKE_DEFAULT = 0.0015;
+  // Monza: braking trait 0 -> 1 = -0.067 s on a 76.2 s solo lap (grip 1.16) -> 0.001
+  const K_BRAKE = { silverstone: 0.001, monaco: 0.002, abudhabi: 0.001, monza: 0.001 }, K_BRAKE_DEFAULT = 0.0015;
   // the bots realise ~93% of the lap-time difference the profile predicts between two corner-grip scales (fit over 3 tracks x
   // 7 levels x 22 drivers, residual ~0.1%), so the gap is asked for 1/0.93 larger to come out right on the stopwatch
   const GAP_STRETCH = 1.075;
@@ -456,7 +457,7 @@ window.EI = window.EI || {};
         const fg = attack ? fgA : (onStraight ? Math.max(6.2, P.followGap - 0.8 * T.tow) : P.followGap) + av * 0.06;   // + a time headway: 5 m more at 300 km/h
         // vA: the car ahead's speed a moment from now if it keeps braking as hard as it is now; the kinematic cap is the most
         // this car can carry and still match vA before the gap closes to 3.5 m (braking at 25 m/s2, well inside the brakes)
-        const vA = Math.max(0, ahead.v + Math.min(0, ahead.aLong) * 0.3);
+        const vA = Math.max(0, ahead.v + ahead.aLong * (ahead.aLong < 0 ? 0.3 : 0.5));   // + its acceleration: off the line the car ahead is gone 0.5 s later, so do not queue behind it
         // attacking in the tow on a straight: only the closing speed it can still kill (10 m/s2 more than the car ahead) limits
         // it, so the tow builds the run that the late pull-out turns into a pass; otherwise follow at the gap
         if (attack && overlap) target = Math.min(target, ahead.v + Math.sqrt(2 * 10 * Math.max(0, aheadGap - 4.5 - av * 0.03)));
@@ -504,6 +505,15 @@ window.EI = window.EI || {};
           const vo = Math.max(0, o.v * Math.cos(rh)); target = Math.min(target, vo + Math.sqrt(2 * 8 * Math.max(0, fwd - 6.3)));
           if (fwd < 7.5 && av > vo) this.urgent = true;
         } }
+      // lap 1: change lanes only into a gap. Merging two grid columns into one file at 8 m spacing made every car brake to
+      // open the gap again (a braking wave down the grid 2-4 s after the start that let a player from the back pass half the field);
+      // nor cut in front of a car close behind in that lane
+      this.holdLat = null;
+      if (car.lapsDone < 1 && (onStraight || race.time < 12) && Math.abs(wantOffset + base - car.trk.lat) > 1.2) {
+        const tl = wantOffset + base, room = P.followGap + 5 + av * 0.1;
+        for (const o of cars) { if (o === car) continue; let d = o.trk.s - car.trk.s; if (d > t.length / 2) d -= t.length; if (d < -t.length / 2) d += t.length;
+          if (d > -room * 0.8 && d < room && Math.abs(o.trk.lat - tl) < 2.6 && Math.abs(o.trk.lat - car.trk.lat) > 1.5) { wantOffset = car.trk.lat - base; this.holdLat = car.trk.lat; break; } }
+      }
       if (this.reactT) wantOffset = car.trk.lat - base + this.reactOffset;   // after a bump: steer away and lift (below), no stamp on the brakes
       this.offsetTarget = wantOffset;
       this.offset += U.clamp(this.offsetTarget - this.offset, -3.5 * dt, 3.5 * dt);
@@ -573,6 +583,7 @@ window.EI = window.EI || {};
       const j = (car.trk.i + Math.round(lookDist / t.ds)) % n;
       // never aim off the road: the line swings edge to edge, so an offset taken here can point off track 30 m on
       const edge = t.halfWidth - 1.0;
+      if (this.holdLat != null) this.offset = this.holdLat - t.lineOff[j];   // holding a lane: the same distance from the edge, not from the line
       const lo = this.latLo == null ? -edge : Math.max(-edge, this.latLo), hi = this.latHi == null ? edge : Math.min(edge, this.latHi);
       this.offset = U.clamp(this.offset, lo - t.lineOff[j], hi - t.lineOff[j]);
       const tx = t.lineX[j] + t.nx[j] * this.offset, tz = t.lineZ[j] + t.nz[j] * this.offset;
