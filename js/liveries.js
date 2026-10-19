@@ -192,6 +192,9 @@ window.EI = window.EI || {};
     K: { TOP_V, LOW_V, W, MM, SIDE, TOP },
     sideKit, has: (id) => !!D[id], designs: D, PART_KEYS, partColours, slug, styledText, textOnPath, partner, EMBLEM,
     side(g, k, team, num, code) { const d = D[team.id]; if (d) d.side(helpersSide(g, k, team, num, code)); },
+    // front-wing endplates (optional per design): same side coordinates as side(); only the endplate texels receive it
+    hasEndplate: (id) => !!(D[id] && D[id].endplate),
+    endplate(g, k, team, num, code) { const d = D[team.id]; if (d && d.endplate) d.endplate(helpersSide(g, k, team, num, code)); },
     top(g, t, team, num) { const d = D[team.id]; if (d) d.top(helpersTop(g, t, team, num)); },
     numStyle: (team) => (D[team.id] && D[team.id].num) || {},
   };

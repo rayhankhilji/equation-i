@@ -226,8 +226,8 @@
   Object.assign(PARTNERS, { tudor: { n: 'TUDOR' }, redbullbull: { n: 'Red Bull' }, dynatrace: { n: 'dynatrace' }, ninjaone: { n: 'ninjaOne' }, etoro: { n: 'eToro' }, haasf1: { n: 'TGR Haas F1 Team' } });
   ['tudor', 'redbullbull', 'dynatrace', 'ninjaone', 'mobil', 'etoro', 'haasf1'].forEach((id) => ART.add(id));
   // LIVERY-A (mercedes / ferrari / mclaren / redbull) partner artwork, same pipeline (see SOURCES.md)
-  Object.assign(PARTNERS, { amd: { n: 'AMD' }, amg: { n: 'AMG' }, cisco: { n: 'Cisco' }, dxc: { n: 'DXC Technology' }, groq: { n: 'Groq' }, mclarenspeedmark: { n: 'McLaren' }, nubank: { n: 'Nu' }, okta: { n: 'Okta' }, workday: { n: 'Workday' }, indeed: { n: 'Indeed' }, siemens: { n: 'SIEMENS' } });
-  ['amd', 'amg', 'cisco', 'dxc', 'groq', 'mclarenspeedmark', 'nubank', 'okta', 'snapdragon', 'teamviewer', 'whoop', 'workday', 'indeed', 'siemens'].forEach((id) => ART.add(id));
+  Object.assign(PARTNERS, { amd: { n: 'AMD' }, amg: { n: 'AMG' }, cisco: { n: 'Cisco' }, dxc: { n: 'DXC Technology' }, groq: { n: 'Groq' }, mclarenspeedmark: { n: 'McLaren' }, nubank: { n: 'Nu' }, okta: { n: 'Okta' }, workday: { n: 'Workday' }, indeed: { n: 'Indeed' }, siemens: { n: 'SIEMENS' }, avolta: { n: 'Avolta' }, delltechnologies: { n: 'Dell Technologies' }, dropbox: { n: 'Dropbox' }, richardmille: { n: 'RICHARD MILLE' } });
+  ['amd', 'amg', 'cisco', 'dxc', 'groq', 'mclarenspeedmark', 'nubank', 'okta', 'snapdragon', 'teamviewer', 'whoop', 'workday', 'indeed', 'siemens', 'avolta', 'delltechnologies', 'dropbox', 'richardmille'].forEach((id) => ART.add(id));
   // LIVERY-C (williams / astonmartin / cadillac) partner artwork, same pipeline (see SOURCES.md; team-site logos are the teams' own partner files)
   Object.assign(PARTNERS, { '3m': { n: '3M' }, alpinestars: { n: 'Alpinestars' }, arm: { n: 'Arm' }, astonmartin: { n: 'Aston Martin' }, betway: { n: 'betway' }, boss: { n: 'BOSS' },
     breitling: { n: 'Breitling' }, cadillaccrest: { n: 'Cadillac' }, cognition: { n: 'Cognition' }, cohere: { n: 'cohere' }, coinpayments: { n: 'CoinPayments' }, estrellagalicia: { n: 'Estrella Galicia' },
@@ -422,7 +422,7 @@
       const x0 = tx + h * 1.05; chipRow(ctx, x0, m, w - x0 - m, h - m * 2, 4, { gap: h * 0.1, tag: false, fill: 0.55 }); } },
     // 7 Intake dark: application windows
     { brand: INTAKE, paint(ctx, w, h) { intakeFrame(ctx, w, h, INTAKE.ink);
-      rows(ctx, w, h, { logo: 'intake', logoCol: '#ffffff', head: [['Applications close faster ', '#ffffff'], ['than Copse.', INTAKE.blue]], headFont: INTAKE.head, pill: ['intake.ink', INTAKE.blue, INTAKE.ink, INTAKE.body, 600] }); } },
+      rows(ctx, w, h, { logo: 'intake', logoCol: '#ffffff', head: [['Applications close faster ', '#ffffff'], ['than a pit stop.', INTAKE.blue]], headFont: INTAKE.head, pill: ['intake.ink', INTAKE.blue, INTAKE.ink, INTAKE.body, 600] }); } },
   ];
   // paint tile k into the pixel box (x, y, w, h); `aspect` is the board's physical width / height (default 5:1)
   // Each slot k (0-7) is the venue's k-th board (VENUES[track].tiles): real F1 partners with Lumi / Intake as about one board in four.

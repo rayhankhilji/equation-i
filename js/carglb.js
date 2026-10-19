@@ -250,7 +250,8 @@ window.EI = window.EI || {};
           for (let q = 0; q < 3; q++) pos[k3 + q] = Math.round((P[a * 3 + q] * w0 + P[b * 3 + q] * w1 + P[c * 3 + q] * w2) * PQ);
           let nx = fnx, ny = fny, nz = fnz; if (na) { nx = N[a * 3] * w0 + N[b * 3] * w1 + N[c * 3] * w2; ny = N[a * 3 + 1] * w0 + N[b * 3 + 1] * w1 + N[c * 3 + 1] * w2; nz = N[a * 3 + 2] * w0 + N[b * 3 + 2] * w1 + N[c * 3 + 2] * w2; }
           const az = Math.abs(nz), ay2 = Math.abs(ny), ax2 = Math.abs(nx);
-          cls[k] = (az >= ay2 * 0.9 && az >= ax2) ? (nz < 0 ? 1 : 2) : (ny > 0 && ay2 >= ax2) ? 3 : 4;
+          const pz = P[a * 3 + 2] * w0 + P[b * 3 + 2] * w1 + P[c * 3 + 2] * w2;
+          cls[k] = (az >= ay2 * 0.9 && az >= ax2) ? (nz < 0 ? 1 : 2) : (ny > 0 && ay2 >= ax2) ? 3 : (pz < 0 ? 4 : 5);
         }
       }
     }
@@ -292,7 +293,7 @@ window.EI = window.EI || {};
       while (cur.w > 64 && cur.h > 16 && vw.lv.length < 6) { cur = halveLevel(cur); vw.lv.push(cur); }
       vw.ppm0 = ppm; yield;
     }
-    const byCls = [[], [], [], [], []]; for (const vw of views) { byCls[vw.cls].push(vw); if (vw.also) for (const cc of vw.also) byCls[cc].push(vw); }   // also: classes that reuse this view (no extra canvas)
+    const byCls = [[], [], [], [], [], []]; for (const vw of views) { byCls[vw.cls].push(vw); if (vw.also) for (const cc of vw.also) byCls[cc].push(vw); }   // also: classes that reuse this view (no extra canvas)
     // content bounds of each view (metres), so texels that cannot receive anything are rejected early
     for (const vw of views) {
       const l0 = vw.lv[0]; let bx0 = l0.w, by0 = l0.h, bx1 = -1, by1 = -1;
@@ -320,7 +321,7 @@ window.EI = window.EI || {};
     for (let n = 0; n < idx.length; n++) {
       if ((n & 2047) === 2047) yield;
       const k = idx[n]; const c = cls[k]; const vws = byCls[c]; if (!vws.length) continue;
-      if (roleMap) { const r = roleMap[k]; if (r < 1 || r > PAINT_ROLES) continue; }
+      const r = roleMap ? roleMap[k] : 1; if (roleMap && (r < 1 || r > PAINT_ROLES)) continue;
       const mi = k % M, mj = (k - mi) / M; if (mi < 1 || mj < 1 || mi >= M - 1 || mj >= M - 1) continue;
       // early reject against every view's content box using the texel centre
       const xc = pos[k * 3] * inv, yc = pos[k * 3 + 1] * inv, zc = pos[k * 3 + 2] * inv; let any = false;
@@ -331,7 +332,7 @@ window.EI = window.EI || {};
         const ox = mi * R + sx, oy = mj * R + sy; const q = oy < H2 ? (ox < H2 ? 0 : 1) : (ox < H2 ? 2 : -1); if (q < 0) continue;
         posAt((ox + 0.5) * sc - 0.5, (oy + 0.5) * sc - 0.5, c, k); const x = P3[0], y = P3[1], z = P3[2];
         for (const vw of vws) {
-          if (!vw.bb) continue;
+          if (!vw.bb || (vw.roles && !vw.roles[r]) || (vw.notRoles && vw.notRoles[r])) continue;
           const XY = vw.map(x, y, z); const X = (XY[0] - vw.x0) * vw.ppm0, Y = (XY[1] - vw.y0) * vw.ppm0; if (X < vw.bb[0] || Y < vw.bb[1] || X > vw.bb[2] || Y > vw.bb[3]) continue;
           const A = vw.map(pos[kx * 3] * inv, pos[kx * 3 + 1] * inv, pos[kx * 3 + 2] * inv), B = vw.map(pos[ky * 3] * inv, pos[ky * 3 + 1] * inv, pos[ky * 3 + 2] * inv);
           const fp = Math.max(Math.abs(A[0] - XY[0]), Math.abs(A[1] - XY[1]), Math.abs(B[0] - XY[0]), Math.abs(B[1] - XY[1])) * vw.ppm0 * sc;
@@ -393,8 +394,18 @@ window.EI = window.EI || {};
     };
     // the left view also colours the texels that face down / forward / back (sidepod undercut, inlet faces, nose tip), so the
     // colour blocks wrap round them instead of leaving the base paint there
-    views.push({ cls: 1, also: [4], map: (x, y) => [-x, -y], x0: -3.2, x1: 3.2, y0: -1.25, y1: 0.05, draw: side(-1) });
-    views.push({ cls: 2, map: (x, y) => [x, -y], x0: -3.2, x1: 3.2, y0: -1.25, y1: 0.05, draw: side(1) });
+    // (classes: 1 left-facing, 2 right-facing, 3 up-facing, 4 / 5 other-facing on the left / right half; see posMap)
+    // A design with an endplate(L) callback paints the front-wing endplates from their own small side views, so the nose's colour
+    // blocks (same x / y range) stay off them.
+    const ep = EI.LIVERIES && EI.LIVERIES.hasEndplate && EI.LIVERIES.hasEndplate(id);
+    const FWEND = ROLE_NAMES.indexOf('fwEnd'), noEp = ep ? { [FWEND]: 1 } : null;
+    views.push({ cls: 1, also: [4], notRoles: noEp, map: (x, y) => [-x, -y], x0: -3.2, x1: 3.2, y0: -1.25, y1: 0.05, draw: side(-1) });
+    views.push({ cls: 2, also: [5], notRoles: noEp, map: (x, y) => [x, -y], x0: -3.2, x1: 3.2, y0: -1.25, y1: 0.05, draw: side(1) });
+    if (ep) for (const s of [-1, 1]) {
+      const draw = (g) => { g.scale(1 / MM, 1 / MM); EI.LIVERIES.endplate(g, sideKit(g, s), team, num, code); };
+      views.push(s < 0 ? { cls: 1, also: [4], roles: { [FWEND]: 1 }, map: (x, y) => [-x, -y], x0: -3.2, x1: -2.1, y0: -0.65, y1: 0.05, draw }
+        : { cls: 2, also: [5], roles: { [FWEND]: 1 }, map: (x, y) => [x, -y], x0: 2.1, x1: 3.2, y0: -0.65, y1: 0.05, draw });
+    }
     // top view: X = z (right), Y = -x (nose up), text upright reads from behind
     views.push({ cls: 3, map: (x, y, z) => [z, -x], x0: -1.1, x1: 1.1, y0: -3.2, y1: 3.2, draw: (g) => {
       g.scale(1 / MM, 1 / MM);
@@ -835,7 +846,9 @@ window.EI = window.EI || {};
       const nrm = nsum.normalize(); const ctr = new THREE.Vector3(); verts.forEach(v => ctr.add(v)); ctr.multiplyScalar(1 / verts.length);
       const up = V(0, 1, 0).addScaledVector(nrm, -nrm.y).normalize(); const rx = new THREE.Vector3().crossVectors(up, nrm).normalize();
       let x0 = 1e9, x1 = -1e9, y0 = 1e9, y1 = -1e9; for (const v of verts) { const d = v.clone().sub(ctr); const px = d.dot(rx), py = d.dot(up); x0 = Math.min(x0, px); x1 = Math.max(x1, px); y0 = Math.min(y0, py); y1 = Math.max(y1, py); }
-      const w = (x1 - x0) * 0.94, h = (y1 - y0) * 0.86; const cc = ctr.clone().addScaledVector(rx, (x0 + x1) / 2).addScaledVector(up, (y0 + y1) / 2).addScaledVector(nrm, 0.0025);
+      // the plane sits just proud of the frontmost glass vertex (a slanted or thick glass would otherwise cover it)
+      let dz = -1e9; for (const v of verts) dz = Math.max(dz, v.clone().sub(ctr).dot(nrm));
+      const w = (x1 - x0) * 0.94, h = (y1 - y0) * 0.86; const cc = ctr.clone().addScaledVector(rx, (x0 + x1) / 2).addScaledVector(up, (y0 + y1) / 2).addScaledVector(nrm, dz + 0.0025);
       const rt = new THREE.WebGLRenderTarget(128, 64, { encoding: THREE.sRGBEncoding, depthBuffer: true, stencilBuffer: false }); rt.texture.encoding = THREE.sRGBEncoding; rt.texture.generateMipmaps = false;
       rt.texture.repeat.x = -1; rt.texture.offset.x = 1;   // mirror image
       const plane = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshBasicMaterial({ map: rt.texture, alphaMap: mask, alphaTest: 0.5, toneMapped: false }));
@@ -989,7 +1002,7 @@ window.EI = window.EI || {};
       else lists.lod.push(it);
     }
     // T-cam on top of the airbox (slot 5: black on a team's first car, fluorescent yellow on the second, uTcam)
-    { const tc = new THREE.BoxGeometry(0.15, 0.045, 0.075, 1, 1, 1); tc.translate(-0.05, 1.112, 0); const it = { geo: tc, lp: { s: 5, m: 0.1, r: 0.45, c: 1, col: [1, 1, 1] }, g: 0 }; lists.lod.push(it); lists.all.push(it); }
+    { const tc = new THREE.BoxGeometry(0.1, 0.04, 0.06, 1, 1, 1); tc.translate(-0.05, 1.1, 0); const it = { geo: tc, lp: { s: 5, m: 0.1, r: 0.45, c: 1, col: [1, 1, 1] }, g: 0 }; lists.lod.push(it); lists.all.push(it); }
     // tyre walls (compound stripe + lettering, slot 4) just proud of each tyre's own width; brake-glow rings for the glow mesh
     const glow = [];
     CORNERS.forEach((c, k) => {

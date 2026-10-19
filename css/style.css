@@ -70,6 +70,7 @@ html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text);
 .vp .lp-row .g.pit { justify-self: end; font-size: 10.5px; font-weight: 700; letter-spacing: 0.6px; color: #fff; background: #3a3d4b; padding: 1px 6px; border-radius: 2px; }
 .vp .lp-row .g.flap { justify-self: end; font-size: 9.5px; font-weight: 800; letter-spacing: 0.3px; color: #fff; background: var(--fp); padding: 2px 5px; border-radius: 2px; }
 .vp .lp-row.flnew { background: linear-gradient(90deg, rgba(162,76,255,0.42), rgba(162,76,255,0.12)); }
+.vp .lp-row.flnew .ty, .vp .lp-row.flnew .fl.on, .vp .lp-row.inpit .ty { visibility: hidden; }
 .vp .lp-row.inpit .n, .vp .lp-row.inpit .p { color: #9a9dab; }
 .vp .lp-row.me { background: linear-gradient(90deg, rgba(255,255,255,0.26), rgba(255,255,255,0.1)); }
 .vp .lp-row.me .p { background: #ffffff; color: #101016; }

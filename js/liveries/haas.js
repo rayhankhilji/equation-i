@@ -86,10 +86,10 @@
       k.poly([[0.62, 0.59], [-1.05, 0.66], [-1.15, 0.69], [0.62, 0.615]], RD); k.poly([[0.5, 0.575], [-0.9, 0.635], [-0.95, 0.65], [0.5, 0.585]], BK);
       // red airbox (RUCKUS NETWORKS), its red running back under the GR
       k.poly([[0.14, TOP_V], [0.14, 0.82], [-0.05, 0.8], [-0.42, 0.86], [-0.42, TOP_V]], RD);
-      k.at(-0.13, 0.9, () => logo(g, 'ruckus', 0.32, 0.07, 'white', FB.ruckus));
+      k.at(-0.2, 0.9, () => logo(g, 'ruckus', 0.3, 0.06, 'white', FB.ruckus));
       // the giant GR on the engine cover; the giant HAAS on the sidepod
-      k.at(-0.82, 0.82, () => gr(g, 0.74, 0.2, BK, RD));
-      k.at(-0.18, 0.4, () => haasWord(g, 0.19, BK));
+      k.at(-0.72, 0.84, () => gr(g, 0.7, 0.17, BK, RD));
+      k.at(-0.22, 0.4, () => haasWord(g, 0.25, BK));
       // cockpit side / sidepod front partners
       k.at(1.1, 0.53, () => twoTone(g, 'ORION', '#111214', '180', RD, 0.32, 0.075, '"Unbounded", "Titillium Web", Arial, sans-serif', 800, 'INSURANCE', '#111214'));
       k.at(0.52, 0.5, () => twoTone(g, 'FIX', '#111214', '', '#111214', 0.12, 0.07, '"Titillium Web", Arial, sans-serif', 900, 'NETWORK', '#111214'));
@@ -110,7 +110,7 @@
       L.haloSide('HAAS', '#111214', { it: 1, w: 900 });
     },
     top(L) {
-      const { t, g } = L; const ALONG = -Math.PI / 2;
+      const { t, g } = L; const ALONG = Math.PI;   // the VF-26 nose column reads from the front
       // tail carbon, red airbox top, the red stripe edges of the sidepods
       t.poly([[-1.35, -0.5], [-1.35, 0.5], [-1.95, 0.3], [-1.95, -0.3]], BK);
       t.poly([[0.14, -0.13], [0.14, 0.13], [-0.45, 0.12], [-0.45, -0.12]], RD);
@@ -118,7 +118,7 @@
       for (const s of [-1, 1]) t.at(-0.82, s * 0.14, () => gr(g, 0.5, 0.13, BK, RD), s < 0 ? 0 : Math.PI);
       // nose: number + flag + Haas emblem + partner column, reading along the car
       t.poly([[3.1, -0.08], [3.1, 0.08], [2.6, 0.095], [2.6, -0.095]], RD);
-      L.wordmark(String(L.num), 1.76, 0, 0.16, BK, { ff: '"Titillium Web", Arial, sans-serif', w: 900, it: 1, sx: 0.9 }, true);
+      L.number(1.78, 0, 0.13, BK);
       t.at(1.55, 0, () => { const w = 0.07 * MM, h = 0.045 * MM; for (let i = 0; i < 7; i++) { g.fillStyle = i % 2 ? '#ffffff' : '#b22234'; g.fillRect(-w / 2, -h / 2 + i * h / 7, w, h / 7); } g.fillStyle = '#3c3b6e'; g.fillRect(-w / 2, -h / 2, w * 0.42, h * 4 / 7); }, ALONG);
       t.at(1.42, 0, () => haasMark(g, 0.07, 'color'), ALONG);
       t.at(1.28, 0, () => logo(g, 'ic', 0.1, 0.04, 'black', FB.ic), ALONG);

@@ -186,4 +186,8 @@ Allwyn, OKX, BWT, TGR, MoneyGram ...) are set as wordmarks in code (js/ads.js `P
 | `partners/valvolinev.svg` | Aston Martin F1 Team partners page (https://www.astonmartinf1.com/en-GB/partners), the team's own logo file `Valvoline-Mono-Black.svg` (assets.astonmartinf1.com) (V mark + wordmark) (LIVERY-C) |
 | `partners/indeed.svg` | [File:Indeed logo.svg](https://commons.wikimedia.org/wiki/File:Indeed_logo.svg) (https://commons.wikimedia.org/wiki/Special:FilePath/Indeed_logo.svg) (LIVERY-A) |
 | `partners/siemens.svg` | [File:Siemens AG logo.svg](https://commons.wikimedia.org/wiki/File:Siemens_AG_logo.svg) (https://commons.wikimedia.org/wiki/Special:FilePath/Siemens_AG_logo.svg) (LIVERY-A) |
+| `partners/avolta.svg` | [File:Avolta Logo 2023.svg](https://commons.wikimedia.org/wiki/File:Avolta_Logo_2023.svg) (https://commons.wikimedia.org/wiki/Special:FilePath/Avolta_Logo_2023.svg) (LIVERY-A) |
+| `partners/delltechnologies.svg` | [File:Dell Technologies logo black.svg](https://commons.wikimedia.org/wiki/File:Dell_Technologies_logo_black.svg) (https://commons.wikimedia.org/wiki/Special:FilePath/Dell_Technologies_logo_black.svg) (LIVERY-A) |
+| `partners/dropbox.svg` | [File:Dropbox Logo 01.svg](https://commons.wikimedia.org/wiki/File:Dropbox_Logo_01.svg) (https://commons.wikimedia.org/wiki/Special:FilePath/Dropbox_Logo_01.svg) (LIVERY-A) |
+| `partners/richardmille.svg` | [File:Richard Mille Logo.svg](https://commons.wikimedia.org/wiki/File:Richard_Mille_Logo.svg) (https://commons.wikimedia.org/wiki/Special:FilePath/Richard_Mille_Logo.svg) (LIVERY-A) |
 <!--/PARTNER-TABLE-->

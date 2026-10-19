@@ -518,7 +518,7 @@ window.EI = window.EI || {};
       // a little roll with the car (it is bolted to the chassis, no head physics).
       if (snap) { cs.roll = 0; cs.fov = 64; }
       const vib = (0.0002 + car.rpm * 0.0005) * Math.sin(tN * 6.283 * (29 + car.rpm * 13)); const g = car.gradeNow || 0;
-      _tgt.set(cx - fx * 0.05, cy + 1.12 + vib + jy * 0.01, cz - fz * 0.05); cam.position.copy(_tgt);
+      _tgt.set(cx + fx * 0.04, cy + 1.112 + vib + jy * 0.01, cz + fz * 0.04); cam.position.copy(_tgt);   // the lens: just ahead of the T-cam housing (x -0.125..0.025)
       const pitch = (cameras.length > 1 && cam.aspect > 1.6 ? -0.085 : -0.13) + g + jy * 0.01;
       _look.set(_tgt.x + fx * 30 + lx * jx * 0.15, _tgt.y + pitch * 30, _tgt.z + fz * 30 + lz * jx * 0.15); cam.up.set(0, 1, 0); cam.lookAt(_look);
       cs.roll += (U.clamp(-car.aLat * 0.0005, -0.012, 0.012) - cs.roll) * (snap ? 1 : 1 - Math.exp(-dt * 4)); cam.rotateZ(cs.roll);
