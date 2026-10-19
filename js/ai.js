@@ -336,7 +336,7 @@ window.EI = window.EI || {};
       if (EI.Pit && EI.Pit.driveBot(this, dt, race, cars)) return;
       const av = Math.abs(car.v);
       if (car.finished) { this.coolDown(); return; }
-      if (race.time < this.reaction) { inp.throttle = 0; inp.brake = 1; return; }
+      if (race.time < U.clamp(this.reaction, 0.15, 0.3)) { inp.throttle = 0; inp.brake = 1; return; }   // a real F1 reaction at every level (the starts trait picks where in 0.15-0.30 s)
       // --- recovery when stuck against a wall or spun
       const th = t.heading[car.trk.i];
       const rel = U.wrapAngle(car.heading - th);
@@ -520,8 +520,7 @@ window.EI = window.EI || {};
       else if (vErr > 0.8) { inp.throttle = U.clamp(vErr / 3, 0.35, 1); inp.brake = 0; }
       else if (vErr < -0.6) { inp.throttle = 0; inp.brake = U.clamp(-vErr / (this.urgent ? 2 : P.brakeGain), 0.15, 1); }
       else { inp.throttle = 0.55; inp.brake = 0; }
-      // launch: the first second off the line, throttle set by the start skill
-      if (race.time < this.reaction + 1.6) inp.throttle = Math.min(inp.throttle, P.launch);
+      // launch: full throttle off the line at every level (traction control handles the wheelspin)
       // heavy understeer if running wide: lift a little
       if (car.surface === 'grass' || car.surface === 'gravel') inp.throttle = Math.min(inp.throttle, 0.5);
       if (this.reactT) inp.throttle = Math.min(inp.throttle, 0.3);
@@ -531,7 +530,7 @@ window.EI = window.EI || {};
       // --- ERS: spenders deploy whenever there is charge; strategists keep it for attack, defence and the last lap
       const ersStraight = kHere < P.ersK && av > 30;
       const fight = (P.ersAttack && ahead && aheadGap < 40) || (P.ersDefend && behindClose);
-      inp.ers = ersStraight && (car.ers > P.ersFree || (fight && car.ers > P.ersFight) || (P.ersLast && car.lap === race.laps && car.ers > 0.03));
+      inp.ers = ersStraight && (car.ers > P.ersFree || (fight && car.ers > P.ersFight) || (P.ersLast && car.lap === race.laps && car.ers > 0.03) || (car.otEnergy > 0.01 && ahead && aheadGap < 60));   // Overtake energy: spend it on the car ahead
       if (car.ers > 0.95 && ersStraight && av > 40 && (T.ers < 0.7 || car.lap > 1)) inp.ers = true;   // never waste a full battery
       if (car.ersActive) { st.ersT += dt; if (car.lap === race.laps) st.ersLastT += dt; } if (car.drsOpen) st.drsT += dt;
     }

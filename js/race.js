@@ -13,6 +13,7 @@ window.EI = window.EI || {};
   //  - jump start 5 s, pit lane speeding (pit.js), chequered flag for every car at its next crossing after the leader, time
   //    penalties added to the classification. car.blueFlag (a lapping car close behind) is left for the bots' racecraft, unflagged.
   //    (Deliberately not used here: blue / black-and-white flags, strikes, unsafe release, the two-compound rule.)
+  const TOW_LEN = 60;   // m of wake behind a car (f1-DRIVING: tow strength, see the slipstream block)
   const NOSE = 2.7, LOOP = 20, HYST = 1.0, OT_GAP = 1.0, OT_ENERGY = 0.5, OFF_W = 1.1, TL_DEBOUNCE = 0.12, TL_REJOIN = 0.35, GIVE_BACK_T = 15, MANDATORY_LAPS = 3;
 
   class Race {
@@ -148,13 +149,16 @@ window.EI = window.EI || {};
       this.drsEnabled = this.started;
       for (const car of this.cars) {
         car.slipstream = 0;
-        let best = 1e9;
-        for (const o of this.cars) {
-          if (o === car) continue;
+        // the tow: strongest right behind a car, fading over TOW_LEN m and as the follower moves out of its wake (full within
+        // 1.5 m of its line, none beyond 4.5 m), so a car pulling out to pass keeps part of it for the first metres.
+        // car.js turns 1.0 into 30% less drag: ~20% at 20 m, i.e. 10-15 km/h at the end of a straight (TOW_LEN m of wake)
+        if (car.v > 20) for (const o of this.cars) {
+          if (o === car || (o.pit && o.pit.active)) continue;
           let d = o.trk.s - car.trk.s; if (d > track.length / 2) d -= track.length; if (d < -track.length / 2) d += track.length;
-          if (d > 2 && d < 40 && Math.abs(o.trk.lat - car.trk.lat) < 3.5 && d < best) best = d;
+          if (d <= 2 || d >= TOW_LEN) continue;
+          const w = U.clamp((4.5 - Math.abs(o.trk.lat - car.trk.lat)) / 3, 0, 1); if (w <= 0) continue;
+          car.slipstream = Math.max(car.slipstream, w * (1 - d / TOW_LEN));
         }
-        if (best < 40 && car.v > 20) car.slipstream = U.clamp(1 - best / 40, 0, 1) * 0.85;
       }
       // ---- physics
       if (!this._prevS || this._prevS.length !== this.cars.length) this._prevS = new Float32Array(this.cars.length);

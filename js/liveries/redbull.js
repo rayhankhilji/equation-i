@@ -65,8 +65,8 @@
       k.region([[3.15, 0.12], [1.8, 0.2], [0.9, 0.22], [-0.5, 0.2], [-1.6, 0.24]], [[-2.6, -0.1], [3.2, -0.1]], DK);
       // yellow -> orange nose tip with the red bull
       const gr = g.createLinearGradient(k.X(3.1), 0, k.X(2.2), 0); gr.addColorStop(0, YEL); gr.addColorStop(0.7, '#ffb000'); gr.addColorStop(1, '#ff8a00');
-      k.region([[2.2, 0.6], [2.28, 0.4], [2.38, 0.26], [2.5, 0.2]], [[3.12, 0.22], [3.12, 0.6]], gr);
-      bull(L, 2.72, 0.33, 0.36, 0.15, 0);
+      k.region([[2.2, 0.6], [2.28, 0.46], [2.3, 0.42]], [[2.3, 0.6]], gr); k.poly([[2.75, 0.22], [3.12, 0.22], [3.12, 0.6], [2.75, 0.6]], gr);
+      bull(L, 2.93, 0.33, 0.3, 0.13, 0);
       // sun-yellow airbox, the big bull over the engine cover
       k.poly([[0.1, 1.2], [0.1, 0.86], [-0.36, 0.86], [-0.4, 1.2]], YEL);
       bull(L, -0.64, 0.89, 1.0, 0.36, 0.012);
@@ -91,7 +91,7 @@
     },
     endplate(L) {   // front-wing endplates (navy): Mobil + the red Pegasus
       const { k, g } = L;
-      k.at(2.5, 0.38, () => mobil(g, 0.3, 0.07, false)); bullOrPegasus(L, 2.5, 0.25);
+      k.at(2.5, 0.31, () => mobil(g, 0.3, 0.07, false)); bullOrPegasus(L, 2.5, 0.2);
     },
     top(L) {
       const { t, g } = L;
