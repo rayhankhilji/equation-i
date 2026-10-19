@@ -9,7 +9,7 @@ window.EI = window.EI || {};
 
   // ================================================================ layout
   V.layout = function (E) {
-    const t = E.t, sc = E.sc, OCC = Env.OCC, D = t.data.scenery; const street = E.data.kind === 'street';
+    const t = E.t, sc = E.sc, OCC = Env.OCC, D = t.data.scenery; const street = E.data.kind === 'street'; const park = E.data.kind === 'park';   // park (Monza): real roads / parking from the data, no generated estate roads, fence, car parks
     // ---- existing map features
     for (const w of D.water) if (w.length >= 3) E.markPoly(w, OCC.WATER, 2);
     for (const b of D.buildings) if (b.p.length >= 3 && Math.abs(U.polyArea(b.p)) >= 30) E.markPoly(b.p, OCC.BUILT, 3);
@@ -31,11 +31,11 @@ window.EI = window.EI || {};
     }
     // ---- roads: perimeter service road (outside), infield service road, public / gate roads from the data
     E.roads = [];
-    const lines = street ? [] : Env.contours(E, E.dF, 118);
+    const lines = street || park ? [] : Env.contours(E, E.dF, 118);
     let perim = null, best = 0;
     for (const l of lines) { if (!l.closed) continue; const L = Env.polyLength(l, true); let out = 0; for (let i = 0; i < l.length; i += 7) if (!E.inside(l[i][0], l[i][1])) out++; if (out > l.length / 14 && L > best) { best = L; perim = l; } }
     if (perim) { perim = Env.smoothLine(perim, true, 2, 8); E.perimeter = perim; E.roads.push({ name: 'perimeter', w: 6.5, kind: 'estate', line: perim.concat([perim[0]]), closed: true }); }
-    const inner = street ? [] : Env.contours(E, E.dF, 46); let inl = null; best = 0;
+    const inner = street || park ? [] : Env.contours(E, E.dF, 46); let inl = null; best = 0;
     for (const l of inner) { const L = Env.polyLength(l, l.closed); let ins = 0; for (let i = 0; i < l.length; i += 5) if (E.inside(l[i][0], l[i][1])) ins++; if (ins > l.length / 5 * 0.9 && L > best) { best = L; inl = l; } }
     if (inl) {
       const sm = Env.smoothLine(inl, inl.closed, 2, 8); if (inl.closed) sm.push(sm[0]);
@@ -105,14 +105,14 @@ window.EI = window.EI || {};
       for (let k = 0; k < 10; k++) { const a = rngP() * Math.PI, ox = (rngP() - 0.5) * 90 * (k / 3), oz = (rngP() - 0.5) * 90 * (k / 3); if (tryRect(x + ox, z + oz, Math.cos(a), Math.sin(a), 55 + rngP() * 20, 35 + rngP() * 12, E.camps, 900)) break; }
     }
     const cand = [];
-    if (!street) for (let s = 0; s < t.length; s += 38) for (const side of [1, -1]) for (const off of side > 0 ? [130, 160, 205, 245, 290, 340] : [70, 100, 135, 170]) cand.push([s, side, off, rngP()]);
+    if (!street && !park) for (let s = 0; s < t.length; s += 38) for (const side of [1, -1]) for (const off of side > 0 ? [130, 160, 205, 245, 290, 340] : [70, 100, 135, 170]) cand.push([s, side, off, rngP()]);
     cand.sort((a, b) => a[3] - b[3]);
     for (const [s, side, off] of cand) {
       if (E.parks.length >= 18) break; const p = trackPt(s, side, off); const hl = 45 + rngP() * 30, hd = 24 + rngP() * 14;
       tryRect(p.x + p.nx * hd, p.z + p.nz * hd, p.tx, p.tz, hl, hd, E.parks, 420);
     }
     E.fence = []; E.gates = [];
-    if (!street) {
+    if (!street && !park) {
     // ---- perimeter fence (venue boundary) with gaps + gates where roads cross it
     const fl = Env.contours(E, E.dF, E.VENUE_F); let fline = null; best = 0;
     for (const l of fl) { if (!l.closed) continue; const L = Env.polyLength(l, true); if (L > best) { best = L; fline = l; } }
@@ -164,8 +164,8 @@ window.EI = window.EI || {};
     return (ctx, path) => {
       const OCC = Env.OCC;
       // woodland floor: dark, soft edge
-      ctx.fillStyle = 'rgb(28,36,20)'; for (const w of E.allWoods || []) { path(w); ctx.fill(); }
-      ctx.strokeStyle = 'rgba(28,36,20,0.6)'; ctx.lineWidth = 6; for (const w of E.allWoods || []) { path(w); ctx.stroke(); }
+      ctx.fillStyle = 'rgb(28,36,20)'; for (const w of E.allWoods || []) { path(w); if (w.holes) { for (const h of w.holes) { ctx.moveTo(h[0][0], h[0][1]); for (let i = 1; i < h.length; i++) ctx.lineTo(h[i][0], h[i][1]); ctx.closePath(); } ctx.fill('evenodd'); } else ctx.fill(); }   // park woods: w.holes = clearings
+      ctx.strokeStyle = 'rgba(28,36,20,0.6)'; ctx.lineWidth = 6; for (const w of E.allWoods || []) { if (w.core) continue; path(w); ctx.stroke(); }
       // copses
       for (const [k, poly] of E.fieldPolys || []) { if (E.fType[k] !== 8) continue; const R = 45 + E.fTone[k] * 35; ctx.fillStyle = 'rgb(30,40,22)'; if (Math.max(Math.abs(E.seedX[k]), Math.abs(E.seedZ[k])) > Env.CARD_HALF) { path(poly); ctx.fill(); continue; } ctx.beginPath(); ctx.ellipse(E.seedX[k], E.seedZ[k], R * 1.25, R * 0.9, 0, 0, 6.283); ctx.fill(); }
       // car parks: worn grass with tyre-track aisles; camp sites: trampled grass

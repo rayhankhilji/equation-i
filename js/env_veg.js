@@ -212,30 +212,45 @@ window.EI = window.EI || {};
   }
 
   // ---------------------------------------------------------------- placement
+  // park wood tiles: the runs of the ring's edges whose midpoints lie inside the tile core (the rest are joins with the next tile)
+  function coreRuns(w, co) {
+    const out = []; let cur = []; const n = w.length;
+    for (let i = 0; i <= n; i++) {
+      const a = w[i % n], b = w[(i + 1) % n]; const mx = (a[0] + b[0]) / 2, mz = (a[1] + b[1]) / 2; const inside = mx >= co[0] && mx < co[2] && mz >= co[1] && mz < co[3];
+      if (inside) { if (!cur.length) cur.push(a); cur.push(b); } else { if (cur.length > 1) out.push(cur); cur = []; }
+    }
+    if (cur.length > 1) out.push(cur); return out;
+  }
   Veg.build = function (E) {
     const sc = E.sc, t = E.t, OCC = Env.OCC, rng = U.rng(2024); const trees = []; const T0 = performance.now();
     const BLOCK = OCC.ROAD | OCC.BUILT | OCC.PARK | OCC.WATER | OCC.KEEP;
+    const park = E.data.kind === 'park';   // Royal Park (Monza): tall broadleaf woods in tiles (w.core / w.holes), tree rows, no hedges / crops
+    const TSC = park ? 1.45 : 1, TAS = park ? 1.3 : 1;
     const ok = (x, z, w, extraMask) => {
       if (Math.abs(x) > 2350 || Math.abs(z) > 2350) return true;
       if (E.occAt(x, z) & (BLOCK | (extraMask || 0))) return false;
-      return E.fAt(x, z) > w * 0.5 + 3;
+      return (park ? E.fsAt(x, z) : E.fAt(x, z)) > w * 0.5 + 3;
     };
     const add = (x, z, sp, w, h, variant, tint, interior) => { trees.push([x, z, sp, w, h, variant == null ? (rng() < 0.5 ? 0 : 1) : variant, tint == null ? rng() : tint, interior ? 1 : 0]); };
-    const oakSize = (k) => { const s = 0.75 + rng() * 0.5; return [11 * s * (k || 1), 13.5 * s * (k || 1)]; };
+    const oakSize = (k) => { const s = 0.75 + rng() * 0.5; return [11 * s * (k || 1) * TSC, 13.5 * s * (k || 1) * TSC * TAS]; };
     // ---- woodland blocks: dense along the edge (closed canopy wall), lighter inside
     const woods = t.data.scenery.woods.concat(E.data.woods || []); E.allWoods = woods;
     // farmland (Silverstone): English broadleaf only - round oaks and ash, no scots pines or poplar spires near the circuit
     const farm = E.data.kind !== 'street' && E.data.kind !== 'desert';
     // tree-line strips standing in for the billboards beyond the far LOD radius (medium / low): [points, height]
     const inner = E.innerStrips = []; const H = Env.CARD_HALF;
-    for (const w of woods) if (Math.abs(U.polyArea(w)) >= 150) inner.push([w.concat([w[0]]), 17]);
+    for (const w of woods) if (Math.abs(U.polyArea(w)) >= 150) { if (!w.core) inner.push([w.concat([w[0]]), 17]); else for (const run of coreRuns(w, w.core).concat((w.holes || []).reduce((a, h) => a.concat(coreRuns(h, w.core)), []))) inner.push([run, 17]); }
     let nWood = 0;
     for (const w of woods) {
-      const b = U.polyBounds(w); const area = Math.abs(U.polyArea(w)); if (area < 150) continue;
-      const step = 5.2;
+      // park woods come as tiles: the ring reaches 24 m past its core box (so the edge distance is right at the tile joins) and trees
+      // are only planted inside the core; w.holes are clearings (rings) inside the ring
+      if (w.noTrees) continue;   // far park woods: tree-line strips only
+      const co = w.core; const b = co ? { x0: co[0], z0: co[1], x1: co[2], z1: co[3] } : U.polyBounds(w); const area = Math.abs(U.polyArea(w)); if (area < 150) continue;
+      const step = park ? 8.6 : 5.2;
       for (let z = b.z0; z <= b.z1; z += step) for (let x = b.x0 + ((Math.round(z / step) & 1) ? step / 2 : 0); x <= b.x1; x += step) {
-        const px = x + (rng() - 0.5) * step * 0.9, pz = z + (rng() - 0.5) * step * 0.9; if (!U.pointInPoly(px, pz, w)) continue;
-        const de = E.distToPoly(px, pz, w); const p = de < 9 ? 1 : de < 22 ? 0.4 : 0.17; if (rng() > p) continue;
+        const px = x + (rng() - 0.5) * step * 0.9, pz = z + (rng() - 0.5) * step * 0.9; if (co && (px < co[0] || px >= co[2] || pz < co[1] || pz >= co[3])) continue; if (!U.pointInPoly(px, pz, w)) continue;
+        if (w.holes) { let inHole = false; for (const h of w.holes) if (U.pointInPoly(px, pz, h)) { inHole = true; break; } if (inHole) continue; }
+        let de = E.distToPoly(px, pz, w); if (w.holes) for (const h of w.holes) de = Math.min(de, E.distToPoly(px, pz, h)); const p = de < 9 ? 1 : de < 22 ? 0.4 : 0.17; if (rng() > p) continue;
         const k = rng(); let sp = SP.OAK, wd, ht;
         if (de < 4 && k < 0.4) { sp = SP.SHRUB; wd = 4 + rng() * 3; ht = 3 + rng() * 2.5; }
         else if (!farm && k < 0.1) { sp = SP.PINE; wd = 8 + rng() * 3; ht = 16 + rng() * 6; }
@@ -244,7 +259,7 @@ window.EI = window.EI || {};
         if (!ok(px, pz, wd * 0.6)) continue; add(px, pz, sp, wd, ht, null, null, de > 10); nWood++;
       }
     }
-    const street = E.data.kind === 'street', desert = E.data.kind === 'desert', noFarm = street || desert;
+    const street = E.data.kind === 'street', desert = E.data.kind === 'desert', noFarm = street || desert || park;
     // ---- street trees from the map (boulevard planes / palms stand in as round-crowned trees)
     const SK = street && t.data.street && EI.StreetKit;
     const MED = { pine: SP.UMBRELLA, palm: SP.PALM, cypress: SP.CYPRESS, oleander: SP.OLEANDER, cactus: SP.CYPRESS, shrub: SP.SHRUB, oak: SP.OAK };
@@ -254,6 +269,15 @@ window.EI = window.EI || {};
     const pocket = desert && t.infieldPocket ? t.infieldPocket() : null;
     if (desert) for (const [x, z, nm, w, h] of Veg.desertTrees(E, rng)) { const sp = MED[nm]; if (sp == null) continue; if (!ok(x, z, 2)) continue; if (pocket && U.pointInPoly(x, z, pocket.poly)) continue; add(x, z, sp, w, h); }
     if (SK) for (const [x, z, nm, w, h] of EI.StreetKit.trees(E)) { const sp = MED[nm]; if (sp == null) continue; add(x, z, sp, nm === 'cactus' ? 1.8 : w, nm === 'cactus' ? 3 : h, null, nm === 'cactus' ? 1.25 : null); }
+    // ---- park (Monza): avenues / tree rows from the map and the solitary trees on the lawns (E.data.treeRows: [[x, z], ...] runs; E.data.treePts: [[x, z], ...])
+    let nRow = 0;
+    if (park) {
+      for (const row of E.data.treeRows || []) for (let i = 0; i + 1 < row.length; i++) {
+        const a = row[i], b = row[i + 1]; const L = Math.hypot(b[0] - a[0], b[1] - a[1]); if (L < 1) continue;
+        for (let s = rng() * 4; s < L; s += 7.5 + rng() * 3) { const u = s / L; const x = a[0] + (b[0] - a[0]) * u + (rng() - 0.5), z = a[1] + (b[1] - a[1]) * u + (rng() - 0.5); if (Math.abs(x) > H || Math.abs(z) > H) continue; const [wd, ht] = oakSize(1.0); if (!ok(x, z, wd * 0.6)) continue; add(x, z, SP.OAK, wd, ht); nRow++; }
+      }
+      for (const [x, z] of E.data.treePts || []) { if (Math.abs(x) > H || Math.abs(z) > H) continue; const [wd, ht] = oakSize(0.95); if (!ok(x, z, wd * 0.6)) continue; add(x, z, SP.OAK, wd, ht); nRow++; }
+    }
     // ---- copses in a few far fields
     let nCopse = 0;
     for (const [k, poly] of noFarm ? [] : (E.fieldPolys || [])) {
@@ -322,7 +346,7 @@ window.EI = window.EI || {};
       const nn = 2 + Math.floor(rng() * 6);
       for (let k = 0; k < nn; k++) { const x = cx + (rng() - 0.5) * 26, z = cz + (rng() - 0.5) * 26; const sp = rng() < 0.25 ? SP.SHRUB : SP.OAK; const [wd, ht] = sp === SP.POPLAR ? [4.5, 17 + rng() * 5] : sp === SP.SHRUB ? [4 + rng() * 2, 3 + rng() * 1.5] : oakSize(0.9); if (!ok(x, z, wd + 2)) continue; add(x, z, sp, wd, ht); nClump++; }
     }
-    E.stats.trees = { wood: nWood, copse: nCopse, hedge: nHedge, road: nRoad, lines: nLine, clumps: nClump, total: trees.length };
+    E.stats.trees = { wood: nWood, rows: nRow, copse: nCopse, hedge: nHedge, road: nRoad, lines: nLine, clumps: nClump, total: trees.length };
     sc.treeCount = trees.length;
     Veg.instance(E, trees);
     Veg.strips(E);
