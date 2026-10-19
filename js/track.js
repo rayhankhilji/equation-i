@@ -721,7 +721,8 @@ window.EI = window.EI || {};
       rCol = mix(rCol, rSC, vTrk3.x * rGon * step(0.0, rE));
     }
 ` : '';
-      const runFrag = RC ? RUNOFF_FRAG.replace('vec3(0.13, 0.235, 0.105)', v3(lin(RC[2] || RC[0]))).replace('    rCol = mix(rCol, rCol * 0.45, rTyre', RC_STRIPES + '    rCol = mix(rCol, rCol * 0.45, rTyre') : RUNOFF_FRAG;
+      let runFrag = RC ? RUNOFF_FRAG.replace('vec3(0.13, 0.235, 0.105)', v3(lin(RC[2] || RC[0]))).replace('    rCol = mix(rCol, rCol * 0.45, rTyre', RC_STRIPES + '    rCol = mix(rCol, rCol * 0.45, rTyre') : RUNOFF_FRAG;
+      if (this.data.runoffGreen && !RC) runFrag = runFrag.replace('vec3(0.13, 0.235, 0.105)', v3(lin(this.data.runoffGreen)));   // the painted green band behind the kerbs (Monza: bright grass green)
       const aw0 = hw + kw + 2.0;
       const rMat = shaderMat({ map: T.runoff.map, normalMap: T.runoff.normalMap, normalScale: new THREE.Vector2(0.7, 0.7), roughnessMap: T.runoff.roughnessMap, roughness: 1, metalness: 0, polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 2, ...(this.data.runoffTint ? { color: new THREE.Color().fromArray(this.data.runoffTint) } : {}) }, 'runoff' + (RC ? '-' + RC.join('') + '-sp' : ''), RC ? Object.assign({}, common, { eiBrand: { value: brandStripTexture() } }) : common, RC ? VARY_RUN_RC : VARY_RUN, runFrag, RC ? RUNOFF_ROUGH + '    roughnessFactor = mix(roughnessFactor, 0.9, rTq);\n' : RUNOFF_ROUGH, FLATTEN);
       const gMat = shaderMat({ map: T.gravel.map, normalMap: T.gravel.normalMap, normalScale: new THREE.Vector2(1.25, 1.25), roughnessMap: T.gravel.roughnessMap, roughness: 1, metalness: 0, color: new THREE.Color(GT.x, GT.y, GT.z), polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 3 }, 'gravel', common, VARY4, GRAVEL_FRAG, GRAVEL_ROUGH, '', GRAVEL_NORMAL);
@@ -827,6 +828,7 @@ window.EI = window.EI || {};
       const prof = [[-0.3, 0], [-0.26, 0.07], [-0.17, 0.135], [-0.06, 0.16], [0.06, 0.16], [0.17, 0.135], [0.26, 0.07], [0.3, 0]];
       const pos = [], col = [], idx = []; const yel = new THREE.Color(0xf2b705).convertSRGBToLinear(), dirt = new THREE.Color(0x7a6a3a).convertSRGBToLinear(), blk = new THREE.Color(0x1a1a1a);
       const seen = {}; this.sausages = [];
+      const stripe = this.data.kerbStyle === 'monza';   // Monza's sausage kerbs are yellow with black diagonal bars (refs chicane_yellowblack_sausage)
       this.data.corners.forEach((c, ci) => {
         if (corners.indexOf(c.name) < 0) return;
         const next = this.data.corners[ci + 1]; const sEnd = next ? Math.min(next.s, c.s + 200) : c.s + 200;
@@ -837,13 +839,13 @@ window.EI = window.EI || {};
         if (lat0 + 0.6 > Math.min(wall - 0.5, 0.85 * R)) return;
         const sA = this.s[best]; this.sausages.push({ name: c.name, s: sA, side });
         for (let piece = -1; piece <= 1; piece++) {
-          const s0 = sA + piece * 4.4 - 2.0, s1 = s0 + 4.0; const steps = 8;
+          const s0 = sA + piece * 4.4 - 2.0, s1 = s0 + 4.0; const steps = stripe ? 12 : 8;
           for (let r = 0; r <= steps; r++) {
             const fs = r / steps; const f = this.frameAt(s0 + (s1 - s0) * fs); const end = Math.min(1, Math.min(fs, 1 - fs) * 4.5 + 0.12);
             for (let k = 0; k < prof.length; k++) {
               const l = side * (lat0 + prof[k][0]); const h = prof[k][1] * end;
               pos.push(f.x + f.nx * l, f.y + h, f.z + f.nz * l);
-              const cc = (k === 0 || k === prof.length - 1) ? dirt : (r === 0 || r === steps) ? blk : yel; const t = 0.85 + 0.15 * U.noise2(s0 * 3 + r, k); col.push(cc.r * t, cc.g * t, cc.b * t);
+              const cc = (k === 0 || k === prof.length - 1) ? dirt : stripe ? (r % 2 ? blk : yel) : (r === 0 || r === steps) ? blk : yel; const t = 0.85 + 0.15 * U.noise2(s0 * 3 + r, k); col.push(cc.r * t, cc.g * t, cc.b * t);
             }
             if (r > 0) { const base = pos.length / 3 - prof.length * 2; for (let k = 0; k < prof.length - 1; k++) { const a = base + k, b = base + prof.length + k; if (side > 0) idx.push(a, a + 1, b, a + 1, b + 1, b); else idx.push(a, b, a + 1, a + 1, b, b + 1); } }
           }
