@@ -352,7 +352,7 @@ window.EI = window.EI || {};
       // maintenance walkway behind the screen
       box(frames, 12.7, 0.12, 1.0, 0, 4.75, -0.9, rail, m); for (let x = -6.2; x <= 6.2; x += 2.07) beam(frames, [x, 4.8, -1.4], [x, 5.9, -1.4], 0.05, rail, m); beam(frames, [-6.2, 5.9, -1.4], [6.2, 5.9, -1.4], 0.05, rail, m);
       const sg = new THREE.PlaneGeometry(12, 6.75); sg.translate(0, 8.55, 0.59); sg.applyMatrix4(m); screens[placed % 3].push(sg);
-      cx.reserve(p.s, side, 9); placed++;
+      cx.reserve(p.s, side, 9); placed++; (cx.stats.screenAt = cx.stats.screenAt || []).push([Math.round(p.s), side]);
     });
     if (!frames.length) return;
     cx.static(frames, 0.45, 0.5, 'main', 'screenFrames');
@@ -380,7 +380,7 @@ window.EI = window.EI || {};
       cyl(geos, 0.16, 0.16, 0.3, 6, 0.75, H + 2.45, -0.2, C(0xe2c3a8), m);
       // Yas: a small canopy over the platform (sun / dew), white with a dark trim
       if (cx.desert) { for (const [rx, rz] of [[-1.25, -1.25], [1.25, -1.25], [-1.25, 1.25], [1.25, 1.25]]) beam(geos, [rx, H + 1.2, rz], [rx, H + 3.1, rz], 0.05, steel, m); box(geos, 3.0, 0.1, 3.0, 0, H + 3.15, 0, C(0xf0f0ee), m); box(geos, 3.04, 0.22, 3.04, 0, H + 3.0, 0, C(0x1d2a44), m); }
-      cx.reserve(p.s, side, 4); placed++;
+      cx.reserve(p.s, side, 4); placed++; (cx.stats.towerAt = cx.stats.towerAt || []).push([Math.round(p.s), side]);
     }
     if (!geos.length) return;
     cx.static(geos, 0.5, 0.5, 'main', 'cameraTowers'); cx.stats.cameraTowers = placed;
@@ -437,7 +437,7 @@ window.EI = window.EI || {};
       const p = cx.freeSpot(s, side, 2.6, 3, 3) || cx.freeSpot(s, -side, 2.6, 3, 3); if (!p) continue;
       const sd = Math.sign(p.nx * t.nx[p.i] + p.nz * t.nz[p.i]) || side; spots.push([p, sd]); cx.reserve(p.s, sd, 5); cx.reserve(p.s + 14, sd, 3);
     }
-    spots.sort((a, b) => a[0].s - b[0].s);
+    spots.sort((a, b) => a[0].s - b[0].s); cx.stats.marshalAt = spots.map(([p, sd]) => [Math.round(p.s), sd]);
     let num = 0;
     for (const [p, side] of spots) {
       frame(_m, p.x, p.y, p.z, side, p.tx, p.tz); const m = _m.clone(); num++;
@@ -678,7 +678,7 @@ window.EI = window.EI || {};
     buildMarshalPosts(cx);
     buildBroadcast(cx);
     if (!street) buildHoardings(cx);
-    if (!street) buildFencePosts(cx);
+    if (!street && !(track.data.fence && track.data.fence.posts)) buildFencePosts(cx);   // Monza: track.js already plants the catch-fence posts (data.fence.posts)
     if (!street) buildDirtBands(cx);
     buildPaddock(cx);
     // the lap-long instanced families are cut into ~600 m tiles with fitted bounds, so the camera and (above all) the shadow

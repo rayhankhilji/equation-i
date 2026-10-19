@@ -88,6 +88,7 @@
   St.dressOf = function (t, name) { const D = t.data.dress && t.data.dress.stands; return D && name ? (D[name] || null) : null; };
 
   // ================================================================ dressing
+  St.flip = (b) => (-b.az * b.nx + b.ax * b.nz) < 0;
   St.build = function (E, BK, out) {
     const { B, S, G, F: Fd, A } = BK; const t = E.t; const rng = U.rng(938);
     const conc = C(0xd9d3c3), concD = C(0xb7b1a2), cream = C(0xe6dfcc), soffit = C(0x5a5c5e), white = C(0xf2f2ef), steel = C(0x9aa1a8), dark = C(0x2a2d33), navy = C(0x1c2740);
@@ -111,14 +112,15 @@
         for (let a = -hl + 2.5; a < hl - 1; a += 5) B.box(m, 0.5, yTop + 1.25 - yb, 0.4, a, yb, zBack + 0.36, concD);
         K.dq(B, P(-hl - 0.1, yb, -0.06), P(hl + 0.1, yb, -0.06), P(hl + 0.1, 0.05, -0.06), P(-hl - 0.1, 0.05, -0.06), concD);
         const firstK = b === run.blocks[0] || (b.mz.tier === 1 && b === up[0]), lastK = b === bl[bl.length - 1] || (b.mz.tier === 1 && b === up[up.length - 1]);
-        for (const [flag, sx] of [[firstK, -hl - 0.1], [lastK, hl + 0.1]]) if (flag) K.dq(B, P(sx, yb, -0.08), P(sx, yb, zBack + 0.14), P(sx, yTop + 1.25, zBack + 0.14), P(sx, 1.6, -0.08), conc);
+        const fs = St.flip(b) ? -1 : 1;   // Env.frame mirrors x when the chord frame would be left-handed: the run's start is then at +x
+        for (const [flag, sx] of [[firstK, -fs * (hl + 0.1)], [lastK, fs * (hl + 0.1)]]) if (flag) K.dq(B, P(sx, yb, -0.08), P(sx, yb, zBack + 0.14), P(sx, yTop + 1.25, zBack + 0.14), P(sx, 1.6, -0.08), conc);
         // stair doors / vomitories in the back wall
         for (let a = -hl + 7; a < hl - 4; a += 14) B.box(m, 1.8, 2.3, 0.06, a, 0, zBack + 0.17, dark);
       }
       // wedges between consecutive chords of a curved run (the backs open up on the convex side)
       for (const list of [bl, up]) for (let k = 0; k + 1 < list.length && perm; k++) {
         const a = list[k], b = list[k + 1]; const ma = a.mz.m, mb = b.mz.m; const ha = a.len / 2, hb = b.len / 2;
-        const pa = (y, z) => Env.xf(ma, ha + 0.1, y, z), pb = (y, z) => Env.xf(mb, -hb - 0.1, y, z);
+        const fa = St.flip(a) ? -1 : 1, fb = St.flip(b) ? -1 : 1; const pa = (y, z) => Env.xf(ma, fa * (ha + 0.1), y, z), pb = (y, z) => Env.xf(mb, -fb * (hb + 0.1), y, z);
         const yT = a.mz.yTop, zB = a.mz.zBack;
         K.dq(B, pa(-2, zB + 0.14), pb(-2, zB + 0.14), pb(yT + 1.25, zB + 0.14), pa(yT + 1.25, zB + 0.14), conc);
         K.dq(B, pa(1.4, 0.4), pb(1.4, 0.4), pb(yT, zB), pa(yT, zB), C(a.seat).multiplyScalar(0.8));
@@ -154,7 +156,7 @@
         for (const b of up) { const m = b.mz.m, hl = b.len / 2, P = (x, y, z) => Env.xf(m, x, y, z); K.dq(G, P(-hl, -0.9, -0.05), P(hl, -0.9, -0.05), P(hl, 1.25, -0.05), P(-hl, 1.25, -0.05), C(0x2c3e50)); }
         // the run's middle: centre of the two upper chords
         const bm = up[Math.floor((up.length - 1) / 2)], bn = up[Math.min(up.length - 1, Math.floor(up.length / 2))];
-        const m = bm.mz.m; const xm = bm === bn ? 0 : bm.len / 2; const yR = bm.mz.yTop + 3.4;
+        const m = bm.mz.m; const xm = bm === bn ? 0 : (St.flip(bm) ? -1 : 1) * bm.len / 2; const yR = bm.mz.yTop + 3.4;
         // drum: cream concrete base ring, glazed band, overhanging disc roof, a small lantern on top
         K.cyl(B, m, xm, 4.2, yR + 0.3, 1.2, 4.6, 20, cream);
         K.cyl(G, m, xm, 4.2, yR + 1.5, 2.3, 4.35, 20, C(0x41586b));

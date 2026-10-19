@@ -165,13 +165,20 @@ window.EI = window.EI || {};
   // pixel ratio per tier: the device ratio capped (low 1, medium 1.25, high 1.5) and held to a pixel budget, so a large or dense
   // screen does not multiply the fill cost (low ~1.6 Mpx, medium ~3.2 Mpx, high ~4.6 Mpx; 1080p at ratio 1 is 2.1 Mpx)
   const PX_BUDGET = { low: 1.6e6, medium: 3.2e6, high: 4.6e6 };
+  // Low's sun shadow filter: three's BasicShadowMap branch (unused otherwise) becomes a 4-tap bilinear PCF - a smooth one-texel
+  // edge for 4 depth reads per shaded pixel instead of the PCF filter's 17 (shadow sampling is a large share of the per-pixel cost
+  // on an integrated GPU); Medium / High keep the wider PCF
+  { const C = THREE.ShaderChunk, A = '#else\n\t\t\tshadow = texture2DCompare( shadowMap, shadowCoord.xy, shadowCoord.z );\n\t\t#endif';
+    if (C.shadowmap_pars_fragment.indexOf(A) >= 0) C.shadowmap_pars_fragment = C.shadowmap_pars_fragment.replace(A, '#else\n\t\t\tvec2 eiT = shadowCoord.xy * shadowMapSize - 0.5, eiF = fract(eiT), eiB = (floor(eiT) + 0.5) / shadowMapSize, eiS = 1.0 / shadowMapSize;\n' +
+      '\t\t\tshadow = mix(mix(texture2DCompare(shadowMap, eiB, shadowCoord.z), texture2DCompare(shadowMap, eiB + vec2(eiS.x, 0.0), shadowCoord.z), eiF.x),\n' +
+      '\t\t\t\tmix(texture2DCompare(shadowMap, eiB + vec2(0.0, eiS.y), shadowCoord.z), texture2DCompare(shadowMap, eiB + eiS, shadowCoord.z), eiF.x), eiF.y);\n\t\t#endif'); }
   function tierPixelRatio(q) { const cap = q === 'low' ? 1 : q === 'high' ? 1.5 : 1.25; return Math.max(0.6, Math.min(window.devicePixelRatio || 1, cap, Math.sqrt(PX_BUDGET[q] / Math.max(1, window.innerWidth * window.innerHeight)))); }
   function setQuality(q) {
     if (q !== quality || !setQuality.done) { quality = q; autoLv = loadLv(); ftEma = 16.7; lockUpUntil = 0; setQuality.done = true; } quality = q; const pr = tierPixelRatio(q); renderer.setPixelRatio(pr);
     const sm = q === 'low' ? 1024 : 2048; if (sun.shadow.mapSize.x !== sm) { sun.shadow.mapSize.set(sm, sm); if (sun.shadow.map) { sun.shadow.map.dispose(); sun.shadow.map = null; } }
-    // shadow filtering: PCF (9 taps) with a little blur radius on low / medium, the 16-tap soft PCF on high - near the same soft
-    // edge for about half the shadow cost per pixel
-    const st = q === 'high' ? THREE.PCFSoftShadowMap : THREE.PCFShadowMap; sun.shadow.radius = q === 'high' ? 2 : 1.6;
+    // shadow filtering: the 4-tap bilinear PCF on low (above), PCF (17 taps) with a little blur radius on medium, the soft PCF on
+    // high
+    const st = q === 'high' ? THREE.PCFSoftShadowMap : q === 'low' ? THREE.BasicShadowMap : THREE.PCFShadowMap; sun.shadow.radius = q === 'high' ? 2 : 1.6;
     if (renderer.shadowMap.type !== st) { renderer.shadowMap.type = st; scene.traverse(o => { const m = o.material; if (m) (Array.isArray(m) ? m : [m]).forEach(x => { x.needsUpdate = true; }); }); }   // programs are keyed by the type
     // the shadow box: +-70 m (+-55 m on low, where the map is 1024); the cached static shadow is rebuilt for the new settings
     const R = q === 'low' ? 55 : 70, sc = sun.shadow.camera; if (sc.right !== R) { sc.left = -R; sc.right = R; sc.top = R; sc.bottom = -R; sc.updateProjectionMatrix(); } invalidateShadowCache();
@@ -249,42 +256,21 @@ window.EI = window.EI || {};
     const tight = Object.assign({}, T, { treeNear: m(T.treeNear, 0.7), treeFar: m(T.treeFar, 0.75, 1600), grass: [T.grass[0] * 0.8, T.grass[1] * 0.8], crowd: m(T.crowd, 0.75), cars: m(T.cars, 0.7, 700), tents: m(T.tents, 1, 700), clutter: m(T.clutter, 0.7, 900) });
     S.TIERS[q] = tight; try { scenery.setQuality(q); } finally { S.TIERS[q] = T; }
   }
-  // ---- Bot skill slider (0-100). Stops = the old level names; 80 = Official F1 (real 2026 pace, the old "Hard" slot), 100 = Limit.
-  // Numbers agreed with f1-PERSONALITY (BOARD 19:20): EI.Skill.STOPS in js/ai.js is used when it exists, the table below is the same list.
-  const SKILL_STOPS = [{ v: 10, id: 'veryeasy', name: 'Very easy' }, { v: 30, id: 'easy', name: 'Easy' }, { v: 50, id: 'average', name: 'Average' }, { v: 65, id: 'above', name: 'Above' }, { v: 80, id: 'hard', name: 'Hard', mark: 'Official F1' }, { v: 90, id: 'veryhard', name: 'Very hard' }, { v: 100, id: 'ultra', name: 'Ultra', mark: 'Limit' }];
-  const SKILL_NAME = { veryeasy: 'Very easy', easy: 'Easy', average: 'Average', above: 'Above', official: 'Hard', hard: 'Hard', veryhard: 'Very hard', ultra: 'Ultra' };
-  const SKILL_TXT = { veryeasy: 'slow and forgiving, easy to pass', easy: 'well below F1 pace, still forgiving', average: 'steady club pace with the odd mistake', above: 'quick and tidy, but beatable', hard: 'close to F1 pace, rarely errs', veryhard: 'past real F1 pace, almost flawless', ultra: 'the limit of the car, flawless' };
-  const skillStops = () => (EI.Skill && EI.Skill.STOPS && EI.Skill.STOPS.length ? EI.Skill.STOPS.map(x => ({ v: x.v, id: x.id, name: SKILL_NAME[x.id] || x.label, mark: x.id === 'official' || x.id === 'hard' ? 'Official F1' : x.id === 'ultra' ? 'Limit' : null })) : SKILL_STOPS);
-  const skillClamp = (n) => Math.max(0, Math.min(100, Math.round(+n))) || 0;
-  const skillNearest = (n) => { const st = skillStops(); let b = st[0]; for (const x of st) if (Math.abs(x.v - n) < Math.abs(b.v - n)) b = x; return b; };   // a tie keeps the lower stop
-  const skillLegacy = (n) => { const id = skillNearest(n).id; return id === 'official' ? 'hard' : id; };   // legacy level name for ai.js without the new API
-  const skillDescribe = (n) => {
-    if (n === 80) return 'Official F1: real lap times and driving styles';
-    if (n === 100) return 'Limit: the limit of the car, flawless';
-    const s = skillNearest(n), id = s.id === 'official' ? 'hard' : s.id; return s.name + ': ' + (n > 80 ? 'past real F1 pace, almost flawless' : (SKILL_TXT[id] || ''));
-  };
-  function skillValue() { const el = $('opt-skill'); return el ? skillClamp(el.value) : 80; }
-  function skillLabel(n) { const m = skillStops().find(x => x.v === n && x.mark); return 'Skill ' + n + (m ? ' \u00b7 ' + m.mark : ''); }   // pause / start screen: next to "Grid: ..."
+  // Bot skill = the named levels in #opt-diff (Very easy ... Very hard, Official F1 = real 2026 pace, Ultra = car limit); the pick is remembered.
+  const SKILL_SHORT = { official: 'Official F1', ultra: 'Ultra', above: 'Above average' };
+  function skillLabel(v) { const o = $('opt-diff') && Array.prototype.find.call($('opt-diff').options, x => x.value === v); return 'Skill: ' + (SKILL_SHORT[v] || (o ? o.textContent.replace(/\s*\(.*$/, '') : v)); }   // pause / start screen: next to "Grid: ..."
+  EI.skillLabel = skillLabel;
   function initSkill() {
-    const el = $('opt-skill'); if (!el) return;
-    let v = 80; try { const q = localStorage.getItem('ei-skill'); if (q !== null && q !== '' && isFinite(+q)) v = skillClamp(q); } catch (e) { }
-    el.value = v;
-    const scale = $('skill-scale'), out = $('out-skill'), desc = $('skill-desc'); const st = skillStops(); const btns = [];
-    if (scale) st.forEach((x, i) => { const b = document.createElement('button'); b.type = 'button'; b.tabIndex = -1; b.className = 'sk' + (i % 2 ? ' lo' : ''); b.style.left = x.v + '%'; b.title = x.v + ' · ' + x.name + (x.mark ? ' (' + x.mark + ')' : ''); b.innerHTML = '<b>' + x.name + '</b>' + (x.mark ? '<i>' + x.mark + '</i>' : ''); b.addEventListener('click', () => { el.value = x.v; sync(true); }); scale.appendChild(b); btns.push(b); });
-    function sync(save) {
-      const n = skillClamp(el.value); out.textContent = n; el.style.setProperty('--fill', n + '%'); desc.innerHTML = '<b>' + n + '</b> \u00b7 ' + skillDescribe(n).replace(/</g, '&lt;');
-      const near = skillNearest(n); btns.forEach((b, i) => b.classList.toggle('on', st[i] === near && Math.abs(near.v - n) <= 6));
-      el.setAttribute('aria-valuetext', n + ', ' + skillDescribe(n));
-      if (save) { try { localStorage.setItem('ei-skill', String(n)); } catch (e) { } }
-    }
-    el.addEventListener('input', () => sync(true)); sync(false);
+    const el = $('opt-diff'); if (!el) return;
+    try { const q = localStorage.getItem('ei-diff'); if (q && Array.prototype.some.call(el.options, o => o.value === q)) el.value = q; } catch (e) { }
+    el.addEventListener('change', () => { try { localStorage.setItem('ei-diff', el.value); } catch (e) { } });
   }
   function readConfig() {
     const np = +$('opt-players').value; const players = [];
     // two players on the default names: P1 / P2 (otherwise player 2's own tower and tags call the other car "YOU")
     const nm = (k) => { const v = ($('p' + (k + 1) + '-name').value || (k ? 'RIVAL' : 'YOU')).toUpperCase(); return np > 1 && v === (k ? 'RIVAL' : 'YOU') ? 'P' + (k + 1) : v; };
     for (let k = 0; k < np; k++) players.push({ name: nm(k), teamIndex: /^own:/.test($('p' + (k + 1) + '-team').value) ? 0 : +$('p' + (k + 1) + '-team').value, own: /^own:/.test($('p' + (k + 1) + '-team').value) ? $('p' + (k + 1) + '-team').value.slice(4) : null, seat: $('p' + (k + 1) + '-seat') ? +$('p' + (k + 1) + '-seat').value || 0 : 0, tyre: $('p' + (k + 1) + '-tyre').value });
-    return { players, bots: +$('opt-bots').value, laps: +$('opt-laps').value, skill: skillValue(), difficulty: EI.Skill ? skillValue() : skillLegacy(skillValue()), grid: $('opt-grid').value, assist: $('opt-assist').value, seed: (Math.random() * 1e9) | 0, envMap };
+    return { players, bots: +$('opt-bots').value, laps: +$('opt-laps').value, difficulty: $('opt-diff').value, grid: $('opt-grid').value, assist: $('opt-assist').value, seed: (Math.random() * 1e9) | 0, envMap };
   }
   function setPaused(p) { paused = p; $('pause').classList.toggle('hidden', !p); if (!p) lastT = performance.now(); }
 
@@ -309,7 +295,7 @@ window.EI = window.EI || {};
     resultsShown = false; paused = false; lastT = performance.now(); acc = 0; introT = 0; autopilots = []; tunF[0] = tunF[1] = 0; applySplitTier(race.players.length > 1); onResize();   // tunF: a race quit inside the tunnel must not start the next one over-exposed. onResize sizes the HUD viewports (setRect)
     if (document.activeElement && document.activeElement.blur) document.activeElement.blur();   // Enter / Space must not press a menu button
     race.players.forEach((car, k) => placeCamera(cameras[k], car, k, true, 0));
-    EI.HUD.banner('EQUATION I · ' + track.name.toUpperCase() + ' GP', race.gridInfo ? 3400 : 2400, null, [race.gridInfo ? 'Grid: ' + race.gridInfo.label : '', cfg.skill != null && race.ais && race.ais.length ? skillLabel(cfg.skill) : ''].filter(Boolean).join(' · ') || null);
+    EI.HUD.banner('EQUATION I · ' + track.name.toUpperCase() + ' GP', race.gridInfo ? 3400 : 2400, null, [race.gridInfo ? 'Grid: ' + race.gridInfo.label : '', cfg.difficulty && race.ais && race.ais.length ? skillLabel(cfg.difficulty) : ''].filter(Boolean).join(' · ') || null);
     introLen = race.players.length === 1 ? 8.2 : 2.8;
     raceRenderSetup();
   }

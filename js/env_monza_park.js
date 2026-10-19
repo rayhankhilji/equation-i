@@ -33,7 +33,7 @@
       // deck base: ground + 0.2, raised to clear the GP track near a span (ramps of 70 m either side)
       for (const q of S) {
         let y = E.ground(q.x, q.z) + 0.15;
-        for (const sp of r.spans) { const d = Math.max(0, Math.abs(q.a - sp.ac) - (S[sp.i1].a - S[sp.i0].a) / 2 - 6); const w = 1 - U.smoothstep(0, 70, d); y = Math.max(y, U.lerp(y, sp.yT + 6.6, w)); }
+        for (const sp of r.spans) { const d = Math.max(0, Math.abs(q.a - sp.ac) - (S[sp.i1].a - S[sp.i0].a) / 2 - 6); const w = 1 - U.smoothstep(0, 70, d); y = Math.max(y, U.lerp(y, sp.yT + 6.6, w)); q.sw = Math.max(q.sw || 0, 1 - U.smoothstep(0, 110, d)); }
         const inSpan = r.spans.some(sp => q === S[sp.i0] || (S.indexOf(q) >= sp.i0 && S.indexOf(q) <= sp.i1)); q.span = inSpan;
         q.y = y; q.skip = !inSpan && q.gp < (q.end ? 10 : 6);
       }
@@ -60,7 +60,7 @@
       const Sm = r.S; const inSpan = (i) => r.spans.some(sp => i >= sp.i0 - 1 && i <= sp.i1 + 1);
       // cross-section points (world) for sample q: u from -RW/2 (inner) to +RW/2 (outer)
       const sec = (q) => {
-        const pts = []; const H = HB * q.bank + 0.4; const us = [-RW / 2, -RW / 2 + APRON]; for (let k = 1; k <= NU; k++) us.push(-RW / 2 + APRON + (RW - APRON) * k / NU);
+        const pts = []; const H = (HB * q.bank + 0.4) * (1 - 0.5 * (q.sw || 0));   // lower over the Serraglio bridge (serraglio_1: ~3 m of wall above the hoarding) const us = [-RW / 2, -RW / 2 + APRON]; for (let k = 1; k <= NU; k++) us.push(-RW / 2 + APRON + (RW - APRON) * k / NU);
         for (const u of us) { const v = u <= -RW / 2 + APRON ? 0 : Math.pow((u + RW / 2 - APRON) / (RW - APRON), 1.7); pts.push([q.x + q.nx * u, q.y + H * v, q.z + q.nz * u]); }
         return pts;
       };
@@ -84,7 +84,7 @@
           K.dq(B, L0, L1, up(L1, 0.5), up(L0, 0.5), concL); upQ(up(L0, 0.5), up(L1, 0.5), up(o1, 0.5), up(o0, 0.5), concL);
           const span = inSpan(i) || inSpan(prevI);
           const g0 = span ? prevQ.y - 1.3 : Math.min(E.ground(o0[0], o0[2]) - 0.4, prevQ.y - 0.2), g1 = span ? q.y - 1.3 : Math.min(E.ground(o1[0], o1[2]) - 0.4, q.y - 0.2);
-          K.dq(B, [o0[0], g0, o0[2]], [o1[0], g1, o1[2]], up(o1, 0.5), up(o0, 0.5), col(wallC, 0.9 + 0.15 * nz));
+          K.dq(B, [o0[0], g0, o0[2]], [o1[0], g1, o1[2]], up(o1, 0.5), up(o0, 0.5), col(wallC, (0.86 + 0.12 * nz) * (0.9 + 0.14 * U.noise2(q.a * 0.45, 7.3))));
           const I0 = prev[0], I1 = cur[0]; const gi0 = span ? prevQ.y - 1.3 : E.ground(I0[0], I0[2]) - 0.4, gi1 = span ? q.y - 1.3 : E.ground(I1[0], I1[2]) - 0.4;
           if (Math.max(I0[1] - gi0, I1[1] - gi1) > 0.25) K.dq(B, [I0[0], gi0, I0[2]], [I1[0], gi1, I1[2]], I1, I0, col(wallC, 0.85));
           if (span) { // deck soffit, dark
@@ -114,8 +114,8 @@
           B.box(m, 0.4, 1.3, RW + 1.0, ie === sp.i0 - 2 ? 0.9 : -0.9, q.y - 1.3, 0.2, C(0x9a978e));
         }
         // the partner hoarding hung on both faces of the bridge over the GP track (m_bank_sop1/2: white panel with the partner's logo)
-        { const ic = Math.round((sp.i0 + sp.i1) / 2); const q = Sm[ic]; const pw = 18, ph = 3.2;
-          const r = A.region('mzBankSign', 768, 136, (x2, w, h) => { x2.fillStyle = '#ffffff'; x2.fillRect(0, 0, w, h); if (EI.Ads && EI.Ads.paintBridge) EI.Ads.paintBridge(x2, 'intake', w, h, pw / ph); else Mz.paintText(x2, w, h, 'trylumi.co', { bg: '#ffffff', fg: '#c8102e' }); });
+        { const ic = Math.round((sp.i0 + sp.i1) / 2); const q = Sm[ic]; const pw = 24, ph = 3.6;
+          const r = A.region('mzBankSign', 768, 136, (x2, w, h) => { x2.fillStyle = '#ffffff'; x2.fillRect(0, 0, w, h); if (EI.Ads && EI.Ads.paintTile) EI.Ads.paintTile(x2, 0, 0, 0, w, h, pw / ph); else Mz.paintText(x2, w, h, 'trylumi.co', { bg: '#ffffff', fg: '#c8102e' }); x2.strokeStyle = '#d6d8da'; x2.lineWidth = 4; x2.strokeRect(2, 2, w - 4, h - 4); });
           for (const sd of [-1, 1]) {
             const off = RW / 2 + 0.55 + (sd > 0 ? 0.45 : 0); const cx = q.x + q.nx * sd * off, cz = q.z + q.nz * sd * off; const y0 = q.y - 1.25;
             const a = [cx - q.tx * pw / 2, y0, cz - q.tz * pw / 2], b = [cx + q.tx * pw / 2, y0, cz + q.tz * pw / 2], c = [b[0], y0 + ph, b[2]], d = [a[0], y0 + ph, a[2]];

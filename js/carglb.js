@@ -139,7 +139,9 @@ window.EI = window.EI || {};
         // same dark satin as the cockpit carbon so the opening reads as one dark padded surround
         .replace('#include <map_fragment>', '#include <map_fragment>\nfloat pCk = (1.0 - smoothstep(0.215, 0.25, abs(vFlkPos.z))) * smoothstep(-0.06, 0.06, vFlkPos.x) * (1.0 - smoothstep(0.88, 0.97, vFlkPos.x)) * smoothstep(0.4, 0.5, vFlkPos.y);\ndiffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.012, 0.012, 0.014), pCk);')
         .replace('#include <roughnessmap_fragment>', '#include <roughnessmap_fragment>\nroughnessFactor = mix(roughnessFactor, 0.8, pCk);')
-        .replace('#include <lights_physical_fragment>', '#include <lights_physical_fragment>\nmaterial.clearcoat *= 1.0 - 0.85 * pCk;');
+        .replace('#include <lights_physical_fragment>', '#include <lights_physical_fragment>\nmaterial.clearcoat *= 1.0 - 0.85 * pCk;')
+        // dark paint: the sky reflection (env + clear coat) is held down so plum / cocoa / anthracite stay dark at grazing angles
+        .replace('#include <lights_fragment_maps>', '#include <lights_fragment_maps>\n#if defined( USE_ENVMAP ) && defined( RE_IndirectSpecular )\n{ float pL = dot(diffuseColor.rgb, vec3(0.2126, 0.7152, 0.0722)); float pK = mix(0.45, 1.0, smoothstep(0.01, 0.18, pL));  radiance *= pK;\n#ifdef CLEARCOAT\nclearcoatRadiance *= pK;\n#endif\n}\n#endif');
     };
     m.customProgramCacheKey = () => 'ei-paint';
     return m;
@@ -1103,7 +1105,8 @@ window.EI = window.EI || {};
         .replace('#include <roughnessmap_fragment>', '#include <roughnessmap_fragment>\nroughnessFactor = vLodk.z;')
         .replace('#include <metalnessmap_fragment>', '#include <metalnessmap_fragment>\nmetalnessFactor = vLodk.y;')
         .replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\nif (lodS > 1.5 && lodS < 2.5) totalEmissiveRadiance += vColor * uLed;')
-        .replace('#include <lights_physical_fragment>', '#include <lights_physical_fragment>\n#ifdef CLEARCOAT\nmaterial.clearcoat *= vLodk.w;\n#endif');
+        .replace('#include <lights_physical_fragment>', '#include <lights_physical_fragment>\n#ifdef CLEARCOAT\nmaterial.clearcoat *= vLodk.w;\n#endif')
+        .replace('#include <lights_fragment_maps>', '#include <lights_fragment_maps>\n#if defined( USE_ENVMAP ) && defined( RE_IndirectSpecular )\n{ float pL = dot(diffuseColor.rgb, vec3(0.2126, 0.7152, 0.0722)); float pK = mix(0.45, 1.0, smoothstep(0.01, 0.18, pL)); if (lodS < 0.5 || lodS > 1.5) pK = 1.0; radiance *= pK;\n#ifdef CLEARCOAT\nclearcoatRadiance *= pK;\n#endif\n}\n#endif');
     };
     m.customProgramCacheKey = () => 'ei-carlod';
     return m;
