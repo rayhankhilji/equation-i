@@ -854,6 +854,7 @@ window.EI = window.EI || {};
     plain: { bw: 4.0, fh: 3.5, gh: 4.0, roof: 'flat' },
     palace: { bw: 4.0, fh: 3.6, gh: 4.4, roof: 'flat' },
     hotel: { bw: 6.0, fh: 3.3, gh: 4.5, roof: 'flat' },
+    pth: { bw: 3.4, fh: 3.0, gh: 4.2, roof: 'flat' },   // the porthole block at the Nouvelle Chicane (pth_flr / pth_gnd, bay 3.4 x storey 3.0)
   };
   const TINTS = {
     riviera: [0xf3ead9, 0xe8c99a, 0xf0c9b5, 0xf7f4ee, 0xe3b98f, 0xead8c0, 0xdba590, 0xf5e2b8, 0xf2e0cc, 0xeeeae2, 0xe9cfa8, 0xe6b4a2, 0xf4efe4, 0xdcc0a0],
@@ -991,6 +992,7 @@ window.EI = window.EI || {};
     const st = D.style, r = D.rail; const painted = r === 1 ? 'rvbW' : r >= 2 ? 'rvbG' : 'rvbT';
     let gnd, flr, single;
     if (D.casino) return { gnd: cell('cas_gnd'), single: cell('cas_arch'), flr: (k) => k === 0 ? cell('cas_arch') : cell('cas_top') };
+    if (D.pth) return { gnd: cell('pth_gnd'), single: cell('pth_flr'), flr: () => cell('pth_flr') };
     if (D.hdp) return { gnd: cell('hdp_gnd'), single: cell('hdp_flr'), flr: (k) => k === 0 ? cell('be_piano') : k === D.nf - 1 ? cell('be_top') : cell('hdp_flr') };
     if (D.style === 'rascasse') return { gnd: cell('mg_gnd'), single: cell('vl_top'), flr: () => cell('vl_top') };
     switch (st) {
@@ -1553,6 +1555,38 @@ window.EI = window.EI || {};
     for (let k = 0; k < 6; k++) { const a = k / 6 * 6.283 + 0.3; const lx = Math.cos(a) * ra * 0.78, lz = Math.sin(a) * rb * 0.72; const px = cx + lx * Math.cos(ang) - lz * Math.sin(ang), pz = cz + lx * Math.sin(ang) + lz * Math.cos(ang); palm(G, px, y + 0.3, pz, 7 + (k % 3) * 1.6, 100 + k); }
   }
   // ---- the Rascasse: the low bar-restaurant inside the corner, glazed ground floor, red awnings, a roof terrace
+  // ---- the white block with the round portholes at the Nouvelle Chicane (chicane2, chicane_a): no map footprint, so it is laid out by hand
+  // along the barrier ([s0, s1, side, gap, depth, floors] in street.pthBlock, else the default for Monaco): a ribbed podium with portholes
+  // and a pale tower body whose floors carry wavy white balcony slabs; sits on the road level, the ground behind it climbs into it
+  function portholeBlock(E, G, claimed) {
+    const t = E.t, sc = E.sc; const PB = (t.data.street && t.data.street.pthBlock) || (t.data.id === 'monaco' ? [2012, 2096, -1, 6, 17, 7] : null); if (!PB) return;
+    const [s0, s1, side, gap, depth, nf] = PB; const near = [], far = [];
+    for (let s = s0; s <= s1 + 0.01; s += 6) { const i = t.idxAtS(s); const w = E.wallCap(i, side) + gap; near.push([t.x[i] + t.nx[i] * side * w, t.z[i] + t.nz[i] * side * w, i]); far.push([t.x[i] + t.nx[i] * side * (w + depth), t.z[i] + t.nz[i] * side * (w + depth)]); }
+    const ring = cleanRing(near.map(q => [q[0], q[1]]).concat(far.reverse())); if (ring.length < 4) return; claimed.push(ring);
+    const c = centroid(ring); const D = forced('pth', nf, 0xf8f8f5, 'flat', { pth: true, noBalc: true, noChimneys: true, shops: false }); both(E, G, ring, D, c);
+    // wavy balcony slabs along the face that looks at the road: one white slab per floor, its outer edge swinging 0.3 .. 1.3 m out
+    const L = D.lv, S = D.S, slab = cell('slab'), tk = 0.26; const WV = C(0xfafaf8);
+    for (let k = 0; k < nf; k++) {
+      const y1 = L.yG + S.gh + k * S.fh + 1.0, y0 = y1 - tk; let U0 = 0; G.at(c[0], c[1], 'D', 0);
+      for (let j = 0; j + 1 < near.length; j++) {
+        const a = near[j], b = near[j + 1]; const dx = b[0] - a[0], dz = b[1] - a[1], Ls = Math.hypot(dx, dz); if (Ls < 0.5) continue;
+        const n = [-side * t.nx[a[2]], 0, -side * t.nz[a[2]]]; const m = 3; let prev = null;
+        for (let q = 0; q <= m; q++) {
+          const u = q / m, px = a[0] + dx * u, pz = a[1] + dz * u; const off = 0.8 + 0.5 * Math.sin((j * m + q) * 1.05 + k * 0.7);
+          const cur = { i: [px, pz], o: [px + n[0] * off, pz + n[2] * off] };
+          if (prev) {
+            const u1 = U0 + Ls / m / 2.4; const A = prev.o, B = cur.o, Ai = prev.i, Bi = cur.i;
+            G.quad([B[0], y1, B[1]], [A[0], y1, A[1]], [Ai[0], y1, Ai[1]], [Bi[0], y1, Bi[1]], [0, 1, 0], [U0, 0, u1, 0, u1, 0.5, U0, 0.5], WV, slab);
+            G.quad([A[0], y0, A[1]], [B[0], y0, B[1]], [Bi[0], y0, Bi[1]], [Ai[0], y0, Ai[1]], [0, -1, 0], [U0, 0, u1, 0, u1, 0.5, U0, 0.5], scaleC(WV, 0.78), slab);
+            G.quad([B[0], y0, B[1]], [A[0], y0, A[1]], [A[0], y1, A[1]], [B[0], y1, B[1]], n, [U0, 0, u1, 0, u1, 0.1, U0, 0.1], WV, slab); U0 = u1;
+          }
+          prev = cur;
+        }
+      }
+    }
+    G.sub = 0; E.stats.pthBlock = [Math.round(D.H), near.length];
+  }
+
   function rascasse(E, G, claimed) {
     const t = E.t; const i = t.idxAtS(2905); let best = null, bd = 60;
     const stands = (t.data.scenery.grandstands || []).map(g => g.p).concat(E.standPolys || []);
@@ -1838,7 +1872,7 @@ window.EI = window.EI || {};
     const lm = E.data.landmarks || {};
     E.cityZones = { casino: lm.fountain ? centroid(lm.fountain) : [504, -485], devote: lm.devoteChapel ? centroid(lm.devoteChapel) : [0, -230] };
     const claimed = []; const tm = {}; let tq = performance.now(); const lap = (k) => { const n = performance.now(); tm[k] = Math.round(n - tq); tq = n; };
-    tm.atlas = ATLAS.ms; City.landmarks(E, G, claimed); rascasse(E, G, claimed); lap('landmarks');
+    tm.atlas = ATLAS.ms; City.landmarks(E, G, claimed); rascasse(E, G, claimed); portholeBlock(E, G, claimed); lap('landmarks');
     const isClaimed = (x, z) => { for (const p of claimed) if (pip(x, z, p)) return true; return false; };
     const stats = { near: 0, mid: 0, proxyOnly: 0, skipped: 0 }; const nearList = []; sc.cityNearList = nearList;   // (previews and checks)
     const doOne = (b, farSet) => {
