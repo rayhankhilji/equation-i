@@ -87,7 +87,7 @@ window.EI = window.EI || {};
     P.dLimIn = P.dA + 15; P.dLimOut = P.dB - 15;
     const mid = (P.dLimIn + P.dLimOut) / 2; const NB = Math.max(10, EI.TEAMS.length); P.boxD = []; for (let k = 0; k < NB; k++) P.boxD.push(mid + ((NB - 1) / 2 - k) * BOX_SP);   // one box per entry (11 in 2026)
     P.garD0 = P.boxD[NB - 1] - BOX_SP / 2; P.garD1 = P.boxD[0] + BOX_SP / 2;
-    // street circuit (Monaco): the limiter zone covers the garages and 25 m either side, not the whole straight (pit loss ~20 s)
+    // street circuit (Monaco): the limiter zone covers the garages only, not the whole straight (pit loss ~20 s)
     if (track.data.street) { P.dLimIn = Math.max(P.dLimIn, Math.round(P.garD0)); P.dLimOut = Math.min(P.dLimOut, Math.round(P.garD1)); }
     // circuits with a longer limiter zone than the 360 m straight window (Monza: the limit lines sit out on the entry and exit roads;
     // pit loss ~24 s). track.data.pitZonePad overrides the table.
