@@ -533,7 +533,11 @@ window.EI = window.EI || {};
   }
   Race.seasonGrid = function (rng, seats, round) {
     const L = gridList(); if (!L.length) return null;
-    let g = round != null ? L.find(x => String(x.round) === String(round) || x.id === round) : null; if (!g) g = L[Math.floor(rng() * L.length) % L.length];
+    let g = round != null ? L.find(x => String(x.round) === String(round) || x.id === round) : null;
+    // a circuit that names its own 2026 race (data.seasonGrid, e.g. Monza: 'Italian GP') starts from that race's grid when it has been run
+    const own = round == null && EI.TRACKS && EI.trackId && EI.TRACKS[EI.trackId] && EI.TRACKS[EI.trackId].seasonGrid;
+    if (!g && own) g = L.find(x => String(x.race || x.gp || x.name || '').replace(/Grand Prix/i, 'GP').toLowerCase() === String(own).toLowerCase()) || null;
+    if (!g) g = L[Math.floor(rng() * L.length) % L.length];
     const race = String(g.race || g.gp || g.name || ('Round ' + g.round)).replace(/Grand Prix/i, 'GP');
     const sess = g.session || g.type || (g.gridNow || g.grid ? 'starting grid' : 'qualifying');
     return { order: seatOrder(g, seats), round: g.round, race, label: g.label || ((EI.SEASON.season || EI.SEASON.year || 2026) + ' ' + race + ' ' + sess) };

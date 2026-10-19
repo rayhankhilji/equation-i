@@ -146,7 +146,7 @@
       L.partnerTop('visa', 0.96, -0.03, 0.12, 0.04, 'mono:' + NV, ALONG);
       L.partnerTop('redbull', 0.86, 0, 0.16, 0.04, 'color', ALONG);
       // sidepod tops: CONFLUENT (black), the white panels; Cash App badges by the cockpit
-      for (const s of [-1, 1]) { L.t.at(-0.3, s * 0.4, () => logo(g, 'confluent', 0.3, 0.045, 'color', FB.confluent), 0); L.partnerTop('cashapp', 0.42, s * 0.36, 0.05, 0.05, 'color', 0); }
+      for (const s of [-1, 1]) { L.t.at(-0.3, s * 0.4, () => logo(g, 'confluent', 0.34, 0.05, 'black', FB.confluent), 0); L.partnerTop('cashapp', 0.42, s * 0.36, 0.05, 0.05, 'color', 0); }
       // rear wing: white main plane with TUDOR (shield + wordmark) on each half; the DRS flap carries Cash App in white
       for (const s of [-1, 1]) { t.at(-2.04, s * 0.27, () => logoPart(g, 'tudor', 0.34, 0.07, 'black', [0, 0.62, 1, 1])); t.at(-2.04, s * 0.5, () => logoPart(g, 'tudor', 0.05, 0.06, 'color', [0.3, 0, 0.7, 0.42])); }
       t.at(-2.2, -0.12, () => cashApp(g, 0.6, 0.1, '#ffffff', false)); L.partnerTop('cashapp', -2.2, 0.38, 0.09, 0.09, 'color', 0);

@@ -139,7 +139,9 @@ window.EI = window.EI || {};
     V.layout = function (E) {
       if (!isMonza(E.t)) return oLayout.call(this, E);
       const S = E.t.data.scenery; E._mzGs = S.grandstands; S.grandstands = [];
-      try { return oLayout.call(this, E); } finally { /* restored after the venue build */ }
+      // the generator's per-footprint stand runs are replaced by js/env_monza_stands.js (styles, two-tier centrale, roofs)
+      const runs = E.data.standRuns; E.data.standRuns = [];
+      try { return oLayout.call(this, E); } finally { E.data.standRuns = runs; }
     };
     const oLS = V.layoutStands;
     V.layoutStands = function (E) {

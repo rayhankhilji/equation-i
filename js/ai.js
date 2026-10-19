@@ -29,7 +29,8 @@ window.EI = window.EI || {};
   // limit sits above 1: just below the scale at which a bot starts to leave the track limits (headless sim on the full-width
   // racing line: Silverstone runs wide from ~1.15, Yas from ~1.25; Monaco is steering-lock limited and clean beyond 1.3).
   // Re-measure (swarm/f1/personality/sweep.sh) when a circuit's geometry or the driving core changes.
-  const C_LIMIT = { silverstone: 1.1, monaco: 1.25, abudhabi: 1.16 }, C_LIMIT_DEFAULT = 1.1;
+  // Monza (monza-GEN, swarm/monza/gen/sweep.sh): clean to 1.2, first runs wide at 1.25 -> 1.16
+  const C_LIMIT = { silverstone: 1.1, monaco: 1.25, abudhabi: 1.16, monza: 1.16 }, C_LIMIT_DEFAULT = 1.1;
   // lap time a late braker gains over an early one on top of the profile (trail-braking carry, later lift: update()), per unit of
   // the braking trait, measured in the headless sim. The corner grip is solved against it so braking style never changes the pace.
   const K_BRAKE = { silverstone: 0.001, monaco: 0.002, abudhabi: 0.001 }, K_BRAKE_DEFAULT = 0.0015;
