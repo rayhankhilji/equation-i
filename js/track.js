@@ -1489,7 +1489,7 @@ window.EI = window.EI || {};
       this.quality = q; const low = q === 'low';
       for (const m of this.batches || []) {
         const d = m.userData; m.geometry.setDrawRange(0, low ? d.coreCount : Infinity); m.visible = !(low && d.coreCount === 0);
-        if (m.name === 'fence') m.visible = !low;
+        if (m.name === 'fence') m.visible = !low || !!(this.data.fence && this.data.fence.low);   // Monza: the catch fence is in every photo, also on Low
         if (m.name === 'furniture') m.castShadow = !low && d.castShadow;
         if (this.data.street && (m.name === 'barrierParts' || m.name === 'armco')) m.castShadow = !low;
       }

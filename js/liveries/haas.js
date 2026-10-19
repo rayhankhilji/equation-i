@@ -88,7 +88,7 @@
       k.poly([[0.14, TOP_V], [0.14, 0.82], [-0.05, 0.8], [-0.42, 0.86], [-0.42, TOP_V]], RD);
       k.at(-0.18, 0.89, () => logo(g, 'ruckus', 0.38, 0.075, 'white', FB.ruckus));
       // the giant GR on the engine cover; the giant HAAS on the sidepod
-      k.at(-0.8, 0.74, () => gr(g, 0.8, 0.16, BK, RD));
+      k.at(-0.8, 0.84, () => gr(g, 0.8, 0.15, BK, RD));
       k.at(-0.22, 0.4, () => haasWord(g, 0.27, BK));
       // cockpit side / sidepod front partners
       k.at(1.1, 0.53, () => twoTone(g, 'ORION', '#111214', '180', RD, 0.36, 0.085, '"Unbounded", "Titillium Web", Arial, sans-serif', 800, 'INSURANCE', '#111214'));
