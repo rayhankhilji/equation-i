@@ -407,7 +407,7 @@ window.EI = window.EI || {};
         : { cls: 2, also: [5], roles: { [FWEND]: 1 }, map: (x, y) => [x, -y], x0: 2.1, x1: 3.2, y0: -0.65, y1: 0.05, draw });
     }
     // top view: X = z (right), Y = -x (nose up), text upright reads from behind
-    views.push({ cls: 3, map: (x, y, z) => [z, -x], x0: -1.1, x1: 1.1, y0: -3.2, y1: 3.2, draw: (g) => {
+    views.push({ cls: 3, notRoles: noEp, map: (x, y, z) => [z, -x], x0: -1.1, x1: 1.1, y0: -3.2, y1: 3.2, draw: (g) => {
       g.scale(1 / MM, 1 / MM);
       const at = (x, z, fn, rot) => { g.save(); g.translate(z * MM, -x * MM); if (rot) g.rotate(rot); fn(); g.restore(); };
       const txt = (str, x, z, cap, col, font, rot, ls) => at(x, z, () => { g.font = font.replace('%', (cap * MM).toFixed(1) + 'px'); Ads().setLS(g, (ls || 0) * cap * MM); g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillStyle = col; g.fillText(str, 0, cap * MM * 0.04); Ads().setLS(g, 0); }, rot);
