@@ -162,6 +162,9 @@ window.EI = window.EI || {};
       wordmark(str, x, y, cap, col, o) { at(x, y, () => styledText(g, str, cap, col, o)); },
       // text along the halo side (e.g. a team / driver handle), fitted to the bar
       haloSide(str, col, o) { const b = SIDE.haloSide; at(b[0], b[1], () => styledText(g, str, b[3] * 0.8, col, Object.assign({ w: 700, ls: 0.02 }, o))); },
+      // a handle on the halo ARM as the driver sees it from the cockpit (arm -1 = left, +1 = right): the inner face of an arm takes
+      // the OPPOSITE side view, so it is drawn there only (it also shows on the outside of the other arm, as on the real cars)
+      haloHandle(str, col, arm, o) { if (k.s === -arm) this.haloSide(str, col, o); },
     };
   }
   function helpersTop(g, t, team, num) {

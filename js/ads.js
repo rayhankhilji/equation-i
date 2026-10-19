@@ -222,6 +222,18 @@
   Ads.partnerId = function (name) { const s = slug(name); return PARTNERS[s] ? s : ALIAS[s] || s; };
   // which ids have vector artwork in assets/brand/partners (filled in with the downloaded files; anything else uses its wordmark)
   const ART = Ads.PARTNER_ART = new Set(['adidas', 'americanexpress', 'atlassian', 'att', 'audi', 'aws', 'bp', 'bwt', 'cashapp', 'castrol', 'cevalogistics', 'claro', 'claude', 'cognizant', 'coinbase', 'corescientific', 'coreweave', 'crowdstrike', 'dell', 'deloitte', 'dhl', 'dpworld', 'duracell', 'eni', 'etihadairways', 'ferrari', 'ford', 'globant', 'googlegemini', 'gulf', 'hardrock', 'heineken', 'honda', 'hp', 'ibm', 'ineos', 'kitkat', 'komatsu', 'lenovo', 'liquimoly', 'louisvuitton', 'lvmh', 'mastercard', 'mercadolibre', 'mercedes', 'microsoft', 'okx', 'oracle', 'paramountplus', 'pepsico', 'petronas', 'pirelli', 'puma', 'qatarairways', 'qualcomm', 'redbull', 'revolut', 'salesforce', 'santander', 'shell', 'standardchartered', 'tagheuer', 'tenneco', 'unicredit', 'valvoline', 'visa']);
+  // LIVERY-B (racingbulls / alpine / haas / audi) partner artwork, same pipeline (see SOURCES.md)
+  Object.assign(PARTNERS, { tudor: { n: 'TUDOR' }, redbullbull: { n: 'Red Bull' }, dynatrace: { n: 'dynatrace' }, ninjaone: { n: 'ninjaOne' }, etoro: { n: 'eToro' }, haasf1: { n: 'TGR Haas F1 Team' } });
+  ['tudor', 'redbullbull', 'dynatrace', 'ninjaone', 'mobil', 'etoro', 'haasf1'].forEach((id) => ART.add(id));
+  // LIVERY-A (mercedes / ferrari / mclaren / redbull) partner artwork, same pipeline (see SOURCES.md)
+  Object.assign(PARTNERS, { amd: { n: 'AMD' }, amg: { n: 'AMG' }, cisco: { n: 'Cisco' }, dxc: { n: 'DXC Technology' }, groq: { n: 'Groq' }, mclarenspeedmark: { n: 'McLaren' }, nubank: { n: 'Nu' }, okta: { n: 'Okta' }, workday: { n: 'Workday' }, indeed: { n: 'Indeed' }, siemens: { n: 'SIEMENS' } });
+  ['amd', 'amg', 'cisco', 'dxc', 'groq', 'mclarenspeedmark', 'nubank', 'okta', 'snapdragon', 'teamviewer', 'whoop', 'workday', 'indeed', 'siemens'].forEach((id) => ART.add(id));
+  // LIVERY-C (williams / astonmartin / cadillac) partner artwork, same pipeline (see SOURCES.md; team-site logos are the teams' own partner files)
+  Object.assign(PARTNERS, { '3m': { n: '3M' }, alpinestars: { n: 'Alpinestars' }, arm: { n: 'Arm' }, astonmartin: { n: 'Aston Martin' }, betway: { n: 'betway' }, boss: { n: 'BOSS' },
+    breitling: { n: 'Breitling' }, cadillaccrest: { n: 'Cadillac' }, cognition: { n: 'Cognition' }, cohere: { n: 'cohere' }, coinpayments: { n: 'CoinPayments' }, estrellagalicia: { n: 'Estrella Galicia' },
+    keeper: { n: 'Keeper' }, clarowordmark: { n: 'Claro' }, honda2026: { n: 'Honda' }, valvolinev: { n: 'Valvoline' }, netapp: { n: 'NetApp' }, nexgen: { n: 'NexGen' }, pepperstone: { n: 'Pepperstone' }, vastdata: { n: 'VAST Data' }, williams: { n: 'Williams' }, xerox: { n: 'xerox' } });
+  ['3m', 'alpinestars', 'aramco', 'arm', 'astonmartin', 'barclays', 'betway', 'boss', 'breitling', 'cadillac', 'cadillaccrest', 'cognition', 'cohere', 'coinpayments', 'estrellagalicia', 'glenfiddich',
+    'ifs', 'jcb', 'jimbeam', 'keeper', 'kraken', 'maaden', 'netapp', 'nexgen', 'pepperstone', 'tommyhilfiger', 'twgai', 'vastdata', 'williams', 'xerox', 'clarowordmark', 'honda2026', 'valvolinev'].forEach((id) => ART.add(id));
   // trimmed aspect (width / height) of each artwork, measured offline (the SVGs carry the same trimmed viewBox)
   Ads.PARTNER_DIR = Ads.BRAND_DIR + 'partners/';
   const PIMG = {};   // id -> decoded SVG image
@@ -748,7 +760,7 @@
     ctx.restore();
   };
   function brandBillboard(ctx, k, w, h) {
-    ctx.save(); const m = h * 0.09;
+    ctx.save(); const m = h * 0.12;   // safe margin all round
     if (k % 4 === 0) {
       lumiFrame(ctx, w, h, LUMI.bg, ['rgba(230,200,255,0.8)', 'rgba(220,238,209,0.9)']); haze(ctx, w * 0.5, h * 1.2, w * 0.3, h * 0.6, 'rgba(96,196,255,0.35)');
       Ads.lumiMark(ctx, m, m, h * 0.5);

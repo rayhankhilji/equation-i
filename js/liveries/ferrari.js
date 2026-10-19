@@ -1,29 +1,93 @@
-// Equation I - ferrari 2026 livery (owner: LIVERY-A). Registered with the livery core js/liveries.js, which documents the helpers
-// (L.partner / partnerAt / emblem / mark / number / codeText / wordmark, L.k side kit, L.t top kit) and the part colour keys.
-// Coordinates: metres, x forward (nose tip 3.0, front axle 1.75, rear axle -1.85), y up, z right.
+// Equation I - ferrari 2026 livery (owner: LIVERY-A). Registered with the livery core js/liveries.js, which documents the helpers.
+// Coordinates: metres, x forward (nose tip 3.05, front axle 1.75, rear axle -1.85), y up, z right (see liveries/mercedes.js for the
+// model landmarks). Scuderia Ferrari HP SF-26 (2026 race photos, swarm/f1/liveryA/refs/fer_*): lighter gloss red; a white block over
+// the airbox and the engine-cover spine with a red pinstripe along its lower edge, cut diagonally at the rear where the big white race
+// number sits on the red; the blue HP disc on the white airbox; Shell pecten + CEVA Logistics on the sidepod, Puma ahead of it,
+// UniCredit on the cover rear; Richard Mille + the Scuderia shield on the chassis; ZYN / IBM by the cockpit; black wings with UniCredit
+// + tricolore on the front endplates and Shell V-Power / Peroni Nastro Azzurro 0.0% on the rear endplates; HP discs on the rear wing.
 (function () {
   const LV = EI.LIVERIES; if (!LV) return;
-  const { TOP_V, LOW_V, W, MM } = LV.K;
-  LV.register('ferrari', {   // SF-26: bright gloss red, white panels around the cockpit and over the engine cover, black lower floor edge
-    parts: { body: '#e10a17', fwFlap: '#e10a17', fwEnd: '#e10a17', fwTip: '#ffffff', rwMain: '#e10a17', rwEnd: '#e10a17', rwFlap: '#16171a', halo: '#16171a', mirror: '#e10a17', fin: '#e10a17' },
+  const { W, MM } = LV.K;
+  const RED = '#e2131f', BK = '#141518', WH = '#f6f6f4', YEL = '#fbd70c';
+  // the Shell pecten (scallop): yellow shell, red rim and grooves; h = height in metres, centred on the origin
+  function pecten(g, h) {
+    h *= MM; const w = h * 1.08, r = w / 2; g.save(); g.lineJoin = 'round';
+    const outline = () => { g.beginPath(); g.moveTo(-w * 0.17, h * 0.5); g.lineTo(-w * 0.2, h * 0.36); g.bezierCurveTo(-w * 0.5, h * 0.3, -w * 0.52, h * 0.05, -w * 0.47, -h * 0.08);
+      g.bezierCurveTo(-w * 0.42, -h * 0.38, -w * 0.2, -h * 0.5, 0, -h * 0.5); g.bezierCurveTo(w * 0.2, -h * 0.5, w * 0.42, -h * 0.38, w * 0.47, -h * 0.08);
+      g.bezierCurveTo(w * 0.52, h * 0.05, w * 0.5, h * 0.3, w * 0.2, h * 0.36); g.lineTo(w * 0.17, h * 0.5); g.closePath(); };
+    outline(); g.fillStyle = '#dd1d21'; g.fill(); g.save(); g.translate(0, 0); g.scale(0.86, 0.86); outline(); g.fillStyle = YEL; g.fill(); g.restore();
+    g.strokeStyle = '#dd1d21'; g.lineWidth = h * 0.045; g.lineCap = 'round';
+    for (let i = -3; i <= 3; i++) { if (!i) continue; const a = i * 0.21; g.beginPath(); g.moveTo(Math.sin(a) * h * 0.12, h * 0.3); g.lineTo(Math.sin(a) * h * 0.47, h * 0.3 - Math.cos(a) * h * 0.66); g.stroke(); }
+    g.beginPath(); g.moveTo(0, h * 0.3); g.lineTo(0, -h * 0.37); g.stroke();
+    g.fillStyle = '#dd1d21'; g.fillRect(-w * 0.2, h * 0.3, w * 0.4, h * 0.12);
+    g.restore();
+  }
+  // the Scuderia shield: yellow field, tricolore band, black prancing horse, S F; h = height (m)
+  function shield(g, h) {
+    h *= MM; const w = h * 0.7; g.save();
+    const sh = () => { g.beginPath(); g.moveTo(-w / 2, -h / 2); g.lineTo(w / 2, -h / 2); g.lineTo(w / 2, h * 0.14); g.quadraticCurveTo(w / 2, h * 0.36, 0, h / 2); g.quadraticCurveTo(-w / 2, h * 0.36, -w / 2, h * 0.14); g.closePath(); };
+    sh(); g.fillStyle = '#111'; g.fill(); g.save(); g.translate(0, h * 0.01); g.scale(0.9, 0.93); sh(); g.clip(); g.fillStyle = YEL; g.fillRect(-w, -h, w * 2, h * 2);
+    ['#009a44', '#ffffff', '#e2131f'].forEach((c, i) => { g.fillStyle = c; g.fillRect(-w / 2 + i * w / 3, -h / 2, w / 3 + 1, h * 0.1); });
+    // prancing horse (rearing, facing left), body ~0.5 h tall
+    const s = h * 0.0105; g.translate(-h * 0.01, h * 0.06); g.scale(s, s); g.fillStyle = '#111'; g.beginPath();
+    const P = [[-6, -26], [-2, -24], [3, -18], [4, -12], [8, -8], [14, -10], [18, -6], [16, -2], [11, -2], [9, 4], [12, 10], [14, 18], [10, 18], [7, 10], [3, 8], [0, 14], [2, 22], [-2, 22], [-4, 14], [-6, 8], [-10, 4], [-13, 6], [-16, 2], [-12, -2], [-10, -8], [-14, -12], [-18, -10], [-16, -16], [-11, -16], [-9, -20], [-12, -24], [-9, -28]];
+    P.forEach(([x, y], i) => (i ? g.lineTo(x, y) : g.moveTo(x, y))); g.closePath(); g.fill();
+    g.restore();
+    g.fillStyle = '#111'; g.font = '900 ' + (h * 0.15).toFixed(1) + 'px "Titillium Web", Arial'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('S  F', 0, h * 0.33);
+    g.restore();
+  }
+  // the Puma leaping cat (Puma's formstrip-free mark), facing right, w = width (m), centred on the origin
+  function pumaCat(g, w, col) {
+    w *= MM; const P = [[0.98, 0.12], [0.9, 0.0], [0.86, 0.07], [0.78, 0.05], [0.6, 0.13], [0.38, 0.27], [0.24, 0.39], [0.12, 0.43], [0.0, 0.62], [0.05, 0.65], [0.16, 0.52], [0.23, 0.52], [0.16, 0.72], [0.26, 0.74], [0.36, 0.5], [0.56, 0.37], [0.72, 0.31], [0.97, 0.37], [1.0, 0.31], [0.8, 0.23], [0.93, 0.19]];
+    g.fillStyle = col; g.beginPath(); P.forEach(([x, y], i) => (i ? g.lineTo((x - 0.5) * w, (y - 0.37) * w) : g.moveTo((x - 0.5) * w, (y - 0.37) * w))); g.closePath(); g.fill();
+  }
+  function tricolore(g, w, h) { w *= MM; h *= MM; ['#009a44', '#ffffff', '#e2131f'].forEach((c, i) => { g.fillStyle = c; g.fillRect(-w / 2 + i * w / 3, -h / 2, w / 3 + 0.5, h); }); }
+  LV.register('ferrari', {
+    parts: { body: RED, fwFlap: BK, fwEnd: BK, fwTip: BK, rwMain: BK, rwEnd: BK, rwFlap: BK, halo: BK, mirror: RED, fin: RED },
     num: { ff: '"Titillium Web", Arial, sans-serif', w: 900, it: 1, sx: 0.92 },
+    halo: { inner: ['@ScuderiaFerrari', 'dxc'] },
     side(L) {
-      const { k } = L;
-      k.region([[1.05, 1.3], [1.0, 0.72], [0.4, 0.74], [-0.3, 0.76], [-0.9, 0.72], [-1.4, 0.64], [-2.0, 0.56]], [[-2.6, 0.56], [-2.6, TOP_V], [1.05, TOP_V]], W);
-      k.stroke([[1.0, 0.7], [0.4, 0.72], [-0.3, 0.74], [-0.9, 0.7], [-1.4, 0.62]], 0.012, '#16171a');
-      k.region([[3.2, 0.14], [1.0, 0.16], [-0.6, 0.18], [-2.0, 0.22]], [[-2.4, LOW_V], [3.2, LOW_V]], '#16171a');
-      L.partner('hp', 'ec', 'color'); L.partner('hp', 'sp', 'white'); L.partner('shell', 'ecRear', 'color'); L.partner('unicredit', 'noseSide', 'white');
-      L.partner('ibm', 'spLow', 'white'); L.partner('hp', 'fwEnd', 'white'); L.partner('shell', 'rwEnd', 'color');
-      L.mark('ferrari', 0.62, 0.6, 0.12, 0.13, 'color', 'shield', 0.1, '#fff200', true);
-      L.number(1.25, 0.5, 0.085, W); L.codeText(1.3, 0.62, 0.045, W); L.number(-2.13, 0.62, 0.11, W);
+      const { k, g } = L;
+      // white block: cockpit rear, airbox and engine-cover spine, diagonal rear cut, red pinstripe along its lower edge
+      const LOW = [[0.6, 0.76], [0.3, 0.72], [-0.1, 0.7], [-0.45, 0.69], [-0.62, 0.69]];
+      k.region(LOW, [[-0.92, 1.2], [0.6, 1.2]], WH);
+      k.stroke(LOW.map(([x, y]) => [x, y + 0.025]).concat([[-0.68, 0.73], [-0.94, 1.12]]), 0.012, RED);
+      // race number on the red cover behind the white
+      L.number(-1.1, 0.82, 0.15, W);
+      L.partnerAt('hp', -0.14, 0.9, 0.23, 0.23, 'color');
+      L.partnerAt('zyn', 0.52, 0.81, 0.13, 0.04, 'black');
+      L.partnerAt('ibm', 0.22, 0.81, 0.13, 0.04, 'black');
+      // sidepod: Puma, Shell pecten, CEVA; UniCredit on the cover rear
+      k.at(0.4, 0.53, () => { g.scale(k.s, 1); pumaCat(g, 0.13, W); });
+      k.at(0.04, 0.45, () => pecten(g, 0.24));
+      L.partnerAt('cevalogistics', -0.45, 0.36, 0.4, 0.11, 'white');
+      L.partnerAt('unicredit', -0.95, 0.58, 0.44, 0.07, 'white');
+      // chassis: Richard Mille + the shield; floor: ambipar
+      L.partnerAt('richardmille', 1.25, 0.6, 0.36, 0.04, 'white');
+      k.at(0.98, 0.56, () => shield(g, 0.11));
+      L.partnerAt('ambipar', 0.95, 0.24, 0.3, 0.05, 'white');
+      // front-wing endplates: UniCredit + tricolore
+      L.partnerAt('unicredit', 2.5, 0.36, 0.34, 0.07, 'white'); k.at(2.5, 0.24, () => tricolore(g, 0.2, 0.035));
+      // rear-wing endplates: tricolore strip, Shell V-Power, Peroni Nastro Azzurro 0.0%
+      k.at(-2.17, 0.95, () => tricolore(g, 0.3, 0.03));
+      k.at(-2.04, 0.84, () => pecten(g, 0.07)); L.wordmark('V-Power', -2.22, 0.84, 0.05, W, { w: 700, it: 1 });
+      L.wordmark('PERONI', -2.17, 0.71, 0.045, W, { w: 700, ff: 'Georgia, "Times New Roman", serif', ls: 0.06 }); L.wordmark('NASTRO AZZURRO 0.0%', -2.17, 0.655, 0.024, W, { w: 700, ls: 0.06 });
+      L.codeText(1.55, 0.55, 0.045, W);
+      L.haloHandle('ferrari.com', W, -1); L.haloHandle('@ScuderiaFerrari', W, 1);
     },
     top(L) {
-      const { t } = L;
-      for (const s of [-1, 1]) t.poly([[1.0, s * 0.1], [1.0, s * 0.3], [0.2, s * 0.55], [-0.6, s * 0.4], [-1.3, s * 0.14], [-1.3, s * 0.06], [0.2, s * 0.12]], W);
-      t.poly([[0.25, -0.08], [0.25, 0.08], [-1.4, 0.06], [-1.4, -0.06]], W);
-      t.rect(-3.2, -1.5, -1.2, 1.2, '#16171a');
-      L.mark('ferrari', 2.5, 0, 0.1, 0.12, 'color', 'shield', 0.11, '#fff200', true); L.number(2.12, 0, 0.13, W);
-      L.partner('hp', 'rwTop', 'white'); L.partner('hp', 'ecTop', 'color');
+      const { t, g } = L;
+      // white spine over the airbox and the engine cover, pinstripe edges
+      t.poly([[0.55, -0.2], [0.55, 0.2], [0.0, 0.2], [-0.55, 0.16], [-0.75, 0.0], [-0.55, -0.16], [0.0, -0.2]], WH);
+      t.at(2.62, 0, () => pecten(g, 0.09), Math.PI);
+      L.number(2.25, 0, 0.12, W);
+      L.partnerTop('ibm', 1.97, 0, 0.12, 0.04, 'white', Math.PI); L.partnerTop('whoop', 1.6, 0, 0.14, 0.03, 'white', Math.PI); L.partnerTop('unicredit', 1.75, 0, 0.17, 0.035, 'white', Math.PI);
+      t.at(1.42, 0, () => shield(g, 0.085), Math.PI);
+      // rear wing: HP discs on the main plane, IBM on the flap; front-wing flaps: HP discs
+      for (const z of [-0.3, 0.3]) L.partnerTop('hp', -2.06, z, 0.15, 0.15, 'color');
+      L.partnerTop('ibm', -2.26, 0, 0.3, 0.07, 'white');
+      for (const z of [-0.62, 0.62]) L.partnerTop('hp', 2.72, z, 0.12, 0.12, 'color');
+      L.haloTop('@ScuderiaFerrari', W, -1); L.haloTop('ferrari.com', W, 1); L.haloFront('dxc', 'white');
     },
   });
 })();

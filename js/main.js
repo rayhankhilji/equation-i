@@ -487,9 +487,10 @@ window.EI = window.EI || {};
     if (mode === 'cockpit') {
       // eye at the visor: halo blade dead centre, halo hoop across the upper third, wheel + gloves filling the bottom,
       // both front tyre tops and the mirrors at the edges. Head physics: g-force sway / brake dip, rpm buzz, look-to-apex.
-      const glb = EI.CarGLB && EI.CarGLB.ready; const eyeX = EI.debug.eye ? EI.debug.eye.x : (glb ? 0.23 : 0.45), eyeY = EI.debug.eye ? EI.debug.eye.y : (glb ? 0.842 : 0.9);
+      const glb = EI.CarGLB && EI.CarGLB.ready; const eyeX = EI.debug.eye ? EI.debug.eye.x : (glb ? 0.26 : 0.45), eyeY = EI.debug.eye ? EI.debug.eye.y : (glb ? 0.842 : 0.9);
       car._cockpitT = performance.now();
-      if (snap) { cs.sway = 0; cs.dip = 0; cs.apex = 0; cs.roll = 0; cs.fov = 62; }
+      const fov0 = EI.debug.ckFov || 55;   // ~84 deg across a 16:9 screen: the wheel fills the lower third as in the F1 games
+      if (snap) { cs.sway = 0; cs.dip = 0; cs.apex = 0; cs.roll = 0; cs.fov = fov0 + 1; }
       const kSway = 1 - Math.exp(-dt * 5);
       cs.sway += (U.clamp(-car.aLat * 0.0009, -0.02, 0.02) - cs.sway) * kSway;           // head pushed to the outside of the corner
       cs.dip += (U.clamp(-car.aLong * 0.0008, -0.016, 0.028) - cs.dip) * kSway;          // forward under braking, back under power
@@ -504,7 +505,7 @@ window.EI = window.EI || {};
       _look.set(_tgt.x + dx * 30 + lx * jx * 0.25, _tgt.y + pitch * 30, _tgt.z + dz * 30 + lz * jz * 0.25);
       cam.up.set(0, 1, 0); cam.lookAt(_look);
       cs.roll += (U.clamp(-car.aLat * 0.0006, -0.015, 0.015) - cs.roll) * kSway; cam.rotateZ(cs.roll);
-      cs.fov += ((61 + Math.min(v, 95) * 0.03 + (car.drsOpen ? 1 : 0)) - cs.fov) * (snap ? 1 : Math.min(1, dt * 3)); cam.fov = viewFov(cam, cs.fov, 6); cam.updateProjectionMatrix();
+      cs.fov += ((fov0 + Math.min(v, 95) * 0.03 + (car.drsOpen ? 1 : 0)) - cs.fov) * (snap ? 1 : Math.min(1, dt * 3)); cam.fov = viewFov(cam, cs.fov, 6); cam.updateProjectionMatrix();
       cam.near = 0.04; cam.updateProjectionMatrix();
       // split screen: one low-res mirror render per frame at most, taking turns between the players
       // Low: a lite mirror (112 px target, scenery group hidden: road, barriers and the cars behind), one side every 2nd frame

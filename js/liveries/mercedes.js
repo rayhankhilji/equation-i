@@ -1,32 +1,80 @@
 // Equation I - mercedes 2026 livery (owner: LIVERY-A). Registered with the livery core js/liveries.js, which documents the helpers
 // (L.partner / partnerAt / emblem / mark / number / codeText / wordmark, L.k side kit, L.t top kit) and the part colour keys.
-// Coordinates: metres, x forward (nose tip 3.0, front axle 1.75, rear axle -1.85), y up, z right.
+// Coordinates: metres, x forward (nose tip 3.05, front axle 1.75, rear axle -1.85), y up, z right. Model landmarks: body y 0.13..1.09,
+// cockpit x 0.87..0.02 (rim y ~0.8), airbox top (0.0, 1.09), halo x 1.2..0.02 (top bar y ~0.9), mirrors x 0.7..0.92 / y 0.65..0.79,
+// front-wing endplates x 2.29..2.73 / y 0.13..0.5, rear-wing endplates x -1.93..-2.42 / y 0.45..0.99.
+// Mercedes-AMG F1 W17 (2026 race photos, swarm/f1/liveryA/refs/mer_*): gloss black car; silver nose and chassis shoulder edged by a
+// Petronas-teal stripe; forward-leaning silver pillars on the sidepod boxed by a teal swoosh with PETRONAS under it; a field of small
+// silver three-pointed stars over the engine cover; Microsoft / SOLERA on the airbox, TeamViewer on the cover; INEOS / IWC / Microsoft
+// on the front-wing endplates; Snapdragon / CrowdStrike / PETRONAS PRIMAX on the rear-wing endplates, PETRONAS on the rear-wing top.
 (function () {
   const LV = EI.LIVERIES; if (!LV) return;
   const { TOP_V, LOW_V, W, MM } = LV.K;
-  LV.register('mercedes', {   // W17: black car, silver nose spine and cockpit shoulders, a Petronas-teal flow line down the side
-    parts: { body: '#0e0f11', fwFlap: '#0e0f11', fwEnd: '#0e0f11', fwTip: '#00a19c', rwMain: '#0e0f11', rwEnd: '#0e0f11', rwFlap: '#0e0f11', halo: '#0e0f11', mirror: '#0e0f11', fin: '#0e0f11' },
+  const BK = '#0b0c0e', SIL = '#b9bfc5', SIL2 = '#9aa1a8', TEAL = '#00a19c';
+  // a small three-pointed star (the Mercedes star without its ring), r = tip radius in metres, at the current origin
+  function star3(g, r, col) {
+    r *= MM; g.fillStyle = col; g.beginPath();
+    for (let i = 0; i < 3; i++) { const a = -Math.PI / 2 + i * 2 * Math.PI / 3, b = a + Math.PI / 3; g.lineTo(Math.cos(a) * r, Math.sin(a) * r); g.lineTo(Math.cos(b) * r * 0.16, Math.sin(b) * r * 0.16); }
+    g.closePath(); g.fill();
+  }
+  const rnd = (n) => { const s = Math.sin(n * 127.1 + 3.7) * 43758.5453; return s - Math.floor(s); };
+  // Microsoft on a dark ground: white wordmark, the four squares in their own colours (white pass, then the colour art clipped to
+  // the square mark at the left end)
+  function msft(g, w, h) {
+    const r = EI.Ads.drawPartner(g, 'microsoft', 0, 0, w * MM, h * MM, { tone: 'white' });
+    g.save(); g.beginPath(); g.rect(-r[0] / 2 - 1, -r[1] / 2 - 1, r[1] * 1.02 + 1, r[1] + 2); g.clip();
+    EI.Ads.drawPartner(g, 'microsoft', 0, 0, w * MM, h * MM, { tone: 'color' }); g.restore();
+  }
+  LV.register('mercedes', {
+    parts: { body: BK, fwFlap: BK, fwEnd: BK, fwTip: TEAL, rwMain: BK, rwEnd: BK, rwFlap: BK, halo: BK, mirror: TEAL, fin: BK },
     num: { ff: '"Titillium Web", Arial, sans-serif', w: 700, ls: 0.02 },
+    halo: { inner: ['@MercedesAMGF1', 'crowdstrike'] },
     side(L) {
-      const { k, g } = L; const SIL = '#c5c9ce', TEAL = '#00a19c';
-      // silver shoulder over the cockpit side / airbox, fading into the black towards the rear
-      const gr = g.createLinearGradient(k.X(1.2), 0, k.X(-1.3), 0); gr.addColorStop(0, SIL); gr.addColorStop(0.55, '#8d9298'); gr.addColorStop(1, 'rgba(14,15,17,0)');
-      k.region([[1.6, 0.56], [0.9, 0.64], [0.2, 0.7], [-0.6, 0.74], [-1.4, 0.66]], [[-1.4, TOP_V], [1.6, TOP_V]], gr);
-      g.save(); g.globalAlpha = 0.5; for (let i = 0; i < 7; i++) for (let j = 0; j < 3; j++) { const x = 0.05 - i * 0.13 - (j % 2) * 0.065, y = 0.76 + j * 0.055; k.poly([[x, y + 0.025], [x + 0.05, y], [x, y - 0.025], [x - 0.05, y]], '#0e0f11'); } g.restore();   // AMG diamonds
-      const FLOW = [[3.05, 0.2], [2.2, 0.31], [1.4, 0.4], [0.7, 0.47], [0.0, 0.46], [-0.7, 0.38], [-1.5, 0.3]];
-      k.stroke(FLOW, 0.032, TEAL); k.stroke(FLOW.map(([x, y]) => [x, y + 0.035]), 0.008, SIL);
-      L.mark('mercedes', -1.05, 0.55, 0.15, 0.15, 'mono:#c5c9ce', 'star', 0.075, SIL);
-      L.wordmark('PETRONAS', -0.2, 0.44, 0.085, W, { w: 900, ls: 0.06 }); L.partnerAt('petronas', 0.42, 0.44, 0.1, 0.1, 'color'); L.partner('microsoft', 'airbox', 'black'); L.partner('ineos', 'spLow', 'white');
-      L.partner('crowdstrike', 'rwEnd', 'white'); L.partner('microsoft', 'fwEnd', 'white'); L.partner('teamviewer', 'noseSide', 'white');
-      L.number(1.05, 0.56, 0.08, '#0e0f11'); L.codeText(1.3, 0.69, 0.045, '#0e0f11');
-      L.number(-2.13, 0.62, 0.11, W);
+      const { k, g } = L;
+      // silver nose + chassis shoulder above the teal stripe, ending at the sidepod inlet (the halo / cockpit rim stay black)
+      const EDGE = [[3.1, 0.24], [2.7, 0.24], [2.2, 0.28], [1.7, 0.36], [1.25, 0.43], [0.95, 0.47], [0.7, 0.5]];
+      g.save(); k.path([[2.28, 0.0], [2.28, 0.6], [0.5, 0.9], [0.5, 0.0]]); g.clip(); k.region(EDGE, [[0.7, 0.74], [0.95, 0.74], [1.25, 0.72], [2.2, 0.62], [3.2, 0.5]], SIL); k.stroke(EDGE, 0.03, TEAL); g.restore();
+      g.save(); k.path([[2.74, 0.0], [2.74, 0.6], [3.3, 0.6], [3.3, 0.0]]); g.clip(); k.region(EDGE, [[3.2, 0.6]], SIL); k.stroke(EDGE, 0.03, TEAL); g.restore();
+      // sidepod: silver pillars leaning forward over the black flank, boxed below by the teal swoosh
+      const SW = [[-1.2, 0.42], [-0.7, 0.43], [-0.25, 0.45], [0.15, 0.5], [0.45, 0.58], [0.62, 0.68]];
+      g.save(); k.curve(SW, [[0.9, 0.7], [0.9, 0.84], [-1.35, 0.84], [-1.35, 0.42]]); g.closePath(); g.clip();
+      for (let i = 0; i < 5; i++) { const x = 0.36 - i * 0.235, w = 0.17 - i * 0.012; k.poly([[x + 0.24, 0.84], [x + 0.24 + w, 0.84], [x + w - 0.04, 0.4], [x - 0.04, 0.4]], i % 2 ? SIL2 : SIL); }
+      g.restore();
+      k.stroke(SW, 0.04, TEAL);
+      L.wordmark('PETRONAS', -0.3, 0.335, 0.12, W, { w: 900, ls: 0.02 });
+      // stars over the engine cover, denser and brighter towards the airbox
+      for (let i = 0; i < 60; i++) { const x = -0.15 - rnd(i) * 1.15, y = 0.6 + rnd(i + 99) * 0.42; const a = 1.0 - (-0.15 - x) * 0.55; if (a < 0.3 || (x > -0.5 && y > 0.84) || (x > -0.75 && y < 0.78 && y > 0.66)) continue; k.at(x, y, () => { g.globalAlpha = a; star3(g, 0.034 + rnd(i + 7) * 0.012, SIL); g.globalAlpha = 1; }); }
+      // airbox / engine cover / cockpit partners
+      k.at(-0.16, 0.97, () => msft(g, 0.34, 0.075));
+      L.partnerAt('solera', -0.3, 0.86, 0.28, 0.045, 'white');
+      L.partnerAt('teamviewer', -0.42, 0.72, 0.42, 0.065, 'white');
+      L.partnerAt('amd', 0.25, 0.78, 0.13, 0.04, 'white');
+      L.partnerAt('nubank', 1.0, 0.66, 0.08, 0.045, 'white');
+      L.partnerAt('amg', 1.1, 0.6, 0.25, 0.045, 'black');
+      L.partnerAt('einhell', 2.3, 0.37, 0.22, 0.035, 'white');
+      L.partnerAt('signify', 0.95, 0.24, 0.3, 0.05, 'white');
+      // front-wing endplates: INEOS / IWC / Microsoft
+      L.partnerAt('ineos', 2.5, 0.42, 0.3, 0.06, 'white'); L.partnerAt('iwc', 2.5, 0.3, 0.26, 0.07, 'white'); k.at(2.5, 0.19, () => msft(g, 0.32, 0.06));
+      // rear-wing endplates: Snapdragon / CrowdStrike / PETRONAS PRIMAX
+      L.partnerAt('snapdragon', -2.17, 0.86, 0.4, 0.075, 'white'); L.partnerAt('crowdstrike', -2.17, 0.76, 0.4, 0.05, 'white');
+      L.wordmark('PETRONAS', -2.2, 0.6, 0.03, W, { w: 900, ls: 0.04 }); L.wordmark('PRIMAX', -2.2, 0.56, 0.03, W, { w: 900, ls: 0.04 });
+      L.number(1.5, 0.56, 0.06, BK); L.codeText(1.75, 0.53, 0.04, BK);
+      L.haloHandle('mercedesamgf1.com', W, -1); L.haloHandle('@MercedesAMGF1', W, 1);
     },
     top(L) {
-      const { t, g } = L; const SIL = '#c5c9ce';
-      t.poly([[3.05, -0.05], [3.05, 0.05], [1.0, 0.12], [0.3, 0.2], [-0.4, 0.14], [-0.4, -0.14], [0.3, -0.2], [1.0, -0.12]], SIL);   // nose spine + cockpit shoulders
-      for (const s of [-1, 1]) t.poly([[3.0, s * 0.055], [3.0, s * 0.07], [1.0, s * 0.14], [1.0, s * 0.125]], '#00a19c');
-      L.mark('mercedes', 2.6, 0, 0.09, 0.09, 'black', 'star', 0.045, '#0e0f11');
-      L.number(2.2, 0, 0.09, '#0e0f11'); L.wordmark('PETRONAS', -2.1, 0, 0.09, W, { w: 900, ls: 0.06 }); L.partner('petronas', 'spTop', 'color');
+      const { t, g } = L;
+      // silver nose spine + cockpit shoulders, teal edge lines
+      t.poly([[3.1, -0.06], [3.1, 0.06], [2.2, 0.1], [1.4, 0.15], [0.9, 0.24], [0.9, -0.24], [1.4, -0.15], [2.2, -0.1]], SIL);
+      for (const s of [-1, 1]) t.poly([[3.1, s * 0.06], [3.1, s * 0.075], [2.2, s * 0.115], [1.4, s * 0.165], [0.9, s * 0.255], [0.9, s * 0.24], [1.4, s * 0.15], [2.2, s * 0.1]], TEAL);
+      L.mark('mercedes', 2.75, 0, 0.1, 0.1, 'black', 'star', 0.05, BK);
+      L.number(2.3, 0, 0.08, BK);
+      t.at(1.75, 0, () => LV.styledText(g, 'PETRONAS', 0.032, BK, { w: 900, ls: 0.04 }), Math.PI);
+      // engine cover stars from above
+      for (let i = 0; i < 40; i++) { const x = -0.25 - rnd(i + 300) * 1.1, z = (rnd(i + 331) - 0.5) * 0.55; t.at(x, z, () => { g.globalAlpha = 0.85 - (-0.25 - x) * 0.5; star3(g, 0.024, SIL); g.globalAlpha = 1; }); }
+      // rear-wing top: PETRONAS
+      L.wordmark('PETRONAS', -2.12, 0, 0.1, W, { w: 900, ls: 0.04 });
+      // halo: team handle + site on the arms, CrowdStrike where they meet
+      L.haloTop('@MercedesAMGF1', W, -1); L.haloTop('mercedesamgf1.com', W, 1); L.haloFront('crowdstrike', 'white');
     },
   });
 })();

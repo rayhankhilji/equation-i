@@ -7,11 +7,13 @@ window.EI = window.EI || {};
   //    reaches a loop before the car ahead did, so side-by-side cars do not flicker); finished cars by laps, then crossing order
   //  - 2026 aero: Straight Mode (low-drag wings, the old DRS flap) for every car in the activation zones; Overtake (+0.5 MJ,
   //    here: OT_ENERGY of free battery for one lap) for a car within OT_GAP s of the car ahead at the Detection Line, armed at the Line
-  //  - track limits: no part of the car on the track (white lines are track, kerbs are not) = lap deleted + strike; 3rd strike
-  //    black-and-white flag, 4th and each further 5 s; a cut that gains a place must give it back (else 10 s), a large time gain 5 s
-  //  - blue flags for lapped cars (players: 5 s after a third of a lap ignoring them), jump start 5 s, chequered flag for every car
-  //    at its next crossing after the leader, time penalties added to the classification, two dry compounds from 3 laps (else DSQ)
-  const LOOP = 20, HYST = 1.0, OT_GAP = 1.0, OT_ENERGY = 0.5, OFF_W = 1.1, TL_DEBOUNCE = 0.12, TL_REJOIN = 0.35, GIVE_BACK_T = 15, MANDATORY_LAPS = 3;
+  //  - the Line is crossed when the car's nose (NOSE m ahead of its centre) reaches it: lap and sector times start and end there
+  //  - track limits: no part of the car on the track (white lines are track, kerbs are not) = that lap time is deleted; a cut that
+  //    gains a place must give it back within GIVE_BACK_T s (else 5 s), a cut that gains a lot of time costs 3 s. Nothing else is shown.
+  //  - jump start 5 s, pit lane speeding (pit.js), chequered flag for every car at its next crossing after the leader, time
+  //    penalties added to the classification. car.blueFlag (a lapping car close behind) is left for the bots' racecraft, unflagged.
+  //    (Deliberately not used here: blue / black-and-white flags, strikes, unsafe release, the two-compound rule.)
+  const NOSE = 2.7, LOOP = 20, HYST = 1.0, OT_GAP = 1.0, OT_ENERGY = 0.5, OFF_W = 1.1, TL_DEBOUNCE = 0.12, TL_REJOIN = 0.35, GIVE_BACK_T = 15, MANDATORY_LAPS = 3;
 
   class Race {
     constructor(track, cfg) {
@@ -180,8 +182,8 @@ window.EI = window.EI || {};
           }
           if (this.crossed(a, b, z.end)) { car.drsEligible = false; car.drsOpen = false; }
         }
-        if (this.started && this.crossed(a, b, track.sf)) this.onLapLine(car, b);
-        if (this.started && !car.finished) for (let si = 0; si < track.sectors.length; si++) if (this.crossed(a, b, track.sectors[si])) this.onSector(car, si, b, track.sectors[si]);
+        if (this.started && this.crossed(a, b, U.mod(track.sf - NOSE, track.length))) this.onLapLine(car, b);
+        if (this.started && !car.finished) for (let si = 0; si < track.sectors.length; si++) { const ls = U.mod(track.sectors[si] - NOSE, track.length); if (this.crossed(a, b, ls)) this.onSector(car, si, b, ls); }
         // timing loop: the time this car entered its current loop (the running order compares these)
         if (this.started) { const li = Math.floor(car.dist / LOOP); if (li !== car._loop) { car._loop = li; car._loopT = this.time; } }
         // time marks every 10 m for live gaps
@@ -241,11 +243,11 @@ window.EI = window.EI || {};
       // this runs on a forward crossing of the Line; race distance only says which lap it completes. A crossing by a few mm left
       // dist a hair short of the next lap (float error, Monaco / Yas with the Line at s = 0) and the lap was not counted until the
       // next time round: allow 5 m of slack (a car going back over the Line and forward again still cannot count twice)
-      const rel = car.dist - track.sf;
+      const rel = car.dist + NOSE - track.sf;
       if (rel < -5) return;
       const lapsDone = Math.max(0, Math.floor((rel + 5) / track.length)); // crossing the line from the grid completes nothing
       if (lapsDone <= car.lapsDone && car.crossedStart) return;
-      let over = sNow - track.sf; if (over < 0) over += track.length;
+      let over = sNow + NOSE - track.sf; over -= Math.floor(over / track.length) * track.length; if (over > track.length / 2) over = 0;
       const tCross = this.time - over / Math.max(car.v, 1);
       if (!car.crossedStart) { car.crossedStart = true; car.sectorStart = tCross; car.sector = 0; car.sectorFlags = ['', '', '']; if (lapsDone === 0) return; }
       car.lapsDone = lapsDone;
@@ -261,7 +263,6 @@ window.EI = window.EI || {};
       car.lapStart = tCross; car.lap = lapsDone + 1;
       // Overtake: armed for this lap when the car was within the Detection Gap at the Detection Line
       car.overtake = !!car.otNext; car.otNext = false; car.otEnergy = car.overtake ? OT_ENERGY : 0;
-      if (car.overtake && car.isPlayer && lapsDone < this.laps && !this.leaderFinished) this.notify(car, 'OVERTAKE', 'Within ' + OT_GAP.toFixed(1) + ' s at detection · extra energy this lap', 'ot', 2.2);
       if (lapsDone >= this.laps || this.leaderFinished) {
         car.finished = true; car.raceTime = tCross; car.finishDist = this.track.sf + lapsDone * this.track.length; car.finishTime = tCross + car.penalty; car.finishOrder = this.finishedCount++;
         car.overtake = false; car.otEnergy = 0; if (car.rules) { car.rules.give = null; car.rules.blueBy = null; } car.blueFlag = null;
@@ -394,10 +395,10 @@ window.EI = window.EI || {};
         // ---- give the position back
         if (R.give) {
           let owed = 0; for (const o of R.give.cars) if (!o.finished && !(o.pit && o.pit.active) && o.dist < car.dist) owed++;
-          if (!owed) { R.give = null; this.notify(car, 'POSITION RETURNED', 'No further action', 'ok', 2); this.emit('steward', { car, kind: 'returned' }); }
-          else if (this.time > R.give.until) { R.give = null; this.addPenalty(car, 10, 'Leaving the track and gaining an advantage', true); }
+          if (!owed) { R.give = null; this.notify(car, 'POSITION RETURNED', '', 'ok', 1.5); this.emit('steward', { car, kind: 'returned' }); }
+          else if (this.time > R.give.until) { R.give = null; this.addPenalty(car, 5, 'Corner cut · position not given back', true); }
         }
-        // ---- blue flags: a car at least a lap ahead within 1 s behind on track
+        // ---- a lapping car within 1 s behind (read by the bots' racecraft; no flag, no message, no penalty)
         let by = null;
         for (const o of this.cars) {
           if (o === car || o.finished || (o.pit && o.pit.active) || o.dist - car.dist < TL * 0.5) continue;
@@ -405,20 +406,12 @@ window.EI = window.EI || {};
           const mi = Math.floor((car.dist - d) / 10); const g = mi >= 0 && mi < car.marks.length && car.marks[mi] >= 0 ? this.time - car.marks[mi] : d / Math.max(o.v, 15);
           if (g <= 1.0) { by = o; break; }
         }
-        if (by !== R.blueBy) {
-          if (by && car.isPlayer) this.notify(car, 'BLUE FLAG', 'Let ' + (by.driver && by.driver.code || by.name) + ' through', 'blue', 3);
-          R.blueBy = by; R.blueD = 0;
-        }
-        car.blueFlag = by;
-        if (by && car.isPlayer) {   // players only: the bots yield on their own (f1-DRIVING); 8 light panels ~ a third of a lap
-          R.blueD += Math.max(0, prog);
-          if (R.blueD > TL / 3 && R.bluePen !== by) { R.bluePen = by; this.addPenalty(car, 5, 'Ignoring blue flags', true); }
-        }
+        R.blueBy = by; car.blueFlag = by;
       }
     }
     judgeExcursion(car, R) {
       car.lapInvalid = true;   // the lap time goes either way
-      if (R.lost || R.hit) { this.emit('steward', { car, kind: 'excused' }); if (car.isPlayer) this.notify(car, 'TRACK LIMITS', 'Lap time deleted', 'warn', 2); return; }   // loss of control / contact: no strike
+      if (R.lost || R.hit) { this.emit('steward', { car, kind: 'excused' }); return; }   // loss of control / contact: the lap time only
       const passed = R.ahead.filter(o => !o.finished && !(o.pit && o.pit.active) && o.dist < car.dist - 0.5);
       const gainT = R.gain / Math.max(20, Math.abs(car.v));
       if (passed.length) {
@@ -427,20 +420,15 @@ window.EI = window.EI || {};
         this.notify(car, 'GIVE THE POSITION BACK', 'Let ' + passed.map(o => o.driver && o.driver.code || o.name).join(', ') + ' through · ' + GIVE_BACK_T + ' s', 'warn', GIVE_BACK_T);
         return;
       }
-      if (gainT > 0.6) { this.addPenalty(car, 5, 'Leaving the track and gaining an advantage', true); return; }
-      R.strikes++; car.tlStrikes = R.strikes;
-      this.emit('steward', { car, kind: 'strike', n: R.strikes });
-      if (R.strikes >= 4) this.addPenalty(car, 5, 'Track limits · strike ' + R.strikes, true);
-      else if (R.strikes === 3) this.notify(car, 'BLACK AND WHITE FLAG', 'Track limits · lap deleted · next one is 5 s', 'bw', 3.5);
-      else this.notify(car, 'TRACK LIMITS', 'Lap deleted · strike ' + R.strikes + ' of 3', 'warn', 2.5);
+      if (gainT > 0.6) { this.addPenalty(car, 3, 'Corner cut', true); return; }
+      this.emit('steward', { car, kind: 'deleted' });
     }
 
     emit(type, data) { this.events.push({ type, data }); }
     pollEvents() { const e = this.events; this.events = []; return e; }
 
     // classification: laps completed, then race time plus time penalties. A car still running when the results are drawn up is
-    // classified at its next crossing of the Line (time projected from its last lap). Two dry compounds from MANDATORY_LAPS laps:
-    // otherwise disqualified (B6.3.6).
+    // classified at its next crossing of the Line (time projected from its last lap). (The two-compound rule, B6.3.6, is not used.)
     results() {
       const TL = this.track.length, sf = this.track.sf;
       const rows = this.cars.map(c => {
@@ -451,7 +439,7 @@ window.EI = window.EI || {};
           laps = Math.max(c.lapsDone, n); time = this.time + Math.max(0, next - c.dist) / (TL / lap); projected = true;
         }
         const used = c.compounds ? Object.keys(c.compounds).length : 2;
-        const dsq = this.laps >= MANDATORY_LAPS && (c.finished || projected) && used < 2;
+        const dsq = false && used < 2;   // the two-compound rule is not used in this game
         return { car: c, laps, raceTime: time, time: time != null ? time + c.penalty : null, best: c.bestLap, projected, dsq, gap: null, lapsBehind: 0 };
       });
       rows.sort((a, b) => (a.dsq - b.dsq) || (b.laps - a.laps) || ((a.time == null) - (b.time == null)) || (a.time != null ? a.time - b.time : this.raceDist(b.car) - this.raceDist(a.car)));

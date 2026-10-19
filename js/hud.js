@@ -1,215 +1,341 @@
-// Equation I - HUD in the style of modern F1 games: lap tower, timing box, dash, local minimap, name tags
+// Equation I - in-race HUD in the style of the official F1 games (swarm/f1/ui_refs 14-18):
+//   top-left   timing tower: F1 logo + session + LAP x/y, rows = position | team colour + team mark | driver | state | tyre | gap
+//              (compact: the cars around you; T = the whole field), your row lit, purple fastest-lap marker, PIT / penalty / B&W
+//   top-right  timing panel: S1 S2 S3 bars (purple overall best / green personal best / yellow), position x/N, current / best lap
+//   bot-right  dash: gear, speed, RPM bar, battery %, Overtake (2026 manual override energy) and Straight Mode (aero) states
+//   bot-left   whole-circuit minimap (small canvas, <= 10 Hz over a cached outline), coloured car dots, you highlighted
+//   name tags "7 | HAMILTON" above nearby cars, start lights, purple FASTEST LAP banner, quiet steward chips (pit.js draws them)
+// Flat broadcast panels (no backdrop blur), Saira wide ("F1 HUD", vendored in assets/brand/f1) + Titillium Web. Panels are laid
+// out in design px and scaled with CSS zoom (--u) so text stays crisp at every size. DOM writes only when a value changes;
+// tags move with transforms. Two players: the same components, compact, in a band along each view's outer edge.
 window.EI = window.EI || {};
 (function () {
   const U = EI.U; const $ = (id) => document.getElementById(id);
-  const TYRE_LETTER = { soft: 'S', medium: 'M', hard: 'H' };
+  const TYRE_LETTER = { soft: 'S', medium: 'M', hard: 'H', inter: 'I', wet: 'W' };
   const fmt = (t) => U.fmtTime(t);
-  // tower: the player's name, a bot's 3-letter code (VER, NOR...)
+  // tower: the player's name, a bot's 3-letter code (VER, NOR...) in the full list, the surname around you
   const shortName = (o) => o.isPlayer ? o.name : (o.driver.code || o.driver.name.split(' ').pop().slice(0, 3)).toUpperCase();
+  const surname = (o) => o.isPlayer ? o.name : o.driver.name.split(' ').pop().toUpperCase();
   // add a class for one animation cycle, re-triggering if it is already running
   function flash(el, cls, ms) { el.classList.remove(cls); void el.offsetWidth; el.classList.add(cls); clearTimeout(el['_t_' + cls]); el['_t_' + cls] = setTimeout(() => el.classList.remove(cls), ms || 900); }
   function setText(el, s) { if (el._v !== s) { el._v = s; el.textContent = s; } }
+  function setCls(el, s) { if (el._c !== s) { el._c = s; el.className = s; } }
 
-  // Two players get a purpose-built compact HUD (class 'split'): a single band along the outer edge of each view (P1 along the top
-  // of the screen, P2 along the bottom; side by side: corners) with a three-row position tower, a small minimap, the timing box and a
-  // short dash, all sized in real pixels from the view size (--u) rather than scaled, plus per-view start lights, banner, toasts
-  // and a finished card. The single-player HUD below is unchanged.
+  // ---------------------------------------------------------------- preferences (per viewer; storage may be unavailable)
+  const prefs = { full: false, ckDash: false };
+  try { const p = JSON.parse(localStorage.getItem('ei.hud') || '{}'); prefs.full = !!p.full; prefs.ckDash = !!p.ckDash; } catch (e) { /* defaults */ }
+  const savePrefs = () => { try { localStorage.setItem('ei.hud', JSON.stringify(prefs)); } catch (e) { /* not kept */ } };
+
+  // ---------------------------------------------------------------- team marks: small logos for the tower, drawn once per team
+  // Official artwork through f1-BRAND's EI.Ads.drawPartner where it exists (Mercedes star, Ferrari shield, Audi rings), else the
+  // livery emblems (EI.LIVERIES.EMBLEM: Red Bull sun + bulls, McLaren speedmark, Alpine A, Williams W, Cadillac crest), else a
+  // drawn mark. Rendered at 3x into a canvas -> data URL, used as a background image (cached by team id).
+  const MARK_W = 30, MARK_H = 20, MARK_K = 3; const markCache = {};
+  const OWN_MARK = { lumi: 'assets/brand/lumi-mark.svg', intake: 'assets/brand/intake-icon.svg' };
+  function drawMark(g, id, team) {
+    const W = MARK_W * MARK_K, H = MARK_H * MARK_K, cx = W / 2, cy = H / 2; const A = EI.Ads, E = EI.LIVERIES && EI.LIVERIES.EMBLEM;
+    const art = (pid, tone, w, h) => { if (A && A.hasPartner && A.hasPartner(pid)) { A.drawPartner(g, pid, cx, cy, w || W * 0.9, h || H * 0.9, { tone: tone || 'color' }); return true; } return false; };
+    const em = (name, ...args) => { if (!E || !E[name]) return false; g.save(); g.translate(cx, cy); E[name](g, ...args); g.restore(); return true; };
+    const txt = (s, col, size, it) => { g.fillStyle = col; g.font = (it ? 'italic ' : '') + '900 ' + size + 'px "Titillium Web", Arial, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(s, cx, cy + size * 0.06); };
+    switch (id) {
+      case 'mercedes': if (!em('star', H * 0.45 / 1000, '#e8ebef')) txt('M', '#e8ebef', H * 0.8); break;
+      case 'ferrari': if (!em('shield', H * 0.96 / 1000, '#ffd200', true)) txt('SF', '#ffd200', H * 0.7); break;
+      case 'mclaren': if (!em('speedmark', W * 0.82 / 1000, '#ff8000')) txt('M', '#ff8000', H * 0.8); break;
+      case 'redbull': bulls(g, cx, cy, W * 0.98, '#ffc906', '#db0a40'); break;
+      case 'racingbulls': bulls(g, cx, cy, W * 0.98, '#ffffff', '#3d6bff'); break;
+      case 'alpine': if (!em('alpineA', H * 0.86 / 1000, '#2aa6ec')) txt('A', '#2aa6ec', H * 0.8); g.globalCompositeOperation = 'source-atop'; g.fillStyle = '#ff87bc'; g.fillRect(cx + H * 0.16, 0, W, H); g.globalCompositeOperation = 'source-over'; break;
+      case 'haas': txt('H', '#ffffff', H * 0.98, true); g.fillStyle = '#e6002b'; g.beginPath(); g.moveTo(cx - H * 0.44, cy + H * 0.04); g.lineTo(cx + H * 0.5, cy - H * 0.05); g.lineTo(cx + H * 0.46, cy + H * 0.09); g.lineTo(cx - H * 0.48, cy + H * 0.18); g.closePath(); g.fill(); break;
+      case 'audi': if (!art('audi', 'white', W * 0.96, H * 0.6) && !em('rings', W * 0.9 / 1000, '#e8ebef')) txt('AUDI', '#ffffff', H * 0.5); break;
+      case 'williams': if (!em('williamsW', H * 0.62 / 1000, '#37bdf8')) txt('W', '#37bdf8', H * 0.8); break;
+      case 'astonmartin': {   // the wings: two swept feather fans either side of a centre bar
+        g.save(); g.translate(cx, cy); g.fillStyle = '#e8ebef';
+        for (const s of [-1, 1]) for (let i = 0; i < 4; i++) { const y = -H * 0.22 + i * H * 0.13, x0 = s * W * 0.06, x1 = s * (W * 0.48 - i * W * 0.07); g.beginPath(); g.moveTo(x0, y); g.lineTo(x1, y - H * 0.05); g.lineTo(x1 - s * W * 0.03, y + H * 0.06); g.lineTo(x0, y + H * 0.08); g.closePath(); g.fill(); }
+        g.fillStyle = '#cedc00'; g.fillRect(-W * 0.035, -H * 0.3, W * 0.07, H * 0.62); g.restore(); break;
+      }
+      case 'cadillac': if (!em('cadCrest', H * 0.92 / 1000, '#e8ebef')) txt('C', '#e8ebef', H * 0.8); break;
+      default: txt(((team && (team.short || team.brand || team.name)) || '?').slice(0, 2), (team && team.primary) || '#fff', H * 0.62); break;
+    }
+  }
+  // sun disc + two charging bulls (the Red Bull family mark; Racing Bulls in its own colours)
+  function bulls(g, cx, cy, w, sun, bull) {
+    const r = w * 0.2; g.save(); g.translate(cx, cy); g.fillStyle = sun; g.beginPath(); g.arc(0, -r * 0.1, r, 0, 7); g.fill();
+    for (const s of [-1, 1]) {
+      g.save(); g.scale(s, 1); g.fillStyle = bull; g.beginPath();
+      g.moveTo(w * 0.04, r * 0.1); g.lineTo(w * 0.16, -r * 0.55); g.lineTo(w * 0.24, -r * 0.62); g.lineTo(w * 0.42, -r * 0.5); g.lineTo(w * 0.5, -r * 0.1);
+      g.lineTo(w * 0.47, r * 0.55); g.lineTo(w * 0.38, r * 0.3); g.lineTo(w * 0.3, r * 0.62); g.lineTo(w * 0.24, r * 0.3); g.lineTo(w * 0.14, r * 0.55); g.lineTo(w * 0.12, r * 0.2); g.closePath(); g.fill();
+      g.beginPath(); g.moveTo(w * 0.08, -r * 0.05); g.lineTo(w * 0.0, -r * 0.42); g.lineTo(w * 0.13, -r * 0.3); g.fill(); g.restore();
+    }
+    g.restore();
+  }
+  function teamMark(team) {
+    if (!team) return '';
+    const id = team.id; if (OWN_MARK[id]) return 'url("' + OWN_MARK[id] + '")';
+    if (markCache[id]) return markCache[id];
+    let url = '';
+    try { const c = document.createElement('canvas'); c.width = MARK_W * MARK_K; c.height = MARK_H * MARK_K; drawMark(c.getContext('2d'), id, team); url = 'url("' + c.toDataURL('image/png') + '")'; } catch (e) { url = ''; }
+    return (markCache[id] = url);
+  }
+
+  // ---------------------------------------------------------------- viewports
   const live = [];   // viewports of the current race
-  function splitMarkup(k) {
+  const F1_LOGO = 'assets/brand/f1/f1-logo.svg';
+  function markup(k, split) {
     let lights = ''; for (let i = 0; i < 5; i++) lights += '<div class="light-col"><span></span><span></span></div>';
     return '<div class="hud">' +
-      '<div class="sp-tower panel"><div class="sp-head"><span class="sp-pl">P' + (k + 1) + '</span><div class="tm-pos"><span>POS</span><b>1</b><small>/ 20</small></div><div class="tw-lap"><span>LAP</span><b>1</b><i>/ 1</i></div></div><div class="tw-rows"></div></div>' +
-      '<div class="mapwrap"><canvas class="minimap" width="360" height="360"></canvas><i class="map-n"></i></div>' +
-      '<div class="sp-timing panel"><div class="tm-time">0:00.000</div><div class="tm-sectors"><span>S1</span><span>S2</span><span>S3</span></div>' +
-      '<div class="tm-foot"><span class="tm-last">LAST<b>--:--.---</b></span><span class="tm-best">BEST<b>--:--.---</b></span><span class="delta"></span></div></div>' +
-      '<div class="dash panel"><div class="leds"></div><div class="dash-main">' +
-      '<div class="ers"><div class="ers-top"><i class="batt"><b></b></i><span class="ers-pct">100%</span></div><div class="ers-bar"><i></i></div><div class="ers-label">ERS</div></div>' +
-      '<div class="centre"><div class="gear-wrap"><div class="gear">N</div><div class="rpm"></div></div>' +
-      '<div class="speed"><div class="speed-v"><b>0</b><small>KM/H</small></div><div class="pedals"><i class="thr"></i><i class="brk"></i></div></div></div>' +
-      '<div class="right"><div class="drs"><b>DRS</b><small>OFF</small></div></div></div></div>' +
-      '<div class="msg"><span></span></div><div class="sp-fin"><b></b><span></span></div>' +
-      '<div class="sp-lights">' + lights + '</div><div class="sp-banner"></div><div class="sp-toasts"></div>' +
-      '<div class="tags"></div><div class="corner"></div><div class="pname"></div></div>';
+      '<div class="tower"><div class="tw-head"><i class="tw-f1" style="background-image:url(' + F1_LOGO + ')"></i><span class="tw-sess">RACE</span>' + (split ? '<span class="tw-pl">P' + (k + 1) + '</span>' : '') + '</div>' +
+        '<div class="tw-lap"><span>LAP</span><b>1</b><i>/ 1</i></div><div class="tw-rows"></div></div>' +
+      '<div class="timing"><div class="tm-sec"><span><em>S1</em><i></i></span><span><em>S2</em><i></i></span><span><em>S3</em><i></i></span></div>' +
+        '<div class="tm-main"><div class="tm-pos"><b>1</b><small>/ 20</small></div><div class="tm-time">0:00.000</div></div>' +
+        '<div class="tm-foot"><span class="tm-best"><em>BEST</em><b>--:--.---</b></span><span class="tm-last"><em>LAST</em><b>--:--.---</b></span><span class="delta"></span></div></div>' +
+      '<div class="mapwrap"><canvas class="minimap" width="220" height="150"></canvas></div>' +
+      '<div class="dash"><div class="gear">N</div><div class="ds-body">' +
+        '<div class="ds-top"><span class="aero"><i></i>AERO</span><span class="ot"><i></i>OVERTAKE</span><span class="ers"><em class="ers-mode"></em><b class="ers-pct">100%</b><i class="bolt"></i></span></div>' +
+        '<div class="ds-ers"><i class="ers-fill"></i><i class="ot-fill"></i></div>' +
+        '<div class="ds-read"><span class="spd"><b>0</b><small>KM/H</small></span><span class="rpmv"><b>4000</b><small>RPM</small></span></div>' +
+        '<div class="ds-rpm"><i></i></div></div></div>' +
+      '<div class="corner"></div>' +
+      '<div class="flb"><div class="flb-tag"><span>FASTEST</span><span>LAP</span></div><div class="flb-main"><i></i><b></b><span></span></div></div>' +
+      '<div class="msg"><span></span></div>' +
+      (split ? '<div class="sp-fin"><b></b><span></span></div><div class="sp-lights">' + lights + '</div><div class="sp-banner"></div><div class="sp-toasts"></div>' : '') +
+      '<div class="tags"></div></div>';
   }
   function makeViewport(k, car, nPlayers) {
     const split = nPlayers > 1;
-    const el = document.createElement('div'); el.className = 'vp' + (split ? ' split p' + (k + 1) : '');
-    el.innerHTML = split ? splitMarkup(k) :
-      '<div class="hud">' +
-      '<div class="tower panel"><div class="tw-head"><div class="tw-label">LAP</div><div class="tw-lap"><b>1</b><i>/ 1</i></div><div class="tw-session">GRAND PRIX</div></div><div class="tw-rows"></div></div>' +
-      '<div class="timing panel"><div class="tm-top"><div class="tm-pos"><b>1</b><small>/ 20</small></div><div class="tm-time">0:00.000</div></div>' +
-      '<div class="tm-sectors"><span>S1</span><span>S2</span><span>S3</span></div>' +
-      '<div class="tm-foot"><span class="tm-last">LAST<b>--:--.---</b></span><span class="tm-best">BEST<b>--:--.---</b></span><span class="delta"></span></div></div>' +
-      '<div class="msg"><span></span></div>' +
-      '<div class="mapwrap"><canvas class="minimap" width="360" height="360"></canvas><i class="map-n"></i></div>' +
-      '<div class="dash panel"><div class="leds"></div><div class="dash-main">' +
-      '<div class="ers"><div class="ers-top"><i class="batt"><b></b></i><span class="ers-pct">100%</span></div><div class="ers-bar"><i></i></div><div class="ers-label">ERS</div></div>' +
-      '<div class="centre"><div class="gear-wrap"><div class="gear">N</div><div class="rpm"></div></div>' +
-      '<div class="speed"><div class="speed-v"><b>0</b><small>KM/H</small></div><div class="pedals"><i class="thr"></i><i class="brk"></i></div></div></div>' +
-      '<div class="right"><div class="drs"><b>DRS</b><small>OFF</small></div></div></div></div>' +
-      '<div class="tags"></div><div class="corner"></div><div class="pname"></div></div>';
+    const el = document.createElement('div'); el.className = 'vp f1hud' + (split ? ' split p' + (k + 1) : '');
+    el.innerHTML = markup(k, split);
     $('viewports').appendChild(el);
     for (let i = live.length - 1; i >= 0; i--) if (!live[i].el.isConnected) live.splice(i, 1);
     const q = (c) => el.querySelector(c);
-    const leds = q('.leds'); for (let i = 0; i < 15; i++) { const d = document.createElement('i'); d.className = i < 5 ? 'g' : i < 10 ? 'r' : 'b'; leds.appendChild(d); }
-    // five persistent rows (2 ahead, me, 2 behind) so position flashes and transitions survive updates
-    const rowsEl = q('.tw-rows'); const rows = []; const NROWS = split ? 3 : 5;
-    for (let i = 0; i < NROWS; i++) {
-      const d = document.createElement('div'); d.className = 'lp-row empty';
-      d.innerHTML = '<span class="p"></span><span class="bar"></span><span class="n"></span><span class="ty"></span><span class="g"></span>';
-      rowsEl.appendChild(d); rows.push({ el: d, p: d.children[0], bar: d.children[1], n: d.children[2], ty: d.children[3], g: d.children[4] });
-    }
-    const r = { el, car, k, split, lapWrap: q('.tw-lap'), lapN: q('.tw-lap b'), lapT: q('.tw-lap i'), rows, posWrap: q('.tm-pos'), pos: q('.tm-pos b'), posT: q('.tm-pos small'), time: q('.tm-time'), sectors: q('.tm-sectors').children,
-      last: q('.tm-last b'), best: q('.tm-best b'), delta: q('.delta'), msg: q('.msg'), msgText: q('.msg span'), map: q('.minimap').getContext('2d'), ledsEl: leds, leds: leds.children,
-      ersPct: q('.ers-pct'), ersBar: q('.ers-bar i'), ersBatt: q('.batt b'), ers: q('.ers'), gear: q('.gear'), speed: q('.speed-v b'), thr: q('.thr'), brk: q('.brk'), drs: q('.drs'), drsSub: q('.drs small'), drsCall: q('.drs-call'), rpm: q('.rpm'), tags: q('.tags'), corner: q('.corner'),
-      msgT: 0, tagEls: [], prevPos: car.pos, prevLap: -1, prevFlags: ['', '', ''], prevMe: -1 };
-    q('.pname').innerHTML = '<i style="background:' + car.team.primary + '"></i><span>' + car.name + '</span><span class="team">' + car.team.short + '</span>' + (car.isPlayer ? '<span class="cam">' + (k === 0 ? 'C' : '/') + ' · CAMERA</span>' : '');
+    const sec = q('.tm-sec').children;
+    const r = { el, car, k, split, nCompact: split ? 3 : 5, full: !split && prefs.full, rowsEl: q('.tw-rows'), rows: [],
+      lapWrap: q('.tw-lap'), lapN: q('.tw-lap b'), lapT: q('.tw-lap i'),
+      posWrap: q('.tm-pos'), pos: q('.tm-pos b'), posT: q('.tm-pos small'), time: q('.tm-time'), sectors: [sec[0], sec[1], sec[2]],
+      best: q('.tm-best b'), bestWrap: q('.tm-best'), last: q('.tm-last b'), delta: q('.delta'),
+      msg: q('.msg'), msgText: q('.msg span'), mapC: q('.minimap'), map: q('.minimap').getContext('2d'), mapWrap: q('.mapwrap'),
+      gear: q('.gear'), speed: q('.spd b'), rpmV: q('.rpmv b'), rpmBar: q('.ds-rpm i'), rpmWrap: q('.ds-rpm'), ersPct: q('.ers-pct'), ersMode: q('.ers-mode'), ers: q('.ers'),
+      ersFill: q('.ers-fill'), otFill: q('.ot-fill'), ot: q('.ot'), aero: q('.aero'), dash: q('.dash'),
+      tags: q('.tags'), corner: q('.corner'), flb: q('.flb'), flbBar: q('.flb-main i'), flbName: q('.flb-main b'), flbTime: q('.flb-main span'),
+      mapW: split ? 160 : 220, mapH: split ? 110 : 150, msgT: 0, tagEls: [], prevPos: car.pos, prevLap: -1, flT: -1, flCar: null, flUntil: 0, mapT: 0, u: 1 };
+    el.classList.toggle('tw-full', r.full);
     r.setRect = (x, y, w, h, sp) => {
       el.style.left = x + 'px'; el.style.top = y + 'px'; el.style.width = w + 'px'; el.style.height = h + 'px'; r.w = w; r.h = h;
+      let u;
       if (split) {
-        // --u: one unit in px for this view, from its size (1 = a 1920 x 539 stacked view); everything is laid out in real pixels
-        const tb = !sp || sp.dir !== 'sbs'; const u = tb ? U.clamp(Math.min(w / 1920, h / 540), 0.72, 1.35) : U.clamp(Math.min(w / 1000, h / 1000), 0.72, 1.2);
-        r.s = u; el.style.setProperty('--u', u.toFixed(3)); el.style.setProperty('--s', u.toFixed(3));
+        // one design unit in px for this view (1 = a 1920 x 540 stacked view)
+        const tb = !sp || sp.dir !== 'sbs'; u = tb ? U.clamp(Math.min(w / 1920, h / 540), 0.66, 1.35) : U.clamp(Math.min(w / 1000, h / 1000), 0.66, 1.2);
         el.classList.toggle('edge-top', tb && k === 0); el.classList.toggle('edge-bottom', tb && k === 1); el.classList.toggle('sbs', !tb); el.classList.toggle('sbs-left', !tb && k === 0); el.classList.toggle('sbs-right', !tb && k === 1);
-        return;
-      }
-      const s = U.clamp(Math.min(w / 1280, h / 720), 0.7, 1.3); r.s = s; el.style.setProperty('--s', s.toFixed(3));
-      const side = (w - 520 * s) / 2; el.classList.toggle('narrow', side < 200 * s); el.classList.toggle('tight', side < 120 * s);   // room left beside the centre dash
+      } else u = U.clamp(Math.min(w / 1280, h / 720), 0.5, 2);
+      r.s = u; r.u = u; el.style.setProperty('--u', u.toFixed(3)); el.style.setProperty('--s', u.toFixed(3));
+      r.mapGeo = null;   // the minimap canvas is re-sized for the new scale
     };
     // finished (two players): a card that stays up for the rest of the race while the cool-down lap is driven
     r.setFinished = (pos) => { const f = q('.sp-fin'); if (!f) return; f.children[0].textContent = 'P' + pos + ' · FINISHED'; f.children[1].textContent = 'Cool-down lap'; f.classList.add('show'); r.msgT = 0; r.msg.classList.remove('show'); r.fin = true; };
     r.toastEl = q('.sp-toasts'); r.bannerEl = q('.sp-banner');
     live.push(r);
-    r.showMsg = (text, cls, dur) => { if (r.fin && split) return; r.msgText.textContent = text; r.msg.className = 'msg ' + (cls || ''); void r.msg.offsetWidth; r.msg.classList.add('show'); r.msgT = dur || 2.5; };
+    r.showMsg = (text, cls, dur) => {
+      if (r.fin && split) return;
+      if (/^FASTEST LAP/.test(text)) return;   // the purple fastest-lap banner carries it
+      r.msgText.textContent = text; r.msg.className = 'msg ' + (cls || ''); void r.msg.offsetWidth; r.msg.classList.add('show'); r.msgT = dur || 2.5;
+    };
+    r.setFull = (on) => { r.full = !split && on; el.classList.toggle('tw-full', r.full); };
     r.update = (race, dt) => {
       const c = car, t = race.track;
-      // cockpit view: the wheel display carries gear / speed / ERS / DRS, so the centre dash (and the corner / driver chips) go away;
-      // only the lap tower, timing box, minimap and name tags stay, plus a vignette that frames the cockpit
+      // cockpit view: the wheel display carries gear / speed / ERS, so the dash goes away (I brings it back); split screen keeps it
       const ck = !!(c._cockpitT && performance.now() - c._cockpitT < 400); if (ck !== r.ck) { r.ck = ck; el.classList.toggle('cockpit', ck); }
-      // ---- dash (hidden in the cockpit, where the wheel display carries it: skip the DOM work entirely)
-      if (!ck || split) {   // split screen keeps its dash in the cockpit (the short view crops the wheel display)
-        setText(r.speed, String(Math.round(c.speedKmh))); setText(r.gear, c.gear === 0 ? 'N' : c.v < -0.5 ? 'R' : String(c.gear));
-        const lit = Math.round(c.rpm * 15); for (let i = 0; i < 15; i++) r.leds[i].classList.toggle('on', i < lit);
-        r.ledsEl.classList.toggle('shift', c.rpm > 0.96 && c.gear > 0 && c.gear < 8);
-        setText(r.rpm, Math.round((4000 + c.rpm * 8500) / 50) * 50 + ' RPM');
-        r.thr.style.setProperty('--v', (c.throttle * 100).toFixed(0) + '%'); r.brk.style.setProperty('--v', (c.brake * 100).toFixed(0) + '%');
-        const ep = Math.round(c.ers * 100); setText(r.ersPct, ep + '%'); r.ersBar.style.width = ep + '%'; r.ersBatt.style.width = ep + '%'; r.ers.classList.toggle('active', !!c.ersActive);
-      }
-      updateDrs(r, race, c, ck && !split, dt);
-      // ---- lap tower: 2 ahead, me, 2 behind
-      const lapNow = c.finished ? 'FIN' : String(Math.min(c.lap, race.laps));
-      if (lapNow !== r.prevLap) { setText(r.lapN, lapNow); if (r.prevLap !== -1) flash(r.lapWrap, 'bump', 600); r.prevLap = lapNow; }
-      setText(r.lapT, split && c.finished ? '' : '/ ' + race.laps);
-      const order = race.order; const idx = c.pos - 1; let a = Math.max(0, idx - (NROWS >> 1)); let b = Math.min(order.length, a + NROWS); a = Math.max(0, b - NROWS);
-      for (let i = 0; i < NROWS; i++) {
-        const row = rows[i]; const j = a + i; const o = order[j];
-        if (!o) { row.el.className = 'lp-row empty'; continue; }
-        const me = o === c; let gap;
-        // lapped cars read in laps (+1 LAP), as on the timing screens
-        const lg = !race.started || !race.lapGap ? 0 : me ? race.lapGap(order[0], c) : j < idx ? race.lapGap(o, c) : race.lapGap(c, o);
-        if (!race.started) gap = '—';
-        else if (me) gap = c.finished ? 'FIN' : c.pos === 1 ? 'LEADER' : lg > 0 ? '+' + lg + ' LAP' : '+' + race.timeGap(order[0], c).toFixed(3);
-        else if (lg > 0 && !(o.finished && !c.finished)) gap = (j < idx ? '-' : '+') + lg + ' LAP';
-        else { const g = j < idx ? -race.timeGap(o, c) : race.timeGap(c, o); gap = (g < 0 ? '-' : '+') + Math.abs(g).toFixed(3); if (o.finished && !c.finished) gap = 'FIN'; }
-        const cls = 'lp-row' + (me ? ' me' : ''); if (row.el.className.replace(/ (gain|loss)/g, '') !== cls) row.el.className = cls;
-        setText(row.p, String(o.pos)); row.bar.style.background = o.team.primary; setText(row.n, shortName(o)); row.ty.className = 'ty ' + o.tyreKey; setText(row.ty, TYRE_LETTER[o.tyreKey] || '?'); setText(row.g, gap);
-        if (me) r.meRow = row.el;
-      }
-      // ---- position change flash
-      if (c.pos !== r.prevPos) { const cls = c.pos < r.prevPos ? 'gain' : 'loss'; flash(r.posWrap, cls, 900); if (r.meRow && race.started) flash(r.meRow, cls, 900); r.prevPos = c.pos; }
-      // ---- timing box
-      setText(r.pos, String(c.pos)); setText(r.posT, '/ ' + race.cars.length + (c.penalty > 0 ? '  +' + c.penalty + 's' : ''));
-      setText(r.time, race.started && !c.finished ? fmt(race.time - c.lapStart) : c.finished ? fmt(c.finishTime) : '0:00.000');
-      for (let si = 0; si < 3; si++) {
-        const f = c.sectorFlags ? c.sectorFlags[si] : ''; const cls = f || (si === c.sector && race.started && !c.finished ? 'live' : '');
-        if (r.sectors[si].className.replace(' pop', '') !== cls) { r.sectors[si].className = cls; if (f) flash(r.sectors[si], 'pop', 600); }
-      }
-      setText(r.last, c.lastLap > 0 ? fmt(c.lastLap) : '--:--.---'); const del = !!c.lastLapDeleted; if (r._del !== del) { r._del = del; r.last.style.textDecoration = del ? 'line-through' : ''; r.last.style.opacity = del ? '0.55' : ''; r.last.title = del ? 'Lap deleted (track limits)' : ''; } setText(r.best, c.bestLap > 0 ? fmt(c.bestLap) : '--:--.---');
-      const d = race.deltaBest(c); setText(r.delta, d == null ? '' : (d >= 0 ? '+' : '') + d.toFixed(2)); r.delta.className = 'delta ' + (d == null ? '' : d < 0 ? 'neg' : 'pos');
+      if (!ck || split || prefs.ckDash) updateDash(r, race, c);
+      updateTower(r, race, c);
+      updateTiming(r, race, c);
+      updateFastest(r, race);
       setText(r.corner, t.cornerNameAt(c.trk.s));
       if (r.msgT > 0) { r.msgT -= dt; if (r.msgT <= 0) r.msg.classList.remove('show'); }
-      drawLocalMap(r, race);
+      const now = performance.now(); if (now - r.mapT > 95) { r.mapT = now; drawMap(r, race); }   // <= ~10 Hz
     };
-    r.updateTags = (list) => {
-      while (r.tagEls.length < list.length) { const d = document.createElement('div'); d.className = 'tag'; d.innerHTML = '<span class="tp"></span><span class="tb"></span><span class="tn"></span><i class="tpt"></i>'; r.tags.appendChild(d); r.tagEls.push(d); }
-      // declutter: nearest cars keep their spot, farther tags that would overlap are stacked upwards
-      const order = list.map((tg, i) => i).sort((i, j) => list[j].alpha - list[i].alpha); const placed = []; const s = r.s || 1;
-      const ys = [];
-      for (const i of order) {
-        const tg = list[i]; const sc = s * (0.7 + 0.3 * Math.min(1, tg.alpha)); const w = (42 + String(tg.text).length * 8.7) * sc, h = 22 * sc; let y = tg.y;
-        // split screen views are short: one step up at most, and a farther tag that still overlaps is dropped instead of being
-        // stacked off into the sky, away from its car
-        const maxTries = split ? 1 : 2; let hit = null;
-        for (let tries = 0; tries <= maxTries; tries++) { hit = placed.find(p => Math.abs(p.x - tg.x) < (p.w + w) / 2 && Math.abs(p.y - y) < (p.h + h) / 2); if (!hit || tries === maxTries) break; y = hit.y - (hit.h + h) / 2 - 2; }
-        if (hit || y < h * 1.5) { ys[i] = null; continue; }   // still overlapping (or pushed off the top): the farther tag is dropped
-        placed.push({ x: tg.x, y, w, h }); ys[i] = y;
-      }
-      r.tagEls.forEach((d, i) => {
-        const tg = list[i]; if (!tg || ys[i] == null) { if (d.style.display !== 'none') d.style.display = 'none'; return; }
-        d.style.display = 'flex'; d.style.left = tg.x.toFixed(1) + 'px'; d.style.top = ys[i].toFixed(1) + 'px'; d.style.opacity = tg.alpha; d.style.setProperty('--d', (0.7 + 0.3 * Math.min(1, tg.alpha)).toFixed(2));
-        d.classList.toggle('stacked', ys[i] < tg.y - 1);
-        setText(d.children[0], String(tg.pos)); d.children[1].style.background = tg.color; setText(d.children[2], tg.text);
-      });
-    };
+    r.updateTags = (list) => updateTags(r, list);
     return r;
   }
 
-  // ---- DRS: three-state indicator on the dash (off / armed / open) with a hint line, a callout at each detection line and
-  //      while armed in the zone, a toast when DRS is enabled, and chimes on enable / open / close. Reads car and race state only.
-  function drsKey(race, car, short) {
-    if (race.players.length < 2) return short ? 'SHIFT' : 'Shift';
-    return car.playerIndex === 0 ? (short ? 'L SHIFT' : 'Left Shift') : (short ? 'R SHIFT' : 'Right Shift');
+  // ---------------------------------------------------------------- timing tower
+  function ensureRows(r, n) {
+    while (r.rows.length < n) {
+      const d = document.createElement('div'); d.className = 'lp-row empty';
+      d.innerHTML = '<span class="p"></span><i class="bar"></i><i class="lg"></i><span class="n"></span><i class="fl"></i><span class="st"></span><span class="ty"></span><span class="g"></span>';
+      r.rowsEl.appendChild(d);
+      const ch = d.children; r.rows.push({ el: d, p: ch[0], bar: ch[1], lg: ch[2], n: ch[3], fl: ch[4], st: ch[5], ty: ch[6], g: ch[7], car: null });
+    }
   }
-  // the same rule as the detection line: time to the nearest car ahead on track at this car's speed (min 15 m/s)
-  function gapAheadOnTrack(race, c) {
-    const L = race.track.length; let g = Infinity;
-    for (const o of race.cars) { if (o === c) continue; let d = o.trk.s - c.trk.s; if (d <= 0) d += L; g = Math.min(g, d / Math.max(c.v, 15)); }
-    return g;
-  }
-  // DRS on the dash: a single box, dim when DRS is not available, green outline when it is ready to use, solid green while
-  // the flap is open. Nothing else (no callouts, toasts or chimes): in the cockpit the steering-wheel display carries the lamp.
-  function updateDrs(r, race, c, ck) {
-    // 2026: the box is the active-aero Straight Mode (any car, in the activation zones); Overtake (extra energy for the lap, earned
-    // within 1 s at the Detection Line) lights the ERS label
-    const ot = c.otEnergy > 0.01; if (r._ot !== ot && r.ers) { r._ot = ot; const lb = r.ers.querySelector('.ers-label'); if (lb) { lb.textContent = ot ? 'OVERTAKE' : 'ERS'; lb.style.color = ot ? '#ff8a1f' : ''; } }
-    if (r._aero !== 1 && r.drs) { r._aero = 1; const b = r.drs.querySelector('b'); if (b) b.textContent = 'AERO'; r.drs.title = 'Straight Mode (low-drag wings) in the activation zones'; }
-    if (ck) return; const open = !!c.drsOpen, ready = !!c.drsEligible && !open;
-    const cls = 'drs' + (open ? ' open' : ready ? ' armed' : ''); if (r.drs.className !== cls) r.drs.className = cls; setText(r.drsSub, '');
+  function updateTower(r, race, c) {
+    const order = race.order, n = order.length, idx = c.pos - 1;
+    ensureRows(r, n);
+    const lapNow = c.finished ? 'FIN' : String(Math.max(1, Math.min(c.lap, race.laps)));
+    if (lapNow !== r.prevLap) { setText(r.lapN, lapNow); if (r.prevLap !== -1) flash(r.lapWrap, 'bump', 600); r.prevLap = lapNow; }
+    setText(r.lapT, c.finished ? '' : '/ ' + race.laps);
+    const full = r.full, N = full ? n : Math.min(r.nCompact, n);
+    let a = full ? 0 : Math.max(0, idx - (N >> 1)); const b = Math.min(n, a + N); a = Math.max(0, b - N);
+    const flCar = race.fastest && race.fastest.time > 0 ? race.fastest.car : null; const flNew = flCar && race.time < r.flUntil;
+    r.meRow = null;
+    for (let i = 0; i < r.rows.length; i++) {
+      const row = r.rows[i]; const j = a + i; const o = i < N ? order[j] : null;
+      if (!o) { setCls(row.el, 'lp-row empty'); row.car = null; continue; }
+      const me = o === c; const inPit = !!(o.pit && o.pit.active) && !o.finished;
+      let gap, gcls = 'g';
+      if (!race.started) gap = '';
+      else if (inPit) { gap = 'IN PIT'; gcls = 'g pit'; }
+      else if (flNew && o === flCar) { gap = 'FASTEST LAP'; gcls = 'g flap'; }
+      else if (full) {
+        // the whole field: interval to the car ahead (lapped cars in laps), the leader reads LEADER
+        if (j === 0) gap = o.finished ? 'FIN' : 'LEADER';
+        else { const p = order[j - 1]; const lg = race.lapGap(p, o); gap = o.finished && !p.finished ? 'FIN' : lg > 0 && !(p.finished && !o.finished && lg === 1 && race.lapGap(order[0], o) === 0) ? '+' + lg + ' LAP' : '+' + Math.max(0, o.gapAhead != null ? o.gapAhead : race.timeGap(p, o)).toFixed(3); }
+      } else {
+        // around you: gaps relative to your car (yours: to the leader); lapped cars read in laps (+1 LAP), as on the timing screens
+        const lg = me ? race.lapGap(order[0], c) : j < idx ? race.lapGap(o, c) : race.lapGap(c, o);
+        if (me) gap = c.finished ? 'FIN' : c.pos === 1 ? 'LEADER' : lg > 0 ? '+' + lg + ' LAP' : '+' + race.timeGap(order[0], c).toFixed(3);
+        else if (lg > 0 && !(o.finished && !c.finished)) gap = (j < idx ? '-' : '+') + lg + ' LAP';
+        else { const g = j < idx ? -race.timeGap(o, c) : race.timeGap(c, o); gap = (g < 0 ? '-' : '+') + Math.abs(g).toFixed(3); if (o.finished && !c.finished) gap = 'FIN'; }
+      }
+      // state chip: penalty time (amber), chequered (finished)
+      let st = '', scls = 'st';
+      if (o.penalty > 0) { st = '+' + Math.round(o.penalty) + 'S'; scls = 'st pen'; }
+      else if (o.finished) { scls = 'st chq'; }
+      setCls(row.el, 'lp-row' + (me ? ' me' : '') + (o.isPlayer && !me ? ' pl' : '') + (inPit ? ' inpit' : '') + (flNew && o === flCar ? ' flnew' : ''));
+      setText(row.p, String(j + 1));
+      if (row.car !== o) {   // the car in this row changed: colour, mark, name
+        row.car = o; row.bar.style.background = o.team.primary; row.lg.style.backgroundImage = teamMark(o.team);
+        setText(row.n, full ? shortName(o) : surname(o));
+      } else if (row._full !== full) setText(row.n, full ? shortName(o) : surname(o));
+      row._full = full;
+      setCls(row.fl, o === flCar ? 'fl on' : 'fl');
+      setCls(row.st, scls); setText(row.st, st);
+      setCls(row.ty, 'ty ' + o.tyreKey); setText(row.ty, TYRE_LETTER[o.tyreKey] || '?');
+      setCls(row.g, gcls); setText(row.g, gap);
+      if (me) r.meRow = row.el;
+    }
+    // position change flash
+    if (c.pos !== r.prevPos) { const cls = c.pos < r.prevPos ? 'gain' : 'loss'; flash(r.posWrap, cls, 900); if (r.meRow && race.started) flash(r.meRow, cls, 900); r.prevPos = c.pos; }
   }
 
-  // rotating local map: heading up, ~ +/-450 m around the car, whole circuit outline, DRS zones, sector ticks, cars
-  function drawLocalMap(r, race) {
-    const ctx = r.map, S = 360, c = r.car, t = race.track; const k = S / 180; ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.clearRect(0, 0, S, S);
-    const scale = 0.19 * k; const cx = S / 2, cy = S * 0.56;
-    ctx.save(); ctx.translate(cx, cy); ctx.rotate(-(c.heading) - Math.PI / 2);
-    const n = t.n, step = Math.max(1, Math.round(6 / (t.ds || 1)));
-    const P = (i) => [(t.x[i] - c.x) * scale, (t.z[i] - c.z) * scale];
-    ctx.lineCap = 'round'; ctx.lineJoin = 'round';
-    // track outline and DRS zones: world-space paths built once per circuit, stroked under a car-centred transform
-    if (!t._mapPaths) {
-      const tp = new Path2D(); for (let i = 0; i <= n; i += step) { const j = i % n; i === 0 ? tp.moveTo(t.x[j], t.z[j]) : tp.lineTo(t.x[j], t.z[j]); } tp.closePath();
-      const drs = t.drs.map((z) => { const ze = z.end >= z.start ? z.end : z.end + t.length; const dp = new Path2D(); for (let s = z.start; s <= ze; s += 10) { const j = t.idxAtS(s); s === z.start ? dp.moveTo(t.x[j], t.z[j]) : dp.lineTo(t.x[j], t.z[j]); } return dp; });
-      t._mapPaths = { tp, drs };
+  // ---------------------------------------------------------------- timing panel
+  function updateTiming(r, race, c) {
+    setText(r.pos, String(c.pos)); setText(r.posT, '/ ' + race.cars.length);
+    setText(r.time, race.started && !c.finished ? fmt(Math.max(0, race.time - c.lapStart)) : c.finished ? fmt(c.raceTime != null ? c.raceTime : c.finishTime) : '0:00.000');
+    // the sector bars keep the last lap's colours for 3 s after the Line, then show the new lap
+    const fresh = race.started && c.sector === 0 && c.lastLapFlags && race.time - c.lapStart < 3 && c.lapsDone > 0;
+    const flags = fresh ? c.lastLapFlags : c.sectorFlags;
+    for (let si = 0; si < 3; si++) {
+      const f = flags ? flags[si] : ''; const cls = f || (!fresh && si === c.sector && race.started && !c.finished ? 'live' : '');
+      if (r.sectors[si]._c !== cls) { const was = r.sectors[si]._c; setCls(r.sectors[si], cls); if (f && was !== cls && !fresh) flash(r.sectors[si], 'pop', 600); }
     }
-    ctx.save(); ctx.scale(scale, scale); ctx.translate(-c.x, -c.z);
-    ctx.lineWidth = 11 * k / 2 / scale; ctx.strokeStyle = 'rgba(0,0,0,0.55)'; ctx.stroke(t._mapPaths.tp);
-    ctx.lineWidth = 6 * k / 2 / scale; ctx.strokeStyle = '#e4e8ee'; ctx.stroke(t._mapPaths.tp);
-    ctx.strokeStyle = '#2fe36d'; for (const dp of t._mapPaths.drs) ctx.stroke(dp);
-    ctx.restore();
-    // sector boundaries + start line
-    const tick = (s, col, len) => { const i = t.idxAtS(s); const p = P(i); const nx = t.nx[i], nz = t.nz[i]; ctx.beginPath(); ctx.moveTo(p[0] - nx * len, p[1] - nz * len); ctx.lineTo(p[0] + nx * len, p[1] + nz * len); ctx.strokeStyle = col; ctx.lineWidth = 2.5 * k / 2; ctx.stroke(); };
-    if (t.sectors) for (const s of t.sectors) tick(s, '#ffd23f', 6 * k / 2);
-    tick(t.sf, '#ffffff', 8 * k / 2);
-    // cars (team colour, white ring); the car directly ahead / behind gets a slightly larger dot
-    const ahead = race.order[c.pos - 2], behind = race.order[c.pos];
+    setText(r.last, c.lastLap > 0 ? fmt(c.lastLap) : '--:--.---');
+    const del = !!c.lastLapDeleted; if (r._del !== del) { r._del = del; r.last.classList.toggle('del', del); r.last.title = del ? 'Lap deleted (track limits)' : ''; }
+    setText(r.best, c.bestLap > 0 ? fmt(c.bestLap) : '--:--.---');
+    const ov = !!(race.fastest && race.fastest.car === c && c.bestLap > 0); if (r._ov !== ov) { r._ov = ov; r.bestWrap.classList.toggle('overall', ov); }
+    const d = race.deltaBest(c); setText(r.delta, d == null || c.finished ? '' : (d >= 0 ? '+' : '-') + Math.abs(d).toFixed(3)); setCls(r.delta, 'delta ' + (d == null ? '' : d < 0 ? 'neg' : 'pos'));
+  }
+
+  // ---------------------------------------------------------------- fastest-lap banner (any car; polled, so main.js needs no hook)
+  function updateFastest(r, race) {
+    const f = race.fastest; if (!f || !(f.time > 0) || !f.car) return;
+    if (f.time === r.flT && f.car === r.flCar) return;
+    const first = r.flT === -1 && race.time < 1; r.flT = f.time; r.flCar = f.car; if (first) return;
+    r.flUntil = race.time + 5;
+    r.flbBar.style.background = f.car.team.primary; setText(r.flbName, surname(f.car)); setText(r.flbTime, fmt(f.time));
+    r.flb.classList.remove('show'); void r.flb.offsetWidth; r.flb.classList.add('show');
+    clearTimeout(r._flbT); r._flbT = setTimeout(() => r.flb.classList.remove('show'), 4600);
+  }
+
+  // ---------------------------------------------------------------- dash: gear, speed, RPM, battery, Overtake, Straight Mode
+  function updateDash(r, race, c) {
+    setText(r.speed, String(Math.round(c.speedKmh))); setText(r.gear, c.gear === 0 ? 'N' : c.v < -0.5 ? 'R' : String(c.gear));
+    const rpm = U.clamp(c.rpm, 0, 1); setText(r.rpmV, String(Math.round((4000 + rpm * 8500) / 50) * 50));
+    const rq = Math.round(rpm * 60) / 60; if (r._rq !== rq) { r._rq = rq; r.rpmBar.style.transform = 'scaleX(' + rq.toFixed(3) + ')'; }
+    const band = rpm > 0.965 && c.gear > 0 && c.gear < 8 ? 'ds-rpm shift' : rpm > 0.82 ? 'ds-rpm hi' : 'ds-rpm'; setCls(r.rpmWrap, band);
+    const ep = Math.round(U.clamp(c.ers, 0, 1) * 100); setText(r.ersPct, ep + '%');
+    if (r._ep !== ep) { r._ep = ep; r.ersFill.style.transform = 'scaleX(' + (ep / 100).toFixed(2) + ')'; }
+    // Overtake (2026): extra energy for this lap, earned within 1 s at the Detection Line; lit while it is being deployed
+    const ote = c.otEnergy > 0.01 ? U.clamp(c.otEnergy / 0.5, 0, 1) : 0; const otq = Math.round(ote * 40) / 40;
+    if (r._otq !== otq) { r._otq = otq; r.otFill.style.transform = 'scaleX(' + (otq * 0.5).toFixed(3) + ')'; }
+    setCls(r.ot, 'ot' + (ote > 0 ? (c.ersActive ? ' on' : ' armed') : ''));
+    setCls(r.ers, 'ers' + (c.ersActive ? ' deploy' : c.brake > 0.2 && c.v > 5 ? ' harvest' : ''));
+    setText(r.ersMode, c.ersActive ? 'DEPLOY' : c.brake > 0.2 && c.v > 5 ? 'HARVEST' : '');
+    // Straight Mode (the 2026 low-drag wing position, the old DRS flap) in the activation zones
+    setCls(r.aero, 'aero' + (c.drsOpen ? ' open' : c.drsEligible && c.inDrsZone >= 0 ? ' armed' : ''));
+  }
+
+  // ---------------------------------------------------------------- minimap: the whole circuit, fixed, best-fit rotation
+  function mapGeometry(r, t) {
+    const dpr = Math.min(2, window.devicePixelRatio || 1), k = r.u * dpr; const W = r.mapW, H = r.mapH;
+    const cw = Math.max(2, Math.round(W * k)), ch = Math.max(2, Math.round(H * k));
+    if (r.mapC.width !== cw || r.mapC.height !== ch) { r.mapC.width = cw; r.mapC.height = ch; }
+    // fit: the rotation (5 degree steps) that gives the circuit the most room; the drawn orientation (0) unless that is 8% smaller
+    const fits = t._hudFit || (t._hudFit = {}); let fit = fits[W + 'x' + H];
+    if (!fit) {
+      const n = t.n, step = Math.max(1, Math.round(n / 360)); let best = null;
+      for (let a = 0; a < 180; a += 5) {
+        const ca = Math.cos(a * Math.PI / 180), sa = Math.sin(a * Math.PI / 180); let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
+        for (let i = 0; i < n; i += step) { const x = t.x[i] * ca - t.z[i] * sa, y = t.x[i] * sa + t.z[i] * ca; if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; }
+        const sc = Math.min((W - 24) / (x1 - x0), (H - 24) / (y1 - y0)); const f = { a, ca, sa, sc, cx: (x0 + x1) / 2, cy: (y0 + y1) / 2 };
+        if (a === 0) fit = f; if (!best || sc > best.sc) best = f;
+      }
+      if (fit.sc < best.sc * 0.92) fit = best;
+      fits[W + 'x' + H] = fit;
+    }
+    const sc = fit.sc * k, ox = cw / 2 - (fit.cx * fit.sc) * k, oy = ch / 2 - (fit.cy * fit.sc) * k;
+    const P = (x, z) => [(x * fit.ca - z * fit.sa) * sc + ox, (x * fit.sa + z * fit.ca) * sc + oy];
+    // outline: dark casing, light ribbon, aero zones, sector ticks, the Line - drawn once into an offscreen canvas
+    const oc = document.createElement('canvas'); oc.width = cw; oc.height = ch; const g = oc.getContext('2d'); g.lineJoin = 'round'; g.lineCap = 'round';
+    const n = t.n, step = Math.max(1, Math.round(3 / (t.ds || 1)));
+    const path = new Path2D(); for (let i = 0; i <= n; i += step) { const p = P(t.x[i % n], t.z[i % n]); i === 0 ? path.moveTo(p[0], p[1]) : path.lineTo(p[0], p[1]); } path.closePath();
+    g.strokeStyle = 'rgba(6,7,11,0.72)'; g.lineWidth = 7.5 * k; g.stroke(path);
+    g.strokeStyle = '#eef0f4'; g.lineWidth = 3 * k; g.stroke(path);
+    g.strokeStyle = '#2fe36d'; g.lineWidth = 3 * k;
+    for (const z of t.drs) { const ze = z.end >= z.start ? z.end : z.end + t.length; g.beginPath(); for (let s = z.start; s <= ze; s += 8) { const j = t.idxAtS(s); const p = P(t.x[j], t.z[j]); s === z.start ? g.moveTo(p[0], p[1]) : g.lineTo(p[0], p[1]); } g.stroke(); }
+    const tick = (s, col, len, w) => { const i = t.idxAtS(s); const p = P(t.x[i], t.z[i]); const nx = t.nx[i] * fit.ca - t.nz[i] * fit.sa, ny = t.nx[i] * fit.sa + t.nz[i] * fit.ca; g.beginPath(); g.moveTo(p[0] - nx * len * k, p[1] - ny * len * k); g.lineTo(p[0] + nx * len * k, p[1] + ny * len * k); g.strokeStyle = col; g.lineWidth = w * k; g.lineCap = 'butt'; g.stroke(); };
+    if (t.sectors) for (const s of t.sectors) tick(s, '#ffd23f', 5, 2);
+    tick(t.sf, '#0b0c10', 7, 4.2); tick(t.sf, '#ffffff', 6, 2.4);
+    r.mapGeo = { t, P, oc, k, cw, ch };
+    return r.mapGeo;
+  }
+  function drawMap(r, race) {
+    const t = race.track; const G = r.mapGeo && r.mapGeo.t === t ? r.mapGeo : mapGeometry(r, t);
+    const ctx = r.map, k = G.k, c = r.car; ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.clearRect(0, 0, G.cw, G.ch); ctx.drawImage(G.oc, 0, 0);
+    const R = 3.3 * k; ctx.lineWidth = 1.3 * k; ctx.strokeStyle = 'rgba(4,5,8,0.85)';
     for (const o of race.cars) {
-      if (o === c) continue; const px = (o.x - c.x) * scale, pz = (o.z - c.z) * scale; if (px * px + pz * pz > (S * 0.62) * (S * 0.62)) continue;
-      const big = o === ahead || o === behind; ctx.beginPath(); ctx.arc(px, pz, (big ? 5.5 : 4.2) * k / 2 * 1.2, 0, 6.283); ctx.fillStyle = o.team.primary; ctx.fill(); ctx.lineWidth = 1.6 * k / 2; ctx.strokeStyle = big ? '#ffffff' : 'rgba(255,255,255,0.75)'; ctx.stroke();
+      if (o === c || o.isPlayer) continue; const p = G.P(o.x, o.z);
+      ctx.beginPath(); ctx.arc(p[0], p[1], R, 0, 6.2832); ctx.fillStyle = o.team.primary; ctx.fill(); ctx.stroke();
     }
-    ctx.restore();
-    // player arrow
-    ctx.save(); ctx.translate(cx, cy); ctx.scale(k / 2 * 1.25, k / 2 * 1.25); ctx.shadowColor = 'rgba(0,0,0,0.7)'; ctx.shadowBlur = 4; ctx.fillStyle = '#ffffff'; ctx.strokeStyle = c.team.primary; ctx.lineWidth = 2;
-    ctx.beginPath(); ctx.moveTo(0, -10); ctx.lineTo(7.5, 8); ctx.lineTo(0, 4); ctx.lineTo(-7.5, 8); ctx.closePath(); ctx.fill(); ctx.shadowBlur = 0; ctx.stroke(); ctx.restore();
+    for (const o of race.players) {   // the other player (split screen): a larger dot ringed in white
+      if (o === c) continue; const p = G.P(o.x, o.z);
+      ctx.beginPath(); ctx.arc(p[0], p[1], R * 1.25, 0, 6.2832); ctx.fillStyle = o.team.primary; ctx.fill(); ctx.lineWidth = 1.6 * k; ctx.strokeStyle = '#ffffff'; ctx.stroke();
+    }
+    const p = G.P(c.x, c.z);
+    ctx.beginPath(); ctx.arc(p[0], p[1], R * 2.3, 0, 6.2832); ctx.fillStyle = 'rgba(255,255,255,0.22)'; ctx.fill();
+    ctx.beginPath(); ctx.arc(p[0], p[1], R * 1.45, 0, 6.2832); ctx.fillStyle = '#ffffff'; ctx.fill(); ctx.lineWidth = 2.2 * k; ctx.strokeStyle = c.team.primary; ctx.stroke();
+  }
+
+  // ---------------------------------------------------------------- name tags (main.js projects them; positions via transforms)
+  function updateTags(r, list) {
+    while (r.tagEls.length < list.length) {
+      const d = document.createElement('div'); d.className = 'tag'; d.innerHTML = '<div class="tg"><b class="tp"></b><i class="tb"></i><span class="tn"></span></div>';
+      r.tags.appendChild(d); const g = d.firstChild; r.tagEls.push({ el: d, p: g.children[0], b: g.children[1], n: g.children[2], on: false, col: '' });
+    }
+    // declutter: nearest cars keep their spot, farther tags that would overlap are stacked upwards (split: one step, else dropped)
+    const ord = r._tagOrd || (r._tagOrd = []); ord.length = 0; for (let i = 0; i < list.length; i++) ord.push(i); ord.sort((i, j) => list[j].alpha - list[i].alpha);
+    const placed = []; const s = r.u || 1; const ys = r._tagYs || (r._tagYs = []); ys.length = list.length;
+    for (const i of ord) {
+      const tg = list[i]; const sc = s * (0.72 + 0.28 * Math.min(1, tg.alpha)); const w = (46 + String(tg.text).length * 8.4) * sc, h = 21 * sc; let y = tg.y;
+      const maxTries = r.split ? 1 : 2; let hit = null;
+      for (let tries = 0; tries <= maxTries; tries++) { hit = placed.find(p => Math.abs(p.x - tg.x) < (p.w + w) / 2 && Math.abs(p.y - y) < (p.h + h) / 2); if (!hit || tries === maxTries) break; y = hit.y - (hit.h + h) / 2 - 2; }
+      if (hit || y < h * 1.5) { ys[i] = null; continue; }
+      placed.push({ x: tg.x, y, w, h }); ys[i] = y;
+    }
+    for (let i = 0; i < r.tagEls.length; i++) {
+      const T = r.tagEls[i]; const tg = list[i];
+      if (!tg || ys[i] == null) { if (T.on) { T.on = false; T.el.style.display = 'none'; } continue; }
+      if (!T.on) { T.on = true; T.el.style.display = ''; }
+      const sc = s * (0.72 + 0.28 * Math.min(1, tg.alpha));
+      T.el.style.transform = 'translate3d(' + tg.x.toFixed(1) + 'px,' + ys[i].toFixed(1) + 'px,0) translate(-50%,-100%) scale(' + sc.toFixed(3) + ')';
+      const op = Math.min(1, tg.alpha).toFixed(2); if (T.op !== op) { T.op = op; T.el.style.opacity = op; }
+      setText(T.p, String(tg.pos)); if (T.col !== tg.color) { T.col = tg.color; T.b.style.background = tg.color; } setText(T.n, tg.text);
+    }
   }
 
   function setLights(n) {
@@ -221,7 +347,7 @@ window.EI = window.EI || {};
   function banner(text, ms, color, sub) {
     const b = $('banner'); const parts = String(text).split(' · ');
     const kicker = parts.length > 1 ? parts.slice(0, -1).join(' · ') : ''; const main = parts[parts.length - 1];
-    b.innerHTML = (kicker ? '<div class="bn-kicker">' + kicker + '</div>' : '') + '<div class="bn-text" style="color:' + (color || '#fff') + '">' + main + '</div>' + (sub ? '<div class="bn-kicker" style="margin:8px 0 0;letter-spacing:3px">' + sub + '</div>' : '');
+    b.innerHTML = (kicker ? '<div class="bn-kicker">' + kicker + '</div>' : '') + '<div class="bn-text" style="color:' + (color || '#fff') + '">' + main + '</div>' + (sub ? '<div class="bn-sub">' + sub + '</div>' : '');
     b.classList.remove('hidden'); clearTimeout(banner._t); if (ms) banner._t = setTimeout(() => b.classList.add('hidden'), ms);
     // split screen: the same banner centred in each view
     for (const r of splitLive()) { r.bannerEl.innerHTML = b.innerHTML; r.bannerEl.classList.remove('show'); void r.bannerEl.offsetWidth; r.bannerEl.classList.add('show'); }
@@ -229,6 +355,7 @@ window.EI = window.EI || {};
   }
   // toasts: one player's (k given) go to that player's view in split screen; the others show in every view
   function toast(text, cls, k) {
+    if (/^Fastest lap: /.test(text)) return;   // the purple fastest-lap banner carries it
     const views = splitLive();
     if (views.length) {
       for (const r of views) {
@@ -239,7 +366,16 @@ window.EI = window.EI || {};
       return;
     }
     const d = document.createElement('div'); d.textContent = text; if (cls) d.className = cls; $('toasts').appendChild(d); setTimeout(() => d.remove(), 4000);
+    while ($('toasts').children.length > 4) $('toasts').firstChild.remove();
   }
+  // keys: T = whole field / around you in the tower, I = the dash in the cockpit view (the wheel display shows the same)
+  window.addEventListener('keydown', (e) => {
+    if (e.repeat || e.ctrlKey || e.metaKey || e.altKey) return; const a = document.activeElement; if (a && (a.tagName === 'INPUT' || a.tagName === 'SELECT' || a.tagName === 'TEXTAREA')) return;
+    const views = live.filter(r => r.el.isConnected); if (!views.length) return;
+    const shown = (id) => { const el = $(id); return !!el && !el.classList.contains('hidden'); }; if (shown('menu') || shown('pause') || shown('results')) return;
+    if (e.code === 'KeyT') { if (views[0].split) return; prefs.full = !prefs.full; savePrefs(); for (const r of views) r.setFull(prefs.full); toast(prefs.full ? 'Timing tower: full field (T)' : 'Timing tower: around you (T)'); }
+    else if (e.code === 'KeyI') { prefs.ckDash = !prefs.ckDash; savePrefs(); for (const r of views) r.el.classList.toggle('ckdash', prefs.ckDash); toast(prefs.ckDash ? 'Cockpit: HUD dash shown (I)' : 'Cockpit: HUD dash hidden, the wheel shows it (I)'); }
+  });
   // the thin bar between the two views
   function setDivider(rect) {
     let d = $('split-divider');
@@ -296,5 +432,5 @@ window.EI = window.EI || {};
   // range sliders: keep the filled part of the track in sync with the value (main.js may set .value/.max directly)
   function syncRanges() { document.querySelectorAll('input[type=range]').forEach(el => { const v = (el.value - el.min) / Math.max(1, el.max - el.min) * 100; const f = v.toFixed(1) + '%'; if (el._fill !== f) { el._fill = f; el.style.setProperty('--fill', f); } }); }
   window.addEventListener('DOMContentLoaded', () => { syncRanges(); document.addEventListener('input', e => { if (e.target && e.target.type === 'range') syncRanges(); }); setInterval(() => { const m = $('menu'); if (m && !m.classList.contains('hidden')) syncRanges(); }, 150); });
-  EI.HUD = { makeViewport, setLights, banner, toast, setDivider, showResults, drawTrackPreview, $ };
+  EI.HUD = { makeViewport, setLights, banner, toast, setDivider, showResults, drawTrackPreview, teamMark, prefs, $ };
 })();

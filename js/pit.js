@@ -87,6 +87,8 @@ window.EI = window.EI || {};
     P.dLimIn = P.dA + 15; P.dLimOut = P.dB - 15;
     const mid = (P.dLimIn + P.dLimOut) / 2; const NB = Math.max(10, EI.TEAMS.length); P.boxD = []; for (let k = 0; k < NB; k++) P.boxD.push(mid + ((NB - 1) / 2 - k) * BOX_SP);   // one box per entry (11 in 2026)
     P.garD0 = P.boxD[NB - 1] - BOX_SP / 2; P.garD1 = P.boxD[0] + BOX_SP / 2;
+    // street circuit (Monaco): the limiter zone covers the garages and 25 m either side, not the whole straight (pit loss ~20 s)
+    if (track.data.street) { P.dLimIn = Math.max(P.dLimIn, Math.round(P.garD0 - 25)); P.dLimOut = Math.min(P.dLimOut, Math.round(P.garD1 + 25)); }
     const u = (s) => P.sCap + U.mod(s - P.sCap, TL);
     P.anch = [[dCap, P.sCap], [P.dA, u(P.s[P.dA])], [P.dB, u(P.s[P.dB])], [dRel, u(P.s[dRel])]];
     for (let k = 1; k < P.anch.length; k++) if (P.anch[k][1] <= P.anch[k - 1][1]) P.anch[k][1] = P.anch[k - 1][1] + (P.anch[k][0] - P.anch[k - 1][0]);
@@ -594,7 +596,7 @@ window.EI = window.EI || {};
     const st = { active: false, request: false, next: otherCompound(car.tyreKey), phase: null, d: 0, v: 0, o: 0, off0: 0, d0: 0, served: false, stops: 0, keyPrev: false, prevS: null, box: null, queued: false, stopD: null, plan: null, lastStop: null, ui: null };
     car.pit = st;
     // strategy for bots
-    if (!car.isPlayer) { const laps = race.laps; st.planLap = laps >= 5 ? U.clamp(Math.round(laps * (0.38 + race.rng() * 0.27)), 2, laps - 2) : laps >= 3 ? U.clamp(Math.round(laps * (0.3 + race.rng() * 0.4)), 1, laps - 1) : 0; }
+    if (!car.isPlayer) { const laps = race.laps; st.planLap = laps >= 5 ? U.clamp(Math.round(laps * (0.38 + race.rng() * 0.27)), 2, laps - 2) : 0; }
     // physics override: while in the pit lane this module moves the car along the lane
     const orig = car.update;
     car.update = function (dt, track, rc) { if (this.pit && this.pit.active) return stepPitCar(this, dt, track, rc || race); return orig.call(this, dt, track, rc); };
@@ -680,8 +682,8 @@ window.EI = window.EI || {};
       if (st.request && !st.active && st.prevS != null && crossed(st.prevS, car.trk.s, L.sCap, TL)) {
         const side = car.trk.lat * L.side;
         if (side >= 0.8 && car.v > 2) capture(car, race);
-        // a late swerve across the pit entry line still makes the lane, but it is a 5 s penalty (App. L Ch. IV 4d)
-        else if (side >= -1.6 && car.v > 2) { capture(car, race); race.addPenalty && race.addPenalty(car, 5, 'Crossing the pit entry line', true); }
+        // a late swerve across the pit entry line still makes the lane (no penalty in this game)
+        else if (side >= -1.6 && car.v > 2) capture(car, race);
         else if (car.isPlayer) { uiFlash(car, 'MISSED THE PIT ENTRY', 'bad'); if (EI.HUD) EI.HUD.toast(car.name + ' missed the pit entry'); }
       }
       st.prevS = car.trk.s;
@@ -689,7 +691,7 @@ window.EI = window.EI || {};
     if (V) for (const b of V.boxes) stepBox(b, race, dt);
   };
   // a car that still owes the second dry compound (races of 3 laps or more)
-  function owesCompound(car, race) { return race.laps >= 3 && car.compounds && Object.keys(car.compounds).length < 2; }
+  function owesCompound() { return false; }   // the two-compound rule is not used in this game (kept as a hook)
   function strategy(car, st, race) {
     if (st.active) return;
     const owes = owesCompound(car, race), lastLap = owes ? race.laps - 1 : race.laps - 2;
@@ -708,6 +710,7 @@ window.EI = window.EI || {};
     // progress: continue from the car's own track position, blending onto the lane mapping over the first 80 m
     const TL = race.track.length; let ws = car.trk.s - L.sCap; ws -= Math.round(ws / TL) * TL; const sU = L.sCap + ws;
     st.sOff = sU - sEqAt(d0); st.distBase = car.dist - sU;
+    st.sGhost = sU;   // pit lane progress is capped by a ghost lapping at racing speed from here (stepPitCar)
     const ti = car.team.index != null ? car.team.index : Math.max(0, EI.TEAMS.indexOf(car.team)); const box = V ? V.boxes[ti % V.boxes.length] : { d: L.boxD[ti % L.boxD.length], owner: null, queue: [] };
     st.box = box; if (!box.owner) { box.owner = car; st.stopD = box.d; } else { box.queue.push(car); st.queued = true; st.stopD = box.d - QUEUE_GAP; }
     car.drsOpen = false; car.drsEligible = false; car.ersActive = false;
@@ -729,7 +732,7 @@ window.EI = window.EI || {};
     // ---- longitudinal
     let vt = (st.manual && st.d < L.dLimIn ? L.vCurv : L.vAuto)[idxD(st.d)];
     if (st.d >= L.dLimIn - 1 && st.d <= L.dLimOut) vt = Math.min(vt, LIMIT);
-    if (st.phase === 'in' && st.stopD != null) vt = Math.min(vt, Math.sqrt(2 * 6.5 * Math.max(0, st.stopD - st.d)));
+    if (st.phase === 'in' && st.stopD != null) vt = Math.min(vt, Math.sqrt(2 * 9 * Math.max(0, st.stopD - st.d)));
     if (st.phase === 'wait' || st.phase === 'service') vt = 0;
     // spacing to cars ahead in the same lane
     for (const o of race.cars) { const q = o.pit; if (o === car || !q || !q.active || q.d <= st.d) continue; const gap = q.d - st.d; if (gap < 26 && Math.abs(q.o - st.o) < 2.3) vt = Math.min(vt, Math.max(0, q.v + (gap - 8.5) * 1.1)); }
@@ -741,7 +744,7 @@ window.EI = window.EI || {};
         else vt = Math.min(vt, st.v + Math.max(thr, 0.15) * 13 * dt);
       }
     }
-    const acc = inZone ? 6.5 : 12;
+    const acc = inZone ? 9 : 12;
     if (vt > st.v) st.v = Math.min(vt, st.v + acc * dt); else st.v = Math.max(Math.max(0, vt), st.v - 34 * dt);
     const dPrev = st.d; st.d += st.v * dt;
     // ---- speed limit line
@@ -771,7 +774,7 @@ window.EI = window.EI || {};
       if (pl.t >= pl.release) {
         // unsafe release check: hold the car while a car is coming down the fast lane alongside
         let clear = true; for (const o of race.cars) { const q = o.pit; if (o === car || !q || !q.active) continue; if (q.d > b.d - 26 && q.d < b.d + 3 && q.o < 0.5 && q.v > 2) clear = false; }
-        if (clear || pl.t > pl.release + 6) { if (!clear && race.addPenalty) race.addPenalty(car, 5, 'Unsafe release', false); endService(car, race); }
+        if (clear || pl.t > pl.release + 6) endService(car, race);
       }
     }
     if (st.d >= L.dRel * L.ds) { releaseCar(car, track, race); return; }
@@ -788,7 +791,9 @@ window.EI = window.EI || {};
     car.throttle = st.v > vPrev + 1e-4 ? 0.7 : (st.v > 0.5 ? 0.2 : 0); car.brake = st.v < vPrev - 1e-3 ? 0.7 : 0;
     car.surface = 'asphalt'; car.offTrack = 0; car.wallHit = Math.max(0, car.wallHit - dt); car.drsOpen = false; car.ersActive = false; car.slipstream = 0;
     // track-relative state: progress follows the lane so positions and lap lines stay consistent
-    const sEq = sEqCar(st, st.d); const TL = track.length; const s = U.mod(sEq, TL); const ti = track.idxAtS(s);
+    let sEq = sEqCar(st, st.d); const TL = track.length;
+    // a ghost on the circuit at racing speed (the track's speed profile) from the capture point: the lane never gets ahead of it
+    if (st.sGhost != null) { st.sGhost += track.aiSpeed[track.idxAtS(st.sGhost)] * dt; sEq = Math.min(sEq, st.sGhost); } const s = U.mod(sEq, TL); const ti = track.idxAtS(s);
     car.trk.i = ti; car.trk.s = s; car.trk.along = 0; car.trk.lat = (car.x - track.x[ti]) * track.nx[ti] + (car.z - track.z[ti]) * track.nz[ti]; car.trk.dist = Math.abs(car.trk.lat);
     if (race.started) car.dist = st.distBase + sEq; car._prevS = s;
     // engine note: pit limiter in second gear
@@ -1081,8 +1086,6 @@ window.EI = window.EI || {};
   function updateNote(u, race) {
     const car = u.car, rl = car.rules; let n = u.note && race.time < u.noteUntil ? u.note : null;
     if (!n && rl && rl.give) { const left = Math.max(0, Math.ceil(rl.give.until - race.time)); n = { title: 'GIVE THE POSITION BACK', sub: rl.give.cars.map(o => o.driver && o.driver.code || o.name).join(', ') + ' · ' + left + ' s', cls: 'warn' }; }
-    if (!n && car.blueFlag && !car.finished) n = { title: 'BLUE FLAG', sub: 'Let ' + (car.blueFlag.driver && car.blueFlag.driver.code || car.blueFlag.name) + ' through', cls: 'blue' };
-    if (!n && race.started && !car.finished && car.pit && !car.pit.active && owesCompound(car, race) && car.lap >= race.laps - 1 && race.laps >= 3) n = { title: 'MANDATORY STOP', sub: 'Two dry compounds needed · P to pit', cls: 'warn' };
     const on = !!n; if (on !== u.rkOn) { u.rkOn = on; u.rk.classList.toggle('on', on); }
     if (!n) return;
     if (u.rkCls !== n.cls) { if (u.rkCls) u.rk.classList.remove(u.rkCls); u.rk.classList.add(n.cls); u.rkCls = n.cls; }
@@ -1092,7 +1095,7 @@ window.EI = window.EI || {};
   const setT = (el, s) => { if (el._v !== s) { el._v = s; el.textContent = s; } };
   function updateUI(race, dt) {
     if (!R.ui || !R.ui.length) return;
-    if (race.started && !R.toastDone && EI.HUD) { R.toastDone = true; EI.HUD.toast((race.players.length > 1 ? 'Pit stop: P1 P + 1/2/3 · P2 Backspace + 8/9/0' : 'Pit stop: P to call the car in · 1/2/3 choose soft / medium / hard') + (race.laps >= 3 ? ' · two dry compounds required' : '')); }
+    if (race.started && !R.toastDone && EI.HUD) { R.toastDone = true; EI.HUD.toast((race.players.length > 1 ? 'Pit stop: P1 P + 1/2/3 · P2 Backspace + 8/9/0' : 'Pit stop: P to call the car in · 1/2/3 choose soft / medium / hard')); }
     const vps = (EI.debug && EI.debug.viewports) || [];
     for (const u of R.ui) {
       const vp = vps[u.k]; if (vp && vp.el) { const r = vp.el.style.cssText; if (r !== u.rect) { u.rect = r; const s = vp.el.style; u.el.style.left = s.left; u.el.style.top = s.top; u.el.style.width = s.width; u.el.style.height = s.height; const sc = U.clamp(Math.min((vp.w || 1280) / 1280, (vp.h || 720) / 720), 0.64, 1.3); u.el.style.setProperty('--s', sc.toFixed(3)); } }
@@ -1111,7 +1114,6 @@ window.EI = window.EI || {};
       } else if (st.request && !car.finished) {
         show = true; tag = 'BOX'; main = 'PIT REQUESTED'; const dTo = U.mod(L.sCap - car.trk.s, race.track.length);
         sub = dTo < 700 ? 'PIT ENTRY ' + Math.round(dTo) + ' M · KEEP ' + (L.side < 0 ? 'RIGHT' : 'LEFT') : (u.k === 0 ? '1 SOFT · 2 MEDIUM · 3 HARD · P CANCEL' : '8 SOFT · 9 MEDIUM · 0 HARD · BKSP CANCEL');
-        if (dTo >= 700 && owesCompound(car, race) && car.compounds[st.next]) sub = 'SAME COMPOUND · THE RULES NEED A SECOND ONE';
         cls = dTo < 700 ? 'bad' : 'info';
       } else if (st.tOut != null && race.time - st.tOut < 3 && st.lastStop) { show = true; tag = 'PIT'; main = 'STOP ' + st.lastStop.time.toFixed(2) + ' S · LANE ' + (st.lastStop.laneTime || 0).toFixed(1) + ' S'; cls = 'good'; tyre = st.lastStop.key; }
       if (u.flash && race.time < u.flashUntil && !(st.active && st.phase === 'service')) { show = true; if (!st.active && !st.request) { main = u.flash.text; tag = 'PIT'; sub = ''; big = ''; } else if (!st.active) sub = u.flash.text; cls = u.flash.cls === 'muted' ? cls : u.flash.cls; if (u.flash.text === 'RELEASE' || /SPEEDING|MISSED/.test(u.flash.text)) { main = u.flash.text; } }

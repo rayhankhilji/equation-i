@@ -1,27 +1,74 @@
 // Equation I - astonmartin 2026 livery (owner: LIVERY-C). Registered with the livery core js/liveries.js, which documents the helpers
 // (L.partner / partnerAt / emblem / mark / number / codeText / wordmark, L.k side kit, L.t top kit) and the part colour keys.
 // Coordinates: metres, x forward (nose tip 3.0, front axle 1.75, rear axle -1.85), y up, z right.
+//
+// Aston Martin Aramco F1 Team AMR26 (Honda), from race photos (China, Barcelona, Austria, Silverstone, Spa; swarm/f1/liveryC/refs):
+//  - satin British racing green all over, black floor; a lime keyline from the nose along the lower chassis side up to the sidepod
+//    inlet and another along the floor edge under the sidepod; lime hatching on the sidepod shoulder ahead of the title
+//  - sidepod: a big white "aramco" low on the flank, BOSS above its front, cohere on the shoulder behind
+//  - engine cover side: MAADEN (principal partner), CoreWeave + its CW mark at the airbox, "powered by Honda" behind, a small aramco
+//    and the Glenfiddich stag at the back of the cover, Valvoline low by the rear tyre
+//  - chassis side: pepperstone over the Aston Martin wings; cognizant on the floor ahead of the sidepod
+//  - rear-wing endplate green with coinbase; the top element light blue with a white aramco; front-wing endplates GLENFIDDICH,
+//    front-wing flaps black with aramco on top; nose top: the lime race number, Honda H, NexGen / xerox / NetApp, the wings at the tip
+//  - halo green with Breitling on the top bar, BOSS on the mirrors
 (function () {
   const LV = EI.LIVERIES; if (!LV) return;
-  const { TOP_V, LOW_V, W, MM } = LV.K;
+  const { LOW_V, W } = LV.K;
+  const BRG = '#07584f', BLK = '#101413', LM = '#cedc00', SKY = '#45b2e6';
   LV.register('astonmartin', {
-    parts: { body: '#004c41', fwFlap: '#004c41', fwEnd: '#004c41', fwTip: '#cedc00', rwMain: '#004c41', rwEnd: '#004c41', rwFlap: '#6cc4e8', halo: '#0d1a17', mirror: '#004c41', fin: '#0d1a17' },
-    num: { ff: '"Titillium Web", Arial, sans-serif', w: 600, ls: 0.06 },
+    parts: { body: BRG, fwFlap: BLK, fwEnd: BRG, fwTip: BLK, rwMain: BRG, rwEnd: BRG, rwFlap: SKY, halo: BRG, mirror: BRG, fin: BRG },
+    num: { ff: '"Titillium Web", Arial, sans-serif', w: 700, ls: 0.04 },
+    halo: { inner: ['breitling', '@AstonMartinF1'] },
     side(L) {
-      const { k } = L; const LM = '#cedc00';
-      k.region([[3.2, 0.14], [1.0, 0.16], [-0.6, 0.18], [-2.0, 0.22]], [[-2.4, LOW_V], [3.2, LOW_V]], '#0d1a17');
-      k.stroke([[3.1, 0.17], [1.0, 0.19], [-0.6, 0.21], [-1.9, 0.25]], 0.018, LM);
-      k.stroke([[1.05, 0.64], [0.98, 0.42], [1.0, 0.25]], 0.02, LM);   // sidepod inlet edge
-      k.poly([[0.02, 1.2], [0.02, 0.83], [-0.36, 0.83], [-0.42, 1.2]], '#111111');
-      L.wordmark('ASTON MARTIN', 2.05, 0.42, 0.04, W, { w: 600, ls: 0.35 });
-      L.partner('aramco', 'sp', 'white'); L.partner('honda', 'ec', 'white'); L.partner('maaden', 'spLow', 'white'); L.partner('cognizant', 'cockpit', 'white');
-      L.partner('aramco', 'rwEnd', 'white'); L.partner('glenfiddich', 'fwEnd', 'white'); L.partner('coreweave', 'ecRear', 'white');
-      L.number(1.05, 0.5, 0.085, W); L.codeText(1.3, 0.63, 0.05, LM); L.number(-2.13, 0.62, 0.11, LM);
+      const { k, g } = L;
+      // black floor / lower edge, lime keyline along it under the sidepod
+      const FLOOR = [[3.25, 0.12], [2.2, 0.14], [1.2, 0.16], [0.4, 0.18], [-0.6, 0.19], [-1.4, 0.22], [-2.1, 0.26]];
+      k.region(FLOOR, [[-2.6, 0.26], [-2.6, LOW_V], [3.25, LOW_V]], BLK);
+      k.stroke([[0.65, 0.205], [-0.2, 0.215], [-1.0, 0.225]], 0.014, LM);
+      // lime keyline: nose side -> chassis -> sidepod inlet edge
+      k.stroke([[3.1, 0.22], [2.4, 0.3], [1.7, 0.38], [1.15, 0.45], [0.82, 0.5], [0.7, 0.58]], 0.014, LM);
+      // lime hatching on the sidepod shoulder ahead of the title
+      g.save(); k.path([[0.5, 0.6], [0.5, 0.48], [-0.3, 0.47], [-0.3, 0.57]]); g.clip();
+      for (let i = 0; i < 16; i++) { const x = 0.5 - i * 0.055; k.stroke([[x, 0.46], [x - 0.05, 0.6]], 0.012, LM); }
+      g.restore();
+      // sidepod + engine cover partners
+      L.partnerAt('aramco', -0.32, 0.34, 0.98, 0.17, 'white');
+      L.partnerAt('boss', 0.28, 0.43, 0.22, 0.06, 'white');
+      L.partnerAt('cohere', -0.42, 0.63, 0.3, 0.055, 'white');
+      L.partnerAt('maaden', -0.55, 0.86, 0.5, 0.09, 'white');
+      L.partnerAt('coreweave', -0.08, 1.0, 0.16, 0.08, 'white');
+      L.partnerAt('honda2026', -1.08, 0.7, 0.12, 0.1, 'white');
+      L.wordmark('powered by', -1.08, 0.78, 0.022, W, { w: 600, ls: 0.02 });
+      L.partnerAt('aramco', -1.35, 0.9, 0.22, 0.04, 'white');
+      L.partnerAt('glenfiddich', -1.4, 1.02, 0.1, 0.07, 'white');
+      L.partnerAt('valvolinev', -1.38, 0.5, 0.12, 0.08, 'white');
+      // chassis / cockpit / floor
+      L.partnerAt('pepperstone', 1.25, 0.6, 0.2, 0.045, 'white');
+      L.partnerAt('astonmartin', 1.2, 0.5, 0.22, 0.06, 'white');
+      L.partnerAt('cognizant', 0.82, 0.27, 0.3, 0.055, 'white');
+      L.partnerAt('cognition', 1.62, 0.42, 0.2, 0.04, 'white');
+      L.number(2.05, 0.36, 0.07, LM);
+      L.codeText(0.55, 0.69, 0.04, W);
+      // rear-wing endplate (green) and front-wing endplate
+      L.partnerAt('coinbase', -2.13, 0.88, 0.34, 0.07, 'white');
+      L.partnerAt('jcb', -2.13, 0.66, 0.2, 0.06, 'white');
+      L.partnerAt('glenfiddich', 2.68, 0.17, 0.32, 0.09, 'white');
+      L.haloSide('Breitling', W, { w: 600, ls: 0.12 });
     },
     top(L) {
-      const { t } = L; t.rect(-0.38, 0.02, -0.09, 0.09, '#111111'); for (const s of [-1, 1]) t.poly([[3.0, s * 0.05], [3.0, s * 0.065], [1.0, s * 0.135], [1.0, s * 0.12]], '#cedc00');
-      L.wordmark('ASTON MARTIN', 2.45, 0, 0.035, W, { w: 600, ls: 0.25 }); L.number(2.1, 0, 0.12, W);
-      L.partner('aramco', 'rwTop', 'white'); L.partner('aramco', 'spTop', 'white'); L.partner('honda', 'noseTop', 'white');
+      // nose: lime number (reads from ahead), Honda H, then NexGen / xerox / NetApp / Pirelli, the wings at the tip
+      L.number(2.15, 0, 0.11, LM);
+      const stack = [['honda2026', 2.45, 0.08, 0.07], ['nexgen', 1.95, 0.12, 0.045], ['xerox', 1.8, 0.13, 0.04], ['netapp', 1.66, 0.13, 0.035], ['pirelli', 1.53, 0.12, 0.03], ['astonmartin', 2.72, 0.12, 0.04]];
+      for (const [id, x, w, h] of stack) L.partnerTop(id, x, 0, w, h, id === 'pirelli' ? 'color' : 'white', Math.PI);
+      // sidepod tops: aramco; engine cover spine: MAADEN; rear wing top element (light blue): aramco
+      L.partner('aramco', 'spTop', 'white'); L.partner('maaden', 'ecTop', 'white');
+      L.partnerTop('aramco', -2.1, 0, 0.8, 0.1, 'white');
+      // front-wing top flaps: aramco each side
+      L.partner('aramco', 'fwTop', 'white');
+      // halo top bar + front, mirrors
+      L.haloTop('@AstonMartinF1', W, -1); L.haloTop('@aramco', W, 1); L.haloFront('breitling', 'white');
+      L.partner('boss', 'mirrorTop', 'white');
     },
   });
 })();

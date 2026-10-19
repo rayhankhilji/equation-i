@@ -9,16 +9,17 @@ window.EI = window.EI || {};
   // live here; js/liveries.js holds each team's livery design. Driver names / numbers / codes are refreshed from EI.SEASON
   // (js/data/season2026.js) when it is loaded. helmet = the driver's main helmet colour (the model's helmet is one colour).
   // primary = the team's broadcast colour (HUD, timing tower, pit boards, fans); the car's real paint is in js/liveries.js.
-  const D = (name, num, code, helmet) => ({ name, num, code, helmet });
+  // tcam: 'y' fluorescent yellow / 'b' black T-cam on the airbox (from 2026 race photos; unset = black on seat 1, yellow on seat 2)
+  const D = (name, num, code, helmet, tcam) => (tcam ? { name, num, code, helmet, tcam } : { name, num, code, helmet });
   const TEAMS = [
     { id: 'mercedes', name: 'Mercedes-AMG Petronas F1 Team', brand: 'Mercedes', short: 'MER', primary: '#27f4d2', secondary: '#0e0e10', accent: '#00a19c', numberColor: '#0e0e10', skill: 0.99,
-      drivers: [D('Andrea Kimi Antonelli', 12, 'ANT', '#e9edf2'), D('George Russell', 63, 'RUS', '#1f4fb8')] },
+      drivers: [D('Andrea Kimi Antonelli', 12, 'ANT', '#e9edf2', 'y'), D('George Russell', 63, 'RUS', '#1f4fb8', 'b')] },
     { id: 'ferrari', name: 'Scuderia Ferrari HP', brand: 'Ferrari', short: 'FER', primary: '#e8002d', secondary: '#ffffff', accent: '#16171a', numberColor: '#ffffff', skill: 0.984,
-      drivers: [D('Charles Leclerc', 16, 'LEC', '#f2f2f2'), D('Lewis Hamilton', 44, 'HAM', '#ffd400')] },
+      drivers: [D('Charles Leclerc', 16, 'LEC', '#f2f2f2', 'b'), D('Lewis Hamilton', 44, 'HAM', '#ffd400', 'y')] },
     { id: 'mclaren', name: 'McLaren Mastercard F1 Team', brand: 'McLaren', short: 'MCL', primary: '#ff8000', secondary: '#2b2d31', accent: '#47c7fc', numberColor: '#2b2d31', skill: 0.983,
-      drivers: [D('Lando Norris', 1, 'NOR', '#d7ff1e'), D('Oscar Piastri', 81, 'PIA', '#f4f6fa')] },
+      drivers: [D('Lando Norris', 1, 'NOR', '#d7ff1e', 'y'), D('Oscar Piastri', 81, 'PIA', '#f4f6fa', 'b')] },
     { id: 'redbull', name: 'Oracle Red Bull Racing', brand: 'Red Bull Racing', short: 'RBR', primary: '#3671c6', secondary: '#0b0c12', accent: '#db0a40', numberColor: '#ffffff', skill: 0.988,
-      drivers: [D('Max Verstappen', 3, 'VER', '#16245c'), D('Isack Hadjar', 6, 'HAD', '#f2f2f2')] },
+      drivers: [D('Max Verstappen', 3, 'VER', '#16245c', 'b'), D('Isack Hadjar', 6, 'HAD', '#f2f2f2', 'y')] },
     { id: 'racingbulls', name: 'Visa Cash App Racing Bulls F1 Team', brand: 'Racing Bulls', short: 'VRB', primary: '#6692ff', secondary: '#1634cc', accent: '#e10600', numberColor: '#1634cc', skill: 0.964,
       drivers: [D('Liam Lawson', 30, 'LAW', '#121212'), D('Arvid Lindblad', 41, 'LIN', '#ff7a1a')] },
     { id: 'alpine', name: 'BWT Alpine F1 Team', brand: 'Alpine', short: 'ALP', primary: '#0093cc', secondary: '#ff87bc', accent: '#0b1630', numberColor: '#ffffff', skill: 0.965,
@@ -49,7 +50,7 @@ window.EI = window.EI || {};
       const list = (st.drivers || []).map(d => (typeof d === 'string' ? byCode[d] : d)).filter(Boolean);
       list.slice(0, 2).forEach((d, j) => {
         const cur = t.drivers[j] || (t.drivers[j] = { helmet: t.accent }); const code = d.code || cur.code;
-        const old = t.drivers.find(x => x.code === code); if (old && old !== cur) { const h = old.helmet; old.helmet = cur.helmet; cur.helmet = h; }
+        const old = t.drivers.find(x => x.code === code); if (old && old !== cur) for (const f of ['helmet', 'tcam']) { const h = old[f]; old[f] = cur[f]; cur[f] = h; }
         cur.code = code; cur.name = d.name || ((d.first ? d.first + ' ' : '') + (d.last || '')) || cur.name; cur.num = +(d.number || d.num || cur.num);
       });
     });
