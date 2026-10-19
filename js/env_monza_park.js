@@ -116,7 +116,8 @@
     out.banking = { samples: n, spans };
     // ---- footbridges over the back straight (OSM, research s 4131 covered with stairs, 4424 with stairs), the Prima Variante sign bridge
     const f = Mz.fit(t); let fb = 0;
-    for (const [sr, kind] of [[4131, 'covered'], [4424, 'covered'], [745, 'sign']]) { try { if (footbridge(E, BK, f.s(sr), kind)) fb++; } catch (e) { console.error('EnvMonza footbridge', e); } }
+    const gen = ((t.data.furniture || {}).bridges || []).map(b => b[0]); const near = (s) => gen.some(g => { const d = Math.abs(U.mod(g - s, t.length)); return Math.min(d, t.length - d) < 40; });
+    for (const [sr, kind] of [[4131, 'covered'], [4424, 'covered'], [745, 'sign']]) { const s = f.s(sr); if (kind === 'sign' && near(s)) continue; try { if (footbridge(E, BK, s, kind)) fb++; } catch (e) { console.error('EnvMonza footbridge', e); } }
     out.footbridges = fb;
   };
 

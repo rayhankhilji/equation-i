@@ -1046,12 +1046,27 @@ window.EI = window.EI || {};
       const fenceTex = (function () { const c = document.createElement('canvas'); c.width = 64; c.height = 64; const ctx = c.getContext('2d'); ctx.clearRect(0, 0, 64, 64); ctx.strokeStyle = 'rgba(30,30,30,0.85)'; ctx.lineWidth = 1.2;
         for (let i = 0; i <= 64; i += 6) { ctx.beginPath(); ctx.moveTo(i, 0); ctx.lineTo(i, 64); ctx.stroke(); ctx.beginPath(); ctx.moveTo(0, i); ctx.lineTo(64, i); ctx.stroke(); } ctx.fillStyle = '#555'; ctx.fillRect(0, 0, 3, 64);
         const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; return t; })();
-      const FD = this.data.fence || {};   // data.fence { h, op }: catch-fence height and opacity (Monza: 4.5 m)
+      const FD = this.data.fence || {}; const TD0 = this.data.tunnel;   // data.fence { h, op }: catch-fence height and opacity (Monza: 4.5 m)
       const fenceMat = new THREE.MeshBasicMaterial({ map: fenceTex, transparent: true, side: THREE.DoubleSide, depthWrite: false, opacity: FD.op || 0.7 });
       for (const side of [-1, 1]) {
         const wall = side < 0 ? this.wallL : this.wallR;
         const TD = this.data.tunnel; const fg = this.ribbon(i => side * (wall[i] + 0.8), i => side * (wall[i] + 0.8), { ya: () => 0, yb: () => FD.h || 3.4, vScale: 3, mask: TD ? (i => this.s[i] < TD.s0 - 6 || this.s[i] > TD.s1 + 6) : undefined });
         const fm = new THREE.Mesh(fg, fenceMat); fm.name = 'fence'; g.add(fm);
+      }
+      // catch-fence posts (data.fence.posts = spacing in metres): grey galvanised posts with the top leaning towards the track (Monza refs m15_t1exit)
+      if (FD.posts) {
+        const pp = [], pi = []; const step = Math.max(1, Math.round(FD.posts / this.ds)); const Hh = FD.h || 4.5, lean = 0.7, th = 0.07;
+        const prism = (ax, ay, az, bx, by, bz, tx, tz) => { const b = pp.length / 3; for (const [x, y, z] of [[ax, ay, az], [bx, by, bz]]) for (const [u, v] of [[-1, -0.6], [1, -0.6], [0, 1]]) pp.push(x + tx * th * u - tz * th * v, y, z + tz * th * u + tx * th * v); for (let k = 0; k < 3; k++) { const k2 = (k + 1) % 3; pi.push(b + k, b + k2, b + 3 + k, b + k2, b + 3 + k2, b + 3 + k); } };
+        for (const side of [-1, 1]) {
+          const wall = side < 0 ? this.wallL : this.wallR;
+          for (let i = 0; i < this.n; i += step) {
+            if (TD0 && this.s[i] > TD0.s0 - 6 && this.s[i] < TD0.s1 + 6) continue;
+            const d = wall[i] + 0.8, d2 = d - side * 0 ; const x = this.x[i] + this.nx[i] * side * d, z = this.z[i] + this.nz[i] * side * d, y = this.y[i]; const ex = -this.nx[i] * side * lean, ez = -this.nz[i] * side * lean;
+            prism(x, y, z, x, y + Hh - 0.9, z, this.tx[i], this.tz[i]); prism(x, y + Hh - 0.9, z, x + ex, y + Hh, z + ez, this.tx[i], this.tz[i]);
+          }
+        }
+        const pg = new THREE.BufferGeometry(); pg.setAttribute('position', new THREE.Float32BufferAttribute(pp, 3)); pg.setIndex(pi); pg.computeVertexNormals();
+        const pm = new THREE.Mesh(pg, new THREE.MeshStandardMaterial({ color: 0x6f7378, roughness: 0.55, metalness: 0.6, side: THREE.DoubleSide })); pm.name = 'fencePosts'; g.add(pm);
       }
     }
 

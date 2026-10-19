@@ -207,7 +207,7 @@ window.EI = window.EI || {};
     const box = EI.MONZA_OSM.buildings['Palazzina Box'].map(along); const podio = EI.MONZA_OSM.buildings['Podio']; let pc = [0, 0]; for (const p of podio) { pc[0] += p[0] / podio.length; pc[1] += p[1] / podio.length; }
     let xPod = along(pc);
     // building extent: the team garages plus the real footprint, inside the lane's straight part
-    let x0 = Math.max(-200, Math.min(-half - 30, Math.min(...box))), x1 = Math.min(200, Math.max(half + 30, Math.max(...box)));
+    let x0 = Math.max(-340, Math.min(-half - 30, Math.min(...box) - 4)), x1 = Math.min(200, Math.max(half + 30, Math.max(...box) + 4));
     // the podium stands at the pit wall: keep it off the team boxes (their pit-wall stands) and inside the building
     if (Math.abs(xPod) < half + 14) xPod = (xPod < 0 ? -1 : 1) * (half + 16);
     xPod = U.clamp(xPod, x0 + 14, x1 - 14);
