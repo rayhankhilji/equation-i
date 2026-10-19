@@ -211,7 +211,8 @@ window.EI = window.EI || {};
     // the podium stands at the pit wall: keep it off the team boxes (their pit-wall stands) and inside the building
     if (Math.abs(xPod) < half + 14) xPod = (xPod < 0 ? -1 : 1) * (half + 16);
     xPod = U.clamp(xPod, x0 + 14, x1 - 14);
-    return (E._mzPF = { side, maxWall, latC, m, dirX, y0: t.y[i0], i0, half, x0, x1, xPod, zG: latC + 7.8, zGB: latC + 17.8, X: (x) => x * dirX });
+    const xTow = xPod + (xPod - 20 > x0 + 8 ? -19 : 19);
+    return (E._mzPF = { side, maxWall, latC, m, dirX, y0: t.y[i0], i0, half, x0, x1, xPod, xTow, zG: latC + 7.8, zGB: latC + 17.8, X: (x) => x * dirX });
   };
   Mz.layoutPit = function (E) {
     const F = Mz.pitFrame(E); if (!F) return; const OCC = Env.OCC;
@@ -265,8 +266,8 @@ window.EI = window.EI || {};
     }
     // ---- the upper floor: angled mirror glass (two rows of panels, leaning out 1.6 m at the top), white mullions every 3 m
     const yb = 10.15, yt = 13.9, lean = 1.2, zf = zG - 0.6; const fz = (y) => zf - lean * (y - yb) / (yt - yb);
-    for (let x = x0; x < x1 - 0.01; x += 6) {
-      const xb = Math.min(x1, x + 6);
+    const segs = []; for (let x = x0; x < x1 - 0.01; x += 6) { const xb = Math.min(x1, x + 6), ta = F.xTow - 5.4, tb = F.xTow + 5.4; if (xb <= ta || x >= tb) segs.push([x, xb]); else { if (x < ta) segs.push([x, ta]); if (xb > tb) segs.push([tb, xb]); } }
+    for (const [x, xb] of segs) {
       for (const [ya, yb2, col] of [[yb + 0.3, (yb + yt) / 2, mirror], [(yb + yt) / 2 + 0.05, yt - 0.25, mirrorD]]) G.quad(P(x, ya, fz(ya)), P(xb, ya, fz(ya)), P(xb, yb2, fz(yb2)), P(x, yb2, fz(yb2)), col), G.quad(P(x, yb2, fz(yb2)), P(xb, yb2, fz(yb2)), P(xb, ya, fz(ya)), P(x, ya, fz(ya)), col);
       for (let xm = x; xm < xb - 0.01; xm += 2.5) Fd.beam(m, [X(xm), yb + 0.2, fz(yb + 0.2) - 0.05], [X(xm), yt, fz(yt) - 0.05], 0.1, C(0xc4c9cd));
       Fd.beam(m, [X(x), (yb + yt) / 2 + 0.02, fz((yb + yt) / 2) - 0.05], [X(xb), (yb + yt) / 2 + 0.02, fz((yb + yt) / 2) - 0.05], 0.12, C(0xc4c9cd));
@@ -299,6 +300,15 @@ window.EI = window.EI || {};
     const nameR = A.region('mzPitName', 1024, 64, (x2, w, h) => { Mz.paintText(x2, w, h, 'AUTODROMO NAZIONALE MONZA', { bg: '#f0f1ef', fg: '#b3121f', size: 0.7 }); });
     { const xn0 = Math.max(x0 + 10, -half + 6), xn1 = Math.min(x1 - 10, xn0 + 64); const yy = yt + 0.04; const zz = fz(yt) - 0.62; const a = P(xn0, yy, zz), b = P(xn1, yy, zz), c = P(xn1, yy + 0.5, zz), d = P(xn0, yy + 0.5, zz); if (F.dirX > 0) A.quad(nameR, b, a, d, c, 0, 1, 0, 1); else A.quad(nameR, a, b, c, d, 0, 1, 0, 1); }
     out.pit = { x0: Math.round(x0), x1: Math.round(x1), latC: +F.latC.toFixed(1), xPod: Math.round(F.xPod) };
+    // the starter's raised blue steel platform on the pit-wall strip at the line (refs2 start_2): four posts, a deck with railings,
+    // a stair down the strip and a white parasol roof
+    { const zs = F.maxWall + 1.6, ys = 4.4, blue = C(0x1f6fb5); const xs = 9, i = t.idxAtS(t.sf + xs); const yb = t.y[i] - F.y0 - 0.05;
+      for (const [dx, dz] of [[-1.2, -1], [1.2, -1], [-1.2, 1], [1.2, 1]]) S.beam(m, [X(xs + dx), yb, zs + dz], [X(xs + dx), yb + ys + 1.1, zs + dz], 0.14, blue);
+      S.box(m, 3.0, 0.2, 2.6, X(xs), yb + ys, zs, blue, { bottom: true });
+      for (const dz of [-1.25, 1.25]) Fd.beam(m, [X(xs - 1.4), yb + ys + 1.05, zs + dz], [X(xs + 1.4), yb + ys + 1.05, zs + dz], 0.06, blue);
+      for (const dx of [-1.4, 1.4]) Fd.beam(m, [X(xs + dx), yb + ys + 1.05, zs - 1.25], [X(xs + dx), yb + ys + 1.05, zs + 1.25], 0.06, blue);
+      for (let y = 0.4; y < ys; y += 0.4) Fd.beam(m, [X(xs + 1.55), yb + y, zs - 0.35], [X(xs + 1.55), yb + y, zs + 0.35], 0.05, blue);
+      S.beam(m, [X(xs + 0.6), yb + ys, zs + 0.3], [X(xs + 0.6), yb + ys + 3.0, zs + 0.3], 0.07, C(0xd9dde0)); K.cyl(B, m, X(xs + 0.6), zs + 0.3, yb + ys + 2.85, 0.15, 1.6, 10, C(0xf3f3f1), C(0xf3f3f1)); }
     buildPodium(E, BK, F);
     buildTower(E, BK, F);
     buildPaddock(E, BK, F);
@@ -310,7 +320,7 @@ window.EI = window.EI || {};
   function buildPodium(E, BK, F) {
     const t = E.t, { B, S, G, F: Fd, A } = BK; const m = F.m, X = F.X; const P = (x, y, z) => Env.xf(m, X(x), y, z);
     const grey = C(0x8d939a), greyL = C(0xb4b9be), dark = C(0x24272c), steel = C(0xc9cdd1), red = C(0xc8102e), flowR = C(0xc0182a), flowW = C(0xf2f2f2), leaf = C(0x2f5a2a);
-    const xc = F.xPod, W = 20, hw = W / 2; const i = t.idxAtS(t.sf + xc * F.dirX); const yTr = t.y[i] - F.y0;   // track level here, frame-relative
+    const xc = F.xPod, W = 20, hw = W / 2; const i = t.idxAtS(t.sf + xc); const yTr = t.y[i] - F.y0;   // track level here, frame-relative
     const zTip = Math.max(-t.halfWidth * 0.2, -2), zBack = F.zG - 1.4, zCol = F.maxWall + 1.5;
     const yU = yTr + 8.6, th = 0.7, yD = yU + th; const R = hw * 0.75;            // deck underside / top; radius of the rounded tip
     // the column and its head
@@ -351,24 +361,24 @@ window.EI = window.EI || {};
     G.box(m, 4.6, 2.6, zBack - zb - 1, X(xc), yD, (zb + 1 + zBack) / 2, C(0x6f8496)); B.box(m, 5.2, 0.3, zBack - zb - 0.6, X(xc), yD + 2.6, (zb + 0.8 + zBack) / 2, C(0xeef0f0), { bottom: true });
     E.stats.monza.podium = { x: Math.round(xc), zTip: +zTip.toFixed(1), y: +(yU).toFixed(1) };
   }
-  // glazed race-control tower next to the podium (podium_structure_bare / m15_party): a slim glass curtain-wall tower rising from the
-  // front of the pit building, white floor bands and mullions, an open white frame crown
+  // the podium tower (refs2 pit_2 / pit_3, OSM "Podio" tower): a slim tower beside the podium on the pit side - two storeys clad in grey
+  // panels, three glazed storeys with grey floor bands and silver mullions, a glazed lantern under a flat white cap; the track-facing
+  // corners rounded. It stands at the garage line just past the podium (the lane runs in front of it).
   function buildTower(E, BK, F) {
     const { B, G, S, F: Fd, A } = BK; const m = F.m, X = F.X; const P = (x, y, z) => Env.xf(m, X(x), y, z);
-    // at the OSM 'Hospitality Building' (podium_tower_trackinvasion: the tall slim blue-green glass tower right of the straight near the line)
-    const t = E.t, f = Mz.fit(t), i0 = F.i0; const hb = EI.MONZA_OSM.buildings['Hospitality Building']; let hx = 0; for (const p of hb) { const q = f.W(p); hx += ((q[0] - t.x[i0]) * t.tx[i0] + (q[1] - t.z[i0]) * t.tz[i0]) / hb.length; }
-    const w = 14, d = 12; const xc = U.clamp(hx, F.x0 + w / 2, F.x1 - w / 2), zc = F.zGB + 1.2 + d / 2;
-    const y0 = 0, nF = 8, fh = 3.8, yTop = y0 + nF * fh; const glass = C(0x6f97a0), glassD = C(0x4f7781), white = C(0xf3f4f2);
-    for (let k = 0; k < nF; k++) { const y = y0 + k * fh; G.box(m, w, fh - 0.35, d, X(xc), y, zc, k % 2 ? glass : glassD); B.box(m, w + 0.3, 0.35, d + 0.3, X(xc), y + fh - 0.35, zc, white); }
-    for (let x = -w / 2; x <= w / 2 + 0.01; x += 1.6) for (const z of [zc - d / 2 - 0.05, zc + d / 2 + 0.05]) Fd.box(m, 0.09, nF * fh, 0.09, X(xc + x), y0, z, white);
-    for (let z = -d / 2; z <= d / 2 + 0.01; z += 1.6) for (const x of [xc - w / 2 - 0.05, xc + w / 2 + 0.05]) Fd.box(m, 0.09, nF * fh, 0.09, X(x), y0, zc + z, white);
-    // crown: four white corner posts, a roof frame, the lattice of the open top
-    for (const [dx, dz] of [[-1, -1], [1, -1], [1, 1], [-1, 1]]) S.box(m, 0.45, 3.2, 0.45, X(xc + dx * w / 2), yTop, zc + dz * d / 2, white);
-    B.box(m, w + 0.6, 0.45, d + 0.6, X(xc), yTop + 3.2, zc, white, { bottom: true });
-    for (let x = -w / 2 + 2; x < w / 2 - 1; x += 2.2) S.box(m, 0.18, 0.18, d, X(xc + x), yTop + 3.0, zc, white);
-    const sR = A.region('mzTowerName', 512, 96, (x2, w2, h2) => { Mz.paintText(x2, w2, h2, 'DIREZIONE GARA', { bg: '#f3f4f2', fg: '#b3121f', size: 0.6 }); });
-    const zf = zc - d / 2 - 0.36, ys = yTop + 3.2; const a = P(xc - w / 2, ys + 0.02, zf), b = P(xc + w / 2, ys + 0.02, zf), c = P(xc + w / 2, ys + 0.45, zf), dd = P(xc - w / 2, ys + 0.45, zf);
-    if (F.dirX > 0) A.quad(sR, b, a, dd, c); else A.quad(sR, a, b, c, dd);
+    const xc = F.xTow, zc = F.zG + 4.6, hw = 5.0, hd = 5.0, rr = 2.4;
+    // plan: rectangle with the two track-side corners rounded (counter-clockwise seen from above in frame coordinates)
+    const plan = []; const arc = (cx, cz, a0, a1) => { for (let k = 0; k <= 4; k++) { const a = a0 + (a1 - a0) * k / 4; plan.push([cx + Math.cos(a) * rr, cz + Math.sin(a) * rr]); } };
+    plan.push([hw, hd]); plan.push([-hw, hd]); arc(-hw + rr, -hd + rr, Math.PI, Math.PI * 1.5); arc(hw - rr, -hd + rr, Math.PI * 1.5, Math.PI * 2);
+    const ring = (y0, y1, col, grow, Bd) => { const g = grow || 0; for (let k = 0; k < plan.length; k++) { const p = plan[k], q = plan[(k + 1) % plan.length]; const f = (v) => [v[0] * (1 + g / hw), v[1] * (1 + g / hd)]; const a = f(p), b = f(q); K.dq(Bd || B, P(xc + a[0], y0, zc + a[1]), P(xc + b[0], y0, zc + b[1]), P(xc + b[0], y1, zc + b[1]), P(xc + a[0], y1, zc + a[1]), col); } };
+    const cap = (y, col, grow) => { const g = grow || 0; for (let k = 0; k < plan.length; k++) { const p = plan[k], q = plan[(k + 1) % plan.length]; K.dq(B, P(xc, y, zc), P(xc + p[0] * (1 + g / hw), y, zc + p[1] * (1 + g / hd)), P(xc + q[0] * (1 + g / hw), y, zc + q[1] * (1 + g / hd)), P(xc, y, zc), col); } };
+    const clad = C(0xa8adb2), band = C(0x8f959b), glass = C(0x6d8d96), glassL = C(0x86a7ae), white = C(0xf1f2f0);
+    ring(0, 7.2, clad); for (let y = 1.2; y < 7; y += 1.2) ring(y, y + 0.08, band, 0.03);
+    for (let k = 0; k < 3; k++) { const y = 7.2 + k * 3.6; ring(y, y + 0.5, band, 0.04); ring(y + 0.5, y + 3.6, k === 1 ? glassL : glass, 0, G); }
+    ring(18.0, 18.6, white, 0.25); cap(18.6, white, 0.25); ring(18.6, 21.6, glassL, -0.35, G); ring(21.6, 22.2, white, 0.35); cap(22.2, white, 0.35);
+    for (let k = 0; k < plan.length; k++) { const p = plan[k]; Fd.box(m, 0.1, 10.8, 0.1, X(xc + p[0] * 1.01), 7.2, zc + p[1] * 1.01, C(0xd2d6d9)); Fd.box(m, 0.1, 3.0, 0.1, X(xc + p[0] * 0.94), 18.6, zc + p[1] * 0.94, C(0xd2d6d9)); }
+    for (let x = -hw + 1.2; x < hw - 1; x += 1.2) Fd.box(m, 0.09, 10.8, 0.09, X(xc + x), 7.2, zc + hd + 0.03, C(0xd2d6d9));
+    S.beam(m, [X(xc + 1.5), 22.2, zc + 1], [X(xc + 1.5), 29, zc + 1], 0.12, C(0xd9dde0));
   }
   // paddock: rows of team motorhomes / hospitality units and tents behind the building (on the paddock side only)
   function buildPaddock(E, BK, F) {

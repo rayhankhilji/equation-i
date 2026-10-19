@@ -14,19 +14,18 @@
     [/Laterale (Destra|Sinistra)/, { style: 'covered', seat: 0x2356a6 }],
     [/Piscina/, { style: 'covered', seat: 0x2356a6, label: 'PISCINA' }],
     [/Vedano/, { style: 'open', seat: 0x2356a6, label: 'VEDANO' }],
-    [/^Tribuna Parabolica$/, { style: 'open', seat: 0x2d5fb0, label: 'PARABOLICA', maxRows: 32 }],
+    [/^Tribuna Parabolica$/, { style: 'covered', seat: 0x2d5fb0, label: 'PARABOLICA', maxRows: 30 }],   // grandstand 22: covered permanent (FACTS 11)
     [/Laterale Parabolica/, { style: 'open', seat: 0x2d5fb0, label: 'PARABOLICA' }],
     [/Parabolica interna/, { style: 'open', seat: 0xb8202a, label: 'PARABOLICA' }],
-    [/Alta Velocit/, { style: 'temp', seat: 0x3d5f8f, label: 'ALTA VELOCITA' }],
+    [/Alta Velocit/, { style: 'covered', seat: 0x2356a6, label: 'ALTA VELOCITA' }],   // grandstand 6A-C: partly covered
     [/Prima Variante/, { style: 'temp', seat: 0x3d5f8f, label: 'PRIMA VARIANTE', maxRows: 22 }],
     [/Seconda Variante|Roggia/, { style: 'temp', seat: 0x8c1d24, label: 'ROGGIA' }],
     [/Ascari|Museo|Amici/, { style: 'temp', seat: 0x3d5f8f, label: 'ASCARI' }],
   ];
   // runs OSM does not map (research lap s, side 'out' = outside of the corner): temporary stands on the grass banks
   const EXTRA = [
-    { s0: 905, s1: 1090, side: 'out', gap: 6, rows: 14, style: 'temp', seat: 0x3d5f8f, label: 'BIASSONO' },
-    { s0: 2205, s1: 2295, side: 'out', gap: 5, rows: 12, style: 'temp', seat: 0x8c1d24, label: 'LESMO' },
-    { s0: 2548, s1: 2612, side: 'out', gap: 5, rows: 11, style: 'temp', seat: 0x3d5f8f, label: 'LESMO' },
+    // grandstand 10BIS "Lesmo 2 Interno" on the INSIDE of Lesmo 2 (refs2 lesmo_1-3); no stands overlook Lesmo 1 or Curva Biassono
+    { s0: 2560, s1: 2612, side: 'in', gap: 7, rows: 10, style: 'temp', seat: 0x9aa3ad, label: 'LESMO' },
   ];
   const PERM = { centrale: 1, covered: 1, open: 1 };
 
@@ -44,7 +43,7 @@
       St.run(E, Object.assign({ name: st.n, s0: sc + a, s1: sc + b, side, dmin, dmax }, plan));
     }
     for (const x of EXTRA) {
-      const s0 = f.s(x.s0), s1 = s0 + U.mod(f.s(x.s1) - s0, L); const kk = t.smooth(t.k, 12); const im = t.idxAtS((s0 + s1) / 2); const side = x.side === 'out' ? (kk[im] > 0 ? -1 : 1) : x.side;
+      const s0 = f.s(x.s0), s1 = s0 + U.mod(f.s(x.s1) - s0, L); const kk = t.smooth(t.k, 12); const im = t.idxAtS((s0 + s1) / 2); const out = kk[im] > 0 ? -1 : 1; const side = x.side === 'out' ? out : x.side === 'in' ? -out : x.side;
       St.run(E, Object.assign({ name: x.label, s0, s1, side, gapW: x.gap, rowsFix: x.rows }, x));
     }
     E.stats.monzaStands = { runs: E.mzRuns.length, blocks: E.mzRuns.reduce((n, r) => n + r.blocks.length, 0) };
@@ -144,6 +143,8 @@
           }
           if (R.style === 'covered') for (let a = -hl + 4; a <= hl - 3; a += 12) S.beam(m, [a, 1.4, 0.35], [a, yR, 0.35], 0.14, C(0x3a3f46));
           Fd.beam(m, [-hl, yR - 0.15, zF + 1.2], [hl, yR - 0.15, zF + 1.2], 0.12, C(0x70757b));
+          // lamp masts on the roof (tifosi_invasion_2011: floodlight-style masts along the covered stands)
+          if (R.style === 'covered' && b.len > 14) { const zM = (zF + zR) * 0.6; S.beam(m, [0, yR + 0.32, zM], [0, yR + 6.5, zM], 0.16, C(0xb7bcc1)); S.box(m, 2.2, 0.7, 0.5, 0, yR + 6.3, zM - 0.2, C(0x34383d)); }
           for (let a = -hl + 3; a < hl - 1; a += 6) Fd.box(m, 0.5, 0.12, 0.3, a, yR - 0.14, zF + 1.8, C(0xfff4dc));
           roofs++;
         }

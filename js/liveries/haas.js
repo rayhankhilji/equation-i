@@ -137,5 +137,5 @@
     },
   });
   // front-wing main planes (LIVERY-LEAD default from the 2026 photos; a frontWing in the design above takes precedence)
-  if (LV.designs['haas'] && !LV.designs['haas'].frontWing) LV.designs['haas'].frontWing = function (L) { L.t.rect(2.15, 3.25, -1.1, 1.1, '#f4f4f4'); for (const z of [-0.55, 0.55]) L.wordmark('MIC', 2.62, z, 0.09, '#16181c', { w: 900, it: 1, ls: 0.04 }, false, Math.PI); };
+  if (LV.designs['haas'] && !LV.designs['haas'].frontWing) LV.designs['haas'].frontWing = function (L) { L.t.rect(2.15, 3.25, -1.1, 1.1, '#f4f4f4'); for (const z of [-0.72, 0.72]) L.wordmark('MIC', 2.6, z, 0.09, '#16181c', { w: 900, it: 1, ls: 0.04 }, false, Math.PI); };
 })();

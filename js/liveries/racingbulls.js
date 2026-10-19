@@ -101,8 +101,8 @@
       k.at(-0.66, 0.85, () => bull(g, 0.66, 0.33, flip));   // bull aspect ~1.9: 0.63 x 0.33 m as measured                                  // the big cover bull, charging rearwards
       k.at(2.26, 0.375, () => bull(g, 0.34, 0.11, flip));                                 // the nose bull
       k.at(0.02, 0.7, () => cashApp(g, 0.46, 0.09, '#16171b', true));                  // $ Cash App on the cockpit shoulder
-      k.at(1.0, 0.61, () => logo(g, 'hugo', 0.36, 0.085, 'color', FB.hugo));            // HUGO red ahead of the sidepod
-      k.at(0.86, 0.49, () => mobil(g, 0.28, 0.085, '#ffffff'));                          // Mobil (white) on the carbon chassis side
+      k.at(1.08, 0.61, () => logo(g, 'hugo', 0.34, 0.085, 'color', FB.hugo));            // HUGO red ahead of the sidepod
+      k.at(1.04, 0.47, () => mobil(g, 0.26, 0.08, '#ffffff'));                          // Mobil (white) on the carbon chassis side
       L.partnerAt('visa', -0.3, 0.38, 0.7, 0.2, 'mono:' + NV);                         // VISA navy on the white blade
       L.partnerAt('ford', -1.18, 0.56, 0.25, 0.085, 'color');                              // Ford oval + RACING on the navy tail
       L.wordmark('RACING', -1.18, 0.49, 0.036, '#ffffff', { ff: '"Titillium Web", Arial, sans-serif', w: 700, ls: 0.12 });

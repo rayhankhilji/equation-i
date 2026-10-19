@@ -300,9 +300,14 @@ window.EI = window.EI || {};
       c.setLOD(null, c.isPlayer ? 0 : d * ts);
     }
     // bots' full-size liveries are painted in the background: a larger slice per frame during the intro, ~3 ms while racing
-    if (EI.CarGLB && EI.CarGLB.pump) { _eyes.length = 0; for (const cam of cameras) _eyes.push(cam.position); EI.CarGLB.pump(!race.started && introT < introLen ? 10 : 3, race.cars, _eyes); }
+    // while racing the painter gets what the frame can spare: up to 3 ms, less when the rest of the frame's CPU work (smoothed)
+    // already nears 12 ms, so on a slow laptop the background painting never pushes a frame past the 60 Hz refresh
+    if (EI.CarGLB && EI.CarGLB.pump) {
+      _eyes.length = 0; for (const cam of cameras) _eyes.push(cam.position);
+      const t = performance.now(); EI.CarGLB.pump(!race.started && introT < introLen ? 10 : U.clamp(12 - cpuEma, 0.5, 3), race.cars, _eyes); pumpMs = performance.now() - t;
+    }
   }
-  const _eyes = [];
+  const _eyes = []; let cpuEma = 6, pumpMs = 0, frameT0 = 0;
   // nothing beyond the fog's far end can be seen: the far plane stops there, and the sky box shrinks to fit inside it
   function fitFarPlane() {
     const far = Math.min(6000, scene && scene.fog ? scene.fog.far : 6000);
@@ -719,7 +724,7 @@ window.EI = window.EI || {};
   function loop(now) {
     requestAnimationFrame(loop); frameNo++; if (renderer) renderer.info.reset();   // info counts the whole frame (views, shadows, mirrors, resolve)
     const gl2 = renderer && renderer.capabilities.isWebGL2 ? renderer.getContext() : null; if (race) pollFences(gl2);
-    now = performance.now(); const rawMs = now - lastT; let dt = U.clamp(rawMs / 1000, 0, MAX_FRAME); lastT = now; adaptResolution(rawMs, dt); const PF = EI.Perf; if (PF) PF.begin(now);   // never negative: a rAF timestamp can precede a lastT stamped in an input handler
+    now = performance.now(); const rawMs = now - lastT; let dt = U.clamp(rawMs / 1000, 0, MAX_FRAME); lastT = now; adaptResolution(rawMs, dt); frameT0 = now; pumpMs = 0; const PF = EI.Perf; if (PF) PF.begin(now);   // never negative: a rAF timestamp can precede a lastT stamped in an input handler
     if (!race) {
       if (!loaded) return;   // nothing to draw behind the loading screen: the car model loads and parses sooner
       menuCamera(now / 1000); scenery.update(dt, cameras[0].position.x, cameras[0].position.z);
@@ -781,7 +786,7 @@ window.EI = window.EI || {};
       const cockpit = CAM_MODES[camModes[k]] === 'cockpit'; if (cockpit) car.helmet.visible = false;
       tunnelLight(k, car, k === 0 ? dt : dtT); renderView(cam, !split, split ? r : null); if (cockpit) car.helmet.visible = true;
     });
-    if (PF) PF.to('post'); pipeResolve(); pushFence(gl2); if (PF) PF.end(renderer, perfRes);
+    if (PF) PF.to('post'); pipeResolve(); pushFence(gl2); cpuEma += (performance.now() - frameT0 - pumpMs - cpuEma) * 0.1; if (PF) PF.end(renderer, perfRes);
   }
   const MAX_FRAME = 0.1, MAX_STEPS = 12;
   // Cars are drawn where the last physics step is heading, a fraction of a step ahead (extrapolated from the last two steps),

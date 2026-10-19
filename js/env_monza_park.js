@@ -143,15 +143,20 @@
     const ox = t.x[i], oz = t.z[i]; const ax = t.nx[i], az = t.nz[i];
     const W = (u, y, v) => [ox + ax * u + t.tx[i] * v, y0 + y, oz + az * u + t.tz[i] * v];
     const I = Env.frame(0, 0, 0, 1, 0, 0, 1); const steel = C(0x8c9399), white = C(0xeef0f0), dark = C(0x2b2f35), green = C(0x0c5a3a);
-    const yD = kind === 'sign' ? 7.4 : 6.6, dep = kind === 'sign' ? 1.6 : 2.6, hw = kind === 'sign' ? 0.9 : 1.6;
+    const yD = kind === 'sign' ? 7.4 : 6.4, dep = kind === 'sign' ? 1.6 : 3.0, hw = kind === 'sign' ? 0.9 : 1.5;
     const u0 = -wl, u1 = wr;
     // towers / posts
     for (const [uc, sg] of [[u0 - (kind === 'sign' ? 0.5 : 2.6), -1], [u1 + (kind === 'sign' ? 0.5 : 2.6), 1]]) {
       const g = E.ground(...[W(uc, 0, 0)[0], W(uc, 0, 0)[2]]) - y0 - 0.1;
       if (kind === 'sign') { for (const v of [-0.5, 0.5]) S.beam(I, W(uc, g, v), W(uc, yD + dep, v), 0.32, kind === 'sign' ? green : steel); continue; }
-      for (const [du, dv] of [[-2.4, -2.4], [2.4, -2.4], [-2.4, 2.4], [2.4, 2.4]]) S.beam(I, W(uc + du, g, dv), W(uc + du, yD + dep + 0.4, dv), 0.2, steel);
-      for (let y = g + 2.2, k = 0; y < yD + 0.1; y += 2.2, k++) { const ya = y - 2.2, za = k % 2 ? -2.2 : 2.2; K.dq(B, W(uc - 2.2, Math.max(g, ya), za), W(uc - 0.2, Math.max(g, ya), za), W(uc - 0.2, y, -za), W(uc - 2.2, y, -za), C(0x9aa0a6)); K.dq(B, W(uc - 2.3, y, -2.4), W(uc + 2.3, y, -2.4), W(uc + 2.3, y, 2.4), W(uc - 2.3, y, 2.4), C(0x7d838a)); Fd.beam(I, W(uc - 2.2, ya + 1, za), W(uc - 2.2, y + 1, -za), 0.06, steel); }
-      K.dq(B, W(uc - 2.5, yD + dep + 0.4, -2.6), W(uc + 2.5, yD + dep + 0.4, -2.6), W(uc + 2.5, yD + dep + 0.4, 2.6), W(uc - 2.5, yD + dep + 0.4, 2.6), white);
+      // stair tower clad in grey ribbed panels (back_1), a darker band at the walkway level, a flat roof
+      const cl = C(0x9ea4a9), clD = C(0x7b8187), H = yD + dep + 0.6;
+      for (const [p0, p1] of [[[-2.5, -2.5], [2.5, -2.5]], [[2.5, -2.5], [2.5, 2.5]], [[2.5, 2.5], [-2.5, 2.5]], [[-2.5, 2.5], [-2.5, -2.5]]]) {
+        K.dq(B, W(uc + p0[0], g, p0[1]), W(uc + p1[0], g, p1[1]), W(uc + p1[0], H, p1[1]), W(uc + p0[0], H, p0[1]), cl);
+        K.dq(B, W(uc + p0[0] * 1.01, yD - 0.2, p0[1] * 1.01), W(uc + p1[0] * 1.01, yD - 0.2, p1[1] * 1.01), W(uc + p1[0] * 1.01, yD + dep, p1[1] * 1.01), W(uc + p0[0] * 1.01, yD + dep, p0[1] * 1.01), clD);
+        for (let k = 1; k < 8; k++) { const f = k / 8; const q = [uc + p0[0] + (p1[0] - p0[0]) * f, p0[1] + (p1[1] - p0[1]) * f]; Fd.beam(I, W(q[0] * 1.0, g, q[1] * 1.02), W(q[0], yD - 0.25, q[1] * 1.02), 0.06, clD); }
+      }
+      K.dq(B, W(uc - 2.7, H, -2.7), W(uc + 2.7, H, -2.7), W(uc + 2.7, H, 2.7), W(uc - 2.7, H, 2.7), C(0xc8ccd0));
     }
     // the walkway truss
     const ua = u0 - (kind === 'sign' ? 0.5 : 0.2), ub = u1 + (kind === 'sign' ? 0.5 : 0.2);
@@ -164,10 +169,14 @@
       const r = A.region('mzSignBridge', 1024, 96, (x2, w, h) => { if (EI.Ads && EI.Ads.paintBridge) { x2.fillStyle = '#0c5a3a'; x2.fillRect(0, 0, w, h); EI.Ads.paintBridge(x2, 'lumi2', w, h, (span - 1) / (dep - 0.3));   /* f1-BRAND: the venue's partner (EI.Ads.VENUES.monza.bridge.lumi2) */ } else Mz.paintText(x2, w, h, 'trylumi.co', { bg: '#0c5a3a', fg: '#ffffff' }); });
       for (const v of [-hw - 0.03, hw + 0.03]) { const a = W(ua + 0.5, yD + 0.15, v), b = W(ub - 0.5, yD + 0.15, v), c = W(ub - 0.5, yD + dep - 0.15, v), d = W(ua + 0.5, yD + dep - 0.15, v); if (v < 0) A.quad(r, b, a, d, c); else A.quad(r, a, b, c, d);   /* far face: u runs the other way in world space, so it reads correctly (f1-BRAND) */ }
     } else {
-      const ph = dep - 0.5, pw = ph * 5; const nP = Math.max(1, Math.floor(span / (pw + 0.4))); const x0 = ua + (span - nP * (pw + 0.4) + 0.4) / 2;
-      for (const v of [-hw - 0.03, hw + 0.03]) for (let k = 0; k < nP; k++) { const r = A.R['mzTile' + ((k + (v < 0 ? 3 : 0) + Math.round(s)) % 8)] || A.region('mzTile' + k, 320, 64, (x2, w, h) => Mz.paintAd(x2, w, h, k, 5)); const xa = x0 + k * (pw + 0.4); const a = W(xa, yD + 0.25, v), b = W(xa + pw, yD + 0.25, v), c = W(xa + pw, yD + 0.25 + ph, v), d = W(xa, yD + 0.25 + ph, v); if (v < 0) A.quad(r, b, a, d, c); else A.quad(r, a, b, c, d);   /* far face: u runs the other way in world space, so it reads correctly (f1-BRAND) */ }
-      // roof slab + glazing strip above the panels
-      K.dq(B, W(ua - 0.3, yD + dep + 0.35, -hw - 0.4), W(ub + 0.3, yD + dep + 0.35, -hw - 0.4), W(ub + 0.3, yD + dep + 0.35, hw + 0.4), W(ua - 0.3, yD + dep + 0.35, hw + 0.4), white);
+      // Warren / X truss sides in grey steel (back_1), grey parapet cladding along the deck, a dark lattice floor and a light roof
+      const tr = C(0x8b9298), nb = Math.max(4, Math.round(span / 3.2)), bl = span / nb;
+      for (const v of [-hw, hw]) {
+        for (let k = 0; k <= nb; k++) S.beam(I, W(ua + k * bl, yD, v), W(ua + k * bl, yD + dep, v), 0.14, tr);
+        for (let k = 0; k < nb; k++) { S.beam(I, W(ua + k * bl, yD, v), W(ua + (k + 1) * bl, yD + dep, v), 0.1, tr); S.beam(I, W(ua + k * bl, yD + dep, v), W(ua + (k + 1) * bl, yD, v), 0.1, tr); }
+        K.dq(B, W(ua, yD + 0.05, v * 0.97), W(ub, yD + 0.05, v * 0.97), W(ub, yD + 1.05, v * 0.97), W(ua, yD + 1.05, v * 0.97), C(0x7f868c));
+      }
+      K.dq(B, W(ua - 0.2, yD + dep + 0.15, -hw - 0.25), W(ub + 0.2, yD + dep + 0.15, -hw - 0.25), W(ub + 0.2, yD + dep + 0.15, hw + 0.25), W(ua - 0.2, yD + dep + 0.15, hw + 0.25), C(0xb9bec2));
     }
     return true;
   }
