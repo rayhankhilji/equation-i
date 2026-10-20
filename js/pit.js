@@ -784,8 +784,8 @@ window.EI = window.EI || {};
         why = 'cover ' + (b.driver && b.driver.code || b.name) + ' (stopped ' + b.gapAhead.toFixed(1) + ' s behind)';
       // time: now is the best lap to stop (traffic included) and it wins time over staying out
       if (!why && gain > MARGIN && nowT <= p.later + 0.3) why = 'gains ' + gain.toFixed(1) + ' s (stay ' + p.stay.toFixed(1) + ' / stop ' + p.now.toFixed(1) + ' + rejoin ' + rj.toFixed(1) + ' over ' + _why.n + ' cars), wear ' + wE.toFixed(2);
-      // forced: the tyre cannot reach the flag and a later stop is no better
-      if (!why && p.stay >= 400 && nowT <= p.later + 0.3) why = 'must stop: wear at the flag ' + (wE + r0 * (Lr - lap)).toFixed(2);
+      // forced: the tyre cannot reach the flag and a later stop is no better, or this is the last lap before the final quarter
+      if (!why && p.stay >= 400 && (nowT <= p.later + 0.3 || (Lr - lap - 1) / Lr < 1 - LATE)) why = 'must stop: wear at the flag ' + (wE + r0 * (Lr - lap)).toFixed(2);
       if (!why) {
         if (newLap) { const wait = rj > 0 && p.k === lap, hk = ss.stopLap ? 'p' + ss.stopLap + ss.next + wait : 'n'; if (hk !== ss.hold) { ss.hold = hk; note(car, race, ss.stopLap ? 'plan: stop ~L' + ss.stopLap + ' -> ' + ss.next + (wait ? ' (waiting: rejoin behind ' + _why.n + ' cars, +' + rj.toFixed(1) + ' s)' : '') : 'plan: no stop (stay ' + p.stay.toFixed(1) + ' s vs best stop ' + Math.min(p.now, p.later).toFixed(1) + ' s)'); } }
         return;

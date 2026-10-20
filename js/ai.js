@@ -58,7 +58,8 @@ window.EI = window.EI || {};
   // Re-measure (swarm/f1/personality/sweep.sh) when a circuit's geometry or the driving core changes.
   // Monza (monza-GEN, swarm/monza/gen/sweep.sh): solo clean to 1.2, wide from 1.25; at 1.16 race traffic still put bots wide at the
   // Lesmo 1 exit / Parabolica (3-lap 22-car sims, 4 seeds), at 1.12 not -> 1.12
-  const C_LIMIT = { silverstone: 1.1, monaco: 1.25, abudhabi: 1.16, monza: 1.12 }, C_LIMIT_DEFAULT = 1.1;
+  // Spa (SPA-GEN, swarm/spa/gen/sweep.sh): solo clean to 1.15, wide from 1.2; 3-lap 22-car races at 1.12 / 1.15 (2 seeds) both 0 bot wall hits -> 1.12
+  const C_LIMIT = { silverstone: 1.1, monaco: 1.25, abudhabi: 1.16, monza: 1.12, spa: 1.12 }, C_LIMIT_DEFAULT = 1.1;
   // lap time a late braker gains over an early one on top of the profile (trail-braking carry, later lift: update()), per unit of
   // the braking trait, measured in the headless sim. The corner grip is solved against it so braking style never changes the pace.
   // Monza: braking trait 0 -> 1 = -0.067 s on a 76.2 s solo lap (grip 1.16) -> 0.001
@@ -69,9 +70,9 @@ window.EI = window.EI || {};
 
   // lap time of the season's fastest car + driver at skill 100 (no form), headless sim on the circuit (qsim.js, solo flying laps):
   // the anchor that turns a real lap time into the game's scale. Re-measure with C_LIMIT.
-  const LIMIT_LAP = { silverstone: 80.7, monaco: 64.0, abudhabi: 79.23, monza: 76.5 }, OFFICIAL_LOSS_DEFAULT = 0.08;
+  const LIMIT_LAP = { silverstone: 80.7, monaco: 64.0, abudhabi: 79.23, monza: 76.5, spa: 94.68 }, OFFICIAL_LOSS_DEFAULT = 0.08;
   // real 2026 pole lap of a circuit (s): EI.RACEPACE (real lap data) > EI.SEASON.tracks > the season's real grids (pole time)
-  const GRID_NAME = { silverstone: /british/i, monaco: /monaco/i, abudhabi: /abu dhabi/i, monza: /italian/i };
+  const GRID_NAME = { silverstone: /british/i, monaco: /monaco/i, abudhabi: /abu dhabi/i, monza: /italian/i, spa: /belgian/i };
   const parseLap = t => { if (typeof t === 'number') return t; const m = /^(?:(\d+):)?(\d+(?:\.\d+)?)$/.exec(String(t || '').trim()); return m ? (+(m[1] || 0)) * 60 + (+m[2]) : 0; };
   function realPole(tid) {
     const RP = EI.RACEPACE && EI.RACEPACE[tid]; if (RP) { if (RP.pole && RP.pole.s) return +RP.pole.s; if (RP.q) { const v = Object.values(RP.q).map(parseLap).filter(x => x > 0); if (v.length) return Math.min(...v); } }
