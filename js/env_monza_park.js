@@ -16,11 +16,11 @@
     const ctr = f.W([ox, oz]); const pr = {}; const kk = t.smooth(t.k, 6); const out = [];
     for (const [name, pts0] of [['nord', O.nord], ['sud', O.sud]]) {
       const curve = new THREE.CatmullRomCurve3(f.poly(pts0).map(p => new THREE.Vector3(p[0], 0, p[1])), false, 'centripetal'); curve.arcLengthDivisions = 4000;
-      const Ltot = curve.getLength(); const n = Math.max(8, Math.round(Ltot / 4)); const sp = curve.getSpacedPoints(n);
+      const Ltot = curve.getLength(); const n = Math.max(8, Math.round(Ltot / 6)); /* 6 m samples (the curves are 300+ m radius) */ const sp = curve.getSpacedPoints(n);
       const S = []; for (let i = 0; i <= n; i++) { const a = sp[Math.max(0, i - 1)], b = sp[Math.min(n, i + 1)]; let tx = b.x - a.x, tz = b.z - a.z; const l = Math.hypot(tx, tz) || 1; tx /= l; tz /= l; let nx = -tz, nz = tx; if (nx * (sp[i].x - ctr[0]) + nz * (sp[i].z - ctr[1]) < 0) { nx = -nx; nz = -nz; } S.push({ x: sp[i].x, z: sp[i].z, tx, tz, nx, nz, a: i * Ltot / n }); }
       // curvature -> banking (smoothed), so the straight run-outs at the ends stay flat
       const hd = S.map((q) => Math.atan2(q.tz, q.tx)); const kr = S.map((q, i) => i > 1 && i < S.length - 2 ? Math.abs(U.wrapAngle(hd[i + 2] - hd[i - 2])) / (4 * Ltot / n) : 0);
-      for (let i = 0; i < S.length; i++) { let a = 0, c = 0; for (let j = -12; j <= 12; j++) { const q = kr[U.clamp(i + j, 0, S.length - 1)]; a += q; c++; } S[i].bank = U.clamp((a / c - 0.0009) / 0.0019, 0, 1); }
+      for (let i = 0; i < S.length; i++) { let a = 0, c = 0; for (let j = -8; j <= 8; j++) { const q = kr[U.clamp(i + j, 0, S.length - 1)]; a += q; c++; } S[i].bank = U.clamp((a / c - 0.0009) / 0.0019, 0, 1); }
       // relation to the GP track: dist beyond the barrier; ends (junctions with the main straight) are clipped, the middle crossing is a bridge
       for (const q of S) { t.project(q.x, q.z, null, pr); const w = Math.max(t.wallL[pr.i], t.wallR[pr.i]); q.gp = pr.dist - w; q.gpI = pr.i; q.lat = pr.lat; q.end = Math.min(q.a, Ltot - q.a) < 200; }
       out.push({ name, S, Ltot });
@@ -53,7 +53,7 @@
     const R = ring(E); let n = 0, spans = 0;
     const conc = C(0xc9c7be), concD = C(0x8f8d86), concL = C(0xd8d6ce), moss = C(0x7c8466), yellow = C(0xe0b416), rail = C(0xb5bcc2), wallC = C(0xb4b1a7);
     const col = (base, k) => base.clone().multiplyScalar(k);
-    const NU = 7; // banked strips across
+    const NU = 5; // banked strips across
     // quads that must face up (the surface, the line, the lip top): flip the winding when the sample order would make them face down
     const upQ = (a, b, c, d, cc) => { const ux = b[0] - a[0], uz = b[2] - a[2], vx = d[0] - a[0], vz = d[2] - a[2]; if (uz * vx - ux * vz >= 0) B.quad(a, b, c, d, cc); else B.quad(d, c, b, a, cc); };
     for (const r of R) {
@@ -93,11 +93,11 @@
             K.dq(B, s0a, s1a, [o1[0], q.y - 1.3, o1[2]], [o0[0], prevQ.y - 1.3, o0[2]], C(0x55534e));
           }
           // buttresses on the outer wall every ~12 m (not over the span)
-          if (!span && i % 3 === 0) { const gb = E.ground(o1[0], o1[2]); const h = up(o1, 0)[1] - gb; if (h > 1) { const m = Env.frame(o1[0], gb - 0.3, o1[2], q.tx, q.tz, q.nx, q.nz); B.box(m, 0.9, h + 0.3, 1.6 + h * 0.25, 0, 0, 0.7 + h * 0.12, col(wallC, 0.82)); } }
+          if (!span && i % 2 === 0) { const gb = E.ground(o1[0], o1[2]); const h = up(o1, 0)[1] - gb; if (h > 1) { const m = Env.frame(o1[0], gb - 0.3, o1[2], q.tx, q.tz, q.nx, q.nz); B.box(m, 0.9, h + 0.3, 1.6 + h * 0.25, 0, 0, 0.7 + h * 0.12, col(wallC, 0.82)); } }
           // guard rail: posts (clutter) and two rails on the lip (main)
           const r0 = up(L0, 0.5), r1 = up(L1, 0.5);
           if (i % 2 === 0) Fd.beam(Env.frame(0, 0, 0, 1, 0, 0, 1), r1, up(r1, 0.95), 0.1, C(0x7d848b));
-          S.beam(Env.frame(0, 0, 0, 1, 0, 0, 1), up(r0, 0.85), up(r1, 0.85), 0.11, rail); Fd.beam(Env.frame(0, 0, 0, 1, 0, 0, 1), up(r0, 0.5), up(r1, 0.5), 0.09, rail);
+          K.dq(S, up(r0, 0.62), up(r1, 0.62), up(r1, 0.92), up(r0, 0.92), rail);   // W-beam rail: a double-sided strip (cheaper than a square beam, same read)
           n++;
         } else if (prev === null && prevQ && prevQ.skip === false) { /* gap start handled below */ }
         // end caps where the ring is clipped (junction with the main straight): close the profile down to the ground

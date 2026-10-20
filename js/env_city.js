@@ -1892,6 +1892,8 @@ window.EI = window.EI || {};
       const dc = E.dcAt(c[0], c[1]); let rad = 0; for (const q of ring) rad = Math.max(rad, Math.hypot(q[0] - c[0], q[1] - c[1]));
       if (dc < rad + 70) for (let i = 0; i < ring.length; i++) if (!segClear(E, ring[i], ring[(i + 1) % ring.length], 0.5)) { stats.skipped++; return; } const tier = farSet ? (dc < 470 ? 'mid' : null) : dc < 140 ? 'near' : 'mid';
       const ob = obb(ring); const D = design(E, b, c[0], c[1], area, ob ? ob.hw * 2 : 0);
+      { const Lv = levels(E, ring, D, c[0], c[1]); let drop = 0; for (let i = 0; i < ring.length; i++) { const P0 = ring[i], P1 = ring[(i + 1) % ring.length], dx = P1[0] - P0[0], dz = P1[1] - P0[1], Ls = Math.hypot(dx, dz); if (Ls < 0.05) continue; drop = Math.max(drop, Lv.yb - faceFoundation(E, { P0, P1, n: [dz / Ls, 0, -dx / Ls] }, Lv.yG, Lv.yb)); }
+        if (drop > 6) (stats.cliffs || (stats.cliffs = [])).push({ i: b.id, a: Math.round(area), d: +drop.toFixed(1), x: Math.round(c[0]), z: Math.round(c[1]), H: Math.round(D.H), st: D.style, far: farSet ? 1 : 0 }); }
       if (tier) buildOne(E, G, ring, D, tier, c); buildOne(E, G, ring, D, 'proxy', c); stats[tier || 'proxyOnly']++;
       if (tier === 'near') nearList.push({ c, style: D.style, rv: D.rv, H: D.H, y: D.lv.yG }); if (D.albert) stats.albert = (stats.albert || 0) + (tier === 'near' ? 1 : 0.001);
     };

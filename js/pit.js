@@ -376,12 +376,15 @@ window.EI = window.EI || {};
         shell.add('box', lm(gf, 0, yt + 0.48, sZ(-2.45), BOX_SP - 0.2, 0.32, 0.12), redE); shell.add('box', lm(gf, 0, yt + 0.22, sZ(-1.6), BOX_SP - 0.4, 0.14, 0.05), chq);
         shell.add('box', lm(gf, 0, yt + 0.25, sZ(GAR_D * 0.6), BOX_SP - 0.2, 0.6, 0.15), hdr);
       } else {
-      // facade: header with the team sign, upper floor glass band, roof slab over the walkway
-      shell.add('box', lm(gf, 0, H + 0.9, sZ(GAR_D / 2), BOX_SP, 1.8, GAR_D + 0.3), white);
+      // facade: header with the team sign, upper floor glass band, roof slab over the walkway (Monza: the building's own facade is
+      // modelled by js/env_monza.js - EnvMonza.ownsPitFacade - and only the team sign is kept here)
+      const ownF = EI.EnvMonza && EI.EnvMonza.ownsPitFacade && EI.EnvMonza.ownsPitFacade(track); if (!ownF) {
+      shell.add('box', lm(gf, 0, H + 0.9, sZ(GAR_D / 2), BOX_SP, 1.8, GAR_D + 0.3), white); }
       signs.quad(...quadV(gf, -W / 2 + 1.5, H + 0.35, sZ(-0.17), W - 3, 1.15, GZ), 0xffffff, [0, 1 - (k + 1) / SIGN_ROWS(), 1, 1 - k / SIGN_ROWS()]);
+      if (!ownF) {
       shell.add('box', lm(gf, 0, H + 3.4, sZ(GAR_D / 2 + 0.6), BOX_SP, 3.2, GAR_D - 1.0), glass);
       shell.add('box', lm(gf, 0, H + 5.15, sZ(GAR_D / 2 - 1.2), BOX_SP, 0.35, GAR_D + 3.6), white);
-      shell.add('box', lm(gf, 0, H + 5.2, sZ(-2.9), BOX_SP, 0.5, 0.2), col(0xc8102e));
+      shell.add('box', lm(gf, 0, H + 5.2, sZ(-2.9), BOX_SP, 0.5, 0.2), col(0xc8102e)); }
       }
     });
     // end walls of the garage block

@@ -125,6 +125,16 @@ window.EI = window.EI || {};
 
   // clear-coated metallic paint: satin base with a procedural metal-flake normal perturbation (object-space hash cells, ~3 mm,
   // faded out once a flake is smaller than a pixel so it sparkles close up without shimmering at distance) under a smooth lacquer
+  // Car paint = matte-ish base coat under a glossy clear coat. The base layer's own blurry sky reflection (roughness ~0.42) is what
+  // greyed dark liveries (a uniform veil over black / navy / plum), so it is cut hard on dark albedo while the sharp clear-coat
+  // reflections stay (that is the gloss): kB = base-layer env factor, kC = clear-coat env factor, both from the albedo luminance.
+  // CarGLB.PAINT_SPEC = [kB dark, kB light, kC dark, kC light, ground] (tunable before the first car is built).
+  CarGLB.PAINT_SPEC = [0.22, 0.85, 0.8, 1.0, 0.2];   // + [4] = what a fully downward reflection keeps of the sky (the 'ground')
+  const paintSpecGLSL = (extra) => { const k = CarGLB.PAINT_SPEC.map(v => (+v).toFixed(3));
+    // + ground occlusion: the environment is the sky (bright below the horizon too), but a reflection that points down sees the dark
+    //   track. From the raised chase / TV cameras the car's flanks reflect downward rays, which is what washed dark cars out grey.
+    return '#include <lights_fragment_maps>\n#if defined( USE_ENVMAP ) && defined( RE_IndirectSpecular )\n{ float pL = smoothstep(0.008, 0.2, dot(diffuseColor.rgb, vec3(0.2126, 0.7152, 0.0722))); float kB = mix(' + k[0] + ', ' + k[1] + ', pL); float kC = mix(' + k[2] + ', ' + k[3] + ', pL); ' + extra +
+      ' vec3 gR = inverseTransformDirection(reflect(-geometry.viewDir, geometry.normal), viewMatrix); float gO = mix(' + k[4] + ', 1.0, smoothstep(-0.3, 0.06, gR.y)); radiance *= kB * gO;\n#ifdef CLEARCOAT\nclearcoatRadiance *= kC * gO;\n#endif\n}\n#endif'; };
   function paintMaterial(tex) {
     const m = new THREE.MeshPhysicalMaterial({ map: tex, metalness: 0.18, roughness: 0.42, clearcoat: 1.0, clearcoatRoughness: 0.035, envMapIntensity: 0.62, side: THREE.DoubleSide });
     m.extensions = { derivatives: true };
@@ -141,7 +151,7 @@ window.EI = window.EI || {};
         .replace('#include <roughnessmap_fragment>', '#include <roughnessmap_fragment>\nroughnessFactor = mix(roughnessFactor, 0.8, pCk);')
         .replace('#include <lights_physical_fragment>', '#include <lights_physical_fragment>\nmaterial.clearcoat *= 1.0 - 0.85 * pCk;')
         // dark paint: the sky reflection (env + clear coat) is held down so plum / cocoa / anthracite stay dark at grazing angles
-        .replace('#include <lights_fragment_maps>', '#include <lights_fragment_maps>\n#if defined( USE_ENVMAP ) && defined( RE_IndirectSpecular )\n{ float pL = dot(diffuseColor.rgb, vec3(0.2126, 0.7152, 0.0722)); float pK = mix(0.45, 1.0, smoothstep(0.01, 0.18, pL));  radiance *= pK;\n#ifdef CLEARCOAT\nclearcoatRadiance *= pK;\n#endif\n}\n#endif');
+        .replace('#include <lights_fragment_maps>', paintSpecGLSL(''));
     };
     m.customProgramCacheKey = () => 'ei-paint';
     return m;
@@ -1106,7 +1116,7 @@ window.EI = window.EI || {};
         .replace('#include <metalnessmap_fragment>', '#include <metalnessmap_fragment>\nmetalnessFactor = vLodk.y;')
         .replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\nif (lodS > 1.5 && lodS < 2.5) totalEmissiveRadiance += vColor * uLed;')
         .replace('#include <lights_physical_fragment>', '#include <lights_physical_fragment>\n#ifdef CLEARCOAT\nmaterial.clearcoat *= vLodk.w;\n#endif')
-        .replace('#include <lights_fragment_maps>', '#include <lights_fragment_maps>\n#if defined( USE_ENVMAP ) && defined( RE_IndirectSpecular )\n{ float pL = dot(diffuseColor.rgb, vec3(0.2126, 0.7152, 0.0722)); float pK = mix(0.45, 1.0, smoothstep(0.01, 0.18, pL)); if (lodS < 0.5 || lodS > 1.5) pK = 1.0; radiance *= pK;\n#ifdef CLEARCOAT\nclearcoatRadiance *= pK;\n#endif\n}\n#endif');
+        .replace('#include <lights_fragment_maps>', paintSpecGLSL('if (lodS < 0.5 || lodS > 1.5) { kB = 1.0; kC = 1.0; }'));
     };
     m.customProgramCacheKey = () => 'ei-carlod';
     return m;
@@ -1200,7 +1210,9 @@ window.EI = window.EI || {};
     // per-car livery state for the background upgrades: base = this quality's size, near = the size the cars closest to a camera
     // get (see pump); cur = what the car wears now
     const LV = car._livery = { code, base: liverySize(car.team, full), near: lo && NEAR_N[EI.quality] ? liverySize(car.team, Math.max(full, NEAR_RES[EI.quality] || 0)) : liverySize(car.team, full), cur: tex.image.width,
-      apply: (t) => { paint.map = t; lm.map = t; LV.cur = t.image.width; } };
+      apply: (t) => { const old = paint.map; paint.map = t; lm.map = t; LV.cur = t.image.width;
+        // the 512 stand-in is never used again once a real sheet exists: free its GPU copy and canvas
+        if (old && old !== t && old.image && old.image.width === 512) { old.dispose(); delete texCache[liveryKey(car.team, car.num, code, 512)]; } } };
     if (tex.image.width < LV.base) {
       jobs.push({ car, code, size: LV.base, apply: LV.apply });
       posMap(Math.min(LV.base, 2048));   // rasterised now, at the race build, not in the first upgrade mid-race
