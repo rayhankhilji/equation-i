@@ -886,7 +886,10 @@ window.EI = window.EI || {};
       // instead of every frame (~1.3-2.2 ms a frame on the grid with 11 crews in view, PERF); a stop anywhere animates every frame
       let busy = false; for (const b of V.boxes) if (b.state !== 'idle') { busy = true; break; }
       V._animDt = Math.min(0.25, (V._animDt || 0) + dt);
-      if ((V._crewVis && near && (busy || V._animDt >= 0.05)) || !V.posed) { animatePeople(race, V._animDt); V._animDt = 0; V.posed = true; }
+      // an idle box more than ~70 m from every camera keeps its last pose (its slow sway is invisible from there): only the crews
+      // near a camera are re-posed - at the grid that is 2-3 boxes instead of all 11 (Pit.frame was 1-4 ms a frame there, PERF)
+      if (V.posed) for (const b of V.boxes) { let d2 = Infinity; if (b.state === 'idle' && b._idlePosed) for (const c of cams) if (c) d2 = Math.min(d2, c.position.distanceToSquared(b.O)); b._still = d2 > 4900; }
+      if ((V._crewVis && near && (busy || V._animDt >= 0.05)) || !V.posed) { animatePeople(race, V._animDt); V._animDt = 0; V.posed = true; for (const b of V.boxes) b._idlePosed = b.state === 'idle'; }
       updateLamps();
       updateUI(race, dt);
     } catch (e) { if (!V.err) { V.err = true; console.error('Pit.frame', e); } }
@@ -938,6 +941,7 @@ window.EI = window.EI || {};
   function animatePeople(race, dt) {
     const T = V.t; const tyreSlots = new Array(V.boxes.length * 8).fill(null), gunSlots = new Array(V.boxes.length * 4).fill(null), jackSlots = new Array(V.boxes.length * 2).fill(null);
     for (const b of V.boxes) {
+      if (b._still) continue;   // idle and far from every camera: posed once, left as it is (PERF)
       const pl = b.plan && b.car && b.car.pit.active && b.car.pit.box === b ? b.plan : null; const inServ = pl && b.car.pit.phase === 'service';
       const carNear = b.owner && b.owner.pit.active && b.owner.pit.phase === 'in' && b.owner.pit.d > b.d - 18;
       const after = b.plan && !inServ; // car released, crew still out
@@ -999,6 +1003,7 @@ window.EI = window.EI || {};
     }
     // static figures: engineers and walkers
     for (const f of V.figs) {
+      if (f.box && f.box._still) continue;
       if (f.role === 'gareng' || f.role === 'walleng') { copyPose(POSES.seat, f.pose); f.pose.hy = Math.sin(T * 0.4 + f.ph) * 0.35; f.pose.elL += Math.sin(T * 9 + f.ph) * 0.08; f.pose.elR += Math.sin(T * 8 + f.ph * 2) * 0.08; f.pose.sp = 0.05 + Math.sin(T * 0.25 + f.ph) * 0.06; }
       else if (f.role === 'walker') {
         const w = f.walk; const lenW = w.d1 - w.d0; w.u += dt * w.v / lenW * w.dir; if (w.u > 1) { w.u = 1; w.dir = -1; } if (w.u < 0) { w.u = 0; w.dir = 1; }
@@ -1006,7 +1011,7 @@ window.EI = window.EI || {};
         walkPose(V.t * 2 * Math.PI * w.v / 1.5 + f.ph, false, f.pose);
       }
     }
-    for (const f of V.figs) writeFigure(f.i, f);
+    for (const f of V.figs) if (!(f.box && f.box._still)) writeFigure(f.i, f);
     // props
     for (const b of V.boxes) {
       const pl = b.plan; const car = b.car; const k = b.k;

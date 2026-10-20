@@ -91,7 +91,7 @@
       // front-wing endplates: Mobil + Pegasus; rear-wing endplates: Mobil 1, Heineken 0.0
       k.at(-2.19, 0.85, () => mobil(g, 0.33, 0.075, true));
       L.partnerAt('heineken', -2.17, 0.62, 0.22, 0.06, 'whiteKeepRed');
-      L.codeText(1.27, 0.46, 0.036, W); k.at(1.09, 0.46, () => FLAG(g, natOf(L.code), 0.03));
+      L.codeText(1.27, 0.46, 0.036, W); L.car((g, k) => k.at(1.09, 0.46, () => FLAG(g, natOf(L.code), 0.03)));   // per-car (two-pass painting)
       L.haloHandle('redbullracing.com', W, -1); L.haloHandle('@redbullracing', W, 1);
     },
     endplate(L) {   // front-wing endplates (navy): Mobil + the red Pegasus

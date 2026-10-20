@@ -314,7 +314,7 @@ window.EI = window.EI || {};
     // ---- the façade above the garages, bay by bay
     const yH0 = 4.8, yH1 = 6.6, yC1 = 7.3, zC = zG - 0.75, yT = 13.4, lean = 1.6, ySp = 10.25;   // header, curve, glass top, lean, spandrel
     const gz = (y) => zC - lean * (y - yC1) / (yT - yC1);        // z of the raked glass plane at height y
-    const mirA = C(0x5f7891), mirB = C(0x7891a6), mirS = C(0x9fb6c6), vent = C(0x3f5163), mull = C(0xd5d9dc);
+    const mirA = C(0x44596d), mirB = C(0x657d93), mirS = C(0x9fb6c6), vent = C(0x2d3a47), mull = C(0xd5d9dc);   // mirror glass: darker low (trees), lighter high (sky)
     for (const [xa, xb] of bays) {
       const xc = (xa + xb) / 2, w = xb - xa;
       // header band (flat, flush with the garage line; the team signs of pit.js sit just in front of it)
@@ -432,7 +432,7 @@ window.EI = window.EI || {};
     const plan = [[-rs * hw, -hd], [-rs * hw, hd]]; for (let k = 0; k <= 8; k++) { const th = Math.PI * k / 8; plan.push([rs * (hw - hd) + rs * hd * Math.sin(th), hd * Math.cos(th)]); }
     const ring = (Bd, y0, y1, col, g) => { g = g || 0; for (let k = 0; k < plan.length; k++) { const p = plan[k], q = plan[(k + 1) % plan.length]; const f = (v) => [v[0] * (1 + g / hw), v[1] * (1 + g / hd)]; const a = f(p), b = f(q); K.dq(Bd, P(a[0], y0, a[1]), P(b[0], y0, b[1]), P(b[0], y1, b[1]), P(a[0], y1, a[1]), col); } };
     const cap = (y, col, g) => { for (let k = 0; k < plan.length; k++) { const p = plan[k], q = plan[(k + 1) % plan.length]; const f = (v) => [v[0] * (1 + g / hw), v[1] * (1 + g / hd)]; K.dq(B, P(0, y, 0), P(f(p)[0], y, f(p)[1]), P(f(q)[0], y, f(q)[1]), P(0, y, 0), col); } };
-    const white = C(0xeef0ee), clad = C(0xa7adb5), cladB = C(0x8c96a6), vis = C(0x83aeb0), spand = C(0x2f3b42), render = C(0xd3d6d6), mull = C(0xe2e5e6);
+    const white = C(0xeef0ee), clad = C(0xa7adb5), cladB = C(0x8c96a6), vis = C(0x5f8c92), spand = C(0x34434b), render = C(0xd3d6d6), mull = C(0xe2e5e6);
     K.cyl(B, m, X(xc), zc, yg - 0.3, 5.6, 0.95, 12, white);                      // the column
     ring(B, 5.2, 8.0, cladB); cap(5.2, clad, 0);                                   // panel-clad box + soffit
     for (let k = 0; k < 3; k++) { const y = 8.0 + k * 3.1; ring(G, y, y + 0.9, spand); ring(G, y + 0.9, y + 3.1, vis); }
@@ -440,10 +440,13 @@ window.EI = window.EI || {};
     ring(G, 19.6, 21.9, vis, -0.35); cap(21.9, C(0xe6e7e4), 0.45); ring(B, 21.9, 22.35, C(0xe6e7e4), 0.45); cap(22.35, C(0xb9bcbe), 0.45);
     // mullions: a white strip at every plan vertex and every ~1.1 m along the straight faces (clutter layer)
     for (let k = 0; k < plan.length; k++) { const p = plan[k], q = plan[(k + 1) % plan.length]; const L = Math.hypot(q[0] - p[0], q[1] - p[1]); const n = Math.max(1, Math.round(L / 1.1));
-      for (let j = 0; j < n; j++) { const f = j / n; const x = (p[0] + (q[0] - p[0]) * f) * 1.012, z = (p[1] + (q[1] - p[1]) * f) * 1.012; BK.H.box(m, 0.08, 9.3, 0.08, X(xc + x), yg + 8.0, zc + z, mull); } }
+      for (let j = 0; j < n; j++) { const f = j / n; const x = (p[0] + (q[0] - p[0]) * f) * 1.012, z = (p[1] + (q[1] - p[1]) * f) * 1.012; Fd.box(m, 0.09, 9.3, 0.09, X(xc + x), yg + 8.0, zc + z, mull); } }
     // the exposed stair down to the strip from the square end, white, with a steel rail
-    { const xs = -rs * (hw + 1.0); for (let k = 0; k < 8; k++) { const f = k / 8; B.box(m, 1.6, 0.35, 1.3, X(xc + xs - rs * f * 9), yg + 8.0 - f * 8.0, zc + hd - 0.8, white); }
-      Fd.beam(m, [X(xc + xs), yg + 9.0, zc + hd], [X(xc + xs - rs * 9), yg + 1.0, zc + hd], 0.06, C(0xb9bec4)); }
+    { const xs = -rs * hw, xe = xs - rs * 10, zs0 = zc + hd - 1.5, zs1 = zc + hd; const Q = (x, y, z) => Env.xf(m, X(xc + x), yg + y, z);
+      K.dq(B, Q(xs, 8.0, zs0), Q(xe, 0.0, zs0), Q(xe, 0.0, zs1), Q(xs, 8.0, zs1), white);                       // the flight
+      for (const zz of [zs0, zs1]) K.dq(B, Q(xs, 8.0, zz), Q(xe, 0.0, zz), Q(xe, -0.5, zz), Q(xs, 7.3, zz), C(0xd9dbda));   // stringers
+      B.box(m, 1.6, 0.25, 1.6, X(xc + xs - rs * 0.8), yg + 7.8, (zs0 + zs1) / 2, white);                       // landing
+      Fd.beam(m, [X(xc + xs), yg + 9.0, zs1], [X(xc + xe), yg + 1.0, zs1], 0.06, C(0xb9bec4)); }
     S.beam(m, [X(xc + rs * 1.0), yg + 22.35, zc], [X(xc + rs * 1.0), yg + 27, zc], 0.1, C(0xd9dde0));
   }
   // paddock: rows of team motorhomes / hospitality units and tents behind the building (on the paddock side only)

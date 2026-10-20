@@ -49,7 +49,7 @@ window.EI = window.EI || {};
     // crushed shade, and the night sky's whole navy gradient came out as a black void)
     const gradeChunk = (sat, con, warm) => '#if defined( TONE_MAPPING )\n gl_FragColor.rgb = toneMapping( gl_FragColor.rgb );\n#endif\n' +
       '{ vec3 c = gl_FragColor.rgb; float l = dot(c, vec3(0.2126, 0.7152, 0.0722)); c = max(mix(vec3(l), c, ' + sat.toFixed(3) + '), 0.0); c = sqrt(c); c = max((c - 0.5) * ' + con.toFixed(3) + ' + 0.5, 0.0); c *= c; c *= vec3(' + warm.map(v => v.toFixed(3)).join(', ') + '); gl_FragColor.rgb = clamp(c, 0.0, 1.0); }\n';
-    THREE.ShaderChunk.tonemapping_fragment = gradeChunk(1.45, 1.08, [1.03, 1.0, 0.97]);
+    THREE.ShaderChunk.tonemapping_fragment = gradeChunk(1.45, 1.13, [1.025, 1.0, 0.975]);
     scene = new THREE.Scene();
     // physically based sky, with the sun light aligned to it and a PMREM environment for reflections / ambient
     // per-circuit light: Silverstone keeps its English afternoon; Monaco gets a high late-May sun from over the sea (so the
@@ -57,12 +57,13 @@ window.EI = window.EI || {};
     const LOOKS = { monaco: { elev: 52, azim: 338, turb: 1.9, ray: 1.5, mie: 0.003, horizon: 0xbcd3ea, sky: [0.34, 1.2], fog: [550, 2400], fogLow: [320, 1400], hemi: [0xa8cdf2, 0x8a7a66, 0.42], sun: [0xfff3e0, 2.65],
         // the cyan sky in the reflections tinted the shaded asphalt teal: a greyer environment, a little less saturation boost and
         // more contrast for the hard May sun; the Tete de Chien / Mont Agel ridge painted into the sky to the north (west to east-north-east)
-        envSat: 0.4, grade: { sat: 1.3, con: 1.12, warm: [1.03, 1.0, 0.975] }, ridge: [-3.05, -0.3, 0.38] },
-      // Monza: a late-afternoon Lombardy September - the sun low in the west-south-west (warm, long shadows across the straights), a
-      // hazy pale summer sky with a milky horizon, the Royal Park's deep greens bouncing up as a green-olive ground light, a softer
-      // grade; canopy: dappled sun under the park's trees (js/canopy.js)
-      monza: { elev: 29, azim: 300, turb: 4.2, ray: 2.0, mie: 0.007, mieG: 0.84, horizon: 0xc8c9c3, sky: [0.44, 0.8], fog: [480, 2300], fogLow: [320, 1400],
-        hemi: [0xb4c4d6, 0x4b6130, 0.44], sun: [0xffe4bc, 2.4], envSat: 0.5, grade: { sat: 1.32, con: 1.07, warm: [1.035, 1.0, 0.965] }, canopy: { k: 0.72 } },
+        envSat: 0.4, grade: { sat: 1.33, con: 1.16, warm: [1.025, 1.0, 0.975] }, ridge: [-3.05, -0.3, 0.38] },
+      // Monza: race afternoon in a Lombardy September (~16:00) - the sun in the south-west at 37 degrees (long shadows across the
+      // straights without the low-sun glare that washed the asphalt and the crowns towards the sun), a clear blue zenith over a hazy pale
+      // horizon, the Royal Park's deep greens bouncing up as a green-olive ground light; a rich grade (deep park greens, vivid kerbs and
+      // grass, slightly lower exposure so the pale sky and the white buildings hold); canopy: dappled sun under the park's trees (js/canopy.js)
+      monza: { elev: 37, azim: 305, turb: 3.4, ray: 2.0, mie: 0.005, mieG: 0.84, horizon: 0xc8c9c3, sky: [0.46, 1.1], fog: [480, 2300], fogLow: [320, 1400],
+        hemi: [0xb4c4d6, 0x4b6130, 0.44], sun: [0xffeccc, 2.5], envSat: 0.5, exp: 1.0, grade: { sat: 1.45, con: 1.16, warm: [1.02, 1.0, 0.98] }, canopy: { k: 0.72 } },
       // Yas Marina: the race starts at sunset - the sun low over the Gulf in the west-south-west, warm haze, long shadows
       // Yas Marina: a night race under floodlights (js/night.js: night sky, the light map, glows); the 'sun' is dim moonlight from
       // high up so the cars keep their contact shadows
@@ -73,6 +74,7 @@ window.EI = window.EI || {};
     { const m = /[?&]look=([^&]+)/.exec(location.search); if (m) { try { Object.assign(LK, JSON.parse(decodeURIComponent(m[1]))); } catch (e) { console.warn('bad ?look', e); } } }
     // a per-circuit grade replaces the default one (the night race: less saturation boost, a little more contrast, so the floodlit
     // turquoise and the purple LED wash read vivid without turning neon)
+    if (LK.exp) renderer.toneMappingExposure = LK.exp;   // per-circuit exposure (LOOKS exp; default 1.05)
     if (LK.grade) { const G = LK.grade; THREE.ShaderChunk.tonemapping_fragment = gradeChunk(G.sat, G.con, G.warm || [1.03, 1.0, 0.97]); }
     const nightLook = !!(LK.night && EI.Night); if (nightLook) EI.Night.on = true; const nightWest = new THREE.Vector3(...(LK.west || [-1, 0, 0]));
     const sunDir = new THREE.Vector3(); const elev = LK.elev, azim = LK.azim; const phi = THREE.MathUtils.degToRad(90 - elev), theta = THREE.MathUtils.degToRad(azim); sunDir.setFromSphericalCoords(1, phi, theta);
@@ -158,7 +160,7 @@ window.EI = window.EI || {};
     const TD = track && track.data.tunnel; if (!TD || !hemi || !EI.look) return; if (k === 0) dtT = dt;
     const s = car.trk ? car.trk.s : -1e9, inT = s > TD.s0 + 4 && s < TD.s1 - 2 ? 1 : 0;
     tunF[k] += (inT - tunF[k]) * Math.min(1, dt * 3.5);
-    renderer.toneMappingExposure = 1.05 * (1 + 0.45 * tunF[k]); hemi.intensity = EI.look.hemi[2] * (1 - 0.45 * tunF[k]);
+    renderer.toneMappingExposure = (EI.look.exp || 1.05) * (1 + 0.45 * tunF[k]); hemi.intensity = EI.look.hemi[2] * (1 - 0.45 * tunF[k]);
   }
   function renderView(cam, usePost, rect) {
     if (!(usePost && composer && quality === 'high')) { pipeDraw(cam, rect); return; }

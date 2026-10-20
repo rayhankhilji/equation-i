@@ -101,7 +101,7 @@
       k.at(-2.17, 0.95, () => tricolore(g, 0.3, 0.03));
       k.at(-2.0, 0.85, () => pecten(g, 0.1)); wordW(L, 'V-Power', -2.23, 0.85, 0.27, 0.07, W, { w: 700, it: 1 });
       wordW(L, 'PERONI', -2.17, 0.72, 0.26, 0.06, W, { w: 700, ff: 'Georgia, "Times New Roman", serif', ls: 0.06 }); wordW(L, 'NASTRO AZZURRO 0.0%', -2.17, 0.66, 0.26, 0.03, W, { w: 700 });
-      L.codeText(1.27, 0.48, 0.036, W); k.at(1.09, 0.48, () => FLAG(g, natOf(L.code), 0.03));
+      L.codeText(1.27, 0.48, 0.036, W); L.car((g, k) => k.at(1.09, 0.48, () => FLAG(g, natOf(L.code), 0.03)));   // per-car (two-pass painting)
       L.haloHandle('DXC', W, -1, { w: 900, ls: 0.14 }); L.haloHandle('DXC', W, 1, { w: 900, ls: 0.14 });   // DXC on the halo sides
     },
     endplate(L) {   // front-wing endplates (black): UniCredit + tricolore

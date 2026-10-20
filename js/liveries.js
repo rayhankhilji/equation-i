@@ -148,7 +148,7 @@ window.EI = window.EI || {};
     const def = { body: team.primary, fwFlap: team.secondary, fwEnd: team.primary, fwTip: team.primary, rwMain: team.primary, rwEnd: team.secondary, rwFlap: team.secondary, halo: null, mirror: team.primary, fin: team.secondary };
     const out = {}; for (const key of PART_KEYS) out[key] = p[key] || def[key]; return out;
   }
-  function helpersSide(g, k, team, num, code, haloOn) {
+  function helpersSide(g, k, team, num, code, haloOn, noCar) {
     const d = D[team.id]; const st = (d && d.num) || {};
     const at = (x, y, fn) => k.at(x, y, fn);
     return {
@@ -157,9 +157,11 @@ window.EI = window.EI || {};
       partnerAt(id, x, y, w, h, tone, plate) { at(x, y, () => partner(g, id, w, h, tone, plate)); },
       emblem(name, x, y, ...args) { at(x, y, () => EMBLEM[name](g, ...args)); },
       mark(id, x, y, w, h, tone, name, ...args) { at(x, y, () => (EI.Ads && EI.Ads.hasPartner && EI.Ads.hasPartner(id) ? partner(g, id, w, h, tone) : EMBLEM[name](g, ...args))); },
-      number(x, y, cap, col) { at(x, y, () => styledText(g, String(num), cap, col, st)); },
-      codeText(x, y, cap, col) { if (code) at(x, y, () => styledText(g, code, cap, col, { ff: st.ff, w: st.w, it: st.it, sx: st.sx, skew: st.skew, ls: 0.06 })); },
-      wordmark(str, x, y, cap, col, o) { at(x, y, () => styledText(g, str, cap, col, o)); },
+      number(x, y, cap, col) { if (!noCar) at(x, y, () => styledText(g, String(num), cap, col, st)); },
+      // per-car drawing that is not a number / code (e.g. the driver's flag): fn(g, k) gets the real canvas + kit in every pass
+      car(fn) { if (!noCar) fn(g, k); },
+      codeText(x, y, cap, col) { if (code && !noCar) at(x, y, () => styledText(g, code, cap, col, { ff: st.ff, w: st.w, it: st.it, sx: st.sx, skew: st.skew, ls: 0.06 })); },
+      wordmark(str, x, y, cap, col, o) { if (noCar && isCarText(str, num, code)) return; at(x, y, () => styledText(g, str, cap, col, o)); },
       // text along the halo side (e.g. a team / driver handle), fitted to the bar
       haloSide(str, col, o) { if (!haloOn) return; const b = SIDE.haloSide; at(b[0], b[1], () => styledText(g, str, b[3] * 0.8, col, Object.assign({ w: 700, ls: 0.02 }, o))); },
       // a handle on the halo ARM as the driver sees it from the cockpit (arm -1 = left, +1 = right): the inner face of an arm takes
@@ -167,7 +169,7 @@ window.EI = window.EI || {};
       haloHandle(str, col, arm, o) { if (k.s === -arm) this.haloSide(str, col, o); },
     };
   }
-  function helpersTop(g, t, team, num, haloOn) {
+  function helpersTop(g, t, team, num, haloOn, noCar) {
     const d = D[team.id]; const st = (d && d.num) || {};
     return {
       g, t, team, num,
@@ -176,13 +178,30 @@ window.EI = window.EI || {};
       partnerTop(id, x, z, w, h, tone, rot, plate) { t.at(x, z, () => partner(g, id, w, h, tone, plate), rot || 0); },
       emblem(name, x, z, ...args) { t.at(x, z, () => EMBLEM[name](g, ...args)); },
       mark(id, x, z, w, h, tone, name, ...args) { t.at(x, z, () => (EI.Ads && EI.Ads.hasPartner && EI.Ads.hasPartner(id) ? partner(g, id, w, h, tone) : EMBLEM[name](g, ...args))); },
-      number(x, z, cap, col) { t.at(x, z, () => styledText(g, String(num), cap, col, st), Math.PI); },   // reads from the front
-      wordmark(str, x, z, cap, col, o, along, rot) { t.at(x, z, () => styledText(g, str, cap, col, o), rot != null ? rot : along ? -Math.PI / 2 : 0); },
+      number(x, z, cap, col) { if (!noCar) t.at(x, z, () => styledText(g, String(num), cap, col, st), Math.PI); },   // reads from the front
+      car(fn) { if (!noCar) fn(g, t); },
+      wordmark(str, x, z, cap, col, o, along, rot) { if (noCar && isCarText(str, num)) return; t.at(x, z, () => styledText(g, str, cap, col, o), rot != null ? rot : along ? -Math.PI / 2 : 0); },
       // text along one arm of the halo's top bar, reading from the cockpit with the letters' tops outward (side -1 left arm,
       // +1 right arm), e.g. a team / driver handle like '@McLarenF1'; cap = letter height (m, the bar is ~0.07 wide)
       haloTop(str, col, side, o, cap) { if (!haloOn) return; const pts = HALO_ARM.map(([x, z]) => [z * (side < 0 ? -1 : 1) * MM, -x * MM]); if (side > 0) pts.reverse(); textOnPath(g, str, pts, cap || 0.04, col, o); },
       haloFront(id, tone) { if (!haloOn) return; const b = TOP.haloFront; t.at(b[0], b[1], () => partner(g, id, b[2], b[3], tone)); },
     };
+  }
+  let PASS = 'all';
+  const isCarText = (str, num, code) => str != null && ((num != null && String(str) === String(num)) || (code && String(str) === code) || (num != null && String(str) === '#' + num));
+  // run one design part (side-type) in the current pass
+  function passSide(fn, g, k, team, num, code) {
+    if (PASS !== 'car') return fn(helpersSide(g, k, team, num, code, false, PASS === 'team'));
+    const dg = scratch(); const L = helpersSide(dg, sideKit(dg, k.s), team, num, code, false, true), R = helpersSide(g, k, team, num, code, false, false);
+    L.number = R.number; L.codeText = R.codeText; L.car = R.car; L.wordmark = function (str, ...a) { if (isCarText(str, num, code)) R.wordmark(str, ...a); };
+    fn(L);
+  }
+  function passTop(fn, g, t, team, num) {
+    if (PASS !== 'car') return fn(helpersTop(g, t, team, num, false, PASS === 'team'));
+    const dg = scratch(); const nop = () => { }; const dt = { at: (x, z, f) => f(), rect: nop, poly: nop, txt: nop, dec: nop };
+    const L = helpersTop(dg, dt, team, num, false, true), R = helpersTop(g, t, team, num, false, false);
+    L.number = R.number; L.car = R.car; L.wordmark = function (str, ...a) { if (isCarText(str, num)) R.wordmark(str, ...a); };
+    fn(L);
   }
   let scratchCtx = null;
   const scratch = () => { if (!scratchCtx) { const c = document.createElement('canvas'); c.width = c.height = 1; scratchCtx = c.getContext('2d'); } scratchCtx.setTransform(1, 0, 0, 1, 0, 0); return scratchCtx; };
@@ -193,25 +212,30 @@ window.EI = window.EI || {};
     register(id, design) { D[id] = design; },
     K: { TOP_V, LOW_V, W, MM, SIDE, TOP },
     sideKit, has: (id) => !!D[id], designs: D, PART_KEYS, partColours, slug, styledText, textOnPath, partner, EMBLEM,
-    side(g, k, team, num, code) { const d = D[team.id]; if (d) d.side(helpersSide(g, k, team, num, code)); },
+    side(g, k, team, num, code) { const d = D[team.id]; if (d) passSide(d.side, g, k, team, num, code); },
     // front-wing endplates (optional per design): same side coordinates as side(); only the endplate texels receive it
     hasEndplate: (id) => !!(D[id] && D[id].endplate),
     // front-wing main planes (optional per design; part key fwMain, default bare carbon): top-view coordinates / helpers as top(L),
     // x 2.15..3.25, z -1..1; only the main-plane texels receive it (also their front / rear faces)
     hasFrontWing: (id) => !!(D[id] && D[id].frontWing),
-    frontWing(g, t, team, num) { const d = D[team.id]; if (d && d.frontWing) d.frontWing(helpersTop(g, t, team, num)); },
-    endplate(g, k, team, num, code) { const d = D[team.id]; if (d && d.endplate) d.endplate(helpersSide(g, k, team, num, code)); },
-    top(g, t, team, num) { const d = D[team.id]; if (d) d.top(helpersTop(g, t, team, num)); },
+    frontWing(g, t, team, num) { const d = D[team.id]; if (d && d.frontWing) passTop(d.frontWing, g, t, team, num); },
+    endplate(g, k, team, num, code) { const d = D[team.id]; if (d && d.endplate) passSide(d.endplate, g, k, team, num, code); },
+    top(g, t, team, num) { const d = D[team.id]; if (d) passTop(d.top, g, t, team, num); },
+    // Two-pass painting (carglb.js): PASS 'team' paints everything except the per-car content (number, code, L.car(...), a
+    // wordmark whose text is exactly the number / code) into a sheet shared by the team's cars; PASS 'car' paints ONLY that
+    // per-car content on a copy of it. 'all' (default) = both at once. splitOK(id): the design can be split (not the own teams,
+    // whose designs draw the number with the raw kit).
+    setPass(p) { PASS = p || 'all'; }, splitOK: (id) => !!(D[id] && !D[id].own),
     // halo passes: only the halo helpers (haloSide / haloHandle / haloTop / haloFront) draw, into views that reach ONLY the halo's
     // texels; the rest of the design runs against a 1 px scratch canvas. So halo text never spills onto the bodywork and the body's
     // colour blocks stay off the halo (it keeps its part colour, parts.halo).
     sideHalo(g, k, team, num, code) {
-      const d = D[team.id]; if (!d) return; const dg = scratch(); const R = helpersSide(g, k, team, num, code, true);
+      const d = D[team.id]; if (!d || PASS === 'car') return; const dg = scratch(); const R = helpersSide(g, k, team, num, code, true);
       const L = helpersSide(dg, sideKit(dg, k.s), team, num, code, false); L.haloSide = R.haloSide.bind(R); L.haloHandle = R.haloHandle.bind(R);
       d.side(L);
     },
     topHalo(g, t, team, num) {
-      const d = D[team.id]; if (!d) return; const dg = scratch(); const R = helpersTop(g, t, team, num, true);
+      const d = D[team.id]; if (!d || PASS === 'car') return; const dg = scratch(); const R = helpersTop(g, t, team, num, true);
       const nop = () => { }; const dt = { at: (x, z, fn) => fn(), rect: nop, poly: nop, txt: nop, dec: nop };
       const L = helpersTop(dg, dt, team, num, false); L.haloTop = R.haloTop.bind(R); L.haloFront = R.haloFront.bind(R);
       d.top(L);

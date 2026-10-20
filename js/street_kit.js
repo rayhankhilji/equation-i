@@ -262,7 +262,7 @@ window.EI = window.EI || {};
   // contiguous draw range (no extra draw calls): big cells hold [main | detail] (detail dropped in the distance), small cells hold
   // the fine near-only clutter, yacht cells hold [far hulls | near detail] and swap between them. The blended chain-link fence and
   // the line batches keep their own cells.
-  const GRIDS = { A: { cell: 300, order: ['main', 'detail'] }, B: { cell: 130, order: ['fine'] }, Y: { cell: 200, order: ['yFar', 'yNear'] } };   // (cells were 600 / 260 / 450 m: a cell is drawn whole, so the big ones put 30-70k tris of far-away detail in every view)
+  const GRIDS = { A: { cell: 400, order: ['main', 'detail'] }, B: { cell: 130, order: ['fine'] }, Y: { cell: 300, order: ['yFar', 'yNear'] } };   // (cells were 600 / 260 / 450 m; measured 300 / 130 / 200 = -47 % street tris but +8 calls: a cell is drawn whole, so the big ones put 30-70k tris of far-away detail in every view)
   const LAYERS = {
     main: { grid: 'A' }, detail: { grid: 'A' }, fine: { grid: 'B' }, yFar: { grid: 'Y' }, yNear: { grid: 'Y' },
     fence: { cell: 600, vis: [240, 600, 1100], mat: 'fence' },

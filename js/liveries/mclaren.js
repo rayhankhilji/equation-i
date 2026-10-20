@@ -75,7 +75,7 @@
       L.partnerAt('mclarenspeedmark', 0.98, 0.25, 0.2, 0.06, 'color');
       // front-wing endplates: workday; rear-wing endplates: Dropbox
       L.partnerAt('dropbox', -2.17, 0.86, 0.4, 0.075, 'black'); L.partnerAt('groq', -2.17, 0.56, 0.14, 0.05, 'white');
-      L.number(1.62, 0.52, 0.07, AN); L.codeText(1.27, 0.5, 0.036, AN); k.at(1.09, 0.5, () => FLAG(g, natOf(L.code), 0.03));
+      L.number(1.62, 0.52, 0.07, AN); L.codeText(1.27, 0.5, 0.036, AN); L.car((g, k) => k.at(1.09, 0.5, () => FLAG(g, natOf(L.code), 0.03)));   // per-car (two-pass painting)
       L.haloHandle('mclaren.com', W, -1); L.haloHandle('@McLarenF1', W, 1);
     },
     // wheel covers (2026 photos): dark covers with the rainbow rings, an outer ring at the rim and a small inner ring at the hub

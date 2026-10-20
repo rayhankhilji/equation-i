@@ -280,6 +280,39 @@ window.EI = window.EI || {};
     const idx = new Int32Array(n); n = 0; for (let k = 0; k < M * M; k++) if (cls[k]) idx[n++] = k;
     return (posMaps[M] = { M, pos, cls, idx });
   }
+  // posMap cell index: the painted texels bucketed by body position (0.1 m cells), so a view whose content is small (a number, a
+  // flag) only visits the texels near it. CSR arrays per map resolution, built on first use.
+  const CELL = 0.1, CX0 = -3.4, CY0 = -0.3, CZ0 = -1.3, NCX = 68, NCY = 17, NCZ = 26;
+  function cellIndex(pm) {
+    if (pm.cells) return pm.cells;
+    const { pos, idx } = pm; const inv = 1 / PQ; const n = idx.length; const cellOf = new Int32Array(n); const cnt = new Int32Array(NCX * NCY * NCZ + 1);
+    const cl = (v, v0, nc) => Math.max(0, Math.min(nc - 1, Math.floor((v - v0) / CELL)));
+    for (let i = 0; i < n; i++) { const k = idx[i]; const ci = (cl(pos[k * 3] * inv, CX0, NCX) * NCY + cl(pos[k * 3 + 1] * inv, CY0, NCY)) * NCZ + cl(pos[k * 3 + 2] * inv, CZ0, NCZ); cellOf[i] = ci; cnt[ci + 1]++; }
+    for (let i = 0; i < NCX * NCY * NCZ; i++) cnt[i + 1] += cnt[i];
+    const list = new Int32Array(n); const fill = cnt.slice(0, NCX * NCY * NCZ); for (let i = 0; i < n; i++) list[fill[cellOf[i]]++] = idx[i];
+    return (pm.cells = { start: cnt, list, mark: new Uint8Array(pm.M * pm.M) });
+  }
+  // the content box of a view in body metres -> the cell ranges it can reach (kind 'L' left side [-x, -y], 'R' right side [x, -y],
+  // 'T' top [z, -x]); views without a kind reach everything
+  function* candidatesGen(pm, views) {
+    const C = cellIndex(pm); const out = []; const cl = (v, v0, nc) => Math.max(0, Math.min(nc - 1, Math.floor((v - v0) / CELL)));
+    let full = false; const boxes = [];
+    for (const vw of views) {
+      if (!vw.bb) continue; if (!vw.kind) { full = true; break; }
+      const m = 0.06, X0 = vw.x0 + vw.bb[0] / vw.ppm0 - m, X1 = vw.x0 + vw.bb[2] / vw.ppm0 + m, Y0 = vw.y0 + vw.bb[1] / vw.ppm0 - m, Y1 = vw.y0 + vw.bb[3] / vw.ppm0 + m;
+      if (vw.kind === 'L') boxes.push([-X1, -X0, -Y1, -Y0, -9, 9]); else if (vw.kind === 'R') boxes.push([X0, X1, -Y1, -Y0, -9, 9]); else boxes.push([-Y1, -Y0, -9, 9, X0, X1]);
+    }
+    if (full) return pm.idx;
+    const mark = C.mark; let steps = 0;
+    for (const b of boxes) {
+      const ix0 = cl(b[0], CX0, NCX), ix1 = cl(b[1], CX0, NCX), iy0 = cl(b[2], CY0, NCY), iy1 = cl(b[3], CY0, NCY), iz0 = cl(b[4], CZ0, NCZ), iz1 = cl(b[5], CZ0, NCZ);
+      for (let ix = ix0; ix <= ix1; ix++) { for (let iy = iy0; iy <= iy1; iy++) for (let iz = iz0; iz <= iz1; iz++) {
+        const ci = (ix * NCY + iy) * NCZ + iz; for (let j = C.start[ci], e = C.start[ci + 1]; j < e; j++) { const k = C.list[j]; if (!mark[k]) { mark[k] = 1; out.push(k); } } }
+        if ((++steps & 7) === 7) yield; }
+    }
+    for (const k of out) mark[k] = 0;
+    return out;
+  }
   // views: [{ cls, map: (x, y, z) => [X, Y] (metres, canvas axes: Y down), x0, y0, x1, y1 (canvas rect in metres), draw(g) }]
   // draw() paints in metres (the transform is set up). Decals land only on paint texels (roles primary / secondary / accent).
   function halveLevel(lv) {
@@ -298,20 +331,27 @@ window.EI = window.EI || {};
     for (const vw of views) {
       const ppm = vw.ppm || M * 0.22; const W = Math.ceil((vw.x1 - vw.x0) * ppm), H = Math.ceil((vw.y1 - vw.y0) * ppm);
       const cv = document.createElement('canvas'); cv.width = W; cv.height = H; const g = cv.getContext('2d', { willReadFrequently: true });
-      g.setTransform(ppm, 0, 0, ppm, -vw.x0 * ppm, -vw.y0 * ppm); vw.draw(g, ppm); g.setTransform(1, 0, 0, 1, 0, 0);
-      vw.lv = [{ w: W, h: H, d: g.getImageData(0, 0, W, H).data }]; let cur = vw.lv[0];
+      g.setTransform(ppm, 0, 0, ppm, -vw.x0 * ppm, -vw.y0 * ppm);
+      if (vw.pass && EI.LIVERIES && EI.LIVERIES.setPass) EI.LIVERIES.setPass(vw.pass);
+      try { vw.draw(g, ppm); } finally { if (vw.pass && EI.LIVERIES && EI.LIVERIES.setPass) EI.LIVERIES.setPass('all'); }
+      g.setTransform(1, 0, 0, 1, 0, 0);
+      vw.lv = [{ w: W, h: H, d: g.getImageData(0, 0, W, H).data }]; vw.ppm0 = ppm;
       yield;
-      // mip chain by 2x2 box filtering in JS (premultiplied), so no canvas has to be read back per level
-      while (cur.w > 64 && cur.h > 16 && vw.lv.length < 6) { cur = halveLevel(cur); vw.lv.push(cur); }
-      vw.ppm0 = ppm; yield;
-    }
-    const byCls = [[], [], [], [], [], []]; for (const vw of views) { byCls[vw.cls].push(vw); if (vw.also) for (const cc of vw.also) byCls[cc].push(vw); }   // also: classes that reuse this view (no extra canvas)
-    // content bounds of each view (metres), so texels that cannot receive anything are rejected early
-    for (const vw of views) {
+      // content bounds (px), scanned in row slices; an empty view (common in the per-car pass) stops here
       const l0 = vw.lv[0]; let bx0 = l0.w, by0 = l0.h, bx1 = -1, by1 = -1;
-      for (let y = 0; y < l0.h; y++) for (let x = 0; x < l0.w; x++) if (l0.d[(y * l0.w + x) * 4 + 3]) { if (x < bx0) bx0 = x; if (x > bx1) bx1 = x; if (y < by0) by0 = y; if (y > by1) by1 = y; }
-      vw.bb = bx1 < 0 ? null : [bx0 - 3, by0 - 3, bx1 + 3, by1 + 3]; yield;
+      for (let y = 0; y < l0.h; y++) {
+        for (let x = 0, o = y * l0.w * 4 + 3; x < l0.w; x++, o += 4) if (l0.d[o]) { if (x < bx0) bx0 = x; if (x > bx1) bx1 = x; if (y < by0) by0 = y; if (y > by1) by1 = y; }
+        if ((y & 127) === 127) yield;
+      }
+      vw.bb = bx1 < 0 ? null : [bx0 - 3, by0 - 3, bx1 + 3, by1 + 3];
+      if (!vw.bb) { vw.lv = null; continue; }
+      // mip chain by 2x2 box filtering in JS (premultiplied), so no canvas has to be read back per level; a level per step
+      let cur = vw.lv[0]; while (cur.w > 64 && cur.h > 16 && vw.lv.length < 6) { cur = halveLevel(cur); vw.lv.push(cur); yield; }
     }
+    const byCls = [[], [], [], [], [], []]; for (const vw of views) { if (!vw.bb) continue; byCls[vw.cls].push(vw); if (vw.also) for (const cc of vw.also) byCls[cc].push(vw); }   // also: classes that reuse this view (no extra canvas)
+    if (!views.some(v => v.bb)) { for (const vw of views) vw.lv = null; return true; }   // nothing to paint (e.g. a car without a number)
+    // candidate texels: only those whose body position falls in some view's content box (posMap cell index)
+    const cand = yield* candidatesGen(pm, views);
     const H2 = S >> 1; const out = [0, 0, 0, 0];
     const sample = (lv, X, Y) => {   // premultiplied bilinear sample into out
       const fx = X - 0.5, fy = Y - 0.5; const ix = Math.floor(fx), iy = Math.floor(fy); const tx = fx - ix, ty = fy - iy; out[0] = out[1] = out[2] = out[3] = 0;
@@ -329,7 +369,7 @@ window.EI = window.EI || {};
           return; } }
       P3[0] = pos[k * 3] * inv; P3[1] = pos[k * 3 + 1] * inv; P3[2] = pos[k * 3 + 2] * inv;
     };
-    const idx = pm.idx;
+    const idx = cand;
     for (let n = 0; n < idx.length; n++) {
       if ((n & 2047) === 2047) yield;
       const k = idx[n]; const c = cls[k]; const vws = byCls[c]; if (!vws.length) continue;
@@ -355,7 +395,7 @@ window.EI = window.EI || {};
         }
       }
     }
-    for (let q = 0; q < 3; q++) if (dirty[q]) ctx.putImageData(imgs[q], quads[q][0], quads[q][1]);
+    for (let q = 0; q < 3; q++) if (dirty[q]) { ctx.putImageData(imgs[q], quads[q][0], quads[q][1]); yield; }
     for (const vw of views) vw.lv = null;
     return true;
   }
@@ -422,27 +462,27 @@ window.EI = window.EI || {};
     const FWEND = ROLE_NAMES.indexOf('fwEnd'), HALO = ROLE_NAMES.indexOf('halo'), real = EI.LIVERIES && EI.LIVERIES.has(id) && EI.LIVERIES.sideHalo;
     const FWMAIN = ROLE_NAMES.indexOf('fwMain');
     const noEp = Object.assign({ [FWMAIN]: 1 }, ep ? { [FWEND]: 1 } : null, real ? { [HALO]: 1 } : null);   // texels only their own pass paints
-    views.push({ cls: 1, also: [4], notRoles: noEp, map: (x, y) => [-x, -y], x0: -3.2, x1: 3.2, y0: -1.25, y1: 0.05, draw: side(-1) });
-    views.push({ cls: 2, also: [5], notRoles: noEp, map: (x, y) => [x, -y], x0: -3.2, x1: 3.2, y0: -1.25, y1: 0.05, draw: side(1) });
+    views.push({ cls: 1, also: [4], notRoles: noEp, kind: 'L', map: (x, y) => [-x, -y], x0: -3.2, x1: 3.2, y0: -1.25, y1: 0.05, draw: side(-1) });
+    views.push({ cls: 2, also: [5], notRoles: noEp, kind: 'R', map: (x, y) => [x, -y], x0: -3.2, x1: 3.2, y0: -1.25, y1: 0.05, draw: side(1) });
     if (ep) for (const s of [-1, 1]) {
       const draw = (g) => { g.scale(1 / MM, 1 / MM); EI.LIVERIES.endplate(g, sideKit(g, s), team, num, code); };
-      views.push(s < 0 ? { cls: 1, also: [4], roles: { [FWEND]: 1 }, map: (x, y) => [-x, -y], x0: -3.2, x1: -2.1, y0: -0.65, y1: 0.05, draw }
-        : { cls: 2, also: [5], roles: { [FWEND]: 1 }, map: (x, y) => [x, -y], x0: 2.1, x1: 3.2, y0: -0.65, y1: 0.05, draw });
+      views.push(s < 0 ? { cls: 1, also: [4], roles: { [FWEND]: 1 }, kind: 'L', map: (x, y) => [-x, -y], x0: -3.2, x1: -2.1, y0: -0.65, y1: 0.05, draw }
+        : { cls: 2, also: [5], roles: { [FWEND]: 1 }, kind: 'R', map: (x, y) => [x, -y], x0: 2.1, x1: 3.2, y0: -0.65, y1: 0.05, draw });
     }
     // the front-wing main planes (role fwMain): only a design's frontWing(L), drawn in top-view coordinates
     if (EI.LIVERIES && EI.LIVERIES.hasFrontWing && EI.LIVERIES.hasFrontWing(id))
-      views.push({ cls: 3, also: [4, 5], roles: { [FWMAIN]: 1 }, map: (x, y, z) => [z, -x], x0: -1.1, x1: 1.1, y0: -3.25, y1: -2.15, draw: (g) => { g.scale(1 / MM, 1 / MM); EI.LIVERIES.frontWing(g, topKit(g), team, num); } });
+      views.push({ cls: 3, also: [4, 5], roles: { [FWMAIN]: 1 }, kind: 'T', map: (x, y, z) => [z, -x], x0: -1.1, x1: 1.1, y0: -3.25, y1: -2.15, draw: (g) => { g.scale(1 / MM, 1 / MM); EI.LIVERIES.frontWing(g, topKit(g), team, num); } });
     // the halo's own small views (halo text only; see EI.LIVERIES.sideHalo / topHalo)
     if (real) {
       for (const s of [-1, 1]) {
         const draw = (g) => { g.scale(1 / MM, 1 / MM); EI.LIVERIES.sideHalo(g, sideKit(g, s), team, num, code); };
-        views.push(s < 0 ? { cls: 1, also: [4], roles: { [HALO]: 1 }, map: (x, y) => [-x, -y], x0: -1.3, x1: 0.05, y0: -0.96, y1: -0.6, draw }
-          : { cls: 2, also: [5], roles: { [HALO]: 1 }, map: (x, y) => [x, -y], x0: -0.05, x1: 1.3, y0: -0.96, y1: -0.6, draw });
+        views.push(s < 0 ? { cls: 1, also: [4], roles: { [HALO]: 1 }, kind: 'L', map: (x, y) => [-x, -y], x0: -1.3, x1: 0.05, y0: -0.96, y1: -0.6, draw }
+          : { cls: 2, also: [5], roles: { [HALO]: 1 }, kind: 'R', map: (x, y) => [x, -y], x0: -0.05, x1: 1.3, y0: -0.96, y1: -0.6, draw });
       }
-      views.push({ cls: 3, roles: { [HALO]: 1 }, map: (x, y, z) => [z, -x], x0: -0.45, x1: 0.45, y0: -1.3, y1: 0.05, draw: (g) => { g.scale(1 / MM, 1 / MM); EI.LIVERIES.topHalo(g, topKit(g), team, num); } });
+      views.push({ cls: 3, roles: { [HALO]: 1 }, kind: 'T', map: (x, y, z) => [z, -x], x0: -0.45, x1: 0.45, y0: -1.3, y1: 0.05, draw: (g) => { g.scale(1 / MM, 1 / MM); EI.LIVERIES.topHalo(g, topKit(g), team, num); } });
     }
     // top view: X = z (right), Y = -x (nose up), text upright reads from behind
-    views.push({ cls: 3, notRoles: noEp, map: (x, y, z) => [z, -x], x0: -1.1, x1: 1.1, y0: -3.2, y1: 3.2, draw: (g) => {
+    views.push({ cls: 3, notRoles: noEp, kind: 'T', map: (x, y, z) => [z, -x], x0: -1.1, x1: 1.1, y0: -3.2, y1: 3.2, draw: (g) => {
       g.scale(1 / MM, 1 / MM); const { at, txt, dec, rect, poly } = topKit(g);
       if (EI.LIVERIES && EI.LIVERIES.has(id)) return EI.LIVERIES.top(g, { at, txt, dec, rect, poly }, team, num);
       // customer teams: nose tip and centre stripe, number on the nose (reads from the front), partner on the rear wing
@@ -461,11 +501,40 @@ window.EI = window.EI || {};
   }
   CarGLB.carCode = carCode;
   function composeLivery(team, num, code, size) { return runGen(composeLiveryGen(team, num, code, size)); }
+  CarGLB.composeLiveryGen = (team, num, code, size) => composeLiveryGen(team, num, code, size);   // for tools (profiling)
   function liverySize(team, size) { size = size || 2048; return (team.id === 'lumi' || team.id === 'intake') && size >= 1024 && size < 2048 ? 2048 : size; }   // the works liveries always get crisp lettering (the 512 stand-in excepted)
   function liveryKey(team, num, code, size) { return team.id + ':' + num + ':' + (code || '') + ':' + liverySize(team, size); }
+  // Two-pass painting: the team layer (everything but the number / code / per-car marks, see EI.LIVERIES.setPass) is painted once
+  // per team and size (baseCache, no AO yet); each car = a copy of it + its own small per-car pass + AO. Designs that cannot be split
+  // (the own teams) are painted whole per car. ~11 team sheets + 22 cheap car passes instead of 22 full sheets.
+  const baseCache = {};
   function* composeLiveryGen(team, num, code, size) {
     size = liverySize(team, size); const key = liveryKey(team, num, code, size);
     if (texCache[key]) return texCache[key];
+    const split = !!(EI.LIVERIES && EI.LIVERIES.splitOK && EI.LIVERIES.splitOK(team.id)) && !CarGLB.noSplit;
+    let c, ctx;
+    if (split) {
+      const bk = team.id + ':' + size; let baseC = baseCache[bk];
+      if (!baseC) { baseC = yield* paintSheetGen(team, num, code, size, 'team'); baseCache[bk] = baseC; }
+      c = document.createElement('canvas'); c.width = c.height = size; ctx = c.getContext('2d', { willReadFrequently: true }); ctx.drawImage(baseC, 0, 0); yield;
+      const views = liveryViews(team, num, code, viewOpts(team)); for (const v of views) v.pass = 'car';
+      yield* projectDecalsGen(ctx, size, views, roleMaps[Math.min(size, 2048)]);
+    } else { c = yield* paintSheetGen(team, num, code, size, 'all'); ctx = c.getContext('2d'); }
+    // ambient occlusion
+    ctx.globalCompositeOperation = 'multiply'; ctx.drawImage(cache.aoImg, 0, 0, size, size); ctx.globalCompositeOperation = 'source-over'; yield;
+    const tex = new THREE.CanvasTexture(c); tex.flipY = false; tex.encoding = THREE.sRGBEncoding; tex.anisotropy = 8; tex.needsUpdate = true;
+    texCache[key] = tex; return tex;
+  }
+  function viewOpts(team) {
+    const P = team.primary, S = team.secondary, A = team.accent;
+    const NC = team.numberColor || (lum(P) > 0.4 ? '#101010' : '#ffffff');
+    const SC = lum(S) > 0.4 ? '#101010' : '#ffffff';
+    const sps = team.sponsors && team.sponsors.length ? team.sponsors : [{ n: 'EQUATION', fg: NC }, { n: 'EI', fg: NC }, { n: 'EI', fg: NC }, { n: 'EI', fg: NC }];
+    const sp = (i, o) => Object.assign({}, sps[i % sps.length], o || {});
+    return { P, S, A, NC, SC, sp, works: team.id === 'lumi' || team.id === 'intake', Ads: EI.Ads };
+  }
+  // the role colour fill + the projected design views (pass 'team' or 'all'), no AO; returns the canvas
+  function* paintSheetGen(team, num, code, size, pass) {
     const meta = cache.meta || {}; const atlas = meta.atlas || {};
     // 1) colour fill from the material-ID atlas, at <= 2048 (per-pixel JS), then upscaled with smoothing so region edges stay soft
     const base = Math.min(size, 2048);
@@ -492,18 +561,9 @@ window.EI = window.EI || {};
     // 2) team graphics + decals, designed in orthographic side and top views of the car (metres; see projectDecals) and drawn in
     //    millimetres so the brand painters keep their precision. Side views: x = metres forward, y = metres up, mirrored per
     //    side so lettering always reads left to right. Top view: text reads from behind the car (the chase camera).
-    const Ads = EI.Ads; const P = team.primary, S = team.secondary, A = team.accent;
-    const NC = team.numberColor || (lum(P) > 0.4 ? '#101010' : '#ffffff');
-    const SC = lum(S) > 0.4 ? '#101010' : '#ffffff';
-    const sps = team.sponsors && team.sponsors.length ? team.sponsors : [{ n: 'EQUATION', fg: NC }, { n: 'EI', fg: NC }, { n: 'EI', fg: NC }, { n: 'EI', fg: NC }];
-    const sp = (i, o) => Object.assign({}, sps[i % sps.length], o || {});
-    const works = team.id === 'lumi' || team.id === 'intake';
-    const views = liveryViews(team, num, code, { P, S, A, NC, SC, sp, works, Ads });
+    const views = liveryViews(team, num, code, viewOpts(team)); for (const v of views) v.pass = pass;
     if (!(yield* projectDecalsGen(ctx, size, views, roleMaps[base]))) console.warn('EI.CarGLB: livery decals skipped (no position map)');
-    // 3) ambient occlusion
-    ctx.globalCompositeOperation = 'multiply'; ctx.drawImage(cache.aoImg, 0, 0, size, size); ctx.globalCompositeOperation = 'source-over';
-    const tex = new THREE.CanvasTexture(c); tex.flipY = false; tex.encoding = THREE.sRGBEncoding; tex.anisotropy = 8; tex.needsUpdate = true;
-    texCache[key] = tex; return tex;
+    return c;
   }
   function roundRect(ctx, x, y, w, h, r) { ctx.beginPath(); ctx.moveTo(x + r, y); ctx.lineTo(x + w - r, y); ctx.quadraticCurveTo(x + w, y, x + w, y + r); ctx.lineTo(x + w, y + h - r); ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h); ctx.lineTo(x + r, y + h); ctx.quadraticCurveTo(x, y + h, x, y + h - r); ctx.lineTo(x, y + r); ctx.quadraticCurveTo(x, y, x + r, y); ctx.closePath(); }
 

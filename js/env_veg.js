@@ -432,15 +432,18 @@ window.EI = window.EI || {};
     const bbase = new THREE.PlaneGeometry(1, 1); bbase.rotateX(-Math.PI / 2);
     const bg = new THREE.InstancedBufferGeometry(); bg.index = bbase.index; for (const k in bbase.attributes) bg.setAttribute(k, bbase.attributes[k]); ['iA', 'iB', 'iC'].forEach((k, j) => bg.setAttribute(k, nattr[j])); bg.instanceCount = 0;
     const bmat = new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(bc), color: 0x16200f, transparent: true, opacity: 0.3, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -4 });
+    // the blob falls away from the circuit's sun (EI.look azimuth / elevation; the default look's 212 / 38 gives the old fixed values)
+    const BL = (() => { const L = EI.look || {}, th = (L.azim != null ? L.azim : 212) * Math.PI / 180, el = Math.max(20, Math.min(70, L.elev != null ? L.elev : 42)) * Math.PI / 180;
+      const k = Math.min(1.6, Math.tan(42 * Math.PI / 180) / Math.tan(el)); return { x: (-Math.sin(th)).toFixed(3), y: (-Math.cos(th)).toFixed(3), k: k.toFixed(3), m: (6 * k).toFixed(2) }; })();
     bmat.onBeforeCompile = (sh) => {
       Object.assign(sh.uniforms, { uEye: uni.uEye, uLod: uni.uLodN });
       sh.vertexShader = sh.vertexShader.replace('#include <common>', TREE_HEAD).replace('#include <begin_vertex>', [
-        'float off = min(iB.y * 0.32, 6.0); const vec2 sd = vec2(0.42, 0.91);',
+        'float off = min(iB.y * 0.32 * ' + BL.k + ', ' + BL.m + '); const vec2 sd = vec2(' + BL.x + ', ' + BL.y + ');',
         'vec2 lp = vec2(position.x * iB.x * 1.1, position.z * (iB.x * 1.1 + iB.y * 0.3));',
         'vec3 transformed = vec3(iA.x + sd.x * off + lp.x * sd.y + lp.y * sd.x, iA.y + 0.25, iA.z + sd.y * off - lp.x * sd.x + lp.y * sd.y);',
         'float dE = distance(iA.xz, uEye.xz); if (iC.w < 0.5 || dE >= uLod.y) transformed = iA.xyz; vTint = iC.rgb;'].join('\n'));
     };
-    bmat.customProgramCacheKey = () => 'tree-blob';
+    bmat.customProgramCacheKey = () => 'tree-blob' + BL.x + BL.y + BL.k;
     const blobs = new THREE.Mesh(bg, bmat); blobs.frustumCulled = false; blobs.name = 'treeShadows'; blobs.renderOrder = 1; sc.group.add(blobs);
     // far
     const fbase = new THREE.PlaneGeometry(1, 1); fbase.translate(0, 0.5, 0);

@@ -710,9 +710,9 @@ window.EI = window.EI || {};
   const f1 = (v) => v.toFixed(1);
   // the Low tier's city shader: Lambert (r128 lights it per VERTEX: flat facades need nothing more), ONE gradient fetch of the atlas, no packed
   // normal / roughness / glass fetch, no image-based lighting (the PBR path's env sampling was the bulk of the per-pixel cost). The sky
-  // ambient the env map gave is put back as a constant fraction of the albedo (uCityAmb).
+  // ambient the env map gave is put back as a constant fraction of the albedo (0.31 x albedo, matched on screenshots).
   function cityLambert(offset) {
-    const A = buildAtlas(); const amb = (typeof window !== 'undefined' && window.__cityAmb != null) ? window.__cityAmb : 0.22;
+    const A = buildAtlas(); const amb = (typeof window !== 'undefined' && window.__cityAmb != null) ? window.__cityAmb : 0.31;
     const lowMap = A.mapLow || (A.mapLow = (() => { const m = A.map.clone(); m.anisotropy = 2; m.needsUpdate = true; return m; })());   // its own 2x-aniso handle on the shared pixels (Low only; each gradient fetch costs less)
     const mat = new THREE.MeshLambertMaterial({ map: lowMap, vertexColors: true });
     mat.extensions = { derivatives: true, shaderTextureLOD: true };
@@ -799,9 +799,9 @@ window.EI = window.EI || {};
   const b8 = (v) => Math.round(U.clamp(v, 0, 1) * 255);
   class Geo {
     constructor(E) { this.E = E; this.tiles = new Map(); this.cur = null; this.sub = 0; this.tris = 0; this.acc = WHITE; this.mode = 'D'; }
-    // pick the tile for an object at (x, z): detail tiles 240 m; proxy tiles 480 m near the circuit, 1200 m out on the hills (a whole tile is drawn or culled: 800 / 1600 m put ~all of the city in every view)
+    // pick the tile for an object at (x, z): detail tiles 240 m; proxy tiles 800 m near the circuit, 1600 m out on the hills (480 / 1200 m measured: -9 % tris for +4 calls, not worth it)
     at(x, z, kind, sub) {
-      kind = kind || 'D'; this.sub = sub || 0; const S = kind === 'D' ? 240 : (this.E.dcAt(x, z) < 900 ? 480 : 1200);
+      kind = kind || 'D'; this.sub = sub || 0; const S = kind === 'D' ? 240 : (this.E.dcAt(x, z) < 900 ? 800 : 1600);
       const key = kind + S + ':' + Math.floor(x / S) + ',' + Math.floor(z / S); let c = this.tiles.get(key); if (!c) { c = new Tile(kind, key); this.tiles.set(key, c); } this.cur = c; return c;
     }
     vert(p, n, u, v, col, cl) {
@@ -1022,7 +1022,7 @@ window.EI = window.EI || {};
     let sbRing = null; if (D.sb) { sbRing = offsetRing(ring, D.sb.d); if (sbRing && Math.abs(area2(sbRing)) / 2 < 70) sbRing = null; }
     const nsb = sbRing ? D.sb.n : 0; const yTop = yR - nsb * S.fh;
     const parH = D.roof === 'flat' ? (D.style === 'modern' ? 1.2 : 0.95) : 0;
-    D.lv = { yG, yb, yR, yTop, ob, sbRing, nsb, parH, far: E.dcAt(cx, cz) > 700, gMax }; D.yR = yR; D.yBase = yb; return D.lv;
+    D.lv = { yG, yb, yR, yTop, ob, sbRing, nsb, parH, far: E.dcAt(cx, cz) > 460, gMax }; D.yR = yR; D.yBase = yb; return D.lv;
   }
   // facade cells of one face: ground floor, a storey (k), the whole upper facade at once, the painted balcony cell for proxies
   function faceCells(D, s, mode, rvN) {
@@ -1930,7 +1930,7 @@ window.EI = window.EI || {};
       if (dc < rad + 70) for (let i = 0; i < ring.length; i++) if (!segClear(E, ring[i], ring[(i + 1) % ring.length], 0.5)) { stats.skipped++; return; } const tier = farSet ? (dc < 470 ? 'mid' : null) : dc < 140 ? 'near' : 'mid';
       const ob = obb(ring); const D = design(E, b, c[0], c[1], area, ob ? ob.hw * 2 : 0);
       { const Lv = levels(E, ring, D, c[0], c[1]); let drop = 0; for (let i = 0; i < ring.length; i++) { const P0 = ring[i], P1 = ring[(i + 1) % ring.length], dx = P1[0] - P0[0], dz = P1[1] - P0[1], Ls = Math.hypot(dx, dz); if (Ls < 0.05) continue; drop = Math.max(drop, Lv.yb - faceFoundation(E, { P0, P1, n: [dz / Ls, 0, -dx / Ls] }, Lv.yG, Lv.yb)); }
-        if (drop > 6) (stats.cliffs || (stats.cliffs = [])).push({ i: b.id, a: Math.round(area), d: +drop.toFixed(1), x: Math.round(c[0]), z: Math.round(c[1]), H: Math.round(D.H), st: D.style, far: farSet ? 1 : 0 }); }
+        if (drop > 6 || Lv.yR - Lv.yb > 30) (stats.cliffs || (stats.cliffs = [])).push({ i: b.id, a: Math.round(area), d: +drop.toFixed(1), x: Math.round(c[0]), z: Math.round(c[1]), H: Math.round(D.H), st: D.style, far: farSet ? 1 : 0, yG: +Lv.yG.toFixed(1), yb: +Lv.yb.toFixed(1), yR: +Lv.yR.toFixed(1), gMax: +Lv.gMax.toFixed(1), z0: D.zone }); }
       if (tier) buildOne(E, G, ring, D, tier, c); const _t0 = G.tris; buildOne(E, G, ring, D, 'proxy', c); stats[tier || 'proxyOnly']++;
       { const bk = dc < 140 ? 'p0' : dc < 470 ? 'p1' : dc < 700 ? 'p2' : 'p3'; const q = stats.bands || (stats.bands = {}); const r = q[bk] || (q[bk] = { n: 0, tris: 0, v: ring.length }); r.n++; r.tris += G.tris - _t0; r.v += ring.length; }
       if (tier === 'near') nearList.push({ c, style: D.style, rv: D.rv, H: D.H, y: D.lv.yG }); if (D.albert) stats.albert = (stats.albert || 0) + (tier === 'near' ? 1 : 0.001);
