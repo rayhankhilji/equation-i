@@ -1073,7 +1073,7 @@ window.EI = window.EI || {};
     const dirt = new THREE.Color(1.12, 0.86, 0.66), worn = new THREE.Color(1.06, 0.94, 0.82), clean = new THREE.Color(1, 1, 1), tmp = new THREE.Color();
     for (const side of [-1, 1]) {
       const wall = side < 0 ? t.wallL : t.wallR;
-      const bands = [[() => hw - 0.05, () => hw + kw * 0.7, dirt, worn], [() => hw + kw * 0.7, () => hw + kw + 3.2, worn, clean], [() => hw + kw + 3.2, i => Math.max(hw + kw + 4, wall[i] + 42), clean, clean]];
+      const bands = [[() => hw - 0.05, () => hw + kw * 0.7, dirt, worn], [() => hw + kw * 0.7, () => hw + kw + 3.2, worn, clean], [() => hw + kw + 3.2, i => this.forestOn ? Math.max(hw + kw + 4, wall[i]) : Math.max(hw + kw + 4, wall[i] + 42), clean, clean]];   // (forest ground: up to the barrier only - a flat sheet beyond would float over the hillsides)
       for (const [a, b, ca, cb] of bands) {
         const geo = t.ribbon(i => side * a(i), i => side * b(i), { y: -0.02, colorFn: (i, s) => { const n = 0.92 + U.noise2(i * 0.07, side * 5 + s) * 0.16; return tmp.copy(s === 0 ? ca : cb).multiplyScalar(n).clone(); } });
         parts.push(geo);

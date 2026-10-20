@@ -804,12 +804,14 @@ window.EI = window.EI || {};
       // street circuits: the verge stops short of any other stretch of the lap within its 40 m (Beau Rivage runs ~10 m above the
       // harbour front, and a flat ribbon at its level would roof over the road below)
       const desert = !!(this.scenery && this.scenery.env && this.scenery.env.data.kind === 'desert');
-      const vw = this.data.street || desert ? this.streetVergeWidths() : null;
+      const fEnv = this.scenery && this.scenery.env && this.scenery.env.forestOn ? this.scenery.env : null;   // forest ground (Spa, SPA-STITCH): a narrow draped verge
+      const vw = this.data.street || desert ? this.streetVergeWidths() : fEnv ? fEnv.forestVergeW() : null;
       // street circuits on a terrain model: the ribbon runs out from the barriers in steps that follow the ground, so where the hill
       // falls away (the descent from Mirabeau to the hairpin) the verge drapes down the slope instead of hanging flat at road level
       const vsc = vw && this.scenery && this.scenery.heights && this.scenery.env && this.scenery.env.dem ? this.scenery : null; const VF = vsc ? [1, 0.6, 0.3, 0.1, 0] : [1], VK = VF.length * 2;
       const vergeOff = vw ? ((ii, c) => c < VF.length ? -(this.wallL[ii] + vw[0][ii] * VF[c]) : this.wallR[ii] + vw[1][ii] * VF[VK - 1 - c]) : ((ii, c) => c ? this.wallR[ii] + 40 : -(this.wallL[ii] + 40));
-      const vY = vsc ? ((ii, c, l) => { const w = l < 0 ? this.wallL[ii] : this.wallR[ii]; if (Math.abs(l) < w + 0.5) return 0; const g = vsc.gridHeight(this.x[ii] + this.nx[ii] * l, this.z[ii] + this.nz[ii] * l) - this.y[ii] + 0.25; return Math.max(-40, Math.min(0, g)); }) : null;
+      const vFlat = fEnv ? fEnv.forestFlat : 0.5;   // (forest: a level shelf behind the barrier for the debris fence / boards, then the drape)
+      const vY = vsc ? ((ii, c, l) => { const w = l < 0 ? this.wallL[ii] : this.wallR[ii]; if (Math.abs(l) < w + vFlat) return 0; const g = vsc.gridHeight(this.x[ii] + this.nx[ii] * l, this.z[ii] + this.nz[ii] * l) - this.y[ii] + 0.25; return Math.max(-40, Math.min(0, g)); }) : null;
       const vGeo = this.strip(VK, {
         lat: vergeOff, y: vY, uv: (ii, c, l, i) => [l / 3, i * ds / per(3)],
         attrs: {

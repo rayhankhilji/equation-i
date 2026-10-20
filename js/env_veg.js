@@ -9,7 +9,7 @@ window.EI = window.EI || {};
 
   // ---------------------------------------------------------------- tree atlas: 4 species x (2 side views + 1 top view), 512 px cells
   // canvas rows (top to bottom): top views, side B, side A  -> uv rows 2, 1, 0 (flipY)
-  function paintAtlas(med) {
+  function paintAtlas(med, forest) {
     const CW = 512; const [c, ctx] = Env.canvas(CW * (med ? 8 : 4), CW * 3); ctx.clearRect(0, 0, c.width, c.height);
     const rgb = (a, k, al) => 'rgba(' + (U.clamp(a[0] * k, 0, 255) | 0) + ',' + (U.clamp(a[1] * k, 0, 255) | 0) + ',' + (U.clamp(a[2] * k, 0, 255) | 0) + ',' + (al == null ? 1 : al) + ')';
     const mixc = (a, b, t) => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
@@ -43,6 +43,8 @@ window.EI = window.EI || {};
       pine: { dark: [16, 22, 18], mid: [34, 42, 32], light: [64, 72, 52], glow: [100, 106, 76], leaf: 5, density: 0.08 },
       shrub: { dark: [22, 28, 16], mid: [50, 60, 32], light: [90, 98, 56], glow: [130, 136, 84], leaf: 5, density: 0.07 },
       shrub2: { dark: [28, 30, 18], mid: [62, 64, 38], light: [104, 104, 64], glow: [160, 154, 120], leaf: 4.5, density: 0.07 },
+      spruce: { dark: [10, 20, 17], mid: [24, 40, 32], light: [46, 66, 50], glow: [74, 96, 70], leaf: 4.2, density: 0.12 },
+      spruce2: { dark: [12, 22, 16], mid: [28, 44, 32], light: [52, 72, 50], glow: [82, 102, 72], leaf: 4.2, density: 0.12 },
     };
     const bark = '#3b2c1e', barkLight = '#5a4632', pineBark = '#7a4a2c';
     // ---- oak / ash (side views): short forked trunk, broad lumpy crown that comes down low at the sides
@@ -65,6 +67,16 @@ window.EI = window.EI || {};
       const r = U.rng(seed); trunk(ox, oy, 256, 512, 420, 18, 12, bark);
       const global = (y) => 1.05 - U.clamp((y - 40) / 460, 0, 1) * 0.45;
       for (let i = 0; i < 16; i++) { const y = 40 + i * 27 + r() * 10; const wmax = 84 * Math.sin(Math.PI * U.clamp((y - 10) / 480, 0, 1)) ** 0.6 + 16; lobe(r, ox, oy, { x: 256 + (r() - 0.5) * 24, y, rx: wmax * (0.7 + r() * 0.3), ry: 34 + r() * 10 }, pal, global); }
+    };
+    // ---- norway spruce (forest ground): a narrow dark cone from a pointed top almost to the ground, tiers of drooping branches, grey-brown stem
+    const spruceSide = (ox, oy, seed, pal) => {
+      const r = U.rng(seed); trunk(ox, oy, 256, 512, 30, 16, 5, '#3a3128');
+      const global = (y) => 1.0 - U.clamp((y - 20) / 470, 0, 1) * 0.5;
+      for (let k = 0; k < 30; k++) {
+        const y = 22 + k * 15.5 + r() * 5; const u = U.clamp((y - 14) / 470, 0, 1); const hwid = 12 + 232 * Math.pow(u, 0.9) * (0.86 + r() * 0.14);
+        for (const sd of [-1, 1]) lobe(r, ox, oy, { x: 256 + sd * hwid * 0.52, y: y + hwid * 0.1, rx: hwid * 0.5, ry: 11 + u * 9 }, pal, global);
+        lobe(r, ox, oy, { x: 256, y, rx: Math.max(10, hwid * 0.35), ry: 12 + u * 8 }, pal, global);
+      }
     };
     // ---- scots pine: tall bare orange trunk, irregular rounded crown up top with a couple of detached lower clumps
     const pineSide = (ox, oy, seed, pal) => {
@@ -90,7 +102,8 @@ window.EI = window.EI || {};
     const rowA = CW * 2, rowB = CW, rowT = 0;
     const cell = (ox, oy, fn) => { ctx.save(); ctx.beginPath(); ctx.rect(ox + 6, oy + 6, CW - 12, CW - 8); ctx.clip(); fn(); ctx.restore(); };
     cell(0, rowA, () => oakSide(0, rowA, 11, PAL.oak, false)); cell(0, rowB, () => oakSide(0, rowB, 23, PAL.ash, true)); cell(0, rowT, () => top(0, rowT, 5, PAL.oak, 200, 12));
-    cell(CW, rowA, () => poplarSide(CW, rowA, 31, PAL.poplar)); cell(CW, rowB, () => poplarSide(CW, rowB, 37, PAL.poplar)); cell(CW, rowT, () => top(CW, rowT, 7, PAL.poplar, 150, 8));
+    if (forest) { cell(CW, rowA, () => spruceSide(CW, rowA, 31, PAL.spruce)); cell(CW, rowB, () => spruceSide(CW, rowB, 37, PAL.spruce2)); cell(CW, rowT, () => top(CW, rowT, 7, PAL.spruce, 130, 9, true)); }   // forest ground (Spa): Norway spruce in the poplar column
+    else { cell(CW, rowA, () => poplarSide(CW, rowA, 31, PAL.poplar)); cell(CW, rowB, () => poplarSide(CW, rowB, 37, PAL.poplar)); cell(CW, rowT, () => top(CW, rowT, 7, PAL.poplar, 150, 8)); }
     cell(CW * 2, rowA, () => pineSide(CW * 2, rowA, 41, PAL.pine)); cell(CW * 2, rowB, () => pineSide(CW * 2, rowB, 47, PAL.pine)); cell(CW * 2, rowT, () => top(CW * 2, rowT, 9, PAL.pine, 180, 9, true));
     cell(CW * 3, rowA, () => shrubSide(CW * 3, rowA, 53, PAL.shrub)); cell(CW * 3, rowB, () => shrubSide(CW * 3, rowB, 59, PAL.shrub2)); cell(CW * 3, rowT, () => top(CW * 3, rowT, 13, PAL.shrub, 200, 12));
     if (med) paintMediterranean(ctx, CW, rowA, rowB, rowT, cell, lobe, trunk, branch, rgb);
@@ -230,6 +243,7 @@ window.EI = window.EI || {};
     if (cur.length > 1) out.push(cur); return out;
   }
   Veg.build = function (E) {
+    if (E.forestOn && EI.SpaForest) return EI.SpaForest.build(E, Veg);   // forest ground (Spa): sector planting, env_spa_forest.js
     const sc = E.sc, t = E.t, OCC = Env.OCC, rng = U.rng(2024); const trees = []; const T0 = performance.now();
     const BLOCK = OCC.ROAD | OCC.BUILT | OCC.PARK | OCC.WATER | OCC.KEEP;
     const park = E.data.kind === 'park';   // Royal Park (Monza): tall broadleaf woods in tiles (w.core / w.holes), tree rows, no hedges / crops
@@ -411,7 +425,7 @@ window.EI = window.EI || {};
   // ---------------------------------------------------------------- instancing: one cell-sorted record set feeding the near (3-card) LOD,
   // the soft contact shadows under near trees and the far (1-card billboard) LOD; both regathered around the eye
   Veg.instance = function (E, trees) {
-    const sc = E.sc; const med = E.data.kind === 'street' || E.data.kind === 'desert'; const atlas = paintAtlas(med); const rng = U.rng(99); const mk = med ? '-med' : '';
+    const sc = E.sc; const med = E.data.kind === 'street' || E.data.kind === 'desert'; const atlas = paintAtlas(med, !!E.forestOn); const rng = U.rng(99); const mk = med ? '-med' : '';
     const set = new Env.CellSet([4, 4, 4], 60);
     for (const tr of trees) {
       const [x, z, sp, w, h, v, tint, interior] = tr; const y = sc.height(x, z) - 0.15;
@@ -551,7 +565,7 @@ window.EI = window.EI || {};
     const set = new Env.CellSet([16, 3], 32); let total = 0; const col = new THREE.Color();
     const m = new THREE.Matrix4(), q = new THREE.Quaternion(), sv = new THREE.Vector3(), p = new THREE.Vector3(), up = new THREE.Vector3(0, 1, 0);
     const push = (x, y, z, s) => { E.mapColor(x, z, col); const k = (1.45 + rng() * 0.45) * 1.06; /* x1.06 (BEAUTY): the richer grade deepened the blade bases into dark 'stars' */ p.set(x, y, z); q.setFromAxisAngle(up, rng() * Math.PI); sv.set(s, s * (0.8 + (total % 5) * 0.1), s); m.compose(p, q, sv); set.push(x, z, [m.elements, [col.r * k * 1.1, col.g * k * 1.04, col.b * k]]); total++; };
-    const VW = street && t.streetVergeWidths ? t.streetVergeWidths() : null;   // (desert: its widths depend on the sea mask, computed in the track build)
+    const VW = street && t.streetVergeWidths ? t.streetVergeWidths() : E.forestOn ? E.forestVergeW() : null;   // (forest: the narrow draped verge, env_forest.js)   // (desert: its widths depend on the sea mask, computed in the track build)
     // street circuits on a terrain model: the verge ribbon (track.js) drapes from the barrier in 5 straight steps (offsets wall + vw x
     // [0, .1, .3, .6, 1], each at min(road, terrain + 0.25), drawn 3 cm low), so between its steps it runs above the terrain: the
     // tuft's ground is that ribbon where it lies over the point, the terrain mesh beyond it
@@ -579,6 +593,7 @@ window.EI = window.EI || {};
             const d = a + Math.pow(rng(), 1.4) * (b - a); const along = (rng() - 0.5) * t.ds; const x = t.x[i] + t.nx[i] * side * d + t.tx[i] * along, z = t.z[i] + t.nz[i] * side * d + t.tz[i] * along;
             if (d > wall && (E.occAt(x, z) & (OCC.ROAD | OCC.BUILT | OCC.WATER | OCC.PARK))) continue;
             if (street && !(E.occAt(x, z) & OCC.WOOD)) continue;
+            if (E.forestOn && !E.forestGrassOk(x, z, d - wall)) continue;   // forest ground: not on paved / gravel / water, nor deep under the spruce
             if (desert) {   // desert: tufts on the irrigated lawns only, never on the painted / asphalt run-off
               const ro = side < 0 ? t.runoffOuterL : t.runoffOuterR; if (ro && d < ro[i] + 1.2) continue;
               if (d < wall) { const rr = side < 0 ? t.runoffL : t.runoffR; let near = false; for (let j = -7; j <= 7 && !near; j++) near = !!rr[(i + j + t.n) % t.n]; if (near && d < hw + kw + 17) continue; }
@@ -588,7 +603,7 @@ window.EI = window.EI || {};
             // on the visible ground under the tuft (FIT-AUDIT): the centre line's level left tufts floating / buried wherever the verge
             // or the terrain falls away from or climbs above the road (Monaco's hillside woods, banks beyond the fences)
             // (street circuits: beyond the verge ribbon's own width the ground is the terrain mesh, not the draped verge)
-            push(x, groundAt(i, side, d, x, z) - 0.02, z, 0.6 + rng() * 0.7);
+            push(x, (E.forestOn ? E.forestGround(x, z) : groundAt(i, side, d, x, z)) - 0.02, z, 0.6 + rng() * 0.7);   // (forest: the drawn surface between two cross-sections)
           }
         }
       }

@@ -75,7 +75,8 @@ window.EI = window.EI || {};
       const wall = side < 0 ? U.lerp(t.wallL[i], t.wallL[j], u) : U.lerp(t.wallR[i], t.wallR[j], u); let d = wall + off;
       // inside of a corner: never place anything beyond the local radius (the normals cross there)
       if (t.kFold) { const kf = t.kFold[i]; if ((kf > 0 && side > 0) || (kf < 0 && side < 0)) d = Math.min(d, Math.max(2, 0.88 / (Math.abs(kf) + 1e-6))); }
-      return { x: U.lerp(t.x[i], t.x[j], u) + t.nx[i] * side * d, y: U.lerp(t.y[i], t.y[j], u) - 0.03, z: U.lerp(t.z[i], t.z[j], u) + t.nz[i] * side * d, tx: t.tx[i], tz: t.tz[i], nx: t.nx[i] * side, nz: t.nz[i] * side, i, wall, d };
+      const px = U.lerp(t.x[i], t.x[j], u) + t.nx[i] * side * d, pz = U.lerp(t.z[i], t.z[j], u) + t.nz[i] * side * d; const fe = this.sc && this.sc.env && this.sc.env.forestOn;   // forest ground (Spa, SPA-STITCH): the drawn ground (lowest within +-2.4 m along: board legs, tower feet), not the road level
+      return { x: px, y: fe ? Math.min(this.sc.height(px, pz), this.sc.height(px + t.tx[i] * 2.4, pz + t.tz[i] * 2.4), this.sc.height(px - t.tx[i] * 2.4, pz - t.tz[i] * 2.4)) : U.lerp(t.y[i], t.y[j], u) - 0.03, z: pz, tx: t.tx[i], tz: t.tz[i], nx: t.nx[i] * side, nz: t.nz[i] * side, i, wall, d };
     }
     // ground height for anything: verge level near the track, terrain beyond
     ground(x, z) { return this.sc.height(x, z); }

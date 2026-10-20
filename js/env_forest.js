@@ -34,7 +34,8 @@ window.EI = window.EI || {};
     const decD = (g) => ({ h: g.h, step: g.step, n: g.n, a: Env.decodeI16(g.d) });
     this.dem = { near: decD(D.dem.near), far: decD(D.dem.far) }; this.demZ0 = 0;   // heights are already relative to the start line
     this.fcov = F.decodeCover(D.cover); this.fcovFar = D.coverFar ? F.decodeCover(D.coverFar) : null;
-    this.terrainKin = D.kin || 118;   // 12 m grid inside +-1.4 km (the lap is +-0.65 x +-1.05 km): fewer terrain triangles than Monaco's +-1.8 km
+    this.terrainKin = D.kin || 118;
+    this.forestFlat = 2.5;   // the verge stays level for 2.5 m behind the barrier (debris fence, boards, Armco posts), then drapes   // 12 m grid inside +-1.4 km (the lap is +-0.65 x +-1.05 km): fewer terrain triangles than Monaco's +-1.8 km
     // distance-field grids (10 m): the nearest sample's road level, and the road-minus-DEM offset (smoothed along the lap, fading out by 250 m, blurred)
     const DN = Math.round(Math.sqrt(this.dC.length)); const n = DN * DN; this._DN = DN;
     const off = new Float32Array(t.n); for (let i = 0; i < t.n; i++) off[i] = t.y[i] - this.demAt(t.x[i], t.z[i]);
@@ -70,14 +71,14 @@ window.EI = window.EI || {};
     const ty = this._bil(this.fTy, x, z, 0);
     if (f <= 0) return ty - 0.35;
     const up = ty - 0.35 + (f < 14 ? f * 0.12 : 1.68 + (f - 14) * 1.5);
-    const dn = ty - 0.35 - Math.max(0, f - 1.5) * 1.1;
+    const dn = ty - 0.35 - Math.max(0, f - this.forestFlat - 0.5) * 1.1;
     return Math.min(up, Math.max(dn, G));
   };
 
   // verge widths per side [L, R] (track.js draped verge ribbon, env_veg grass): a narrow mown band behind the barriers (the terrain carries the
   // same field map beyond it), cut 2 m short of another stretch of the lap
   Ctx.prototype.forestVergeW = function () {
-    if (this._fvw) return this._fvw; const t = this.t, n = t.n, MAX = this.data.forest.verge || 9; const out = [new Float32Array(n), new Float32Array(n)];
+    if (this._fvw) return this._fvw; const t = this.t, n = t.n, MAX = this.data.forest.verge || 6; const out = [new Float32Array(n), new Float32Array(n)];
     for (const [k, side] of [[0, -1], [1, 1]]) {
       const wall = side < 0 ? t.wallL : t.wallR; const raw = new Float32Array(n);
       for (let i = 0; i < n; i++) {
@@ -94,32 +95,49 @@ window.EI = window.EI || {};
     }
     return (this._fvw = out);
   };
-  // the draped verge's height at lateral distance d (beyond the barrier) of sample i on a side - same steps as track.js (VF 0, .1, .3, .6, 1 of
-  // the width, each at min(road, grid + 0.25)), null outside the ribbon
-  const VF = [0, 0.1, 0.3, 0.6, 1];
-  Ctx.prototype._vergeY = function (i, side, d) {
-    const t = this.t, sc = this.sc; const VW = this.forestVergeW(); const vw = VW[side < 0 ? 0 : 1][i], w = side < 0 ? t.wallL[i] : t.wallR[i];
-    const kf = t.kFold ? t.kFold[i] : 0; const cap = Math.max(2, 0.9 / (Math.abs(kf) + 1e-6)); const folded = (kf > 0) === (side > 0);
-    const W0 = folded ? Math.min(w, cap) : w, W1 = folded ? Math.min(w + vw, cap) : w + vw;
-    if (d > W1 + 0.01) return null; if (d <= W0 + 0.5) return t.y[i];
-    const yAt = (l) => { if (l < w + 0.5) return t.y[i]; const g = sc.gridHeight(t.x[i] + t.nx[i] * side * l, t.z[i] + t.nz[i] * side * l) - t.y[i] + 0.25; return t.y[i] + Math.max(-40, Math.min(0, g)); };
-    for (let k = 0; k + 1 < VF.length; k++) { let a = w + vw * VF[k], b = w + vw * VF[k + 1]; if (folded) { a = Math.min(a, cap); b = Math.min(b, cap); } if (d <= b) { const u = b > a ? (d - a) / (b - a) : 0; return yAt(a) + (yAt(b) - yAt(a)) * U.clamp(u, 0, 1); } }
-    return null;
+  // the draped verge ribbon exactly as track.js builds it (Track.strip: columns at wall + vw x [0, .1, .3, .6, 1] per side, kFold-clamped, y = road
+  // level inside wall + forestFlat, else min(road, terrain + 0.25); quads (prev c, cur c, prev c+1) / (prev c+1, cur c, cur c+1), drawn 3 cm low),
+  // as a triangle soup in an 8 m cell hash. Built on first use once the terrain mesh exists (the verge samples it).
+  const VFL = [1, 0.6, 0.3, 0.1, 0];
+  Ctx.prototype._vergeTris = function () {
+    if (this._vt) return this._vt; const t = this.t, sc = this.sc, n = t.n; if (!sc.heights) return null;
+    const VW = this.forestVergeW(), FL = this.forestFlat, K = 10; const lat = new Float32Array(n * K), yy = new Float32Array(n * K);
+    for (let ii = 0; ii < n; ii++) {
+      const kf = t.kFold[ii], cap = Math.max(2, 0.9 / (Math.abs(kf) + 1e-6));
+      for (let c = 0; c < K; c++) {
+        let l = c < 5 ? -(t.wallL[ii] + VW[0][ii] * VFL[c]) : t.wallR[ii] + VW[1][ii] * VFL[K - 1 - c]; if (kf > 0) l = Math.min(l, cap); else l = Math.max(l, -cap);
+        const w = l < 0 ? t.wallL[ii] : t.wallR[ii]; let y = 0;
+        if (Math.abs(l) >= w + FL) { const g = sc.gridHeight(t.x[ii] + t.nx[ii] * l, t.z[ii] + t.nz[ii] * l) - t.y[ii] + 0.25; y = Math.max(-40, Math.min(0, g)); }
+        lat[ii * K + c] = l; yy[ii * K + c] = t.y[ii] + y - 0.03;
+      }
+    }
+    const P = (ii, c) => [t.x[ii] + t.nx[ii] * lat[ii * K + c], yy[ii * K + c], t.z[ii] + t.nz[ii] * lat[ii * K + c]];
+    const tris = []; const cell = new Map(), CS = 8;
+    const add = (A, B, C) => {
+      const id = tris.length; tris.push([A, B, C]); const x0 = Math.min(A[0], B[0], C[0]), x1 = Math.max(A[0], B[0], C[0]), z0 = Math.min(A[2], B[2], C[2]), z1 = Math.max(A[2], B[2], C[2]);
+      for (let gx = Math.floor(x0 / CS); gx <= Math.floor(x1 / CS); gx++) for (let gz = Math.floor(z0 / CS); gz <= Math.floor(z1 / CS); gz++) { const k = gx * 100003 + gz; let l = cell.get(k); if (!l) cell.set(k, l = []); l.push(id); }
+    };
+    for (let i = 0; i < n; i++) { const a = i, b = (i + 1) % n; for (let c = 0; c < K - 1; c++) { add(P(a, c), P(b, c), P(a, c + 1)); add(P(a, c + 1), P(b, c), P(b, c + 1)); } }
+    return (this._vt = { tris, cell, CS });
   };
-  // the surface actually drawn at (x, z): road level between the barriers (road / run-off / verge), the draped verge where it lies above the
-  // terrain mesh, the terrain mesh elsewhere
+  // highest verge surface over (x, z) (-Infinity where the ribbon does not cover it)
+  Ctx.prototype.vergeAt = function (x, z) {
+    const V = this._vergeTris(); if (!V) return -Infinity; const l = V.cell.get(Math.floor(x / V.CS) * 100003 + Math.floor(z / V.CS)); let best = -Infinity; if (!l) return best;
+    for (const id of l) {
+      const [A, B, C] = V.tris[id]; const d = (B[2] - C[2]) * (A[0] - C[0]) + (C[0] - B[0]) * (A[2] - C[2]); if (Math.abs(d) < 1e-9) continue;
+      const a = ((B[2] - C[2]) * (x - C[0]) + (C[0] - B[0]) * (z - C[2])) / d, b = ((C[2] - A[2]) * (x - C[0]) + (A[0] - C[0]) * (z - C[2])) / d, c = 1 - a - b;
+      if (a < -1e-4 || b < -1e-4 || c < -1e-4) continue; const y = a * A[1] + b * B[1] + c * C[1]; if (y > best) best = y;
+    }
+    return best;
+  };
+  // the surface actually drawn at (x, z): the terrain mesh, or the verge ribbon (road level between the barriers, draped beyond) where it lies above
+  // it. Before the terrain exists (layout time) the road level between the barriers stands in for the ribbon.
   Ctx.prototype.forestGround = function (x, z) {
     const sc = this.sc, t = this.t; const g = sc.gridHeight(x, z);
     if (this.fsAt(x, z) > 20) return g;
-    const p = t.project(x, z, null, this._fgp || (this._fgp = {})); const side = p.lat < 0 ? -1 : 1; const d = p.dist;
-    const i = p.i, j = p.along >= 0 ? (i + 1) % t.n : (i - 1 + t.n) % t.n; const u = U.clamp(Math.abs(p.along) / t.ds, 0, 1);
-    const wi = side < 0 ? t.wallL[i] : t.wallR[i];
-    if (d <= wi + 0.5) return Math.max(g, t.y[i] + (t.y[j] - t.y[i]) * u - 0.03);
-    if (!sc.heights) return g;   // before the terrain is built: no verge yet
-    const a = this._vergeY(i, side, d), b = this._vergeY(j, side, d);
-    if (a == null && b == null) return g;
-    const v = a == null ? b : b == null ? a : a + (b - a) * u;
-    return Math.max(g, v - 0.03);
+    if (sc.heights) return Math.max(g, this.vergeAt(x, z));
+    const p = t.project(x, z, null, this._fgp || (this._fgp = {})); const side = p.lat < 0 ? -1 : 1;
+    return p.dist <= this.wallCap(p.i, side) + 0.5 ? Math.max(g, t.y[p.i] - 0.03) : g;
   };
 
   // ground colour (sRGB bytes into out): the class colour with a crown mosaic on canopy, mown stripes in a narrow band behind the barriers
@@ -148,5 +166,20 @@ window.EI = window.EI || {};
       ctx.drawImage(c, (g.x0 + H) * ppm, (g.z0 + H) * ppm, g.nx * g.cell * ppm, g.nz * g.cell * ppm); ctx.restore();
     };
     draw(this.fcovFar, false); draw(this.fcov, true);
+  };
+})();
+(function () {
+  const Env = EI.Env, Ctx = Env.Ctx, F = EI.EnvForest;
+  // grass tufts (env_veg buildGrass): beyond the barrier not on paved / gravel / water ground and only a few under the canopy away from its edge
+  Ctx.prototype.forestGrassOk = function (x, z, beyond) {
+    const t = this.t; const p = t.project(x, z, null, this._fgo || (this._fgo = {})); const side = p.lat < 0 ? -1 : 1, i = p.i;
+    if (beyond <= 0) return Math.abs(t.kFold ? t.kFold[i] : 0) < 0.02;   // inside the barriers the track's own strips decide; none in hairpins (folded ribbons)
+    // not on the outer edge of the draped verge (the ribbon's last step and the terrain mesh differ by up to its 0.25 m lift)
+    const wc = this.wallCap(i, side), e = p.dist - wc - this.forestVergeW()[side < 0 ? 0 : 1][i]; if (e > -1.2 && e < 0.8) return false;
+    // nor on the draped part of the verge where it drops steeply (the ribbon's steps and its quads between two cross-sections differ there)
+    if (e <= -1.2 && p.dist > wc + this.forestFlat - 0.3) { const a = this.forestGround(x - t.nx[i] * side * 0.8, z - t.nz[i] * side * 0.8), b = this.forestGround(x + t.nx[i] * side * 0.8, z + t.nz[i] * side * 0.8); if (Math.abs(a - b) > 0.5) return false; }
+    const c = this.forestClass(x, z); if (c === F.C.PAVED || c === F.C.GRAVEL || c === F.C.WATER) return false;
+    if (c <= 1 && beyond > 5) return Env.hash2(Math.round(x * 3), Math.round(z * 3), 61) < 0.2;
+    return true;
   };
 })();
