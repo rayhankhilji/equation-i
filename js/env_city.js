@@ -1768,7 +1768,7 @@ window.EI = window.EI || {};
     // where the verge runs out from the barrier it drapes down the slope itself (track.js); the walls go where it can't
     const VW = t.streetVergeWidths ? t.streetVergeWidths() : null;
     for (const side of [-1, 1]) {
-      let prev = null, u = 0;
+      const curs = [];
       for (let i = 0; i <= n; i++) {
         const ii = i % n, s = t.s[ii]; let cur = null;
         if (!(TD && s > TD.s0 - 8 && s < TD.s1 + 8) && !(VW && VW[side < 0 ? 0 : 1][ii] > 3)) {
@@ -1780,6 +1780,13 @@ window.EI = window.EI || {};
             if (drop > 1.4) { const [x, z] = at(0); cur = { x, z, top: y + 0.15, bot: Math.max(g - 0.6, y - 30), cx: x - nx * 0.4, cz: z - nz * 0.4, nn: [nx, 0, nz] }; }
           }
         }
+        curs.push(cur);
+      }
+      // a short run of a tall wall is a sliver (a 30 m tall, 8 m wide 'pillar' where the quay edge or a gap in the data breaks the run): dropped
+      for (let i = 0; i < curs.length;) { if (!curs[i]) { i++; continue; } let k = i, len = 0, hMax = 0; while (k < curs.length && curs[k]) { if (k > i) len += Math.hypot(curs[k].x - curs[k - 1].x, curs[k].z - curs[k - 1].z); hMax = Math.max(hMax, curs[k].top - curs[k].bot); k++; } if (len < 40 && hMax > 9) { for (let q = i; q < k; q++) curs[q] = null; E.stats.dropSlivers = (E.stats.dropSlivers || 0) + 1; } i = k; }
+      let prev = null, u = 0;
+      for (let i = 0; i < curs.length; i++) {
+        const cur = curs[i];
         if (prev && cur && Math.hypot(cur.x - prev.x, cur.z - prev.z) < 6) {
           const dl = Math.hypot(cur.x - prev.x, cur.z - prev.z), u1 = u + dl / 2.6; G.at((prev.x + cur.x) / 2, (prev.z + cur.z) / 2, 'P', 0);
           const a0 = [prev.x, prev.bot, prev.z], a1 = [cur.x, cur.bot, cur.z], b1 = [cur.x, cur.top, cur.z], b0 = [prev.x, prev.top, prev.z];

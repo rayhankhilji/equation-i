@@ -206,7 +206,7 @@ window.EI = window.EI || {};
         'vTint = iC.rgb * ctint;'].join('\n'))
       .replace('#include <uv_vertex>', '#include <uv_vertex>\n#ifdef USE_UV\nvUv = (uv * vec2(0.98, 0.985) + vec2(0.01, 0.004) + vec2(iB.z, isTop > 0.5 ? 2.0 : mod(iB.w + cvar, 2.0))) * vec2(' + (med ? '0.125' : '0.25') + ', 1.0 / 3.0);\n#endif');
     if (depth) sh.vertexShader = sh.vertexShader.replace('vTint = iC.rgb * ctint;', 'vTint = iC.rgb * ctint; if (dE > 200.0) transformed = iA.xyz;');
-    if (!depth) { sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nvarying vec3 vTint;').replace('#include <map_fragment>', '#include <map_fragment>\ndiffuseColor.rgb *= vTint;'); Env.noFlip(sh); Veg.foliage(sh, 0.7); }
+    if (!depth) { sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nvarying vec3 vTint;').replace('#include <map_fragment>', '#include <map_fragment>\ndiffuseColor.rgb *= vTint;'); Env.noFlip(sh); Veg.foliage(sh, med ? 0.3 : 0.5); }
   }
   // far LOD: one card turned to the camera about the vertical axis (side view A of the species)
   function farPatch(sh, uni, med) {
@@ -216,7 +216,7 @@ window.EI = window.EI || {};
       .replace('#include <begin_vertex>', 'vec3 transformed = iA.xyz + brt * position.x * iB.x * 0.95 + vec3(0.0, position.y * iB.y, 0.0);\nfloat dE = distance(iA.xz, uEye.xz); if (dE < uLod.x || dE >= uLod.y) transformed = iA.xyz;\nvTint = iC.rgb;')
       .replace('#include <uv_vertex>', '#include <uv_vertex>\n#ifdef USE_UV\nvUv = (uv * vec2(0.98, 0.985) + vec2(0.01, 0.004) + vec2(iB.z, iB.w)) * vec2(' + (med ? '0.125' : '0.25') + ', 1.0 / 3.0);\n#endif');
     sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nvarying vec3 vTint;').replace('#include <map_fragment>', '#include <map_fragment>\ndiffuseColor.rgb *= vTint;');
-    Env.noFlip(sh); Veg.foliage(sh, 0.7);
+    Env.noFlip(sh); Veg.foliage(sh, med ? 0.3 : 0.5);
   }
 
   // ---------------------------------------------------------------- placement
