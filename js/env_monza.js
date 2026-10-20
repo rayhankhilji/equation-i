@@ -379,7 +379,9 @@ window.EI = window.EI || {};
     const t = E.t, { B, S, G, F: Fd, A } = BK; const m = F.m, X = F.X; const P = (x, y, z) => Env.xf(m, X(x), y, z);
     const grey = C(0x8d939a), greyL = C(0xb4b9be), dark = C(0x24272c), steel = C(0xc9cdd1), red = C(0xc8102e), flowR = C(0xc0182a), flowW = C(0xf2f2f2), leaf = C(0x2f5a2a);
     const xc = F.xPod, W = 15, hw = W / 2; const i = t.idxAtS(t.sf + xc); const yTr = t.y[i] - F.y0;   // track level here, frame-relative
-    const zTip = Math.max(-t.halfWidth * 0.2, -2), zBack = F.zG - 1.4, zCol = F.maxWall + 1.5;
+    const zTip = Math.max(-t.halfWidth * 0.2, -2), zBack = F.zG - 1.4; let zCol = F.maxWall + 1.5;
+    // as the race-control column: the straight start-line frame drifts off the lap here, the column stood inside the barrier (FIT-AUDIT)
+    { const pq = {}; for (let it = 0; it < 4; it++) { const w = Env.xf(m, X(xc), 0, zCol); t.project(w[0], w[2], null, pq); const need = (F.side < 0 ? t.wallL[pq.i] : t.wallR[pq.i]) + 1.6 - pq.lat * F.side; if (need <= 0.05) break; zCol = Math.min(zCol + need, zBack - 2); } }
     const yU = yTr + 8.6, th = 0.7, yD = yU + th; const R = hw * 0.75;            // deck underside / top; radius of the rounded tip
     // the column and its head
     K.cyl(S, m, X(xc), zCol, yTr - 0.3, yU - 1.2 - yTr + 0.3, 1.15, 16, grey);
