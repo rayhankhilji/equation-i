@@ -250,11 +250,12 @@ window.EI = window.EI || {};
     const n = track.n, ds = track.ds;
     const vmax = new Float32Array(n);
     const G = EI.CAR.GRIP, B = EI.CAR.BRAKE, PM = EI.CAR.PM, CD = EI.CAR.CD;
+    const gCap = C_LIMIT[trackOf(track)] || C_LIMIT_DEFAULT;   // a car's strong corners never go beyond the car's limit
     const vAt = (k, g) => { let v = Math.sqrt(g * G.cap / k); if (k > g * G.a1) v = Math.min(v, Math.sqrt(g * G.a0 / (k - g * G.a1))); return v; };
     for (let i = 0; i < n; i++) {
       const k = Math.abs(track.lineK[i]) + 1e-6;
       let v = vAt(k, grip);
-      if (chi) { const w = U.smoothstep(28, 60, vAt(k, 1)); v = vAt(k, grip * (1 + chi * (2 * w - 1))); }
+      if (chi) { const w = U.smoothstep(28, 60, vAt(k, 1)); v = vAt(k, Math.min(grip * (1 + chi * (2 * w - 1)), Math.max(grip, gCap))); }
       if (k > 0.03) v = Math.min(v, lockSpeed(k));   // hairpins: the steering lock, not the grip, sets the speed
       vmax[i] = Math.min(v, ceil);
     }

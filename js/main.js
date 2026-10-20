@@ -310,7 +310,7 @@ window.EI = window.EI || {};
   }
   // ------------------------------------------------------------------ race rendering: car level of detail, contact shadows, shader warm-up
   // car LOD from the cameras of the last frame: distance scaled by the zoom (the TV camera) and the tier (low switches sooner)
-  const LOD_TIER = { low: 1.6, medium: 1, high: 0.8 };
+  const LOD_TIER = { low: 2.2, medium: 1, high: 0.8 };   // low: full-detail bots within ~12 m, the 14k-triangle mid LOD to ~33 m
   let contactShadows = null, lodFrame = -1;
   function updateCarLod() {
     const ts = LOD_TIER[quality] || 1;
@@ -357,12 +357,12 @@ window.EI = window.EI || {};
   // canvas, FXAA when the target has no MSAA. The HUD is HTML and always stays sharp. Frame rate is what makes the controls
   // feel direct (input is read once per frame), so when frames run long the Auto setting steps down through cheaper
   // settings - MSAA -> FXAA first (a large saving on laptop GPUs, hardly visible), then the internal resolution in mild
-  // steps to 75 % (68 % with two views), sharpened - and climbs back when there is room. Fixed settings: Resolution menu.
+  // steps to 75 % (68 % with two views, 60 % on Low), sharpened - and climbs back when there is room. Fixed settings: Resolution menu.
   // 'native': one 3D pixel per CSS pixel (a Retina / HiDPI screen gets the canvas at the preset's pixel ratio and the 3D view
   // CAS-upscaled onto it: about 1.3 Mpx instead of 2 Mpx for a 13" MacBook on Medium, still sharp)
   const RES_OPTS = { auto: 0, native: -1, '100': 1, '85': 0.85, '70': 0.7, '50': 0.5 };
   let resPref = (() => { try { const v = localStorage.getItem('ei-res'); return v && RES_OPTS[v] != null ? v : 'auto'; } catch (e) { return 'auto'; } })();
-  const LEVELS = [{ s: 1, msaa: true }, { s: 1, msaa: false }, { s: 0.9 }, { s: 0.82 }, { s: 0.75 }, { s: 0.68 }];
+  const LEVELS = [{ s: 1, msaa: true }, { s: 1, msaa: false }, { s: 0.9 }, { s: 0.82 }, { s: 0.75 }, { s: 0.68 }, { s: 0.6 }];
   let autoLv = 0, ftEma = 16.7, ftClock = 0, ftUp = 0, lockUpUntil = 0, lastUpAt = -1e9;
   // the level Auto settled on is remembered per preset, so a slow machine starts the next race there instead of stuttering
   // through the first seconds while it steps down again
@@ -381,7 +381,7 @@ window.EI = window.EI || {};
   function adaptResolution(rawMs, dt) {
     if (!race || paused || rawMs > 250 || document.hidden || resPref !== 'auto') return;
     ftEma += (rawMs - ftEma) * 0.06; ftClock += dt; if (ftClock < 1) return; ftClock = 0;
-    const now = performance.now(), maxLv = cameras.length > 1 ? 5 : 4; let lv = autoLv;
+    const now = performance.now(), maxLv = quality === 'low' ? LEVELS.length - 1 : cameras.length > 1 ? 5 : 4; let lv = autoLv;   // low may go to 60 % (sharpened) when the GPU cannot keep up
     // on a 60 Hz screen frames come in 16.7 / 33.3 ms steps: an average over ~19 ms means about one frame in seven misses the
     // refresh - noticeable as judder and input lag - so step down; step back up only when nearly every frame makes it
     if ((ftEma > 19 || gpuQ > 1.6) && lv < maxLv) { lv++; ftUp = 0; if (now - lastUpAt < 6000) lockUpUntil = now + 30000; }   // a step up that did not hold: stay down a while

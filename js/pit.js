@@ -875,7 +875,7 @@ window.EI = window.EI || {};
       for (const c of cams) if (c && c.position.distanceTo(mid.O) < 650) near = true;
       // the crews, engineers and their props (a dozen instanced draws, ~100k triangles) are only drawn within a few hundred metres
       // of the pit lane (street circuits: closer, the city hides them sooner)
-      { const street = !!(L.track && L.track.data.street); let dmin = Infinity; for (const c of cams) if (c) dmin = Math.min(dmin, c.position.distanceTo(mid.O)); const vis = dmin < (street ? 260 : 330), vis2 = dmin < (street ? 380 : 480);
+      { const street = !!(L.track && L.track.data.street); let dmin = Infinity; for (const c of cams) if (c) dmin = Math.min(dmin, c.position.distanceTo(mid.O)); const kq = EI.quality === 'low' ? 0.55 : 1, vis = dmin < (street ? 260 : 330) * kq, vis2 = dmin < (street ? 380 : 480) * kq;   // low: crews within ~145-180 m (PERF)
         // the garage interiors, lane paint, screens and signs (small, many draws) also drop out beyond ~380 m; the lane and the garage shells stay
         if (V._crewVis !== vis || V._pitVis !== vis2) { V._crewVis = vis; V._pitVis = vis2; V.group.traverse(o => { if (o.isInstancedMesh && /^pit-/.test(o.name)) o.visible = vis; else if (o.isMesh && o.userData.pitFar) o.visible = vis2; }); } }
       // street circuit: no pose work at all while the crews are hidden (they are re-posed the frame they come back into range)

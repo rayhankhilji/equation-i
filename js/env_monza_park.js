@@ -60,7 +60,8 @@
       const Sm = r.S; const inSpan = (i) => r.spans.some(sp => i >= sp.i0 - 1 && i <= sp.i1 + 1);
       // cross-section points (world) for sample q: u from -RW/2 (inner) to +RW/2 (outer)
       const sec = (q) => {
-        const pts = []; const H = (HB * q.bank + 0.4) * (1 - 0.5 * (q.sw || 0));   // lower over the Serraglio bridge (serraglio_1: ~3 m of wall above the hoarding) const us = [-RW / 2, -RW / 2 + APRON]; for (let k = 1; k <= NU; k++) us.push(-RW / 2 + APRON + (RW - APRON) * k / NU);
+        const pts = []; const H = (HB * q.bank + 0.4) * (1 - 0.5 * (q.sw || 0));   // lower over the Serraglio bridge (serraglio_1: ~3 m of wall above the hoarding)
+        const us = [-RW / 2, -RW / 2 + APRON]; for (let k = 1; k <= NU; k++) us.push(-RW / 2 + APRON + (RW - APRON) * k / NU);
         for (const u of us) { const v = u <= -RW / 2 + APRON ? 0 : Math.pow((u + RW / 2 - APRON) / (RW - APRON), 1.7); pts.push([q.x + q.nx * u, q.y + H * v, q.z + q.nz * u]); }
         return pts;
       };
