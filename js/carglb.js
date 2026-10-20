@@ -1308,7 +1308,7 @@ window.EI = window.EI || {};
       // lite(on): the player's own car drawn from the lo LOD (bodywork + parts, ~45k instead of ~210k triangles) - main.js turns it on
       // for the outside cameras on Low; the cockpit / T-cam views (and the mirrors, which swap the bodywork themselves) keep the detail
       let liteOn = false;
-      g.userData.lite = (on) => { on = !!on; if (on === liteOn) return; liteOn = on; for (const m of hiBody) m.visible = !on; for (const m of loBody) m.visible = on; parts.geometry = on ? TL.lod : T.lod; };
+      g.userData.lite = (on) => { on = !!on; if (on === liteOn) return; liteOn = on; for (const m of hiBody) m.visible = !on; for (const m of loBody) m.visible = on; parts.geometry = on ? TL.lod : T.lod; for (const o of cockpit.hide) o.visible = !on; };   // lite: the lo parts carry the GLB's own wheel, so the procedural wheel / arms / torso go too
     }
     // brake glow: hot discs show through the gap between the rim lip and the wheel cover (outer face) and on the inner face
     const glowMat = new THREE.MeshBasicMaterial({ color: 0xff6a1c, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });

@@ -457,27 +457,27 @@ window.EI = window.EI || {};
       const t = this.track, n = t.n, i = this.car.trk.i, prof = this.prof; let vmin = Infinity, at = 0;
       for (let j = 2; j < 110; j += 2) { const v = prof[(i + j) % n]; if (v < vmin) { vmin = v; at = j; } }
       let ks = 0; for (let j = 0; j < 150; j += 3) { const k = t.lineK[(i + j) % n]; if (Math.abs(k) > 1 / 150) { ks = Math.sign(k); break; } }
-      this.nc = { vmin, dist: at * t.ds, inside: ks || 1 };
+      const nc = this.nc || (this.nc = { vmin: 0, dist: 0, inside: 1 }); nc.vmin = vmin; nc.dist = at * t.ds; nc.inside = ks || 1;
     }
 
     update(dt, race, cars) {
       const car = this.car, t = this.track, inp = car.input, T = this.traits, P = this.par, st = this.stats;
       if (!race.started) { inp.throttle = 0; inp.brake = 1; inp.steer = 0; return; }
-      if (EI.Pit && EI.Pit.driveBot(this, dt, race, cars)) return;
+      if (EI.Pit && EI.Pit.driveBot(this, dt, race, cars)) { this.cleanT = 0; return; }
       const av = Math.abs(car.v);
       if (car.finished) { this.coolDown(); return; }
       if (race.time < U.clamp(this.reaction, 0.15, 0.3)) { inp.throttle = 0; inp.brake = 1; return; }   // a real F1 reaction at every level (the starts trait picks where in 0.15-0.30 s)
       // --- recovery when stuck against a wall or spun
       const th = t.heading[car.trk.i];
       const rel = U.wrapAngle(car.heading - th);
-      if (av < 2 && race.time > 4) this.stuckT += dt; else this.stuckT = 0;
+      if (av < 2 && race.time > 4) this.stuckT += this.queued ? dt * 0.2 : dt; else this.stuckT = 0;   // waiting in a queue (a car just ahead) is not stuck: reversing there backs into the queue and gridlocks a chicane
       inp.reverse = false;
       if (this.reverseT > 0) {
-        this.reverseT -= dt; inp.throttle = 0; inp.brake = 1; inp.reverse = true; inp.steer = rel > 0 ? -1 : 1; return;
+        this.reverseT -= dt; this.cleanT = 0; inp.throttle = 0; inp.brake = 1; inp.reverse = true; inp.steer = rel > 0 ? -1 : 1; return;
       }
       if (this.stuckT > 1.5) { this.reverseT = 1.2; this.stuckT = 0; return; }
       const i = car.trk.i, n = t.n, hw = t.halfWidth;
-      this.ncT -= dt; if (this.ncT <= 0 || !this.nc) { this.ncT = 0.1; this.scanAhead(); }
+      this.ncT -= dt; if (this.ncT <= 0) { this.ncT = 0.1; this.scanAhead(); }
       const nc = this.nc;
       // --- speed target from this driver's braking profile, looking slightly ahead
       this.diveT = Math.max(0, this.diveT - dt);
@@ -488,7 +488,10 @@ window.EI = window.EI || {};
       if (target < prof[i] - 2 && Math.abs(t.lineK[i]) < 1 / 250) target *= P.carry; // braking on a straight: late brakers carry more speed in
       // slow drift of pace within a lap (tyre feel, concentration): a random walk bounded by consistency
       this.lapFormT -= dt; if (this.lapFormT <= 0) { this.lapFormT = 6 + this.rng() * 8; this.lapForm = U.clamp(this.lapForm + (this.rng() - 0.5) * P.formStep, -P.formMax, P.formMax); }
-      target = Math.min(target, this.offLineCap(prof, av));                // off the line (passing, side by side): the path's own limit
+      // off the line (passing, side by side): the path's own limit. A 160 m scan: refreshed every 1/30 s or when the offset moves
+      this.olcT = (this.olcT || 0) - dt;
+      if (this.olcT <= 0 || Math.abs(this.offset - this.olcO) > 0.25 || prof !== this.olcP) { this.olcT = 1 / 30; this.olcO = this.offset; this.olcP = prof; this.olcV = this.offLineCap(prof, av); }
+      target = Math.min(target, this.olcV);
       target *= (this.speedFactor + this.lapForm) / this.d.brakeMargin;
       if (car.tyre.grip !== 1) target *= Math.sqrt(car.tyre.grip);
       // tyre management: savers hold back in the first half and push at the end; pushers do the opposite and fade with wear
@@ -513,6 +516,7 @@ window.EI = window.EI || {};
       // --- traffic: car directly ahead, a car to tow behind, cars alongside, threats behind
       this.urgent = false;
       let blue = car.blueFlag && !car.blueFlag.finished ? car.blueFlag : null, blueD = -1e9;
+      let sideL = 0, sideR = 0;
       let ahead = null, aheadGap = 1e9, alongside = 0, alongV = 0, alongD = 1e9, alongAhead = false, behindClose = false, threat = null, towCar = null, towGap = 1e9;
       for (const o of cars) {
         if (o === car) continue;
@@ -522,6 +526,7 @@ window.EI = window.EI || {};
         if (dsx > 6 && dsx < 50 && Math.abs(dl) < 7 && dsx < towGap) { towCar = o; towGap = dsx; }
         if (Math.abs(dsx) < 6.5 && Math.abs(dl) < 3.4) { alongside += dl > 0 ? 1 : -1; if (Math.abs(dsx) < alongD) { alongD = Math.abs(dsx); alongV = o.v; alongAhead = dsx > 0.5; } }
         if (dsx < 0 && dsx > -25 && Math.abs(dl) < 4) behindClose = true;
+        if (dsx > -12 && dsx < 30 && Math.abs(dl) > 1.6 && Math.abs(dl) < 6) { if (dl > 0) sideR++; else sideL++; }
         if (dsx < 0 && dsx > -P.threatRange && Math.abs(dl) < 5 && (o.v > car.v + 0.3 || dsx > -12)) threat = o;
         if (dsx < 0 && dsx > -60 && o.dist - car.dist > t.length * 0.5 && !o.finished && (!blue || dsx > blueD)) { blue = o; blueD = dsx; }   // a car a lap up
       }
@@ -558,20 +563,25 @@ window.EI = window.EI || {};
         const passClosing = car.lap === 1 ? L(3.2, 0.5, agg) : P.passClosing;
         let want = kHere < P.passK && ((closing > passClosing && this.tailT > P.minTail) || this.tailT > P.waitT || car.drsOpen);
         if (this.passing && kHere < P.passK * 1.4) want = true;               // once committed, it sees the move through
+        // the lap-1 pack: queued behind a car that holds it up, take a free lane beside it (the whole field runs 2-3 wide into
+        // the first corner and brakes there, instead of a single file that crawls while the outside of the road stays empty)
+        const pack = car.lapsDone < 1 && race.time < 30 && aheadGap < P.followGap + 10 + av * 0.1 && ahead.v < av + 3;
+        if (pack && kHere < P.passK) want = true;
         let dive = false;
         if (want && slowSoon && aheadGap > 4) {
-          if (P.abortSlow) { want = false; if (this.passing) st.aborts++; }  // careful drivers tuck back in before a slow corner
-          else if (P.dive && aheadGap < 26) dive = true;                       // risk-takers go for the inside and brake later
+          const late = aheadGap < 9 && closing > 1 && car.lapsDone >= 1;     // right on the gearbox with a run: out-brake it into the corner
+          if (P.abortSlow && !late) { want = false; if (this.passing) st.aborts++; }  // careful drivers tuck back in before a slow corner
+          else if ((P.dive || late) && aheadGap < 26) dive = true;             // risk-takers (or anyone with the run) go for the inside and brake later
         }
         // attacking on a straight: first close right up in the tow, then pull out with the speed it gives (pulling out 20-30 m
         // back threw the tow away and the pass never got closer); pull out once close, closing fast, with DRS, or near the braking zone
         const attack = want && onStraight && car.lapsDone >= 1 && !(nc.dist < Math.max(120, (av * av - nc.vmin * nc.vmin) / 80 + av * 0.8) && nc.vmin < av - 8);   // tow run ends a second before the braking point (Monza: 200 m from 360 km/h)   // not in the lap-1 pack
         const fgA = 4.5 + av * 0.04;
-        if (want && aheadGap < P.passGap && (this.passing || dive || car.drsOpen || aheadGap < fgA + 4 || (nc.dist < 160 && closing > 2))) {
-          const room = hw - 1.3;
-          const roomy = ahead.trk.lat > base ? -1 : 1;
-          const first = dive || (P.insidePass && nc.dist < 300) ? nc.inside : roomy;
-          for (const sd of [first, -first]) {
+        if (want && aheadGap < P.passGap && (this.passing || dive || pack || (car.drsOpen && aheadGap < fgA + 6) || (aheadGap < fgA + 1 && closing > 0.5) || (nc.dist < 160 && closing > 2 && aheadGap < fgA + 4))) {   // stay in the tow until the run is built, then pull out
+          const room = pack ? hw - 0.9 : hw - 1.3;
+          const roomy = pack ? (sideL === sideR ? (ahead.trk.lat > 0 ? -1 : 1) : (sideL < sideR ? -1 : 1)) : ahead.trk.lat > base ? -1 : 1;
+          const first = !pack && (dive || (P.insidePass && nc.dist < 300)) ? nc.inside : roomy;
+          for (let q = 0, sd = first; q < 2; q++, sd = -first) {
             const lat = U.clamp(ahead.trk.lat + sd * 3.6, -room, room);
             if (Math.abs(lat - ahead.trk.lat) >= P.sepNeed) { wantOffset = lat - base; passing = true; break; }
             if (dive) break;
@@ -582,14 +592,23 @@ window.EI = window.EI || {};
         this.passing = passing;
         // do not run into the back of the car ahead: match its speed while there is lateral overlap
         const overlap = Math.abs(ahead.trk.lat - car.trk.lat) < 2.7 + myW + 1.45 * Math.abs(Math.sin(U.wrapAngle(ahead.heading - t.heading[ahead.trk.i])));   // 2.3 m contact width + yawed corners
-        const fg = attack ? fgA : (onStraight ? Math.max(6.2, P.followGap - 0.8 * T.tow) : P.followGap) + av * 0.06;   // + a time headway: 5 m more at 300 km/h
+        const held = this.tailT > 2 && car.lapsDone >= 1 && this.prof[i] > ahead.v * 1.03 + 1;
+        const fg = attack ? fgA : pack ? 7 + av * 0.04 : held ? Math.max(6.5, P.followGap - 2.5) + av * 0.05 : (onStraight ? Math.max(6.2, P.followGap - 0.8 * T.tow) : P.followGap) + av * 0.06;   // + a time headway: 5 m more at 300 km/h; the lap-1 pack runs nose to tail
         // vA: the car ahead's speed a moment from now if it keeps braking as hard as it is now; the kinematic cap is the most
         // this car can carry and still match vA before the gap closes to 3.5 m (braking at 25 m/s2, well inside the brakes)
-        const vA = Math.max(0, ahead.v + ahead.aLong * (ahead.aLong < 0 ? 0.3 : 0.5));   // + its acceleration: off the line the car ahead is gone 0.5 s later, so do not queue behind it
+        const start = car.lapsDone < 1;
+        const vA = Math.max(0, ahead.v + ahead.aLong * (ahead.aLong < 0 ? (start ? 0.1 : 0.3) : 0.5));   // + its acceleration: off the line the car ahead is gone 0.5 s later, so do not queue behind it
         // attacking in the tow on a straight: only the closing speed it can still kill (10 m/s2 more than the car ahead) limits
         // it, so the tow builds the run that the late pull-out turns into a pass; otherwise follow at the gap
         if (attack && overlap) target = Math.min(target, ahead.v + Math.sqrt(2 * 10 * Math.max(0, aheadGap - 4.5 - av * 0.03)));
-        else if (overlap) target = Math.min(target, Math.sqrt(vA * vA + 2 * 25 * Math.max(0, aheadGap - 3.5 - av * 0.05)));
+        else if (overlap && !start) target = Math.min(target, Math.sqrt(vA * vA + 2 * 25 * Math.max(0, aheadGap - 3.5 - av * 0.05)));
+        else if (overlap) {
+          // same car, same brakes: the follower may carry what it can still kill braking at bF (a margin under the car's brakes)
+          // before the gap closes, against the car ahead braking at its own rate (at least bF). The old cap (25 m/s2 against the
+          // leader's speed 0.3 s ahead) made each car in a queue brake earlier than the one in front: the queue into T1 stood still.
+          const B = EI.CAR.BRAKE, bF = 0.72 * Math.min(B.cap, B.b0 + B.b1 * av * av) * car.tyre.grip, bL = Math.max(bF, -ahead.aLong);
+          target = Math.min(target, Math.sqrt(Math.max(0, 2 * bF * (aheadGap - 6 - av * (pack ? 0.04 : 0.08)) + ahead.v * ahead.v * bF / bL)));
+        }
         if (overlap && !attack && aheadGap < fg + 9) {
           const follow = Math.max(vA + (aheadGap - fg) * 1.1, 3);
           target = Math.min(target, Math.max(follow, vA + (passing ? 1.5 : L(0.4, 1.5, P.agg))));
@@ -597,6 +616,7 @@ window.EI = window.EI || {};
         if (overlap && aheadGap < Math.min(7, fg)) target = Math.min(target, vA - 1);
         if (overlap && aheadGap < fg && target < av - 0.6) this.urgent = true;   // closing on the car ahead: brake like it, not gently
       } else { this.tailCar = null; this.tailT = 0; this.passing = false; }
+      this.queued = !!ahead && aheadGap < 12;
       // slipstream hunters line up behind the car ahead on a straight to sit in its tow
       if (!passing && towCar && onStraight && P.towHunt > 0 && alongside === 0) { wantOffset = L(wantOffset, U.clamp(towCar.trk.lat, -hw + 1.3, hw - 1.3) - base, P.towHunt); st.towT += dt; }
       if (alongside !== 0) {
@@ -608,7 +628,7 @@ window.EI = window.EI || {};
       }
       // defend the inside when a faster car is close behind on a straight: one decision, one move per straight
       if (!onStraight) { this.defendDecided = false; this.defending = false; }
-      if (!ahead && threat && onStraight && alongside === 0 && !this.defendDecided) {
+      if (!ahead && threat && onStraight && alongside === 0 && !this.defendDecided && !(nc.vmin < av - 8 && nc.dist < (av * av - nc.vmin * nc.vmin) / 70 + 30)) {   // one move, and never under braking
         this.defendDecided = true;
         if (this.rng() < P.defendChance) { this.defending = true; this.defendLat = U.clamp(nc.inside * P.defendLat, -hw + 1.3, hw - 1.3); st.defends++; }
       }
@@ -630,6 +650,7 @@ window.EI = window.EI || {};
           if (o === car || (o.pit && o.pit.active)) continue; const dx = o.x - car.x, dz = o.z - car.z; if (dx * dx + dz * dz > 144) continue;
           const fwd = dx * fx + dz * fz, side = dz * fx - dx * fz, rh = U.wrapAngle(o.heading - car.heading);
           if (fwd <= 0 || Math.abs(side) > 2.5 + 1.45 * Math.abs(Math.sin(rh))) continue;
+          if (av < 4 && o.dist < car.dist - 0.5) continue;   // crawling in a jam: a car behind us on the lap that sits across our nose (chicane, hairpin) waits for us, not the other way round - no gridlock
           const vo = Math.max(0, o.v * Math.cos(rh)); target = Math.min(target, vo + Math.sqrt(2 * 8 * Math.max(0, fwd - 6.3)));
           if (fwd < 7.5 && av > vo) this.urgent = true;
         } }
@@ -648,8 +669,15 @@ window.EI = window.EI || {};
       // --- random small errors
       this.noiseT -= dt; if (this.noiseT <= 0) { this.noiseT = 0.6 + this.rng() * 1.5; this.noise = (this.rng() - 0.5) * 2 * this.d.noise * P.noiseMul; if (this.rng() < 0.03 * (1 - T.consistency)) this.noise *= 4; }
       // --- steering: pursue a point on the (offset) racing line
-      this.steerToLine(5.5 + av * 0.36);
+      // fairness: in clean air the bot steers through the player's hands (filter + rate limit, hands() below) with the longer
+      // look-ahead that steering lag needs; in traffic (a car within ~35 m, alongside, or just after a bump) it keeps the precise
+      // controller so it can hold a lane next to another car. On the player car (autopilot; car.js already filters) the same look rule.
+      const clean = !((ahead && aheadGap < 35) || (towCar && towGap < 35) || alongside !== 0 || behindClose || this.reactT);
+      this.cleanT = clean ? (this.cleanT || 0) + dt : 0;
+      const filt = !car.isPlayer && this.cleanT > 1;
+      this.steerToLine(5.5 + av * 0.36 + (this.cleanT > 1 ? Math.max(0, av - 25) * 0.15 : 0));
       inp.steer = U.clamp(inp.steer + this.noise * 0.5, -1, 1);
+      if (filt) inp.steer = this.hands(inp.steer, av, dt); else this.hs2 = inp.steer;
       // --- throttle / brake
       const vErr = target - av;
       // out of a corner (the target still rising at the end of the look window) the profile already is the full-throttle curve:
@@ -672,6 +700,14 @@ window.EI = window.EI || {};
       inp.ers = ersStraight && (car.ers > P.ersFree || (fight && car.ers > P.ersFight) || (P.ersLast && car.lap === race.laps && car.ers > 0.03) || (car.otEnergy > 0.01 && ahead && aheadGap < 60));   // Overtake energy: spend it on the car ahead
       if (car.ers > 0.95 && ersStraight && av > 40 && (T.ers < 0.7 || car.lap > 1)) inp.ers = true;   // never waste a full battery
       if (car.ersActive) { st.ersT += dt; if (car.lap === race.laps) st.ersLastT += dt; } if (car.drsOpen) st.drsT += dt;
+    }
+
+    // the player's steering hands (car.js: 9/s filter and a speed-sensitive rate limit; bots get 30/s and a 4x rate there)
+    hands(cmd, av, dt) {
+      const s2 = this.hs2 || 0, returning = Math.abs(cmd) < Math.abs(s2) || Math.sign(cmd) !== Math.sign(s2);
+      const rate = (returning ? 2.0 : 1.0) * (1.6 + 14 / (1 + av / 12)), want = s2 + (cmd - s2) * (1 - Math.exp(-dt * 9));
+      this.hs2 = s2 + U.clamp(want - s2, -rate * dt, rate * dt);
+      return this.hs2;
     }
 
     // speed limit of the path this car is actually on: the racing line shifted sideways by this.offset has curvature

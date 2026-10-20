@@ -1094,8 +1094,7 @@ window.EI = window.EI || {};
       // on a slope the walls stand on a foundation: where the ground just outside the face falls well below the base (a building on a
       // cliff edge), a rough limestone retaining wall carries it down to the ground instead of the facade being repeated down the slope
       const yLow = faceFoundation(E, s, yG, yb);
-      if (yb - yLow > 8 && !proxy) (E.stats.foundTall || (E.stats.foundTall = [])).push({ c: [Math.round(cx), Math.round(cz)], L: +s.L.toFixed(1), d: +(yb - yLow).toFixed(1), yG: +yG.toFixed(1), yb: +yb.toFixed(1), st: D.style, nf: D.nf, mode, casino: !!D.casino, pth: !!D.pth, hdp: !!D.hdp, nseg: seg.length });
-      if (yLow < yb - 0.01) { const sw = Math.max(1, Math.round(s.L / 2.6)); G.quad([s.P1[0], yLow, s.P1[1]], [s.P0[0], yLow, s.P0[1]], [s.P0[0], yG, s.P0[1]], [s.P1[0], yG, s.P1[1]], s.n, [0, 0, sw, 0, sw, (yG - yLow) / 2.6, 0, (yG - yLow) / 2.6], C(0xe2d7c4), cell('stone')); if (!proxy) wq(s, yb, yG, (yb - yG) / 2.4, 0, cell('plinth'), C(0xe8e2d8)); }
+            if (yLow < yb - 0.01) { const sw = Math.max(1, Math.round(s.L / 2.6)); G.quad([s.P1[0], yLow, s.P1[1]], [s.P0[0], yLow, s.P0[1]], [s.P0[0], yG, s.P0[1]], [s.P1[0], yG, s.P1[1]], s.n, [0, 0, sw, 0, sw, (yG - yLow) / 2.6, 0, (yG - yLow) / 2.6], C(0xe2d7c4), cell('stone')); if (!proxy) wq(s, yb, yG, (yb - yG) / 2.4, 0, cell('plinth'), C(0xe8e2d8)); }
       else if (!proxy) wq(s, yb, yG, (yb - yG) / 2.4, 0, cell('plinth'), C(0xe8e2d8));
       const g0 = proxy && yLow >= yb - 0.01 ? yb : yG; wq(s, g0, yG + S.gh, 1 - (yG + S.gh - g0) / S.gh, 1, fc.gnd);
       if (nfMain > 0) {
@@ -1781,6 +1780,7 @@ window.EI = window.EI || {};
             if (drop > 1.4) { const [x, z] = at(0); cur = { x, z, top: y + 0.15, bot: Math.max(g - 0.6, y - 30), cx: x - nx * 0.4, cz: z - nz * 0.4, nn: [nx, 0, nz] }; }
           }
         }
+        { const dd = E.stats.dwDbg || (E.stats.dwDbg = []); if (side === 1 || side === -1) { const px = t.x[ii] + t.nx[ii] * side * 5, pz = t.z[ii] + t.nz[ii] * side * 5; if (Math.abs(px - 690) < 40 && Math.abs(pz + 678) < 20) dd.push([side, ii, +s.toFixed(1), Math.round(px), Math.round(pz), cur ? 1 : 0, !!(TD && s > TD.s0 - 8 && s < TD.s1 + 8), VW ? +VW[side < 0 ? 0 : 1][ii].toFixed(1) : -1, cur ? +(cur.top - cur.bot).toFixed(1) : 0]); } }
         curs.push(cur);
       }
       // a short run of a tall wall is a sliver (a 30 m tall, 8 m wide 'pillar' where the quay edge or a gap in the data breaks the run): dropped
@@ -1788,7 +1788,7 @@ window.EI = window.EI || {};
       let prev = null, u = 0;
       for (let i = 0; i < curs.length; i++) {
         const cur = curs[i];
-        if (prev && cur && Math.hypot(cur.x - prev.x, cur.z - prev.z) < 6) {
+        if (prev && cur && Math.hypot(cur.x - prev.x, cur.z - prev.z) < 14) {   // (6 m left a 7 m gap between the 2 m pieces where the nodes are uneven: the Portier 'pillars')
           const dl = Math.hypot(cur.x - prev.x, cur.z - prev.z), u1 = u + dl / 2.6; G.at((prev.x + cur.x) / 2, (prev.z + cur.z) / 2, 'P', 0);
           const a0 = [prev.x, prev.bot, prev.z], a1 = [cur.x, cur.bot, cur.z], b1 = [cur.x, cur.top, cur.z], b0 = [prev.x, prev.top, prev.z];
           const uv = [u, 0, u1, 0, u1, (cur.top - cur.bot) / 2.6, u, (prev.top - prev.bot) / 2.6];

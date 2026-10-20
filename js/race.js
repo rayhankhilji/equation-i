@@ -167,7 +167,7 @@ window.EI = window.EI || {};
       this.cars.forEach((c, i) => { prevS[i] = c.trk.s; });
       for (const car of this.cars) { const wasOpen = car.drsOpen; car.update(dt, track, this); if (car.isPlayer && car.drsOpen !== wasOpen) this.emit('drsFlap', car); }
       // Overtake: the extra energy pays for the boost (ERS) while it lasts
-      for (const car of this.cars) if (car.otEnergy > 0 && car.ersActive) { const r = Math.min(car.otEnergy, 0.22 * dt); car.ers = Math.min(1, car.ers + r); car.otEnergy -= r; }
+      for (const car of this.cars) if (car.otEnergy > 0 && (car.ersActive || (car.input && car.input.ers && car.ers <= 0.02))) { const r = Math.min(car.otEnergy, 0.22 * dt); car.ers = Math.min(1, car.ers + r); car.otEnergy -= r; }
       this.resolveCollisions(dt);
       // ---- crossings (forward only: a car pushed or spun backwards crosses nothing): activation zones, the Detection Line, the Line
       if (this.otZone == null) this.otZone = this.detectionZone();

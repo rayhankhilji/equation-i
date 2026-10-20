@@ -345,7 +345,7 @@ window.EI = window.EI || {};
   }
   // ------------------------------------------------------------------ race rendering: car level of detail, contact shadows, shader warm-up
   // car LOD from the cameras of the last frame: distance scaled by the zoom (the TV camera) and the tier (low switches sooner)
-  const LOD_TIER = { low: 2.2, medium: 1, high: 0.8 };   // low: full-detail bots within ~12 m, the 14k-triangle mid LOD to ~33 m
+  const LOD_TIER = { low: 2.2, medium: 1.25, high: 0.8 };   // medium: full-detail bots within ~22 m, the 14k mid LOD to ~58 m (PERF wave 6: was 27 / 72 m)   // low: full-detail bots within ~12 m, the 14k-triangle mid LOD to ~33 m
   let contactShadows = null, lodFrame = -1;
   function updateCarLod() {
     const ts = (LOD_TIER[quality] || 1) * (cameras.length > 1 ? 1.3 : 1);   // two views: every car is drawn twice, switch to the lighter LODs sooner
