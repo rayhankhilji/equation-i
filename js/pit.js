@@ -654,7 +654,7 @@ window.EI = window.EI || {};
   // rather than rejoining in traffic, and not stacking behind a team-mate (one garage per team). Runs on lap / sector changes
   // only. QA: EI.debugStrategy = true logs every decision; Pit.strategyLog keeps the last 300; car.pit.strat / car.pit.why.
   const COMP_N = 3;
-  const PIT_LOSS = { silverstone: 19, monaco: 21, abudhabi: 22, monza: 24, spa: 19 };   // measured lane time - racing time (f1-QA gate), s (spa: SPA-GEN ploss.js)
+  const PIT_LOSS = { silverstone: 19, monaco: 21, abudhabi: 22, monza: 24, spa: 17 };   // measured lane time - racing time (f1-QA gate), s (spa: SPA-GEN ploss.js, uncontested 15.7-17.4)
   const PASS_COST = { monaco: 7, silverstone: 2.2, abudhabi: 2.5, monza: 1.6, spa: 1.6 };    // what a car loses to a car it must re-pass on track, s
   // worn tyres and the bots: ai.js slows a bot by wearK x wear but grip falls faster, so past ~0.3 they slide off more and more
   // (Silverstone softs, 9 bots x 5 laps: 0.04 offs per bot-lap at wear 0-0.27, 0.18 at 0.37-0.42, 0.27 at 0.52-0.58). That risk is
