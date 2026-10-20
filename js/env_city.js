@@ -802,6 +802,9 @@ window.EI = window.EI || {};
     // pick the tile for an object at (x, z): detail tiles 240 m; proxy tiles 800 m near the circuit, 1600 m out on the hills (480 / 1200 m measured: -9 % tris for +4 calls, not worth it)
     at(x, z, kind, sub) {
       kind = kind || 'D'; this.sub = sub || 0; const S = kind === 'D' ? 240 : (this.E.dcAt(x, z) < 900 ? 800 : 1600);
+      // dup: the proxy of a building that also has a detail build (buildOne sets _dupNext = its detail tile key right before this call);
+      // any other at() clears it, so nothing else can land in a dup section by accident (PERF wave 6)
+      this.dup = kind === 'P' ? this._dupNext || null : null; this._dupNext = null;
       const key = kind + S + ':' + Math.floor(x / S) + ',' + Math.floor(z / S); let c = this.tiles.get(key); if (!c) { c = new Tile(kind, key); this.tiles.set(key, c); } this.cur = c; return c;
     }
     vert(p, n, u, v, col, cl) {
@@ -810,16 +813,18 @@ window.EI = window.EI || {};
       c.T[i * 2] = u; c.T[i * 2 + 1] = v; c.Cw[i * 3] = b8(col.r); c.Cw[i * 3 + 1] = b8(col.g); c.Cw[i * 3 + 2] = b8(col.b); c.Ca[i * 3] = b8(a.r); c.Ca[i * 3 + 1] = b8(a.g); c.Ca[i * 3 + 2] = b8(a.b);
       c.Cl[i * 3] = cl[0]; c.Cl[i * 3 + 1] = cl[1]; c.Cl[i * 3 + 2] = cl[2]; return c.nv++;
     }
-    push3(a, b, c) { this.cur.idx[this.sub].push(a, b, c); this.tris++; }
+    // the index list the next triangles go to: the tile's sub range, or (a proxy whose building has a detail build) its dup section
+    I() { const c = this.cur; if (!this.dup || c.kind !== 'P') return c.idx[this.sub]; const M = c.dup || (c.dup = new Map()); let d = M.get(this.dup); if (!d) M.set(this.dup, d = [[], [], []]); return d[this.sub]; }
+    push3(a, b, c) { this.I().push(a, b, c); this.tris++; }
     // quad a-b-c-d counter-clockwise seen from the front (a bottom-left), uv per corner, flat normal n (computed when null)
     quad(a, b, c, d, n, uvs, col, cl) {
       if (!n) { const ux = b[0] - a[0], uy = b[1] - a[1], uz = b[2] - a[2], vx = d[0] - a[0], vy = d[1] - a[1], vz = d[2] - a[2]; let nx = uy * vz - uz * vy, ny = uz * vx - ux * vz, nz = ux * vy - uy * vx; const l = Math.hypot(nx, ny, nz) || 1; n = [nx / l, ny / l, nz / l]; }
       else { const ux = b[0] - a[0], uy = b[1] - a[1], uz = b[2] - a[2], vx = d[0] - a[0], vy = d[1] - a[1], vz = d[2] - a[2]; if ((uy * vz - uz * vy) * n[0] + (uz * vx - ux * vz) * n[1] + (ux * vy - uy * vx) * n[2] < 0) { const t = b; b = d; d = t; uvs = [uvs[0], uvs[1], uvs[6], uvs[7], uvs[4], uvs[5], uvs[2], uvs[3]]; } }
       const i0 = this.vert(a, n, uvs[0], uvs[1], col, cl), i1 = this.vert(b, n, uvs[2], uvs[3], col, cl), i2 = this.vert(c, n, uvs[4], uvs[5], col, cl), i3 = this.vert(d, n, uvs[6], uvs[7], col, cl);
-      const I = this.cur.idx[this.sub]; I.push(i0, i1, i2, i0, i2, i3); this.tris += 2;
+      const I = this.I(); I.push(i0, i1, i2, i0, i2, i3); this.tris += 2;
     }
     // as quad() but the winding is kept as given whatever the normal (two-sided foliage lit from above)
-    quadKeep(a, b, c, d, n, uvs, col, cl) { const i0 = this.vert(a, n, uvs[0], uvs[1], col, cl), i1 = this.vert(b, n, uvs[2], uvs[3], col, cl), i2 = this.vert(c, n, uvs[4], uvs[5], col, cl), i3 = this.vert(d, n, uvs[6], uvs[7], col, cl); this.cur.idx[this.sub].push(i0, i1, i2, i0, i2, i3); this.tris += 2; }
+    quadKeep(a, b, c, d, n, uvs, col, cl) { const i0 = this.vert(a, n, uvs[0], uvs[1], col, cl), i1 = this.vert(b, n, uvs[2], uvs[3], col, cl), i2 = this.vert(c, n, uvs[4], uvs[5], col, cl), i3 = this.vert(d, n, uvs[6], uvs[7], col, cl); this.I().push(i0, i1, i2, i0, i2, i3); this.tris += 2; }
     tri(a, b, c, n, uvs, col, cl) { const i0 = this.vert(a, n, uvs[0], uvs[1], col, cl), i1 = this.vert(b, n, uvs[2], uvs[3], col, cl), i2 = this.vert(c, n, uvs[4], uvs[5], col, cl); this.push3(i0, i1, i2); }
     // horizontal polygon (ring with positive area2), facing up (or down), world-scaled uv (tile = `tile` metres)
     cap(ring, y, col, cl, tile, down) {
@@ -866,12 +871,19 @@ window.EI = window.EI || {};
         if (!c.nv) continue; const g = new THREE.BufferGeometry(); const nv = c.nv;
         g.setAttribute('position', new THREE.BufferAttribute(c.P.slice(0, nv * 3), 3)); g.setAttribute('normal', new THREE.BufferAttribute(c.N.slice(0, nv * 3), 3, true)); g.setAttribute('uv', new THREE.BufferAttribute(c.T.slice(0, nv * 2), 2));
         g.setAttribute('color', new THREE.BufferAttribute(c.Cw.slice(0, nv * 3), 3, true)); g.setAttribute('acol', new THREE.BufferAttribute(c.Ca.slice(0, nv * 3), 3, true)); g.setAttribute('acell', new THREE.BufferAttribute(c.Cl.slice(0, nv * 3), 3, false));
-        const n0 = c.idx[0].length, n1 = c.idx[1].length, n2 = c.idx[2].length; const I = nv > 65535 ? new Uint32Array(n0 + n1 + n2) : new Uint16Array(n0 + n1 + n2);
+        const n0 = c.idx[0].length, n1 = c.idx[1].length, n2 = c.idx[2].length;
+        // dup sections (proxy tiles): after the proxy-only ranges, the cores of the proxies whose building has a detail build, one run per
+        // detail tile (sorted), then their furniture / trees the same way; City.update draws only the runs whose detail tile is hidden
+        const dk = c.dup ? [...c.dup.keys()].sort() : []; let nd = 0; for (const k of dk) { const d = c.dup.get(k); nd += d[0].length + d[1].length + d[2].length; }
+        const I = nv > 65535 ? new Uint32Array(n0 + n1 + n2 + nd) : new Uint16Array(n0 + n1 + n2 + nd);
         I.set(c.idx[0], 0); I.set(c.idx[1], n0); I.set(c.idx[2], n0 + n1); g.setIndex(new THREE.BufferAttribute(I, 1));
+        const dups = []; let o = n0 + n1 + n2;
+        for (const k of dk) { const d = c.dup.get(k); I.set(d[0], o); dups.push({ key: k, a: o, n: d[0].length, a2: 0, n2: 0, mesh: null }); o += d[0].length; }
+        dk.forEach((k, j) => { const d = c.dup.get(k); const e = dups[j]; e.a2 = o; I.set(d[1], o); I.set(d[2], o + d[1].length); e.n2 = d[1].length + d[2].length; o += e.n2; });
         g.computeBoundingSphere(); g.computeBoundingBox();
         const m = new THREE.Mesh(g, c.kind === 'D' ? mats.D : mats.P); m.name = c.kind === 'D' ? 'cityDetail' : 'cityProxy';
         m.castShadow = c.kind === 'D'; m.receiveShadow = true; m.renderOrder = c.kind === 'D' ? 0 : 1;
-        m.userData.box = g.boundingBox; m.userData.kind = c.kind; m.userData.ranges = [n0, n0 + n1, n0 + n1 + n2];
+        m.userData.box = g.boundingBox; m.userData.kind = c.kind; m.userData.ranges = [n0, n0 + n1, n0 + n1 + n2]; m.userData.key = key; if (dups.length) m.userData.dups = dups;
         m.matrixAutoUpdate = false; m.updateMatrix(); group.add(m); out.push(m);
       }
       this.tiles.clear(); return out;
@@ -1066,6 +1078,8 @@ window.EI = window.EI || {};
   function buildOne(E, G, ring, D, mode, cxz) {
     const S = D.S; const [cx, cz] = cxz; const L = levels(E, ring, D, cx, cz);
     const { yG, yb, yR, yTop, ob, parH } = L; const tint = D.tint; const proxy = mode === 'proxy', near = mode === 'near';
+    // a proxy built right after the same building's detail build is a 'dup' (tagged with the detail tile it duplicates, see Geo.at)
+    if (proxy) G._dupNext = G._dupRing === ring ? G._dupKey : null; else { G._dupRing = ring; G._dupKey = 'D240:' + Math.floor(cx / 240) + ',' + Math.floor(cz / 240); }
     G.acc = D.acc; G.at(cx, cz, proxy ? 'P' : 'D', 0);
     const nfMain = D.nf - L.nsb; const t = E.t; const pr = E._bpr || (E._bpr = {});
     // faces: bays, the long axis, which faces look onto a street close by (shops, canopies)
@@ -1983,10 +1997,24 @@ window.EI = window.EI || {};
   City.material = cityMaterial;   // (A/B previews)
   City.setQuality = function (sc, q) {
     const M = sc.cityMats; if (!M) return; const lite = q === 'low';
-    for (const m of sc.cityChunks || []) { const r = m.userData.ranges; m.geometry.setDrawRange(0, lite ? r[0] : r[2]); m.material = m.userData.kind === 'D' ? (lite ? M.DL : M.D) : (lite ? M.PL : M.P); }
+    for (const m of sc.cityChunks || []) if (m.userData.dups) { m.userData.lite = lite; m.userData.sig = null; }   // groups rebuilt on the next update
+    for (const m of sc.cityChunks || []) { const r = m.userData.ranges; m.geometry.setDrawRange(0, m.userData.dups ? Infinity : lite ? r[0] : r[2]); const mat = m.userData.kind === 'D' ? (lite ? M.DL : M.D) : (lite ? M.PL : M.P); m.material = m.userData.dups ? [mat] : mat; }   // dup tiles draw through geometry groups (one material)
   };
   // per frame: a distance test per tile (a few dozen): detail tiles near the eye (they cast shadows close by), proxies to the tier's range
   City.update = function (sc, x, z, T) {
     for (const c of sc.cityChunks || []) { const d = Env.eyeDist(c.userData.box, x, z); if (c.userData.kind === 'D') { c.visible = d < T.cityDetail; c.castShadow = d < 170; } else c.visible = d < T.cityFar; }
+    // proxy tiles: the dup runs (proxies of buildings whose detail tile is drawn right now) are left out - the detail build stands there
+    // instead (was ~60-170k extra tris near the eye at Monaco, PERF wave 6). Groups are rebuilt only when a detail tile flips.
+    if (!sc._cityByKey) { sc._cityByKey = new Map(); for (const c of sc.cityChunks || []) sc._cityByKey.set(c.userData.key, c); }
+    for (const m of sc.cityChunks || []) {
+      const U = m.userData; if (!U.dups || !m.visible) continue; const st = U.st || (U.st = new Uint8Array(U.dups.length)); let ch = U.sig == null;
+      for (let i = 0; i < U.dups.length; i++) { const e = U.dups[i]; const dm = e.mesh || (e.mesh = sc._cityByKey.get(e.key) || null); const v = dm && dm.visible ? 1 : 0; if (st[i] !== v) { st[i] = v; ch = true; } }
+      if (!ch) continue; U.sig = 1;
+      const g = m.geometry, r = U.ranges, lite = !!U.lite; g.clearGroups(); let ra = 0, re = lite ? r[0] : r[2];
+      const add = (a, n) => { if (n <= 0) return; if (a === re) { re += n; return; } if (re > ra) g.addGroup(ra, re - ra, 0); ra = a; re = a + n; };
+      for (let i = 0; i < U.dups.length; i++) if (!st[i]) add(U.dups[i].a, U.dups[i].n);
+      if (!lite) for (let i = 0; i < U.dups.length; i++) if (!st[i]) add(U.dups[i].a2, U.dups[i].n2);
+      if (re > ra) g.addGroup(ra, re - ra, 0);
+    }
   };
 })();
