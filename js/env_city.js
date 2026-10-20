@@ -1664,7 +1664,7 @@ window.EI = window.EI || {};
     const chqC = cell('chequer'); const chq = (s) => t.data.id === 'monaco' && s > 120 && s < 330;
     let walls = 0; const RT = (t.data.street && t.data.street.retaining) || []; const retain = (s) => RT.some(r => s > r[0] - 10 && s < r[1] + 10); const TER = ((t.data.street && t.data.street.terraces) || []).concat(t.data.street && t.data.street.ycm ? [t.data.street.ycm] : []);
     for (const side of [-1, 1]) {
-      let prev = null, u = 0;
+      let prev = null, u = 0, tierLast = 0, tierHold = 0;
       for (let i = 0; i <= n; i++) {
         const ii = i % n; const s = t.s[ii];
         const w0 = E.wallCap(ii, side) + 0.2; const x0 = t.x[ii] + t.nx[ii] * side * w0, z0 = t.z[ii] + t.nz[ii] * side * w0;
@@ -1704,6 +1704,8 @@ window.EI = window.EI || {};
           // another stretch of the lap just above this one (Beau Rivage over the harbour front): the ground between can't follow
           // both roads on the terrain grid, so a tall retaining wall carries the upper level
           if (E.dC2) { const k = E._near(xb, zb), k0 = E._near(cur.x0, cur.z0); const d2 = E.dC2[k], i2 = E.dIdx2[k]; if (d2 < 80 && d2 < E.dC2[k0] - 2 && t.y[i2] - cur.y > 2.5) tier = Math.min(24, t.y[i2] - 0.25 - cur.y); }
+          // the test flips node by node where the two levels are close, which left a 24 m wall as isolated 2 m slabs ('pillars' at Portier): a wall already running carries on over the next 14 nodes
+          if (tier > 0) { tierLast = tier; tierHold = 14; } else if (tierHold > 0) { tier = tierLast; tierHold--; }
           const terr = TER.some(tr => tr[2] === side && s >= tr[0] - 4 && s <= tr[1] + 4);
           if ((hw > 1.6 || tier > 0) && !terr && !retain(s) && !(E.occAt(cur.x1, cur.z1) & Env.OCC.BUILT) && !(E.occAt(xb, zb) & Env.OCC.BUILT)) {
             const top = cur.y + Math.max(tier, Math.min(hw + 0.6, 4.8)), ptop = prev.wt || top; const v1 = (top - cur.y) / 2.4, v0 = (ptop - prev.y) / 2.4;
@@ -1780,7 +1782,6 @@ window.EI = window.EI || {};
             if (drop > 1.4) { const [x, z] = at(0); cur = { x, z, top: y + 0.15, bot: Math.max(g - 0.6, y - 30), cx: x - nx * 0.4, cz: z - nz * 0.4, nn: [nx, 0, nz] }; }
           }
         }
-        { const dd = E.stats.dwDbg || (E.stats.dwDbg = []); if (side === 1 || side === -1) { const px = t.x[ii] + t.nx[ii] * side * 5, pz = t.z[ii] + t.nz[ii] * side * 5; if (Math.abs(px - 690) < 40 && Math.abs(pz + 678) < 20) dd.push([side, ii, +s.toFixed(1), Math.round(px), Math.round(pz), cur ? 1 : 0, !!(TD && s > TD.s0 - 8 && s < TD.s1 + 8), VW ? +VW[side < 0 ? 0 : 1][ii].toFixed(1) : -1, cur ? +(cur.top - cur.bot).toFixed(1) : 0]); } }
         curs.push(cur);
       }
       // a short run of a tall wall is a sliver (a 30 m tall, 8 m wide 'pillar' where the quay edge or a gap in the data breaks the run): dropped
@@ -1788,7 +1789,7 @@ window.EI = window.EI || {};
       let prev = null, u = 0;
       for (let i = 0; i < curs.length; i++) {
         const cur = curs[i];
-        if (prev && cur && Math.hypot(cur.x - prev.x, cur.z - prev.z) < 14) {   // (6 m left a 7 m gap between the 2 m pieces where the nodes are uneven: the Portier 'pillars')
+        if (prev && cur && Math.hypot(cur.x - prev.x, cur.z - prev.z) < 6) {
           const dl = Math.hypot(cur.x - prev.x, cur.z - prev.z), u1 = u + dl / 2.6; G.at((prev.x + cur.x) / 2, (prev.z + cur.z) / 2, 'P', 0);
           const a0 = [prev.x, prev.bot, prev.z], a1 = [cur.x, cur.bot, cur.z], b1 = [cur.x, cur.top, cur.z], b0 = [prev.x, prev.top, prev.z];
           const uv = [u, 0, u1, 0, u1, (cur.top - cur.bot) / 2.6, u, (prev.top - prev.bot) / 2.6];
@@ -1937,10 +1938,7 @@ window.EI = window.EI || {};
       const dc = E.dcAt(c[0], c[1]); let rad = 0; for (const q of ring) rad = Math.max(rad, Math.hypot(q[0] - c[0], q[1] - c[1]));
       if (dc < rad + 70) for (let i = 0; i < ring.length; i++) if (!segClear(E, ring[i], ring[(i + 1) % ring.length], 0.5)) { stats.skipped++; return; } const tier = farSet ? (dc < 470 ? 'mid' : null) : dc < 140 ? 'near' : 'mid';
       const ob = obb(ring); const D = design(E, b, c[0], c[1], area, ob ? ob.hw * 2 : 0);
-      { const Lv = levels(E, ring, D, c[0], c[1]); let drop = 0; for (let i = 0; i < ring.length; i++) { const P0 = ring[i], P1 = ring[(i + 1) % ring.length], dx = P1[0] - P0[0], dz = P1[1] - P0[1], Ls = Math.hypot(dx, dz); if (Ls < 0.05) continue; drop = Math.max(drop, Lv.yb - faceFoundation(E, { P0, P1, n: [dz / Ls, 0, -dx / Ls] }, Lv.yG, Lv.yb)); }
-        if (drop > 6 || Lv.yR - Lv.yb > 30) (stats.cliffs || (stats.cliffs = [])).push({ i: b.id, a: Math.round(area), d: +drop.toFixed(1), x: Math.round(c[0]), z: Math.round(c[1]), H: Math.round(D.H), st: D.style, far: farSet ? 1 : 0, yG: +Lv.yG.toFixed(1), yb: +Lv.yb.toFixed(1), yR: +Lv.yR.toFixed(1), gMax: +Lv.gMax.toFixed(1), z0: D.zone }); }
-      if (tier) buildOne(E, G, ring, D, tier, c); const _t0 = G.tris; buildOne(E, G, ring, D, 'proxy', c); stats[tier || 'proxyOnly']++;
-      { const bk = dc < 140 ? 'p0' : dc < 470 ? 'p1' : dc < 700 ? 'p2' : 'p3'; const q = stats.bands || (stats.bands = {}); const r = q[bk] || (q[bk] = { n: 0, tris: 0, v: ring.length }); r.n++; r.tris += G.tris - _t0; r.v += ring.length; }
+      if (tier) buildOne(E, G, ring, D, tier, c); buildOne(E, G, ring, D, 'proxy', c); stats[tier || 'proxyOnly']++;
       if (tier === 'near') nearList.push({ c, style: D.style, rv: D.rv, H: D.H, y: D.lv.yG }); if (D.albert) stats.albert = (stats.albert || 0) + (tier === 'near' ? 1 : 0.001);
     };
     for (const b of t.data.scenery.buildings) doOne(b, false);
