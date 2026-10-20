@@ -66,7 +66,7 @@ window.EI = window.EI || {};
   const K_BRAKE = { silverstone: 0.001, monaco: 0.002, abudhabi: 0.001, monza: 0.001 }, K_BRAKE_DEFAULT = 0.0015;
   // the bots realise ~92-97% of the lap-time difference the profile predicts between two corner-grip scales (fit per circuit over
   // 7 skills x 22 drivers, residual ~0.1%), so the lap ratio is asked for that much larger to come out right on the stopwatch
-  const GAP_STRETCH = { silverstone: 1.09, monaco: 1.09, abudhabi: 1.07, monza: 1.04 }, GAP_STRETCH_DEFAULT = 1.075;
+  const GAP_STRETCH = { silverstone: 1.09, monaco: 1.09, abudhabi: 1.07, monza: 1.04, spa: 1.12 }, GAP_STRETCH_DEFAULT = 1.075;   // spa: matrix.js ultra spread 5.81 % vs 5.77 % real, rho 0.999
 
   // lap time of the season's fastest car + driver at skill 100 (no form), headless sim on the circuit (qsim.js, solo flying laps):
   // the anchor that turns a real lap time into the game's scale. Re-measure with C_LIMIT.
