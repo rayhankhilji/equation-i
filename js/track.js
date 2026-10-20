@@ -277,6 +277,11 @@ window.EI = window.EI || {};
     const W = 256, H = 512; const c = document.createElement('canvas'); c.width = W; c.height = H; const ctx = c.getContext('2d');
     ctx.fillStyle = style === 'street' ? '#e4e0d8' : '#ece9e1'; ctx.fillRect(0, 0, W, H);
     if (style === 'yas') { ctx.fillStyle = '#c8321f'; ctx.fillRect(W * 0.11, 0, W * 0.78, H * 0.62); }
+    else if (style === 'monza') {   // 2024-25 Monza kerbs: flat painted blocks RED - WHITE - GREEN - WHITE, one tile = four ~3 m blocks (refs kerb_tricolore_2025)
+      const slant = H * 0.02, B = H / 4; const blk = (k, col) => { const y0 = k * B; ctx.fillStyle = col; ctx.beginPath(); ctx.moveTo(0, y0 - slant); ctx.lineTo(W, y0 + slant); ctx.lineTo(W, y0 + B + slant); ctx.lineTo(0, y0 + B - slant); ctx.closePath(); ctx.fill(); };
+      blk(-1, '#e6e4dc'); blk(0, '#c4202a'); blk(1, '#e6e4dc'); blk(2, '#13885a'); blk(3, '#e6e4dc'); blk(4, '#c4202a');
+      ctx.fillStyle = 'rgba(150,205,225,0.55)'; ctx.fillRect(W * 0.965, 0, W * 0.035, H);   // the thin pale-blue outer line
+    }
     else {
     const slant = style === 'street' ? 0 : H * 0.07; const joint = (y0) => [[0, y0 - slant], [W, y0 + slant]];
     ctx.fillStyle = style === 'street' ? '#b0242a' : '#c8141e';
@@ -647,7 +652,7 @@ window.EI = window.EI || {};
       const aMesh = new THREE.Mesh(aGeo, aMat); aMesh.receiveShadow = true; aMesh.name = 'asphalt'; g.add(aMesh);
 
       // ------------------------------------------------ kerbs: bevelled profile (rise, top, fall), sawtooth red/white tiled by arc length
-      const KS = this.data.kerbStyle; const kerbTex = kerbTexture(this.data.street ? 'street' : KS); const kerbTile = KS === 'yas' ? 7.2 : 2.4;
+      const KS = this.data.kerbStyle; const kerbTex = kerbTexture(this.data.street ? 'street' : KS); const kerbTile = KS === 'yas' ? 7.2 : KS === 'monza' ? 12 : 2.4;
       const kerbMat = new THREE.MeshStandardMaterial({ map: kerbTex, vertexColors: true, roughness: 0.48, metalness: 0, normalMap: T.runoff.normalMap, normalScale: new THREE.Vector2(0.25, 0.25) });
       const ramp = new Float32Array(n); { const a = new Float32Array(n), b = new Float32Array(n);
         for (let k = 0; k < 2 * n; k++) { const i = k % n, p = (i + n - 1) % n; a[i] = kerbMask(p) ? a[p] + 1 : 0; }

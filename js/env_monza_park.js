@@ -118,9 +118,11 @@
         { const ic = Math.round((sp.i0 + sp.i1) / 2); const q = Sm[ic]; const pw = 24, ph = 3.6;
           const r = A.region('mzBankSign', 768, 136, (x2, w, h) => { x2.fillStyle = '#ffffff'; x2.fillRect(0, 0, w, h); if (EI.Ads && EI.Ads.paintTile) EI.Ads.paintTile(x2, 0, 0, 0, w, h, pw / ph); else Mz.paintText(x2, w, h, 'trylumi.co', { bg: '#ffffff', fg: '#c8102e' }); x2.strokeStyle = '#d6d8da'; x2.lineWidth = 4; x2.strokeRect(2, 2, w - 4, h - 4); });
           for (const sd of [-1, 1]) {
-            const off = RW / 2 + 0.55 + (sd > 0 ? 0.45 : 0); const cx = q.x + q.nx * sd * off, cz = q.z + q.nz * sd * off; const y0 = q.y - 1.25;
+            const off = RW / 2 + 0.55 + (sd > 0 ? 0.45 : 0); const cx = q.x + q.nx * sd * off, cz = q.z + q.nz * sd * off; const y0 = q.y - 2.2;   // banking_bridge_over_track_a: the panel hangs below the deck edge
             const a = [cx - q.tx * pw / 2, y0, cz - q.tz * pw / 2], b = [cx + q.tx * pw / 2, y0, cz + q.tz * pw / 2], c = [b[0], y0 + ph, b[2]], d = [a[0], y0 + ph, a[2]];
             const nOut = (-q.tz) * q.nx * sd + q.tx * q.nz * sd; if (nOut > 0) A.quad(r, a, b, c, d); else A.quad(r, b, a, d, c);
+            { const yr = y0 + ph + 0.9; Fd.beam(Env.frame(0, 0, 0, 1, 0, 0, 1), [a[0], yr, a[2]], [b[0], yr, b[2]], 0.08, C(0xeeeeee)); Fd.beam(Env.frame(0, 0, 0, 1, 0, 0, 1), [a[0], yr - 0.45, a[2]], [b[0], yr - 0.45, b[2]], 0.06, C(0xeeeeee));
+              for (let k = 0; k <= 12; k++) { const f = k / 12; const pp = [a[0] + (b[0] - a[0]) * f, y0 + ph, a[2] + (b[2] - a[2]) * f]; Fd.beam(Env.frame(0, 0, 0, 1, 0, 0, 1), pp, [pp[0], yr, pp[2]], 0.07, C(0xe6e6e6)); } }
             K.dq(B, [a[0] - q.nx * sd * 0.1, y0 - 0.1, a[2] - q.nz * sd * 0.1], [b[0] - q.nx * sd * 0.1, y0 - 0.1, b[2] - q.nz * sd * 0.1], [b[0] - q.nx * sd * 0.1, y0 + ph + 0.1, b[2] - q.nz * sd * 0.1], [a[0] - q.nx * sd * 0.1, y0 + ph + 0.1, a[2] - q.nz * sd * 0.1], C(0xdfe1e2));
           } }
         // Armco on the deck's inner edge over the span
@@ -133,7 +135,32 @@
     const gen = ((t.data.furniture || {}).bridges || []).map(b => b[0]); const near = (s) => gen.some(g => { const d = Math.abs(U.mod(g - s, t.length)); return Math.min(d, t.length - d) < 40; });
     for (const [sr, kind] of [[4131, 'covered'], [4424, 'covered'], [745, 'sign']]) { const s = f.s(sr); if (kind === 'sign' && near(s)) continue; try { if (footbridge(E, BK, s, kind)) fb++; } catch (e) { console.error('EnvMonza footbridge', e); } }
     out.footbridges = fb;
+    // TV camera cranes (t2_exit_gantry_gravel: a yellow telescopic boom on a truck, the camera basket high over the fence) at the
+    // corner exits the world feed shoots from: Rettifilo exit, Roggia exit, Ascari exit, Parabolica exit (outside of the corner)
+    let cr = 0; for (const sr of [705, 1905, 3860, 4990]) { try { if (crane(E, BK, f.s(sr))) cr++; } catch (e) { console.error('EnvMonza crane', e); } }
+    out.cranes = cr;
   };
+
+  function crane(E, BK, s) {
+    const t = E.t, OCC = Env.OCC, { B, S } = BK; const kk = t.smooth(t.k, 20); const i = t.idxAtS(s); const side = kk[i] > 0 ? -1 : 1;
+    let d = E.wallCap(i, side) + 7, x, z, tries = 0;
+    for (; tries < 5; tries++, d += 5) { x = t.x[i] + t.nx[i] * side * d; z = t.z[i] + t.nz[i] * side * d; if (!(E.occAt(x, z) & (OCC.BUILT | OCC.WATER))) break; }
+    if (tries >= 5) return false;
+    const g = E.ground(x, z); if (!Number.isFinite(g)) return false;
+    // frame: x along the lap, z away from the track
+    const m = Env.frame(x, g, z, t.tx[i], t.tz[i], t.nx[i] * side, t.nz[i] * side);
+    const yel = C(0xf0b400), white = C(0xeeeeec), dark = C(0x2a2d33), grey = C(0x7d838a);
+    B.box(m, 9.0, 1.2, 2.5, 0, 0.5, 0, grey);                 // chassis
+    B.box(m, 2.2, 2.0, 2.5, 3.6, 1.7, 0, white);              // cab
+    B.box(m, 4.0, 1.2, 2.3, -1.5, 1.7, 0, yel);               // turret
+    for (const sx of [-3.6, 3.4]) for (const sz of [-1.6, 1.6]) S.beam(m, [sx, 0.1, sz * 1.5], [sx, 1.0, sz], 0.25, dark);   // outriggers
+    // the boom: two telescopic sections leaning out over the fence towards the track, the basket at the tip
+    const p0 = [-1.5, 2.9, 0.3], p1 = [-1.5 + 3, 15.5, -6.5], p2 = [-1.5 + 5, 24.0, -11.5];
+    S.beam(m, p0, p1, 0.9, yel); S.beam(m, p1, p2, 0.65, yel);
+    B.box(m, 1.8, 1.1, 1.4, p2[0], p2[1] - 1.3, p2[2], yel); B.box(m, 0.7, 0.6, 0.9, p2[0], p2[1] - 0.2, p2[2] - 0.3, dark);   // basket + camera
+    E.markRect(x, z, t.tx[i], t.tz[i], 6, 3, OCC.BUILT);
+    return true;
+  }
 
   // a pedestrian footbridge: two open steel stair towers beyond the barriers, a box truss walkway with partner panels on both faces
   // (the drivers see the faces square on), a roof; 'sign' = the slim green sign bridge after the first chicane (no stairs)

@@ -15,7 +15,7 @@
     [/Piscina/, { style: 'covered', seat: 0x2356a6, label: 'PISCINA' }],
     [/Vedano/, { style: 'open', seat: 0x2356a6, label: 'VEDANO' }],
     [/^Tribuna Parabolica$/, { style: 'covered', seat: 0x2d5fb0, label: 'PARABOLICA', maxRows: 30 }],   // grandstand 22: covered permanent (FACTS 11)
-    [/Laterale Parabolica/, { style: 'open', seat: 0x2d5fb0, label: 'PARABOLICA' }],
+    [/Laterale Parabolica/, { style: 'open', seat: 0xb4b8bc, label: 'PARABOLICA' }],   // refs2 stands_3: long open terraces of grey aluminium benches
     [/Parabolica interna/, { style: 'open', seat: 0xb8202a, label: 'PARABOLICA' }],
     [/Alta Velocit/, { style: 'covered', seat: 0x2356a6, label: 'ALTA VELOCITA' }],   // grandstand 6A-C: partly covered
     [/Prima Variante/, { style: 'temp', seat: 0x3d5f8f, label: 'PRIMA VARIANTE', maxRows: 22 }],
@@ -72,8 +72,8 @@
         return blk;
       };
       if (R.style === 'centrale') {
-        const r1 = U.clamp(Math.floor((avail * 0.45 - 1.6) / 0.82), 7, 12), r2 = U.clamp(Math.floor((avail * 0.55 - 1.6) / 0.82), 8, 15);
-        mk(r1, 0, 0, 0); mk(r2, 0.4 + r1 * 0.82 + 0.9, 1.4 + r1 * 0.42 - 1.4 + 0.3, 1);
+        // refs2 start_3: ONE tier of white seats raised over a glazed ground storey, a glazed band and the thin roof above it
+        const rows = U.clamp(Math.floor((Math.min(avail, 24) - 1.6) / 0.82), 10, 13); const b = mk(rows, 0, St.RAISE, 0); b.mz.raise = St.RAISE;
       } else {
         const rows = U.clamp(Math.floor((Math.min(avail, 40) - 1.6) / 0.82), 6, R.maxRows || 28);
         mk(rows, 0, 0, 0);
@@ -85,6 +85,7 @@
   };
 
   // data.dress.stands[name] = { fill (seat occupancy 0..1), red (share of red shirts), flags (m per flag pole), banners (chance per block) }
+  St.RAISE = 3.6;   // the Centrale's ground storey
   St.dressOf = function (t, name) { const D = t.data.dress && t.data.dress.stands; return D && name ? (D[name] || null) : null; };
 
   // ================================================================ dressing
@@ -107,13 +108,13 @@
         const yTop = 1.4 + b.rows * 0.42, zBack = 0.4 + b.rows * 0.82; b.mz.yTop = yTop; b.mz.zBack = zBack; b.mz.m = m;
         if (!perm) continue;
         // concrete back wall (hides the venue's scaffold frames) with pilasters, a plinth down into the ground, end walls at the run ends
-        const yb = -2.0;
+        const yb = -2.0 - (b.mz.raise || 0);
         K.dq(B, P(-hl - 0.1, yb, zBack + 0.14), P(hl + 0.1, yb, zBack + 0.14), P(hl + 0.1, yTop + 1.25, zBack + 0.14), P(-hl - 0.1, yTop + 1.25, zBack + 0.14), conc);
         for (let a = -hl + 2.5; a < hl - 1; a += 5) B.box(m, 0.5, yTop + 1.25 - yb, 0.4, a, yb, zBack + 0.36, concD);
-        K.dq(B, P(-hl - 0.1, yb, -0.06), P(hl + 0.1, yb, -0.06), P(hl + 0.1, 0.05, -0.06), P(-hl - 0.1, 0.05, -0.06), concD);
+        { const yp = b.mz.raise ? -b.mz.raise - 0.4 : 0.05; K.dq(B, P(-hl - 0.1, yb, -0.06), P(hl + 0.1, yb, -0.06), P(hl + 0.1, yp, -0.06), P(-hl - 0.1, yp, -0.06), concD); }
         const firstK = b === run.blocks[0] || (b.mz.tier === 1 && b === up[0]), lastK = b === bl[bl.length - 1] || (b.mz.tier === 1 && b === up[up.length - 1]);
         const fs = St.flip(b) ? -1 : 1;   // Env.frame mirrors x when the chord frame would be left-handed: the run's start is then at +x
-        for (const [flag, sx] of [[firstK, -fs * (hl + 0.1)], [lastK, fs * (hl + 0.1)]]) if (flag) K.dq(B, P(sx, yb, -0.08), P(sx, yb, zBack + 0.14), P(sx, yTop + 1.25, zBack + 0.14), P(sx, 1.6, -0.08), conc);
+        for (const [flag, sx] of [[firstK, -fs * (hl + 0.1)], [lastK, fs * (hl + 0.1)]]) if (flag) { K.dq(B, P(sx, yb, -0.08), P(sx, yb, zBack + 0.14), P(sx, yTop + 1.25, zBack + 0.14), P(sx, 1.6, -0.08), concD); const so = sx > 0 ? 0.03 : -0.03; K.dq(B, P(sx + so, 0, zBack * 0.55), P(sx + so, 0, zBack * 0.55 + 1.8), P(sx + so, 2.4, zBack * 0.55 + 1.8), P(sx + so, 2.4, zBack * 0.55), dark); }   // end wall + a stair door
         // stair doors / vomitories in the back wall
         for (let a = -hl + 7; a < hl - 4; a += 14) B.box(m, 1.8, 2.3, 0.06, a, 0, zBack + 0.17, dark);
       }
@@ -121,56 +122,80 @@
       for (const list of [bl, up]) for (let k = 0; k + 1 < list.length && perm; k++) {
         const a = list[k], b = list[k + 1]; const ma = a.mz.m, mb = b.mz.m; const ha = a.len / 2, hb = b.len / 2;
         const fa = St.flip(a) ? -1 : 1, fb = St.flip(b) ? -1 : 1; const pa = (y, z) => Env.xf(ma, fa * (ha + 0.1), y, z), pb = (y, z) => Env.xf(mb, -fb * (hb + 0.1), y, z);
-        const yT = a.mz.yTop, zB = a.mz.zBack;
-        K.dq(B, pa(-2, zB + 0.14), pb(-2, zB + 0.14), pb(yT + 1.25, zB + 0.14), pa(yT + 1.25, zB + 0.14), conc);
+        const yT = a.mz.yTop, zB = a.mz.zBack, ybw = -2 - (a.mz.raise || 0);
+        K.dq(B, pa(ybw, zB + 0.14), pb(ybw, zB + 0.14), pb(yT + 1.25, zB + 0.14), pa(yT + 1.25, zB + 0.14), conc);
         K.dq(B, pa(1.4, 0.4), pb(1.4, 0.4), pb(yT, zB), pa(yT, zB), C(a.seat).multiplyScalar(0.8));
-        K.dq(B, pa(-2, -0.06), pb(-2, -0.06), pb(1.4, -0.06), pa(1.4, -0.06), concD);
+        K.dq(B, pa(ybw, -0.06), pb(ybw, -0.06), pb(1.4, -0.06), pa(1.4, -0.06), concD);
       }
       // ---- covered stands: thin flat roof on slim front and back columns, dark soffit, white fascia with partner tiles
-      if (R.style === 'covered' || R.style === 'centrale') {
-        const tier = R.style === 'centrale' ? up : bl;
-        for (const b of tier) {
-          const m = b.mz.m, hl = b.len / 2, P = (x, y, z) => Env.xf(m, x, y, z); const yR = b.mz.yTop + (R.style === 'centrale' ? 3.4 : 3.1), zF = R.style === 'centrale' ? -4.5 : -1.4, zR = b.mz.zBack + 0.6;
-          B.box(m, b.len + 0.1, 0.32, zR - zF, 0, yR, (zF + zR) / 2, soffit, { top: R.style === 'centrale' ? cream : C(0xb9bcbf), bottom: true });
-          if (R.style === 'centrale') { K.dq(B, P(-hl - 0.05, yR - 0.35, zF - 0.02), P(hl + 0.05, yR - 0.35, zF - 0.02), P(hl + 0.05, yR + 0.34, zF - 0.02), P(-hl - 0.05, yR + 0.34, zF - 0.02), cream); }
-          else {
-            K.dq(B, P(-hl - 0.05, yR - 0.75, zF - 0.02), P(hl + 0.05, yR - 0.75, zF - 0.02), P(hl + 0.05, yR + 0.34, zF - 0.02), P(-hl - 0.05, yR + 0.34, zF - 0.02), white);
-            // partner tiles along the fascia, 5:1, centred
-            const th = 0.8, tw = th * 5; const n = Math.floor((b.len - 1) / (tw + 1.5)); const x0 = -(n * (tw + 1.5) - 1.5) / 2;
-            for (let k = 0; k < n; k++) { const xa = x0 + k * (tw + 1.5); const r = tiles[Math.floor(rng() * 8)]; A.quad(r, P(xa + tw, yR - 0.72, zF - 0.06), P(xa, yR - 0.72, zF - 0.06), P(xa, yR + 0.08, zF - 0.06), P(xa + tw, yR + 0.08, zF - 0.06)); }
-          }
-          // columns: back row (concrete fins on the centrale, steel elsewhere), slim front posts every ~12 m on the covered stands
-          for (let a = -hl + 1.5; a <= hl - 1.4; a += Math.max(6, b.len / Math.max(1, Math.round(b.len / 9)))) {
-            if (R.style === 'centrale') B.box(m, 0.6, yR + 2.0, 2.2, a, -2, b.mz.zBack + 0.9, cream); else S.box(m, 0.3, yR + 2, 0.3, a, -2, b.mz.zBack + 0.35, steel);
-          }
-          if (R.style === 'covered') for (let a = -hl + 4; a <= hl - 3; a += 12) S.beam(m, [a, 1.4, 0.35], [a, yR, 0.35], 0.14, C(0x3a3f46));
+      if (R.style === 'covered') {
+        for (const b of bl) {
+          const m = b.mz.m, hl = b.len / 2, P = (x, y, z) => Env.xf(m, x, y, z); const yR = b.mz.yTop + 3.1, zF = -1.4, zR = b.mz.zBack + 0.6;
+          B.box(m, b.len + 0.1, 0.32, zR - zF, 0, yR, (zF + zR) / 2, soffit, { top: C(0xb9bcbf), bottom: true });
+          K.dq(B, P(-hl - 0.05, yR - 0.75, zF - 0.02), P(hl + 0.05, yR - 0.75, zF - 0.02), P(hl + 0.05, yR + 0.34, zF - 0.02), P(-hl - 0.05, yR + 0.34, zF - 0.02), white);
+          // partner tiles along the fascia, 5:1, centred
+          const th = 0.8, tw = th * 5; const n = Math.floor((b.len - 1) / (tw + 1.5)); const x0 = -(n * (tw + 1.5) - 1.5) / 2;
+          for (let k = 0; k < n; k++) { const xa = x0 + k * (tw + 1.5); const r = tiles[Math.floor(rng() * 8)]; A.quad(r, P(xa + tw, yR - 0.72, zF - 0.06), P(xa, yR - 0.72, zF - 0.06), P(xa, yR + 0.08, zF - 0.06), P(xa + tw, yR + 0.08, zF - 0.06)); }
+          // columns: steel back row, slim front posts every ~12 m
+          for (let a = -hl + 1.5; a <= hl - 1.4; a += Math.max(6, b.len / Math.max(1, Math.round(b.len / 9)))) S.box(m, 0.3, yR + 2, 0.3, a, -2, b.mz.zBack + 0.35, steel);
+          for (let a = -hl + 4; a <= hl - 3; a += 12) S.beam(m, [a, 1.4, 0.35], [a, yR, 0.35], 0.14, C(0x3a3f46));
           Fd.beam(m, [-hl, yR - 0.15, zF + 1.2], [hl, yR - 0.15, zF + 1.2], 0.12, C(0x70757b));
           // lamp masts on the roof (tifosi_invasion_2011: floodlight-style masts along the covered stands)
-          if (R.style === 'covered' && b.len > 14) { const zM = (zF + zR) * 0.6; S.beam(m, [0, yR + 0.32, zM], [0, yR + 6.5, zM], 0.16, C(0xb7bcc1)); S.box(m, 2.2, 0.7, 0.5, 0, yR + 6.3, zM - 0.2, C(0x34383d)); }
+          if (b.len > 14) { const zM = (zF + zR) * 0.6; S.beam(m, [0, yR + 0.32, zM], [0, yR + 6.5, zM], 0.16, C(0xb7bcc1)); S.box(m, 2.2, 0.7, 0.5, 0, yR + 6.3, zM - 0.2, C(0x34383d)); }
           for (let a = -hl + 3; a < hl - 1; a += 6) Fd.box(m, 0.5, 0.12, 0.3, a, yR - 0.14, zF + 1.8, C(0xfff4dc));
           roofs++;
         }
       }
-      // ---- the centrale: glazed hospitality band under the upper tier, the drum tower on the roof, the bay below it, the antenna masts
-      if (R.style === 'centrale' && up.length) {
-        for (const b of up) { const m = b.mz.m, hl = b.len / 2, P = (x, y, z) => Env.xf(m, x, y, z); K.dq(G, P(-hl, -0.9, -0.05), P(hl, -0.9, -0.05), P(hl, 1.25, -0.05), P(-hl, 1.25, -0.05), C(0x2c3e50)); }
-        // the run's middle: centre of the two upper chords
-        const bm = up[Math.floor((up.length - 1) / 2)], bn = up[Math.min(up.length - 1, Math.floor(up.length / 2))];
-        const m = bm.mz.m; const xm = bm === bn ? 0 : (St.flip(bm) ? -1 : 1) * bm.len / 2; const yR = bm.mz.yTop + 3.4;
-        // drum: cream concrete base ring, glazed band, overhanging disc roof, a small lantern on top
-        K.cyl(B, m, xm, 4.2, yR + 0.3, 1.2, 4.6, 20, cream);
-        K.cyl(G, m, xm, 4.2, yR + 1.5, 2.3, 4.35, 20, C(0x41586b));
-        for (let k = 0; k < 10; k++) { const a = k / 10 * Math.PI * 2; Fd.beam(m, [xm + Math.cos(a) * 4.4, yR + 1.5, 4.2 + Math.sin(a) * 4.4], [xm + Math.cos(a) * 4.4, yR + 3.8, 4.2 + Math.sin(a) * 4.4], 0.1, white); }
-        K.cyl(B, m, xm, 4.2, yR + 3.8, 0.35, 5.4, 20, cream, cream); K.disc(B, m, xm, 4.2, yR + 3.8, 0, 5.4, 20, cream);
-        K.cyl(B, m, xm, 4.2, yR + 4.15, 1.6, 2.4, 12, cream, cream);
-        // the bay: a half cylinder on the front of the roof line down to the hospitality level, with a vertical window slot
-        for (let k = 0; k < 8; k++) { const a0 = Math.PI + k / 8 * Math.PI, a1 = Math.PI + (k + 1) / 8 * Math.PI; const r = 3.0, zc = -1.6;
-          const p = (a, y) => Env.xf(m, xm + Math.cos(a) * r, y, zc + Math.sin(a) * r); K.dq(B, p(a0, -1.0), p(a1, -1.0), p(a1, yR + 0.3), p(a0, yR + 0.3), cream);
-          if (k === 3 || k === 4) K.dq(G, p(a0 + 0.05, 0.6), p(a1 - 0.05, 0.6), p(a1 - 0.05, yR - 0.6), p(a0 + 0.05, yR - 0.6), C(0x2c3e50)); }
-        // four lattice antenna masts with panel heads, two either side of the drum
-        let am = 0; for (const b of up) { const hl = b.len / 2; for (const a of [-hl * 0.55, hl * 0.55]) { if (am >= 4) break; const mm = b.mz.m; const yRb = b.mz.yTop + 3.4; K.lattice(S, mm, a, b.mz.zBack - 1.5, yRb + 0.3, yRb + 13, 1.0, 0.5, C(0xb9bec4), 0.09);
-          for (let k = 0; k < 3; k++) { const ang = k / 3 * Math.PI * 2; S.box(mm, 0.3, 1.6, 0.12, a + Math.cos(ang) * 0.5, yRb + 11.2, b.mz.zBack - 1.5 + Math.sin(ang) * 0.5, C(0xdfe2e4)); } am++; } }
-        out.centrale = { blocks: run.blocks.length };
+      // ---- the Tribuna Centrale (refs2 start_3, 1938 rationalist): white seats over a glazed ground storey, yellow stair aisles, a glazed
+      // band under a deep thin cream roof, the drum-shaped control tower on the roof with its tapering bay down into the seats, masts
+      if (R.style === 'centrale' && bl.length) {
+        const creamS = C(0xebe5d3), glassC = C(0x2e4152), yel = C(0xe8b417), frame = C(0xf2f1ec);
+        for (const b of bl) {
+          const m = b.mz.m, hl = b.len / 2, P = (x, y, z) => Env.xf(m, x, y, z); const yT = b.mz.yTop, zB = b.mz.zBack, rz = b.mz.raise || 0;
+          const yR = yT + 3.0, zF = -7.0, zR = zB + 2.6; b.mz.yR = yR;
+          // the roof slab: cream soffit (it reads light in the photos), grey top; a thin cream fascia
+          B.box(m, b.len + 0.1, 0.5, zR - zF, 0, yR, (zF + zR) / 2, creamS, { top: C(0xb9bcbf), bottom: true });
+          // glazed band between the top row and the roof, white sill / head, mullions
+          K.dq(G, P(-hl, yT + 0.25, zB - 0.25), P(hl, yT + 0.25, zB - 0.25), P(hl, yR, zB - 0.25), P(-hl, yR, zB - 0.25), glassC);
+          B.box(m, b.len, 0.3, 0.5, 0, yT, zB - 0.2, frame);
+          for (let a = -hl + 1.0; a < hl - 0.5; a += 2.0) BK.H.box(m, 0.1, yR - yT - 0.3, 0.08, a, yT + 0.3, zB - 0.32, frame);
+          // the glazed ground storey under the tier, white frame band, mullions
+          K.dq(G, P(-hl, -rz - 0.4, 0.3), P(hl, -rz - 0.4, 0.3), P(hl, -0.1, 0.3), P(-hl, -0.1, 0.3), C(0x34485a));
+          B.box(m, b.len, 0.45, 0.5, 0, -0.45, 0.25, frame);
+          for (let a = -hl + 1.5; a < hl - 0.5; a += 3.0) Fd.box(m, 0.14, rz, 0.1, a, -rz - 0.4, 0.2, frame);
+          // yellow stair aisles (the venue's aisles every 14 m): treads and risers painted
+          for (let a = -hl + 7; a < hl - 4; a += 14) for (let r = 0; r < b.rows; r++) {
+            const y = 1.4 + r * 0.42, za = 0.4 + r * 0.82, zb = za + 0.82;
+            B.quad(P(a - 0.6, y + 0.42 + 0.02, za), P(a - 0.6, y + 0.42 + 0.02, zb), P(a + 0.6, y + 0.42 + 0.02, zb), P(a + 0.6, y + 0.42 + 0.02, za), yel);
+            B.quad(P(a - 0.6, y + 0.42, za - 0.02), P(a + 0.6, y + 0.42, za - 0.02), P(a + 0.6, y, za - 0.02), P(a - 0.6, y, za - 0.02), C(0xc99a10));
+          }
+          for (let a = -hl + 1.5; a <= hl - 1.4; a += Math.max(6, b.len / Math.max(1, Math.round(b.len / 9)))) B.box(m, 0.6, yR + 2.0 + rz, 2.2, a, -2 - rz, zB + 0.9, cream);
+          roofs++;
+        }
+        // the drum at the run's middle
+        const bm = bl[Math.floor((bl.length - 1) / 2)], bn = bl[Math.min(bl.length - 1, Math.floor(bl.length / 2))];
+        const m = bm.mz.m; const xm = bm === bn ? 0 : (St.flip(bm) ? -1 : 1) * bm.len / 2; const yR = bm.mz.yR, zD = bm.mz.zBack - 1.2, yT = bm.mz.yTop;
+        K.cyl(B, m, xm, zD, yR + 0.5, 1.1, 3.3, 16, cream);                               // base
+        K.cyl(G, m, xm, zD, yR + 1.6, 2.3, 4.0, 16, C(0x52687a));                         // glazed band
+        for (let k = 0; k < 12; k++) { const a = k / 12 * Math.PI * 2; Fd.beam(m, [xm + Math.cos(a) * 4.05, yR + 1.6, zD + Math.sin(a) * 4.05], [xm + Math.cos(a) * 4.05, yR + 3.9, zD + Math.sin(a) * 4.05], 0.1, white); }
+        K.cyl(B, m, xm, zD, yR + 3.9, 0.4, 4.7, 16, cream, cream);                        // overhanging cap
+        K.cyl(B, m, xm, zD, yR + 4.3, 0.9, 1.8, 10, cream, cream);                        // lantern
+        S.beam(m, [xm + 0.8, yR + 5.2, zD], [xm + 0.8, yR + 9.5, zD], 0.1, C(0xb9bec4));   // aerial
+        // the bay: a tapering half-cylinder from the roof down into the seats (radius 3.6 at the roof, 2.3 at the bottom)
+        const yBot = 1.4 + bm.rows * 0.42 * 0.35;
+        for (let k = 0; k < 8; k++) { const a0 = Math.PI + k / 8 * Math.PI, a1 = Math.PI + (k + 1) / 8 * Math.PI;
+          const p = (a, y) => { const r = 2.3 + 1.3 * (y - yBot) / (yR - yBot); return Env.xf(m, xm + Math.cos(a) * r, y, zD + Math.sin(a) * r); };
+          K.dq(B, p(a0, yBot), p(a1, yBot), p(a1, yR), p(a0, yR), cream);
+          if (k === 3 || k === 4) K.dq(G, p(a0 + 0.06, yBot + 1.2), p(a1 - 0.06, yBot + 1.2), p(a1 - 0.06, yR - 0.8), p(a0 + 0.06, yR - 0.8), C(0x2c3e50)); }
+        K.disc(B, m, xm, zD, yBot, 0, 2.3, 8, cream);
+        // the centre stair from the ground up to the seats' front, white with steel rails
+        { const rz = bm.mz.raise || 0; for (let k = 0; k < 6; k++) { const f = k / 6; B.box(m, 2.6, 0.3, 0.9, xm, -rz - 0.4 + f * (rz + 1.4), -2.4 + f * 2.6, frame); }
+          for (const sx of [-1.35, 1.35]) Fd.beam(m, [xm + sx, -rz + 0.6, -2.6], [xm + sx, 2.4, 0.2], 0.06, C(0xb9bec4)); }
+        // lattice antenna masts with panel heads either side of the drum, two light poles with cell panels between
+        let am = 0; for (const b of bl) { const hl = b.len / 2; for (const a of [-hl * 0.55, hl * 0.55]) { if (am >= 4) break; const mm = b.mz.m; const yRb = b.mz.yR + 0.5;
+          if (am % 2 === 0) K.lattice(S, mm, a, b.mz.zBack - 0.5, yRb, yRb + 13, 1.0, 0.5, C(0xb9bec4), 0.09); else S.beam(mm, [a, yRb, b.mz.zBack - 0.5], [a, yRb + 10, b.mz.zBack - 0.5], 0.3, C(0xb9bec4));
+          for (let k = 0; k < 3; k++) { const ang = k / 3 * Math.PI * 2; S.box(mm, 0.3, 1.6, 0.12, a + Math.cos(ang) * 0.5, yRb + (am % 2 ? 8.2 : 11.2), b.mz.zBack - 0.5 + Math.sin(ang) * 0.5, C(0xdfe2e4)); } am++; } }
+        out.centrale = { blocks: run.blocks.length, rows: bm.rows };
       }
       // ---- flags: tricolours on poles behind the permanent stands, tifosi flags on the temporary ones; banners on the front walls
       for (const b of bl) {

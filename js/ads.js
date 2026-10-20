@@ -457,8 +457,8 @@
       runoff: ['aramco', 'L', 'pirelli', 'I'], bridge: { lumi: 'L', intake: 'etihadairways', lumi2: 'aramco', intake2: 'I' } },
   };
   // Monza: Pirelli is the Italian GP's title partner ("Formula 1 Pirelli Gran Premio d'Italia") and its boards/bridges dominate the venue
-  // Monza's trackside partner boards are dark (black / dark green, SPEC refs t1_prima_variante_stand_crowd, wall_boards_runoff)
-  VENUES.monza = { title: 'pirelli', event: "Gran Premio d'Italia", dark: false, darkBoards: true, darkBg: '#0f2219',
+  // Monza's trackside partner boards are dark navy (2025 photos: crypto.com-style navy walls behind pale gravel) with white lettering
+  VENUES.monza = { title: 'pirelli', event: "Gran Premio d'Italia", dark: false, darkBoards: true, darkBg: '#0c1a42',
     tiles: ['pirelli', 'aramco', 'L0', 'heineken', 'dhl', 'msccruises', 'I4', 'qatarairways'],
     barrier: ['pirelli', 'L', 'aramco', 'dhl', 'I'], billboard: ['pirelli', 'L2', 'heineken', 'I3'],
     runoff: ['pirelli', 'L', 'aramco', 'I'], bridge: { lumi: 'L', intake: 'pirelli', lumi2: 'tagheuer', intake2: 'I' } };   // lumi2 = the green sign bridge after the Rettifilo (Rolex until 2024 -> TAG Heuer, F1's timekeeper since 2025)

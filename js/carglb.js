@@ -1001,7 +1001,7 @@ window.EI = window.EI || {};
     out.setIndex(new THREE.BufferAttribute(m > 65535 ? new Uint32Array(tri) : new Uint16Array(tri), 1)); out.computeBoundingSphere(); out.computeBoundingBox(); return out;
   }
   const templates = {};
-  const MID_CELL = 0.07, FAR_CELL = 0.12;   // ~14k and ~6.5k triangles from the 45k-triangle lo car
+  const MID_CELL = 0.07, FAR_CELL = 0.12, VFAR_CELL = 0.3;   // ~14k and ~6.5k triangles from the 45k-triangle lo car; vfar: a ~1-2k-triangle silhouette for cars far away (main.js updateCarLod, PERF)
   function template(lod, detailed) {
     const key = lod + (detailed ? ':d' : ''); if (templates[key]) return templates[key];
     const src = lod === 'lo' ? cache.lo : cache.hi; const meta = cache.meta || {};
@@ -1051,9 +1051,9 @@ window.EI = window.EI || {};
       paint: mergeIndexed(lists.paint), carbon: mergeIndexed(lists.carbon), floor: mergeIndexed(lists.floor), lod: mergeIndexed(lists.lod, true), glow: mergeIndexed(glow),
       wheels: CORNERS.map((c) => seat[c].clone()), hinge: new THREE.Vector2(hinge[0], hinge[1]), mirrorGlass,
     };
-    if (lod === 'lo') { const all = mergeIndexed(lists.all, true); T.mid = clusterGeo(all, CarGLB.midCell || MID_CELL); T.far = clusterGeo(all, CarGLB.farCell || FAR_CELL); if (CarGLB.keepAll) T.all = all; else all.dispose(); }
+    if (lod === 'lo') { const all = mergeIndexed(lists.all, true); T.mid = clusterGeo(all, CarGLB.midCell || MID_CELL); T.far = clusterGeo(all, CarGLB.farCell || FAR_CELL); T.vfar = clusterGeo(all, CarGLB.vfarCell || VFAR_CELL); if (CarGLB.keepAll) T.all = all; else all.dispose(); }
     for (const it of lists.all) it.geo.dispose();
-    for (const g of [T.lod, T.mid, T.far]) if (g) g.boundingSphere.radius += 0.3;   // room for the shader-animated wheels and flap
+    for (const g of [T.lod, T.mid, T.far, T.vfar]) if (g) g.boundingSphere.radius += 0.3;   // room for the shader-animated wheels and flap
     templates[key] = T; return T;
   }
   CarGLB.template = template; CarGLB.clusterGeo = clusterGeo;
@@ -1222,7 +1222,7 @@ window.EI = window.EI || {};
     const g = new THREE.Group(); const body = new THREE.Group(); g.add(body);
     const mk = (geo, mat, parent, name) => { const m = new THREE.Mesh(geo, mat); m.name = name; m.castShadow = false; m.receiveShadow = false; parent.add(m); return m; };
     const hiBody = [mk(T.paint, paint, body, 'car_paint'), mk(T.carbon, shared.carbon, body, 'car_carbon'), mk(T.floor, shared._floor, body, 'car_floor')];
-    mk(T.lod, lm, g, 'car_parts');
+    const parts = mk(T.lod, lm, g, 'car_parts');
     // dummies that hold the animated state car.js writes (rotation.z of the flap); the helmet proxy toggles the shader's helmet
     const flap = new THREE.Object3D(); flap.rotation.z = FLAP_CLOSED;
     const helmet = { get visible() { return U.uHelmVis.value > 0.5; }, set visible(v) { U.uHelmVis.value = v ? 1 : 0; }, rotation: { y: 0 } };
@@ -1234,6 +1234,10 @@ window.EI = window.EI || {};
       const loBody = [mk(TL.paint, paint, body, 'car_paint_lo'), mk(TL.carbon, shared.carbon, body, 'car_carbon_lo'), mk(TL.floor, shared._floor, body, 'car_floor_lo')];
       for (const m of loBody) m.visible = false;
       if (T.mirrorGlass.length) { const mir = buildMirrors(T.mirrorGlass, body, g, { hi: hiBody, lo: loBody, ck: cockpit.hide }); if (mir) screen.userData.mirrors = mir; }
+      // lite(on): the player's own car drawn from the lo LOD (bodywork + parts, ~45k instead of ~210k triangles) - main.js turns it on
+      // for the outside cameras on Low; the cockpit / T-cam views (and the mirrors, which swap the bodywork themselves) keep the detail
+      let liteOn = false;
+      g.userData.lite = (on) => { on = !!on; if (on === liteOn) return; liteOn = on; for (const m of hiBody) m.visible = !on; for (const m of loBody) m.visible = on; parts.geometry = on ? TL.lod : T.lod; };
     }
     // brake glow: hot discs show through the gap between the rim lip and the wheel cover (outer face) and on the inner face
     const glowMat = new THREE.MeshBasicMaterial({ color: 0xff6a1c, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
@@ -1258,10 +1262,10 @@ window.EI = window.EI || {};
     let mid = null, far = null;
     if (lo) {
       mid = new THREE.Mesh(T.mid, lm); mid.name = 'car_mid'; mid.visible = false;
-      far = new THREE.Mesh(T.far, lm); far.name = 'car_far'; far.visible = false;
+      far = new THREE.Mesh(T.far, lm); far.name = 'car_far'; far.visible = false; far.userData.geos = [T.far, T.vfar];   // main.js swaps in the vfar silhouette beyond ~90 m
     }
     return { group: g, body, wheels: [], frontPivots: [], flap, helmet, bodyMat: paint, flapClosed: FLAP_CLOSED, flapOpen: FLAP_OPEN, lod: lod || 'hi', steer, animate, screen, screenTex,
-      lodMat: lm, pose, mid, far, shadowGeo: TL.mid, glow };
+      lodMat: lm, pose, mid, far, shadowGeo: EI.quality === 'low' ? TL.far : TL.mid, glow };   // Low: the sun-shadow proxy from the far LOD (1024 map, ~10 cm texels: same shadow)
   }
 
   EI.CarGLB = CarGLB;

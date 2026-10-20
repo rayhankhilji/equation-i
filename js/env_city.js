@@ -708,7 +708,44 @@ window.EI = window.EI || {};
     '  float det = max(dot(T, T), dot(B, B)); float scale = (det == 0.0) ? 0.0 : fd * inversesqrt(det);',
     '  return normalize(T * (mapN.x * scale) + B * (mapN.y * scale) + mapN.z * N); }'].join('\n');
   const f1 = (v) => v.toFixed(1);
+  // the Low tier's city shader: Lambert (r128 lights it per VERTEX: flat facades need nothing more), ONE gradient fetch of the atlas, no packed
+  // normal / roughness / glass fetch, no image-based lighting (the PBR path's env sampling was the bulk of the per-pixel cost). The sky
+  // ambient the env map gave is put back as a constant fraction of the albedo (uCityAmb).
+  function cityLambert(offset) {
+    const A = buildAtlas(); const amb = (typeof window !== 'undefined' && window.__cityAmb != null) ? window.__cityAmb : 0.22;
+    const lowMap = A.mapLow || (A.mapLow = (() => { const m = A.map.clone(); m.anisotropy = 2; m.needsUpdate = true; return m; })());   // its own 2x-aniso handle on the shared pixels (Low only; each gradient fetch costs less)
+    const mat = new THREE.MeshLambertMaterial({ map: lowMap, vertexColors: true });
+    mat.extensions = { derivatives: true, shaderTextureLOD: true };
+    if (offset) { mat.polygonOffset = true; mat.polygonOffsetFactor = 1.5; mat.polygonOffsetUnits = 6; }
+    mat.onBeforeCompile = (sh) => {
+      sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nattribute vec3 acell;\nattribute vec3 acol;\nvarying vec3 vCell;\nvarying vec3 vAcc;')
+        .replace('#include <begin_vertex>', '#include <begin_vertex>\nvCell = acell; vAcc = acol;');
+      sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nvarying vec3 vCell;\nvarying vec3 vAcc;')
+        .replace('#include <map_fragment>', [
+          'vec2 cTu = vUv; vec2 cTi = floor(cTu);',
+          'float cH = fract(sin(dot(cTi + vCell.xy * vec2(7.13, 3.71), vec2(12.9898, 78.233))) * 43758.5453);',
+          'float cVar = min(floor(pow(cH, 1.4) * vCell.z), vCell.z - 1.0);',
+          'vec2 cCell = vec2(vCell.x + cVar, vCell.y);',
+          'const vec2 cAt = vec2(' + f1(AW) + ', ' + f1(AH) + ');',
+          'vec2 cAuv = (cCell * ' + f1(CS) + ' + ' + f1(GUT) + ' + fract(cTu) * ' + f1(IN) + ') / cAt;',
+          'vec2 cG1 = dFdx(cTu) * ' + f1(IN) + ' / cAt, cG2 = dFdy(cTu) * ' + f1(IN) + ' / cAt;',
+          'float cL = max(length(cG1 * cAt), length(cG2 * cAt));',
+          'if (cL > 30.0) { float k = 30.0 / cL; cG1 *= k; cG2 *= k; }',
+          'vec4 cTex = texture2DGradEXT(map, cAuv, cG1, cG2);',
+          'float cFar = smoothstep(30.0, 90.0, cL);',
+          'if (cFar > 0.0) { vec2 cc = (cCell * ' + f1(CS) + ' + ' + f1(CS / 2) + ') / cAt; cTex = mix(cTex, texture2DLodEXT(map, cc, 8.0), cFar); }',
+          'float cWall = clamp(cTex.a * 2.0 - 1.0, 0.0, 1.0), cAccW = clamp(1.0 - cTex.a * 2.0, 0.0, 1.0);',
+          'vec4 texelColor = mapTexelToLinear(vec4(cTex.rgb, 1.0));',
+          'float cJit = 0.95 + 0.1 * fract(cH * 31.7);',
+          'diffuseColor.rgb *= texelColor.rgb * (1.0 + cWall * (vColor * cJit - 1.0) + cAccW * (vAcc - 1.0));'].join('\n'))
+        .replace('#include <color_fragment>', '')
+        .replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\ntotalEmissiveRadiance += diffuseColor.rgb * ' + amb.toFixed(3) + ';');
+    };
+    mat.customProgramCacheKey = () => 'ei-city-lambert-' + (offset ? 'p' : 'd') + '-' + amb.toFixed(3);
+    return mat;
+  }
   function cityMaterial(lite, offset) {
+    if (lite && !(typeof window !== 'undefined' && window.__cityStd)) return cityLambert(offset);
     const A = buildAtlas();
     const mat = new THREE.MeshStandardMaterial({ map: A.map, vertexColors: true, roughness: 0.85, metalness: 0.0 });
     mat.extensions = { derivatives: true, shaderTextureLOD: true };
@@ -762,9 +799,9 @@ window.EI = window.EI || {};
   const b8 = (v) => Math.round(U.clamp(v, 0, 1) * 255);
   class Geo {
     constructor(E) { this.E = E; this.tiles = new Map(); this.cur = null; this.sub = 0; this.tris = 0; this.acc = WHITE; this.mode = 'D'; }
-    // pick the tile for an object at (x, z): detail tiles 240 m; proxy tiles 800 m near the circuit, 1600 m out on the hills
+    // pick the tile for an object at (x, z): detail tiles 240 m; proxy tiles 480 m near the circuit, 1200 m out on the hills (a whole tile is drawn or culled: 800 / 1600 m put ~all of the city in every view)
     at(x, z, kind, sub) {
-      kind = kind || 'D'; this.sub = sub || 0; const S = kind === 'D' ? 240 : (this.E.dcAt(x, z) < 900 ? 800 : 1600);
+      kind = kind || 'D'; this.sub = sub || 0; const S = kind === 'D' ? 240 : (this.E.dcAt(x, z) < 900 ? 480 : 1200);
       const key = kind + S + ':' + Math.floor(x / S) + ',' + Math.floor(z / S); let c = this.tiles.get(key); if (!c) { c = new Tile(kind, key); this.tiles.set(key, c); } this.cur = c; return c;
     }
     vert(p, n, u, v, col, cl) {
@@ -1894,7 +1931,8 @@ window.EI = window.EI || {};
       const ob = obb(ring); const D = design(E, b, c[0], c[1], area, ob ? ob.hw * 2 : 0);
       { const Lv = levels(E, ring, D, c[0], c[1]); let drop = 0; for (let i = 0; i < ring.length; i++) { const P0 = ring[i], P1 = ring[(i + 1) % ring.length], dx = P1[0] - P0[0], dz = P1[1] - P0[1], Ls = Math.hypot(dx, dz); if (Ls < 0.05) continue; drop = Math.max(drop, Lv.yb - faceFoundation(E, { P0, P1, n: [dz / Ls, 0, -dx / Ls] }, Lv.yG, Lv.yb)); }
         if (drop > 6) (stats.cliffs || (stats.cliffs = [])).push({ i: b.id, a: Math.round(area), d: +drop.toFixed(1), x: Math.round(c[0]), z: Math.round(c[1]), H: Math.round(D.H), st: D.style, far: farSet ? 1 : 0 }); }
-      if (tier) buildOne(E, G, ring, D, tier, c); buildOne(E, G, ring, D, 'proxy', c); stats[tier || 'proxyOnly']++;
+      if (tier) buildOne(E, G, ring, D, tier, c); const _t0 = G.tris; buildOne(E, G, ring, D, 'proxy', c); stats[tier || 'proxyOnly']++;
+      { const bk = dc < 140 ? 'p0' : dc < 470 ? 'p1' : dc < 700 ? 'p2' : 'p3'; const q = stats.bands || (stats.bands = {}); const r = q[bk] || (q[bk] = { n: 0, tris: 0, v: ring.length }); r.n++; r.tris += G.tris - _t0; r.v += ring.length; }
       if (tier === 'near') nearList.push({ c, style: D.style, rv: D.rv, H: D.H, y: D.lv.yG }); if (D.albert) stats.albert = (stats.albert || 0) + (tier === 'near' ? 1 : 0.001);
     };
     for (const b of t.data.scenery.buildings) doOne(b, false);
@@ -1929,6 +1967,7 @@ window.EI = window.EI || {};
   // start reading the cached atlas now when the page is set to open a street circuit
   try { const q = new URLSearchParams(location.search).get('track') || localStorage.getItem('ei-track'); if (q && EI.ENVDATA && EI.ENVDATA[q] && EI.ENVDATA[q].kind === 'street') City.preloadAtlas(); } catch (e) { }
   // quality tiers: the low tier draws the core of each tile (no roof furniture, awnings or hillside trees) with the plain shader
+  City.material = cityMaterial;   // (A/B previews)
   City.setQuality = function (sc, q) {
     const M = sc.cityMats; if (!M) return; const lite = q === 'low';
     for (const m of sc.cityChunks || []) { const r = m.userData.ranges; m.geometry.setDrawRange(0, lite ? r[0] : r[2]); m.material = m.userData.kind === 'D' ? (lite ? M.DL : M.D) : (lite ? M.PL : M.P); }

@@ -234,13 +234,35 @@ window.EI = window.EI || {};
     return mat;
   }
   SK.worldMaterial = worldMaterial;
+  // the Low tier's version of the opaque world material: Lambert (r128: per-vertex lighting), ONE gradient atlas fetch (no normal / aux fetch),
+  // no image-based lighting (the Standard path samples the env map for diffuse and specular on every pixel). Emissive stays (lamp heads, boards);
+  // the sky ambient the env map gave comes back as a constant share of the albedo.
+  function worldMaterialLite() {
+    const amb = (typeof window !== 'undefined' && window.__cityAmb != null) ? window.__cityAmb : 0.22;
+    const lowMap = AT.map.clone(); lowMap.anisotropy = 2; lowMap.needsUpdate = true;   // its own 2x-aniso handle on the shared canvas (Low only)
+    const mat = new THREE.MeshLambertMaterial({ vertexColors: true, map: lowMap, alphaTest: 0.5 });
+    mat.extensions = { derivatives: true, shaderTextureLOD: true };
+    mat.onBeforeCompile = (sh) => {
+      sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nattribute vec4 aRect;\nattribute vec3 aRme;\nvarying vec4 vRect;\nvarying vec3 vRme;').replace('#include <begin_vertex>', '#include <begin_vertex>\nvRect = aRect; vRme = aRme;');
+      sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nvarying vec4 vRect;\nvarying vec3 vRme;')
+        .replace('#include <map_fragment>', [
+          'vec2 sFu = vec2(vRect.z > 0.0 ? fract(vUv.x) : clamp(vUv.x, 0.0, 1.0), vRect.w > 0.0 ? fract(vUv.y) : clamp(vUv.y, 0.0, 1.0));',
+          'vec2 sAuv = vRect.xy + sFu * abs(vRect.zw);',
+          'vec2 sGx = dFdx(vUv) * abs(vRect.zw), sGy = dFdy(vUv) * abs(vRect.zw);',
+          'diffuseColor *= mapTexelToLinear(texture2DGradEXT(map, sAuv, sGx, sGy));'].join('\n'))
+        .replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\ntotalEmissiveRadiance += diffuseColor.rgb * (vRme.z + ' + amb.toFixed(3) + ');');
+    };
+    mat.customProgramCacheKey = () => 'ei-street-world-lite-' + amb.toFixed(3);
+    return mat;
+  }
+  SK.worldMaterialLite = worldMaterialLite;
 
   // ---------------------------------------------------------------- world: layers -> spatial cells -> meshes, plus the LOD manager
   // The opaque layers are drawn through three cell grids, ONE mesh per cell each, the layers of a grid ordered so that distance LOD is a
   // contiguous draw range (no extra draw calls): big cells hold [main | detail] (detail dropped in the distance), small cells hold
   // the fine near-only clutter, yacht cells hold [far hulls | near detail] and swap between them. The blended chain-link fence and
   // the line batches keep their own cells.
-  const GRIDS = { A: { cell: 600, order: ['main', 'detail'] }, B: { cell: 260, order: ['fine'] }, Y: { cell: 450, order: ['yFar', 'yNear'] } };
+  const GRIDS = { A: { cell: 300, order: ['main', 'detail'] }, B: { cell: 130, order: ['fine'] }, Y: { cell: 200, order: ['yFar', 'yNear'] } };   // (cells were 600 / 260 / 450 m: a cell is drawn whole, so the big ones put 30-70k tris of far-away detail in every view)
   const LAYERS = {
     main: { grid: 'A' }, detail: { grid: 'A' }, fine: { grid: 'B' }, yFar: { grid: 'Y' }, yNear: { grid: 'Y' },
     fence: { cell: 600, vis: [240, 600, 1100], mat: 'fence' },
@@ -299,6 +321,7 @@ window.EI = window.EI || {};
           const off = it.off, g = it.obj.geometry; let a = 0, b = 0;
           if (it.grid === 'A') { b = d < MID[q] ? off[2] : off[1]; } else if (it.grid === 'B') { b = d < NEAR[q] ? off[1] : 0; } else if (d < NEARY[q]) { a = off[1]; b = off[2]; } else b = off[1];
           g.setDrawRange(a, b - a); it.obj.visible = b > a; it.obj.castShadow = it.obj.visible && d < SHADOW[q];
+          const mm = q === 0 && !window.__cityStd ? (this.matLite || (this.matLite = worldMaterialLite())) : this.mat(it.Ly.mat || 'solid'); if (it.obj.material !== mm) it.obj.material = mm;
         } else it.obj.visible = d < it.Ly.vis[q];
       }
     }

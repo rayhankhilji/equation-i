@@ -10,11 +10,13 @@
   // the tree list (records [x, z, species, width, height, variant, tint, interior]) as the vegetation instancer receives it
   if (EI.EnvVeg && EI.EnvVeg.instance) { const orig = EI.EnvVeg.instance; EI.EnvVeg.instance = function (E, trees) { Canopy.trees = trees; return orig.apply(this, arguments); }; }
 
-  const UNI = { uCanMap: { value: null }, uCanLeaf: { value: null }, uCanBox: { value: new THREE.Vector4(0, 0, 1, 0) } };
-  const FDECL = 'uniform sampler2D uCanMap; uniform sampler2D uCanLeaf; uniform vec4 uCanBox;\n' +
-    'float eiCanopy() { vec3 vp = -vViewPosition; vec3 wd = vec3(dot(viewMatrix[0].xyz, vp), dot(viewMatrix[1].xyz, vp), dot(viewMatrix[2].xyz, vp));\n' +
+  const UNI = { uCanMap: { value: null }, uCanLeaf: { value: null }, uCanBox: { value: new THREE.Vector4(0, 0, 1, 0) }, uCanQ: { value: 1 } };
+  const FDECL = 'uniform sampler2D uCanMap; uniform sampler2D uCanLeaf; uniform vec4 uCanBox; uniform float uCanQ;\n' +
+    'float eiCanopy() { if (uCanQ < 0.5) return 1.0; vec3 vp = -vViewPosition; vec3 wd = vec3(dot(viewMatrix[0].xyz, vp), dot(viewMatrix[1].xyz, vp), dot(viewMatrix[2].xyz, vp));\n' +
     '  vec3 wp = cameraPosition + wd; vec2 uv = (wp.xz - uCanBox.xy) * uCanBox.z; if (uv.x <= 0.0 || uv.y <= 0.0 || uv.x >= 1.0 || uv.y >= 1.0) return 1.0;\n' +
     '  float cov = texture2D(uCanMap, uv).r; if (cov < 0.004) return 1.0;\n' +
+    // cheap mode (uCanQ 1, Low): the soft crown shade alone, one texture read; 2 = with the leaf-noise sun flecks
+    '  if (uCanQ < 1.5) return 1.0 - uCanBox.w * cov * 0.8;\n' +
     // sun flecks: two octaves of leaf noise; the gaps open where both are high, fewer under dense cover
     '  float n = texture2D(uCanLeaf, wp.xz * 0.11).r * 0.62 + texture2D(uCanLeaf, wp.xz * 0.37 + 0.3).r * 0.38;\n' +
     '  float fleck = smoothstep(0.5 + cov * 0.16, 0.66 + cov * 0.16, n);\n' +
@@ -71,5 +73,9 @@
     scene.traverse(o => { if (!o.isMesh || !o.receiveShadow || !o.material || o.name === 'trees') return; (Array.isArray(o.material) ? o.material : [o.material]).forEach(patch); });
     Canopy.stats = { trees: used, px: +px.toFixed(2), N }; Canopy.map = tex;
   };
+  // quality: 'off' = no shade (0 reads), Low = the crown shade only (1 read on receiving pixels), Medium / High = shade + sun flecks
+  // (3 reads under the trees). A uniform switch: no shader recompiles. Canopy.LOW = what Low gets ('off' | 'shade').
+  Canopy.LOW = 'off';   // PERF (wave 6): no canopy cost on Low
+  Canopy.setQuality = function (q) { UNI.uCanQ.value = q === 'low' ? (Canopy.LOW === 'off' ? 0 : 1) : 2; };
   EI.Canopy = Canopy;
 })();

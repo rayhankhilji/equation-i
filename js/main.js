@@ -40,7 +40,7 @@ window.EI = window.EI || {};
     // canvas where the browser supports it (one frame less between the draw and the screen)
     renderer = new THREE.WebGLRenderer({ canvas, antialias: false, powerPreference: 'high-performance', desynchronized: syncPref !== 'vsync' });
     // shader status queries stall until the GPU has compiled each program; skipped unless ?shaderdebug is in the URL
-    renderer.debug.checkShaderErrors = /[?&]shaderdebug/.test(location.search); renderer.info.autoReset = false;
+    renderer.debug.checkShaderErrors = /[?&]shaderdebug/.test(location.search); renderer.info.autoReset = false; capTextureUploads(renderer.getContext());
     renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5)); renderer.setSize(window.innerWidth, window.innerHeight);
     renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFShadowMap;   // medium (the default); setQuality switches
     renderer.outputEncoding = THREE.sRGBEncoding; renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.05;
@@ -69,6 +69,8 @@ window.EI = window.EI || {};
       abudhabi: { night: true, elev: 70, azim: 200, west: [-0.7, 0, 0.7], horizon: 0x1c150e, fog: [800, 3400], fogLow: [480, 1900], hemi: [0x2c3a5a, 0x221a12, 0.42], sun: [0xc8d2ff, 0.2], nightTrack: { core: 0.6, halo: 0.2 }, nightAir: [1.0, 0.84, 0.62, 0.05],
         grade: { sat: 1.22, con: 1.12, warm: [1.02, 1.0, 0.985] } } };
     const LK = Object.assign({ elev: 38, azim: 212, turb: 2.5, ray: 2.0, mie: 0.004, horizon: 0xa9c4e4, sky: [0.42, 1.0], fog: [600, 2600], fogLow: [350, 1500], hemi: [0x9fc4ee, 0x3f5a2e, 0.35], sun: [0xfff1dd, 2.4] }, LOOKS[trackId] || {}); EI.look = LK;
+    // look tuning (art direction): ?look={json} merges over the circuit's LOOKS entry, e.g. ?look={"elev":34,"grade":{"sat":1.4,"con":1.1}}
+    { const m = /[?&]look=([^&]+)/.exec(location.search); if (m) { try { Object.assign(LK, JSON.parse(decodeURIComponent(m[1]))); } catch (e) { console.warn('bad ?look', e); } } }
     // a per-circuit grade replaces the default one (the night race: less saturation boost, a little more contrast, so the floodlit
     // turquoise and the purple LED wash read vivid without turning neon)
     if (LK.grade) { const G = LK.grade; THREE.ShaderChunk.tonemapping_fragment = gradeChunk(G.sat, G.con, G.warm || [1.03, 1.0, 0.97]); }
@@ -172,6 +174,37 @@ window.EI = window.EI || {};
     if (C.shadowmap_pars_fragment.indexOf(A) >= 0) C.shadowmap_pars_fragment = C.shadowmap_pars_fragment.replace(A, '#else\n\t\t\tvec2 eiT = shadowCoord.xy * shadowMapSize - 0.5, eiF = fract(eiT), eiB = (floor(eiT) + 0.5) / shadowMapSize, eiS = 1.0 / shadowMapSize;\n' +
       '\t\t\tshadow = mix(mix(texture2DCompare(shadowMap, eiB, shadowCoord.z), texture2DCompare(shadowMap, eiB + vec2(eiS.x, 0.0), shadowCoord.z), eiF.x),\n' +
       '\t\t\t\tmix(texture2DCompare(shadowMap, eiB + vec2(0.0, eiS.y), shadowCoord.z), texture2DCompare(shadowMap, eiB + eiS, shadowCoord.z), eiF.x), eiF.y);\n\t\t#endif'); }
+  // texture size cap per tier (PERF): on Low every image / data texture larger than 2048 x 2048 texels (the city atlas, the big ad
+  // and banner sheets...) is uploaded at half size (box-filtered; UVs are normalised, mips are generated from the smaller level),
+  // so an integrated GPU sharing system memory keeps ~60-90 MB less in textures; Medium / High upload everything as built.
+  // Hooked at the GL call, so it also covers textures that only live in a shader's uniforms; render targets (no pixels) are untouched.
+  const TEX_CAP = { low: 2048 * 2048, medium: 4096 * 4096, high: Infinity }; let texCap = TEX_CAP[savedQ] || Infinity;
+  function capTextureUploads(gl) {
+    if (!gl || gl._eiCap) return; gl._eiCap = true; const orig = gl.texImage2D;
+    const half = (src, w, h) => { const c = document.createElement('canvas'); c.width = Math.max(1, w >> 1); c.height = Math.max(1, h >> 1); const x = c.getContext('2d'); x.imageSmoothingEnabled = true; x.imageSmoothingQuality = 'high'; x.drawImage(src, 0, 0, c.width, c.height); return c; };
+    const halfData = (d, w, h) => { const w2 = w >> 1, h2 = h >> 1, o = new Uint8Array(w2 * h2 * 4); for (let y = 0; y < h2; y++) { const r0 = (y * 2) * w * 4, r1 = r0 + w * 4; for (let x = 0; x < w2; x++) { const a = r0 + x * 8, b = r1 + x * 8, q = (y * w2 + x) * 4; for (let k = 0; k < 4; k++) o[q + k] = (d[a + k] + d[a + 4 + k] + d[b + k] + d[b + 4 + k] + 2) >> 2; } } return o; };
+    gl.texImage2D = function () {
+      const a = arguments;
+      try {
+        if (a[1] === 0 && texCap < Infinity) {
+          if (a.length === 6 && a[5] && a[5].width && a[5].height) {   // (target, level, internalformat, format, type, source)
+            let src = a[5], w = src.width, h = src.height; while (w * h > texCap && w > 1 && h > 1) { src = half(src, w, h); w = src.width; h = src.height; }
+            if (src !== a[5]) return orig.call(this, a[0], a[1], a[2], a[3], a[4], src);
+          } else if (a.length === 9 && a[8] && a[8].length && a[6] === gl.RGBA && a[7] === gl.UNSIGNED_BYTE && a[3] * a[4] > texCap && !(a[3] & 1) && !(a[4] & 1)) {
+            let d = a[8], w = a[3], h = a[4]; while (w * h > texCap && !(w & 1) && !(h & 1)) { d = halfData(d, w, h); w >>= 1; h >>= 1; }
+            return orig.call(this, a[0], a[1], a[2], w, h, a[5], a[6], a[7], d);
+          }
+        }
+      } catch (e) { }
+      return orig.apply(this, a);
+    };
+  }
+  // a changed cap re-uploads the large textures of the scene's materials (the next render uploads them through the hook)
+  function applyTexCap(q) {
+    const cap = TEX_CAP[q] || Infinity; if (cap === texCap) return; texCap = cap; if (!scene) return; const seen = new Set();
+    const chk = (t) => { if (!t || !t.isTexture || seen.has(t) || t.isRenderTargetTexture) return; seen.add(t); const im = t.image; if (im && im.width * im.height > 2048 * 2048) t.needsUpdate = true; };
+    scene.traverse(o => { const ms = o.material ? (Array.isArray(o.material) ? o.material : [o.material]) : []; for (const m of ms) { for (const k in m) { const v = m[k]; if (v && v.isTexture) chk(v); } if (m.uniforms) for (const k in m.uniforms) { const v = m.uniforms[k] && m.uniforms[k].value; if (v && v.isTexture) chk(v); } } });
+  }
   function tierPixelRatio(q) { const cap = q === 'low' ? 1 : q === 'high' ? 1.5 : 1.25; return Math.max(0.6, Math.min(window.devicePixelRatio || 1, cap, Math.sqrt(PX_BUDGET[q] / Math.max(1, window.innerWidth * window.innerHeight)))); }
   function setQuality(q) {
     if (q !== quality || !setQuality.done) { quality = q; autoLv = loadLv(); ftEma = 16.7; lockUpUntil = 0; setQuality.done = true; } quality = q; const pr = tierPixelRatio(q); renderer.setPixelRatio(pr);
@@ -183,7 +216,7 @@ window.EI = window.EI || {};
     // the shadow box: +-70 m (+-55 m on low, where the map is 1024); the cached static shadow is rebuilt for the new settings
     const R = q === 'low' ? 55 : 70, sc = sun.shadow.camera; if (sc.right !== R) { sc.left = -R; sc.right = R; sc.top = R; sc.bottom = -R; sc.updateProjectionMatrix(); } invalidateShadowCache();
     if (scenery && scenery.group) scenery.group.traverse(o => { if (o.name === 'trees' || o.name === 'crowd') o.castShadow = q === 'high'; });
-    EI.quality = q; if (scenery && scenery.setQuality) scenery.setQuality(q); if (EI.Pit && EI.Pit.setQuality) EI.Pit.setQuality(q); if (track && track.setQuality) track.setQuality(q);
+    applyTexCap(q); EI.quality = q; if (scenery && scenery.setQuality) scenery.setQuality(q); if (EI.Pit && EI.Pit.setQuality) EI.Pit.setQuality(q); if (track && track.setQuality) track.setQuality(q); if (EI.Canopy && EI.Canopy.setQuality) EI.Canopy.setQuality(q);
     // low: no live mirrors, no grass tufts / decorative instancing named 'detail', fog closer
     scene.traverse(o => { if (/tuft|detail/i.test(o.name || '')) o.visible = q !== 'low'; });
     if (scene.fog) { const L = EI.look || { fog: [600, 2600], fogLow: [350, 1500] }; const f = q === 'low' ? L.fogLow : L.fog; scene.fog.near = f[0]; scene.fog.far = f[1]; } fitFarPlane();
@@ -318,6 +351,13 @@ window.EI = window.EI || {};
       let d = 1e9;
       for (const cam of cameras) { const dx = c.x - cam.position.x, dy = c.y - cam.position.y, dz = c.z - cam.position.z; const z = Math.tan(cam.fov * Math.PI / 360) * 1.732; const dd = Math.sqrt(dx * dx + dy * dy + dz * dz) * z; if (dd < d) d = dd; }
       c.setLOD(null, c.isPlayer ? 0 : d * ts);
+      if (c.isPlayer) {
+        // Low: the player's own car from the lo LOD in the outside views (chase / TV / replay); cockpit and T-cam keep the detail
+        const lite = c.lodNear && c.lodNear.userData.lite; if (lite) { const m = CAM_MODES[camModes[c.playerIndex] || 0]; lite(quality === 'low' && (!!hlCams || (m !== 'cockpit' && m !== 'tcam'))); }
+      } else if (c.lodLevel === 2 && c.lodFar && c.lodFar.userData.geos) {
+        // beyond ~200 m (scaled: ~90 m on Low) the far LOD becomes a ~1-2k-triangle silhouette (PERF)
+        const G = c.lodFar.userData.geos, dd = d * ts, g = dd > (c.lodFar.geometry === G[1] ? 180 : 200) ? G[1] : G[0]; if (g && c.lodFar.geometry !== g) c.lodFar.geometry = g;
+      }
     }
     // bots' full-size liveries are painted in the background: a larger slice per frame during the intro, ~3 ms while racing
     // while racing the painter gets what the frame can spare: up to 3 ms, less when the rest of the frame's CPU work (smoothed)
@@ -833,7 +873,7 @@ window.EI = window.EI || {};
   // swim and the cached static shadow (below) stays valid until the box moves
   const _sR = new THREE.Vector3(), _sU = new THREE.Vector3(), _sC = new THREE.Vector3();
   function sunFollow(x, z) {
-    const d = this_sunDir; const sc = sun.shadow.camera; const texel = (sc.right - sc.left) / sun.shadow.mapSize.x; const S = texel * Math.max(1, Math.round(10 / texel));
+    const d = this_sunDir; const sc = sun.shadow.camera; const texel = (sc.right - sc.left) / sun.shadow.mapSize.x; const S = texel * Math.max(1, Math.round((quality === 'low' ? 20 : 10) / texel));   // the cached static shadow is re-rendered each time the box snaps on: every 20 m on Low (half as often at speed), 10 m otherwise
     _sR.set(0, 1, 0).cross(d).normalize(); _sU.crossVectors(d, _sR);
     const r = Math.round((x * _sR.x + z * _sR.z) / S), u = Math.round((x * _sU.x + z * _sU.z) / S), w = Math.round((x * d.x + z * d.z) / S);
     _sC.set(0, 0, 0).addScaledVector(_sR, r * S).addScaledVector(_sU, u * S).addScaledVector(d, w * S);

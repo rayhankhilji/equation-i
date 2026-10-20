@@ -184,6 +184,14 @@ window.EI = window.EI || {};
   // the LOD window uLod = (inner, outer) metres from the eye is applied per tree in the vertex shader (collapsed outside), so the
   // near and far sets never overlap even between two CPU regathers
   const TREE_HEAD = '#include <common>\nattribute vec4 iA;\nattribute vec4 iB;\nattribute vec4 iC;\nuniform vec3 uEye;\nuniform vec2 uLod;\nvarying vec3 vTint;\n';
+  // foliage shading (BEAUTY): leaves carry no lacquer. The standard material's Fresnel / GGX sheen on cards seen edge-on towards a
+  // low sun swamped the dark leaf albedo and turned whole crowns and tree lines cream / beige. Specular is dropped (the compiler then
+  // removes its maths: cheaper) and replaced by a little sun transmission: a crown between the eye and the sun glows yellow-green
+  // through its leaves, as backlit foliage does (k = strength).
+  Veg.foliage = function (sh, k) {
+    sh.fragmentShader = sh.fragmentShader.replace('#include <aomap_fragment>', '#include <aomap_fragment>\nreflectedLight.directSpecular = vec3(0.0); reflectedLight.indirectSpecular = vec3(0.0);\n' +
+      '#if NUM_DIR_LIGHTS > 0\n{ float eiBk = max(dot(-normalize(vViewPosition), directionalLights[0].direction), 0.0); reflectedLight.directDiffuse += directionalLights[0].color * diffuseColor.rgb * (' + (+k).toFixed(3) + ' * eiBk * eiBk * eiBk); }\n#endif');
+  };
   function nearPatch(sh, uni, depth, med) {
     Object.assign(sh.uniforms, uni);
     sh.vertexShader = sh.vertexShader.replace('#include <common>', TREE_HEAD + 'attribute float isTop;\nattribute vec3 ctint;\nattribute float cvar;')
@@ -198,7 +206,7 @@ window.EI = window.EI || {};
         'vTint = iC.rgb * ctint;'].join('\n'))
       .replace('#include <uv_vertex>', '#include <uv_vertex>\n#ifdef USE_UV\nvUv = (uv * vec2(0.98, 0.985) + vec2(0.01, 0.004) + vec2(iB.z, isTop > 0.5 ? 2.0 : mod(iB.w + cvar, 2.0))) * vec2(' + (med ? '0.125' : '0.25') + ', 1.0 / 3.0);\n#endif');
     if (depth) sh.vertexShader = sh.vertexShader.replace('vTint = iC.rgb * ctint;', 'vTint = iC.rgb * ctint; if (dE > 200.0) transformed = iA.xyz;');
-    if (!depth) { sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nvarying vec3 vTint;').replace('#include <map_fragment>', '#include <map_fragment>\ndiffuseColor.rgb *= vTint;'); Env.noFlip(sh); }
+    if (!depth) { sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nvarying vec3 vTint;').replace('#include <map_fragment>', '#include <map_fragment>\ndiffuseColor.rgb *= vTint;'); Env.noFlip(sh); Veg.foliage(sh, 0.7); }
   }
   // far LOD: one card turned to the camera about the vertical axis (side view A of the species)
   function farPatch(sh, uni, med) {
@@ -208,7 +216,7 @@ window.EI = window.EI || {};
       .replace('#include <begin_vertex>', 'vec3 transformed = iA.xyz + brt * position.x * iB.x * 0.95 + vec3(0.0, position.y * iB.y, 0.0);\nfloat dE = distance(iA.xz, uEye.xz); if (dE < uLod.x || dE >= uLod.y) transformed = iA.xyz;\nvTint = iC.rgb;')
       .replace('#include <uv_vertex>', '#include <uv_vertex>\n#ifdef USE_UV\nvUv = (uv * vec2(0.98, 0.985) + vec2(0.01, 0.004) + vec2(iB.z, iB.w)) * vec2(' + (med ? '0.125' : '0.25') + ', 1.0 / 3.0);\n#endif');
     sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nvarying vec3 vTint;').replace('#include <map_fragment>', '#include <map_fragment>\ndiffuseColor.rgb *= vTint;');
-    Env.noFlip(sh);
+    Env.noFlip(sh); Veg.foliage(sh, 0.7);
   }
 
   // ---------------------------------------------------------------- placement
@@ -497,7 +505,7 @@ window.EI = window.EI || {};
     const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); geo.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2)); geo.setAttribute('normal', new THREE.Float32BufferAttribute(nrm, 3)); geo.setIndex(idx); geo.computeBoundingSphere();
     const stex = stripTexture();
     const mat = new THREE.MeshStandardMaterial({ map: stex, alphaTest: 0.45, side: THREE.DoubleSide, roughness: 1, metalness: 0 });
-    mat.onBeforeCompile = Env.noFlip;
+    mat.onBeforeCompile = (sh) => { Env.noFlip(sh); Veg.foliage(sh, 0.45); };
     const m = new THREE.Mesh(geo, mat); m.name = 'treeStrips'; sc.group.add(m); E.stats.stripEdges = edges; E.stats.stripTris = idx.length / 3;
     // inner strips (woods edges, copses, hedgerows, tree lines and road hedges inside the billboard area): shown only by the
     // medium / low tiers, where they grow out of the ground beyond the far tree radius (uStripR) and replace the culled billboards
@@ -516,7 +524,7 @@ window.EI = window.EI || {};
       const g2 = new THREE.BufferGeometry(); g2.setAttribute('position', new THREE.Float32BufferAttribute(ip, 3)); g2.setAttribute('uv', new THREE.Float32BufferAttribute(iu, 2)); g2.setAttribute('normal', new THREE.Float32BufferAttribute(inr, 3)); g2.setAttribute('sBase', new THREE.Float32BufferAttribute(ib, 1)); g2.setIndex(ii); g2.computeBoundingSphere();
       const uni = { uEye: { value: new THREE.Vector3() }, uStripR: { value: 1500 } };
       const m2mat = new THREE.MeshStandardMaterial({ map: stex, alphaTest: 0.45, side: THREE.DoubleSide, roughness: 1, metalness: 0 });
-      m2mat.onBeforeCompile = (sh) => { Object.assign(sh.uniforms, uni); Env.noFlip(sh); sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nattribute float sBase;\nuniform vec3 uEye;\nuniform float uStripR;').replace('#include <begin_vertex>', '#include <begin_vertex>\ntransformed.y = mix(sBase - 0.5, transformed.y, smoothstep(uStripR - 30.0, uStripR + 50.0, distance(position.xz, uEye.xz)));'); };
+      m2mat.onBeforeCompile = (sh) => { Object.assign(sh.uniforms, uni); Env.noFlip(sh); Veg.foliage(sh, 0.45); sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nattribute float sBase;\nuniform vec3 uEye;\nuniform float uStripR;').replace('#include <begin_vertex>', '#include <begin_vertex>\ntransformed.y = mix(sBase - 0.5, transformed.y, smoothstep(uStripR - 30.0, uStripR + 50.0, distance(position.xz, uEye.xz)));'); };
       m2mat.customProgramCacheKey = () => 'tree-strips-inner';
       const m2 = new THREE.Mesh(g2, m2mat); m2.name = 'treeStripsNear'; m2.visible = false; sc.group.add(m2); sc.innerStrips = { mesh: m2, uni }; E.stats.innerStripTris = ii.length / 3;
     }
@@ -575,7 +583,7 @@ window.EI = window.EI || {};
       Object.assign(sh.uniforms, uniforms); Env.noFlip(sh);
       sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nuniform float gTime;\nuniform vec3 gCam;\nuniform vec2 gFade;')
         .replace('#include <begin_vertex>', '#include <begin_vertex>\n#ifdef USE_INSTANCING\nvec3 ip = vec3(instanceMatrix[3][0], instanceMatrix[3][1], instanceMatrix[3][2]);\nfloat fade = (1.0 - smoothstep(gFade.x, gFade.y, distance(ip.xz, gCam.xz))) * (1.0 - smoothstep(7.0, 16.0, cameraPosition.y - ip.y));\ntransformed *= fade;\ntransformed.x += sin(gTime * 1.7 + ip.x * 0.35 + ip.z * 0.21) * 0.07 * uv.y;\ntransformed.z += cos(gTime * 1.3 + ip.z * 0.31) * 0.05 * uv.y;\n#endif');
-      sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nuniform vec3 gTint;').replace('#include <color_fragment>', '#include <color_fragment>\ndiffuseColor.rgb *= gTint;');
+      sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nuniform vec3 gTint;').replace('#include <color_fragment>', '#include <color_fragment>\ndiffuseColor.rgb *= gTint;'); Veg.foliage(sh, 0.8);
     };
     mat.customProgramCacheKey = () => 'grass-cards';
     const cap = Math.min(MAX, total);
