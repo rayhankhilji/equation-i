@@ -335,7 +335,7 @@ window.EI = window.EI || {};
       this.computeWalls();
       this.computeRacingLine();
       this.drs = data.drs.map(z => ({ name: z.name, detect: z.detect, start: z.start, end: z.end }));
-      this.sectors = [this.length / 3, 2 * this.length / 3];
+      this.sectors = data.sectors && data.sectors.length === 2 ? data.sectors.slice() : [this.length / 3, 2 * this.length / 3];   // data.sectors: the real sector lines (Spa)
       this.group = new THREE.Group();
     }
 
@@ -503,6 +503,12 @@ window.EI = window.EI || {};
         const c = kk[i]; if (Math.abs(c) < 1 / 500) continue; const name = cornerAt(this.s[i]);
         const gravel = gravelCorners.indexOf(name) >= 0 && Math.abs(c) > 1 / 220;
         if (c > 0) { this.runoffL[i] = 1; if (gravel) this.gravelL[i] = 1; } else { this.runoffR[i] = 1; if (gravel) this.gravelR[i] = 1; }
+      }
+      // mapped gravel beds (data.runoff = [[s0, s1, side (-1 = L / lat < 0, +1 = R), 'gravel'], ...], Spa from OSM) replace the named-corner
+      // gravel: a tarmac band past the kerb, then gravel, on the listed stretches only
+      if (this.data.runoff && !WD) {
+        this.gravelL.fill(0); this.gravelR.fill(0);
+        for (const [s0, s1, sd, kind] of this.data.runoff) { if (kind !== 'gravel') continue; for (let s = s0; s <= s1; s += this.ds) { const i = this.idxAtS(s); if (sd < 0) { this.runoffL[i] = 1; this.gravelL[i] = 1; } else { this.runoffR[i] = 1; this.gravelR[i] = 1; } } }
       }
     }
     computeRacingLine() {
