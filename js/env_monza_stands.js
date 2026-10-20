@@ -17,7 +17,7 @@
     [/^Tribuna Parabolica$/, { style: 'covered', seat: 0x2d5fb0, label: 'PARABOLICA', maxRows: 30 }],   // grandstand 22: covered permanent (FACTS 11)
     [/Laterale Parabolica/, { style: 'open', seat: 0xb4b8bc, label: 'PARABOLICA' }],   // refs2 stands_3: long open terraces of grey aluminium benches
     [/Parabolica interna/, { style: 'open', seat: 0xb8202a, label: 'PARABOLICA' }],
-    [/Alta Velocit/, { style: 'covered', seat: 0x2356a6, label: 'ALTA VELOCITA' }],   // grandstand 6A-C: partly covered
+    [/Alta Velocit/, { style: 'temp', roof: true, seat: 0x2356a6, label: 'ALTA VELOCITA', sMax: 588, maxRows: 18 }],   // grandstand 6A-C inside T1: steel stand, partly covered; it stops before the apex (MONZA-DRESS: no blank walls facing the straight)
     [/Prima Variante/, { style: 'temp', seat: 0x3d5f8f, label: 'PRIMA VARIANTE', maxRows: 22 }],
     [/Seconda Variante|Roggia/, { style: 'temp', seat: 0x8c1d24, label: 'ROGGIA' }],
     [/Ascari|Museo|Amici/, { style: 'temp', seat: 0x3d5f8f, label: 'ASCARI' }],
@@ -40,7 +40,8 @@
       let a = Infinity, b = -Infinity, dmin = Infinity, dmax = -Infinity;
       for (const p of poly) { t.project(p[0], p[1], null, pr); const ds = U.mod(pr.s - sc + L / 2, L) - L / 2; a = Math.min(a, ds); b = Math.max(b, ds); const d = pr.lat * side; dmin = Math.min(dmin, d); dmax = Math.max(dmax, d); }
       if (b - a < 8 || dmax - dmin < 5) continue;
-      St.run(E, Object.assign({ name: st.n, s0: sc + a, s1: sc + b, side, dmin, dmax }, plan));
+      let s0 = sc + a, s1 = sc + b; if (plan.sMax != null && U.mod(s1, L) > plan.sMax && U.mod(s0, L) < plan.sMax + 200) s1 = s0 + (plan.sMax - U.mod(s0, L)); if (s1 - s0 < 8) continue;
+      St.run(E, Object.assign({ name: st.n, s0, s1, side, dmin, dmax }, plan));
     }
     for (const x of EXTRA) {
       const s0 = f.s(x.s0), s1 = s0 + U.mod(f.s(x.s1) - s0, L); const kk = t.smooth(t.k, 12); const im = t.idxAtS((s0 + s1) / 2); const out = kk[im] > 0 ? -1 : 1; const side = x.side === 'out' ? out : x.side === 'in' ? -out : x.side;
@@ -111,6 +112,9 @@
         const yb = -2.0 - (b.mz.raise || 0);
         K.dq(B, P(-hl - 0.1, yb, zBack + 0.14), P(hl + 0.1, yb, zBack + 0.14), P(hl + 0.1, yTop + 1.25, zBack + 0.14), P(-hl - 0.1, yTop + 1.25, zBack + 0.14), conc);
         for (let a = -hl + 2.5; a < hl - 1; a += 5) B.box(m, 0.5, yTop + 1.25 - yb, 0.4, a, yb, zBack + 0.36, concD);
+        // the back is not a blank slab: a band of concourse windows and a darker plinth course (cheap: two strips)
+        { const yw = Math.max(1.0, yTop * 0.55); K.dq(B, P(-hl, yw, zBack + 0.16), P(hl, yw, zBack + 0.16), P(hl, yw + 1.1, zBack + 0.16), P(-hl, yw + 1.1, zBack + 0.16), C(0x3a4148));
+          K.dq(B, P(-hl, yb, zBack + 0.16), P(hl, yb, zBack + 0.16), P(hl, 0.6, zBack + 0.16), P(-hl, 0.6, zBack + 0.16), concD); }
         { const yp = b.mz.raise ? -b.mz.raise - 0.4 : 0.05; K.dq(B, P(-hl - 0.1, yb, -0.06), P(hl + 0.1, yb, -0.06), P(hl + 0.1, yp, -0.06), P(-hl - 0.1, yp, -0.06), concD); }
         const firstK = b === run.blocks[0] || (b.mz.tier === 1 && b === up[0]), lastK = b === bl[bl.length - 1] || (b.mz.tier === 1 && b === up[up.length - 1]);
         const fs = St.flip(b) ? -1 : 1;   // Env.frame mirrors x when the chord frame would be left-handed: the run's start is then at +x
@@ -128,7 +132,7 @@
         K.dq(B, pa(ybw, -0.06), pb(ybw, -0.06), pb(1.4, -0.06), pa(1.4, -0.06), concD);
       }
       // ---- covered stands: thin flat roof on slim front and back columns, dark soffit, white fascia with partner tiles
-      if (R.style === 'covered') {
+      if (R.style === 'covered' || R.roof) {
         for (const b of bl) {
           const m = b.mz.m, hl = b.len / 2, P = (x, y, z) => Env.xf(m, x, y, z); const yR = b.mz.yTop + 3.1, zF = -1.4, zR = b.mz.zBack + 0.6;
           B.box(m, b.len + 0.1, 0.32, zR - zF, 0, yR, (zF + zR) / 2, soffit, { top: C(0xb9bcbf), bottom: true });
@@ -174,19 +178,19 @@
         }
         // the drum at the run's middle
         const bm = bl[Math.floor((bl.length - 1) / 2)], bn = bl[Math.min(bl.length - 1, Math.floor(bl.length / 2))];
-        const m = bm.mz.m; const xm = bm === bn ? 0 : (St.flip(bm) ? -1 : 1) * bm.len / 2; const yR = bm.mz.yR, zD = bm.mz.zBack - 1.2, yT = bm.mz.yTop;
+        const m = bm.mz.m; const xm = bm === bn ? 0 : (St.flip(bm) ? -1 : 1) * bm.len / 2; const yR = bm.mz.yR, zD = -3.6, yT = bm.mz.yTop;   // start_3: the drum stands on the roof's FRONT edge, its bay dropping in front of the seats
         K.cyl(B, m, xm, zD, yR + 0.5, 1.1, 3.3, 16, cream);                               // base
         K.cyl(G, m, xm, zD, yR + 1.6, 2.3, 4.0, 16, C(0x52687a));                         // glazed band
         for (let k = 0; k < 12; k++) { const a = k / 12 * Math.PI * 2; Fd.beam(m, [xm + Math.cos(a) * 4.05, yR + 1.6, zD + Math.sin(a) * 4.05], [xm + Math.cos(a) * 4.05, yR + 3.9, zD + Math.sin(a) * 4.05], 0.1, white); }
         K.cyl(B, m, xm, zD, yR + 3.9, 0.4, 4.7, 16, cream, cream);                        // overhanging cap
         K.cyl(B, m, xm, zD, yR + 4.3, 0.9, 1.8, 10, cream, cream);                        // lantern
         S.beam(m, [xm + 0.8, yR + 5.2, zD], [xm + 0.8, yR + 9.5, zD], 0.1, C(0xb9bec4));   // aerial
-        // the bay: a tapering half-cylinder from the roof down into the seats (radius 3.6 at the roof, 2.3 at the bottom)
-        const yBot = 1.4 + bm.rows * 0.42 * 0.35;
-        for (let k = 0; k < 8; k++) { const a0 = Math.PI + k / 8 * Math.PI, a1 = Math.PI + (k + 1) / 8 * Math.PI;
-          const p = (a, y) => { const r = 2.3 + 1.3 * (y - yBot) / (yR - yBot); return Env.xf(m, xm + Math.cos(a) * r, y, zD + Math.sin(a) * r); };
+        // the bay: a tapering cylinder under the drum from the roof down to the middle of the tier (radius 3.4 at the roof, 2.2 low down)
+        const yBot = 1.4 + bm.rows * 0.42 * 0.45;
+        for (let k = 0; k < 12; k++) { const a0 = Math.PI * 0.75 + k / 12 * Math.PI * 1.5, a1 = Math.PI * 0.75 + (k + 1) / 12 * Math.PI * 1.5;
+          const p = (a, y) => { const r = 2.2 + 1.2 * (y - yBot) / (yR - yBot); return Env.xf(m, xm + Math.cos(a) * r, y, zD + Math.sin(a) * r); };
           K.dq(B, p(a0, yBot), p(a1, yBot), p(a1, yR), p(a0, yR), cream);
-          if (k === 3 || k === 4) K.dq(G, p(a0 + 0.06, yBot + 1.2), p(a1 - 0.06, yBot + 1.2), p(a1 - 0.06, yR - 0.8), p(a0 + 0.06, yR - 0.8), C(0x2c3e50)); }
+          if (k === 5 || k === 6) K.dq(G, p(a0 + 0.06, yBot + 1.2), p(a1 - 0.06, yBot + 1.2), p(a1 - 0.06, yR - 0.8), p(a0 + 0.06, yR - 0.8), C(0x2c3e50)); }
         K.disc(B, m, xm, zD, yBot, 0, 2.3, 8, cream);
         // the centre stair from the ground up to the seats' front, white with steel rails
         { const rz = bm.mz.raise || 0; for (let k = 0; k < 6; k++) { const f = k / 6; B.box(m, 2.6, 0.3, 0.9, xm, -rz - 0.4 + f * (rz + 1.4), -2.4 + f * 2.6, frame); }

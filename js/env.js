@@ -734,10 +734,17 @@ window.EI = window.EI || {};
           tinted ? 'diffuseColor.rgb *= fm.rgb * vColor;' : 'diffuseColor.rgb *= mix(vColor, fm.rgb, inMap);',
           'vec2 wq = vWPos.xz;',
           'vec3 d1 = texture2D(detailMap, wq * 0.62).rgb;',
+          // Low (EI_LOW, Env.setQuality): one detail octave and one macro read instead of three + two (PERF: the ground covers much of
+          // the frame and was the dearest surface per pixel)
+          '#ifdef EI_LOW',
+          'float mac = texture2D(detailMap, wq * 0.0071).a;',
+          'diffuseColor.rgb *= d1 * 2.0 * (0.78 + 0.44 * mac);',
+          '#else',
           'vec3 d2 = texture2D(detailMap, vec2(wq.x * 0.6 - wq.y * 0.8, wq.x * 0.8 + wq.y * 0.6) * 0.15).rgb;',
           'vec3 d3 = texture2D(detailMap, wq * 0.031 + 0.37).rgb;',
           'float mac = texture2D(detailMap, wq * 0.0071).a * 0.65 + texture2D(detailMap, vec2(-wq.y, wq.x) * 0.0023 + 0.5).a * 0.35;',
-          'diffuseColor.rgb *= (d1 * 0.5 + d2 * 0.3 + d3 * 0.2) * 2.0 * (0.78 + 0.44 * mac);'].concat(rocky ? [
+          'diffuseColor.rgb *= (d1 * 0.5 + d2 * 0.3 + d3 * 0.2) * 2.0 * (0.78 + 0.44 * mac);',
+          '#endif'].concat(rocky ? [
           // mountains: steep faces turn to weathered limestone - buttresses and ledges in bands along the height (projected along
           // the face, broken by noise), grey to warm ochre, dark scrub in the gullies and on the ledges; a relief normal from the
           // same bands breaks up the big terrain facets
@@ -759,13 +766,22 @@ window.EI = window.EI || {};
       if (rocky) {
         sh.fragmentShader = sh.fragmentShader.replace('void main() {', 'float rkH = 0.5, rkMix = 0.0;\nvoid main() {').replace('#include <normal_fragment_maps>', [
           '#include <normal_fragment_maps>',
+          '#ifndef EI_LOW',
           '{ vec2 dH = vec2(dFdx(rkH), dFdy(rkH)) * 14.0 * rkMix; vec3 sp = -vViewPosition; vec3 vSx = dFdx(sp), vSy = dFdy(sp); vec3 R1 = cross(vSy, normal), R2 = cross(normal, vSx);',
-          '  float fDet = dot(vSx, R1) * faceDirection; vec3 vGrad = sign(fDet) * (dH.x * R1 + dH.y * R2); normal = normalize(abs(fDet) * normal - vGrad); }'].join('\n'));
+          '  float fDet = dot(vSx, R1) * faceDirection; vec3 vGrad = sign(fDet) * (dH.x * R1 + dH.y * R2); normal = normalize(abs(fDet) * normal - vGrad); }',
+          '#endif'].join('\n'));
       }
       if (rocky) { sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nvarying vec3 vWN;').replace('#include <project_vertex>', '#include <project_vertex>\nvWN = normalize(mat3(modelMatrix) * objectNormal);'); sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nvarying vec3 vWN;'); }
     };
-    mat.customProgramCacheKey = () => (tinted ? 'ground-tint' : 'ground') + (rocky ? '-rock' : '');
+    mat.customProgramCacheKey = () => (tinted ? 'ground-tint' : 'ground') + (rocky ? '-rock' : '') + (mat.defines && mat.defines.EI_LOW !== undefined ? '-low' : '');
+    Env.groundMats.push(mat); if (Env.quality === 'low') { mat.defines = mat.defines || {}; mat.defines.EI_LOW = ''; }
     return mat;
+  };
+  // quality: Low compiles the ground with EI_LOW (main.js setQuality)
+  Env.groundMats = []; Env.quality = null;
+  Env.setQuality = function (q) {
+    Env.quality = q; const low = q === 'low';
+    for (const m of Env.groundMats) { const has = !!(m.defines && m.defines.EI_LOW !== undefined); if (has === low) continue; m.defines = m.defines || {}; if (low) m.defines.EI_LOW = ''; else delete m.defines.EI_LOW; m.needsUpdate = true; }
   };
 
   // ---------------------------------------------------------------- field colour (sRGB bytes) at a point: circuit grass, venue grass, farm fields

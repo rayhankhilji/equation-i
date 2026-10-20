@@ -586,7 +586,7 @@ window.EI = window.EI || {};
       Object.assign(sh.uniforms, uniforms); Env.noFlip(sh);
       sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nuniform float gTime;\nuniform vec3 gCam;\nuniform vec2 gFade;')
         .replace('#include <begin_vertex>', '#include <begin_vertex>\n#ifdef USE_INSTANCING\nvec3 ip = vec3(instanceMatrix[3][0], instanceMatrix[3][1], instanceMatrix[3][2]);\nfloat fade = (1.0 - smoothstep(gFade.x, gFade.y, distance(ip.xz, gCam.xz))) * (1.0 - smoothstep(7.0, 16.0, cameraPosition.y - ip.y));\ntransformed *= fade;\ntransformed.x += sin(gTime * 1.7 + ip.x * 0.35 + ip.z * 0.21) * 0.07 * uv.y;\ntransformed.z += cos(gTime * 1.3 + ip.z * 0.31) * 0.05 * uv.y;\n#endif');
-      sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nuniform vec3 gTint;').replace('#include <color_fragment>', '#include <color_fragment>\ndiffuseColor.rgb *= gTint;'); Veg.foliage(sh, 0.8);
+      sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nuniform vec3 gTint;').replace('#include <color_fragment>', '#include <color_fragment>\ndiffuseColor.rgb *= gTint;');
     };
     mat.customProgramCacheKey = () => 'grass-cards';
     const cap = Math.min(MAX, total);

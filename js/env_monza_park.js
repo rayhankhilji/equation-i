@@ -7,7 +7,7 @@
   const Mz = EI.EnvMonza; if (!Mz) return;
   const U = EI.U, Env = EI.Env, K = Mz.K, C = K.C;
   const Pk = {};
-  const RW = 14, APRON = 3.2, HB = 8.2;            // ring width, flat apron, height of the lip above the apron at full banking
+  const RW = 14, APRON = 3.2, HB = 8.2, DS = 2.6;   // DS: depth of the bridge deck over the GP track (serraglio_1: a deep concrete box)            // ring width, flat apron, height of the lip above the apron at full banking
 
   // ================================================================ ring geometry (world), shared by layout and build
   function ring(E) {
@@ -29,7 +29,7 @@
     for (const r of out) {
       const S = r.S; r.spans = [];
       // a span only where the ring really crosses the circuit (the signed lateral flips); runs that merely pass close are clipped
-      for (let i = 0; i < S.length; i++) if (S[i].gp < 4) { let j = i; while (j + 1 < S.length && S[j + 1].gp < 4) j++; let cross = false; for (let k = Math.max(1, i - 1); k <= Math.min(S.length - 1, j + 1); k++) if (Math.sign(S[k].lat) !== Math.sign(S[k - 1].lat) && Math.abs(S[k].lat) < 40) cross = true; if (!cross) { i = j; continue; } let yT = -Infinity; for (let k = i; k <= j; k++) yT = Math.max(yT, t.y[S[k].gpI]); r.spans.push({ i0: i, i1: j, yT, ac: (S[i].a + S[j].a) / 2 }); i = j; }
+      for (let i = 0; i < S.length; i++) if (S[i].gp < 4) { let j = i; while (j + 1 < S.length && S[j + 1].gp < 4) j++; let cross = false; for (let k = Math.max(1, i - 1); k <= Math.min(S.length - 1, j + 1); k++) if (Math.sign(S[k].lat) !== Math.sign(S[k - 1].lat) && Math.abs(S[k].lat) < 40) cross = true; if (!cross || S[i].end || S[j].end) { i = j; continue; }   /* the ring's ends merge into the main straight: no bridge there (MONZA-DRESS: a deck spanned the straight at s ~250) */ let yT = -Infinity; for (let k = i; k <= j; k++) yT = Math.max(yT, t.y[S[k].gpI]); r.spans.push({ i0: i, i1: j, yT, ac: (S[i].a + S[j].a) / 2 }); i = j; }
       // deck base: ground + 0.2, raised to clear the GP track near a span (ramps of 70 m either side)
       for (const q of S) {
         let y = E.ground(q.x, q.z) + 0.15;
@@ -84,13 +84,13 @@
           const o0 = [L0[0] + prevQ.nx * 0.45, L0[1], L0[2] + prevQ.nz * 0.45], o1 = [L1[0] + q.nx * 0.45, L1[1], L1[2] + q.nz * 0.45];
           K.dq(B, L0, L1, up(L1, 0.5), up(L0, 0.5), concL); upQ(up(L0, 0.5), up(L1, 0.5), up(o1, 0.5), up(o0, 0.5), concL);
           const span = inSpan(i) || inSpan(prevI);
-          const g0 = span ? prevQ.y - 1.3 : Math.min(E.ground(o0[0], o0[2]) - 0.4, prevQ.y - 0.2), g1 = span ? q.y - 1.3 : Math.min(E.ground(o1[0], o1[2]) - 0.4, q.y - 0.2);
+          const g0 = span ? prevQ.y - DS : Math.min(E.ground(o0[0], o0[2]) - 0.4, prevQ.y - 0.2), g1 = span ? q.y - DS : Math.min(E.ground(o1[0], o1[2]) - 0.4, q.y - 0.2);
           K.dq(B, [o0[0], g0, o0[2]], [o1[0], g1, o1[2]], up(o1, 0.5), up(o0, 0.5), col(wallC, (0.86 + 0.12 * nz) * (0.9 + 0.14 * U.noise2(q.a * 0.45, 7.3))));
-          const I0 = prev[0], I1 = cur[0]; const gi0 = span ? prevQ.y - 1.3 : E.ground(I0[0], I0[2]) - 0.4, gi1 = span ? q.y - 1.3 : E.ground(I1[0], I1[2]) - 0.4;
+          const I0 = prev[0], I1 = cur[0]; const gi0 = span ? prevQ.y - DS : E.ground(I0[0], I0[2]) - 0.4, gi1 = span ? q.y - DS : E.ground(I1[0], I1[2]) - 0.4;
           if (Math.max(I0[1] - gi0, I1[1] - gi1) > 0.25) K.dq(B, [I0[0], gi0, I0[2]], [I1[0], gi1, I1[2]], I1, I0, col(wallC, 0.85));
           if (span) { // deck soffit, dark
-            const s0a = [I0[0], prevQ.y - 1.3, I0[2]], s1a = [I1[0], q.y - 1.3, I1[2]];
-            K.dq(B, s0a, s1a, [o1[0], q.y - 1.3, o1[2]], [o0[0], prevQ.y - 1.3, o0[2]], C(0x55534e));
+            const s0a = [I0[0], prevQ.y - DS, I0[2]], s1a = [I1[0], q.y - DS, I1[2]];
+            K.dq(B, s0a, s1a, [o1[0], q.y - DS, o1[2]], [o0[0], prevQ.y - DS, o0[2]], C(0x55534e));
           }
           // buttresses on the outer wall every ~12 m (not over the span)
           if (!span && i % 2 === 0) { const gb = E.ground(o1[0], o1[2]); const h = up(o1, 0)[1] - gb; if (h > 1) { const m = Env.frame(o1[0], gb - 0.3, o1[2], q.tx, q.tz, q.nx, q.nz); B.box(m, 0.9, h + 0.3, 1.6 + h * 0.25, 0, 0, 0.7 + h * 0.12, col(wallC, 0.82)); } }
@@ -110,15 +110,15 @@
         spans++;
         for (const ie of [Math.max(0, sp.i0 - 2), Math.min(Sm.length - 1, sp.i1 + 2)]) {
           const q = Sm[ie]; const gq = Math.min(E.ground(q.x, q.z), t.y[q.gpI]) - 0.6; const m = Env.frame(q.x, gq, q.z, q.tx, q.tz, q.nx, q.nz);
-          B.box(m, 1.6, q.y - 1.3 - gq + 0.05, RW + 1.4, 0, 0, 0.2, C(0xa9a69c));
+          B.box(m, 1.6, q.y - DS - gq + 0.05, RW + 1.4, 0, 0, 0.2, C(0xa9a69c));
           // the portal fascia facing the track (concrete band with dark stains)
-          B.box(m, 0.4, 1.3, RW + 1.0, ie === sp.i0 - 2 ? 0.9 : -0.9, q.y - 1.3, 0.2, C(0x9a978e));
+          B.box(m, 0.4, DS, RW + 1.0, ie === sp.i0 - 2 ? 0.9 : -0.9, q.y - DS, 0.2, C(0x9a978e));
         }
         // the partner hoarding hung on both faces of the bridge over the GP track (m_bank_sop1/2: white panel with the partner's logo)
         { const ic = Math.round((sp.i0 + sp.i1) / 2); const q = Sm[ic]; const pw = 24, ph = 3.6;
           const r = A.region('mzBankSign', 768, 136, (x2, w, h) => { x2.fillStyle = '#ffffff'; x2.fillRect(0, 0, w, h); if (EI.Ads && EI.Ads.paintTile) EI.Ads.paintTile(x2, 0, 0, 0, w, h, pw / ph); else Mz.paintText(x2, w, h, 'trylumi.co', { bg: '#ffffff', fg: '#c8102e' }); x2.strokeStyle = '#d6d8da'; x2.lineWidth = 4; x2.strokeRect(2, 2, w - 4, h - 4); });
           for (const sd of [-1, 1]) {
-            const off = RW / 2 + 0.55 + (sd > 0 ? 0.45 : 0); const cx = q.x + q.nx * sd * off, cz = q.z + q.nz * sd * off; const y0 = q.y - 2.2;   // banking_bridge_over_track_a: the panel hangs below the deck edge
+            const off = RW / 2 + 0.55 + (sd > 0 ? 0.45 : 0); const cx = q.x + q.nx * sd * off, cz = q.z + q.nz * sd * off; const y0 = q.y - 2.35;   // banking_bridge_over_track_a: the panel covers the deck face
             const a = [cx - q.tx * pw / 2, y0, cz - q.tz * pw / 2], b = [cx + q.tx * pw / 2, y0, cz + q.tz * pw / 2], c = [b[0], y0 + ph, b[2]], d = [a[0], y0 + ph, a[2]];
             const nOut = (-q.tz) * q.nx * sd + q.tx * q.nz * sd; if (nOut > 0) A.quad(r, a, b, c, d); else A.quad(r, b, a, d, c);
             { const yr = y0 + ph + 0.9; Fd.beam(Env.frame(0, 0, 0, 1, 0, 0, 1), [a[0], yr, a[2]], [b[0], yr, b[2]], 0.08, C(0xeeeeee)); Fd.beam(Env.frame(0, 0, 0, 1, 0, 0, 1), [a[0], yr - 0.45, a[2]], [b[0], yr - 0.45, b[2]], 0.06, C(0xeeeeee));

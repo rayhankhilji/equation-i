@@ -129,7 +129,7 @@ window.EI = window.EI || {};
   // greyed dark liveries (a uniform veil over black / navy / plum), so it is cut hard on dark albedo while the sharp clear-coat
   // reflections stay (that is the gloss): kB = base-layer env factor, kC = clear-coat env factor, both from the albedo luminance.
   // CarGLB.PAINT_SPEC = [kB dark, kB light, kC dark, kC light, ground] (tunable before the first car is built).
-  CarGLB.PAINT_SPEC = [0.22, 0.85, 0.8, 1.0, 0.2];   // + [4] = what a fully downward reflection keeps of the sky (the 'ground')
+  CarGLB.PAINT_SPEC = [0.22, 0.85, 0.6, 1.0, 0.2];   // + [4] = what a fully downward reflection keeps of the sky (the 'ground')
   const paintSpecGLSL = (extra) => { const k = CarGLB.PAINT_SPEC.map(v => (+v).toFixed(3));
     // + ground occlusion: the environment is the sky (bright below the horizon too), but a reflection that points down sees the dark
     //   track. From the raised chase / TV cameras the car's flanks reflect downward rays, which is what washed dark cars out grey.
@@ -296,6 +296,7 @@ window.EI = window.EI || {};
   // 'T' top [z, -x]); views without a kind reach everything
   function* candidatesGen(pm, views) {
     const C = cellIndex(pm); const out = []; const cl = (v, v0, nc) => Math.max(0, Math.min(nc - 1, Math.floor((v - v0) / CELL)));
+    if (views.some(v => v.bb && v.pass !== 'car')) return pm.idx;   // full-car passes: every texel anyway
     let full = false; const boxes = [];
     for (const vw of views) {
       if (!vw.bb) continue; if (!vw.kind) { full = true; break; }
@@ -462,8 +463,8 @@ window.EI = window.EI || {};
     const FWEND = ROLE_NAMES.indexOf('fwEnd'), HALO = ROLE_NAMES.indexOf('halo'), real = EI.LIVERIES && EI.LIVERIES.has(id) && EI.LIVERIES.sideHalo;
     const FWMAIN = ROLE_NAMES.indexOf('fwMain');
     const noEp = Object.assign({ [FWMAIN]: 1 }, ep ? { [FWEND]: 1 } : null, real ? { [HALO]: 1 } : null);   // texels only their own pass paints
-    views.push({ cls: 1, also: [4], notRoles: noEp, kind: 'L', map: (x, y) => [-x, -y], x0: -3.2, x1: 3.2, y0: -1.25, y1: 0.05, draw: side(-1) });
-    views.push({ cls: 2, also: [5], notRoles: noEp, kind: 'R', map: (x, y) => [x, -y], x0: -3.2, x1: 3.2, y0: -1.25, y1: 0.05, draw: side(1) });
+    views.push({ cls: 1, also: [4], main: 1, notRoles: noEp, kind: 'L', map: (x, y) => [-x, -y], x0: -3.2, x1: 3.2, y0: -1.25, y1: 0.05, draw: side(-1) });
+    views.push({ cls: 2, also: [5], main: 1, notRoles: noEp, kind: 'R', map: (x, y) => [x, -y], x0: -3.2, x1: 3.2, y0: -1.25, y1: 0.05, draw: side(1) });
     if (ep) for (const s of [-1, 1]) {
       const draw = (g) => { g.scale(1 / MM, 1 / MM); EI.LIVERIES.endplate(g, sideKit(g, s), team, num, code); };
       views.push(s < 0 ? { cls: 1, also: [4], roles: { [FWEND]: 1 }, kind: 'L', map: (x, y) => [-x, -y], x0: -3.2, x1: -2.1, y0: -0.65, y1: 0.05, draw }
@@ -482,7 +483,7 @@ window.EI = window.EI || {};
       views.push({ cls: 3, roles: { [HALO]: 1 }, kind: 'T', map: (x, y, z) => [z, -x], x0: -0.45, x1: 0.45, y0: -1.3, y1: 0.05, draw: (g) => { g.scale(1 / MM, 1 / MM); EI.LIVERIES.topHalo(g, topKit(g), team, num); } });
     }
     // top view: X = z (right), Y = -x (nose up), text upright reads from behind
-    views.push({ cls: 3, notRoles: noEp, kind: 'T', map: (x, y, z) => [z, -x], x0: -1.1, x1: 1.1, y0: -3.2, y1: 3.2, draw: (g) => {
+    views.push({ cls: 3, main: 1, notRoles: noEp, kind: 'T', map: (x, y, z) => [z, -x], x0: -1.1, x1: 1.1, y0: -3.2, y1: 3.2, draw: (g) => {
       g.scale(1 / MM, 1 / MM); const { at, txt, dec, rect, poly } = topKit(g);
       if (EI.LIVERIES && EI.LIVERIES.has(id)) return EI.LIVERIES.top(g, { at, txt, dec, rect, poly }, team, num);
       // customer teams: nose tip and centre stripe, number on the nose (reads from the front), partner on the rear wing
@@ -517,7 +518,7 @@ window.EI = window.EI || {};
       const bk = team.id + ':' + size; let baseC = baseCache[bk];
       if (!baseC) { baseC = yield* paintSheetGen(team, num, code, size, 'team'); baseCache[bk] = baseC; }
       c = document.createElement('canvas'); c.width = c.height = size; ctx = c.getContext('2d', { willReadFrequently: true }); ctx.drawImage(baseC, 0, 0); yield;
-      const views = liveryViews(team, num, code, viewOpts(team)); for (const v of views) v.pass = 'car';
+      const views = liveryViews(team, num, code, viewOpts(team)).filter(v => v.main); for (const v of views) v.pass = 'car';
       yield* projectDecalsGen(ctx, size, views, roleMaps[Math.min(size, 2048)]);
     } else { c = yield* paintSheetGen(team, num, code, size, 'all'); ctx = c.getContext('2d'); }
     // ambient occlusion
@@ -1042,10 +1043,14 @@ window.EI = window.EI || {};
   // vertex-clustering simplification: vertices of the same part group and material snap to the mean of their grid cell, collapsed
   // and duplicate triangles are dropped. Attributes other than position come from the cell's first vertex.
   function clusterGeo(geo, cell) {
-    const a = geo.attributes, P = a.position.array, K = a.lodk.array, G = a.lodg.array, C = a.color.array, n = a.position.count;
+    const a = geo.attributes, P = a.position.array, K = a.lodk.array, G = a.lodg.array, C = a.color.array, n = a.position.count, UV = a.uv && a.uv.array;
     const map = new Map(), rep = new Int32Array(n), first = [], acc = [];
+    // livery-textured vertices (slot 1) only merge within one UV cell of the atlas: merging across UV islands gave the merged vertex
+    // another island's UV, so mid / far cars showed patches of carbon / wrong paint ('bodyless' cars from ~25 m)
+    const uvq = Math.max(16, Math.round(2.4 / cell));
     for (let i = 0; i < n; i++) {
-      const key = G[i] + '|' + K[i * 4] + '|' + Math.round(K[i * 4 + 2] * 50) + '|' + Math.round(C[i * 3] * 40) + '|' + Math.floor(P[i * 3] / cell) + '|' + Math.floor(P[i * 3 + 1] / cell) + '|' + Math.floor(P[i * 3 + 2] / cell);
+      const uvKey = UV && cell < 0.25 && K[i * 4] > 0.5 && K[i * 4] < 1.5 ? '|' + Math.floor(UV[i * 2] * uvq) + ',' + Math.floor(UV[i * 2 + 1] * uvq) : '';
+      const key = G[i] + '|' + K[i * 4] + '|' + Math.round(K[i * 4 + 2] * 50) + '|' + Math.round(C[i * 3] * 40) + '|' + Math.floor(P[i * 3] / cell) + '|' + Math.floor(P[i * 3 + 1] / cell) + '|' + Math.floor(P[i * 3 + 2] / cell) + uvKey;
       let r = map.get(key); if (r === undefined) { r = first.length; map.set(key, r); first.push(i); acc.push(0, 0, 0, 0); }
       rep[i] = r; acc[r * 4] += P[i * 3]; acc[r * 4 + 1] += P[i * 3 + 1]; acc[r * 4 + 2] += P[i * 3 + 2]; acc[r * 4 + 3]++;
     }
@@ -1061,7 +1066,7 @@ window.EI = window.EI || {};
     out.setIndex(new THREE.BufferAttribute(m > 65535 ? new Uint32Array(tri) : new Uint16Array(tri), 1)); out.computeBoundingSphere(); out.computeBoundingBox(); return out;
   }
   const templates = {};
-  const MID_CELL = 0.07, FAR_CELL = 0.12, VFAR_CELL = 0.3;   // ~14k and ~6.5k triangles from the 45k-triangle lo car; vfar: a ~1-2k-triangle silhouette for cars far away (main.js updateCarLod, PERF)
+  const MID_CELL = 0.08, FAR_CELL = 0.14, VFAR_CELL = 0.3;   // ~14k and ~6.5k triangles from the 45k-triangle lo car; vfar: a ~1-2k-triangle silhouette for cars far away (main.js updateCarLod, PERF)
   function template(lod, detailed) {
     const key = lod + (detailed ? ':d' : ''); if (templates[key]) return templates[key];
     const src = lod === 'lo' ? cache.lo : cache.hi; const meta = cache.meta || {};
@@ -1255,7 +1260,7 @@ window.EI = window.EI || {};
   // ---------------------------------------------------------------- build
   // returns the EI.CarModel.build shape plus: lodMat, pose(spin, steerAngle, flapRot, body), mid / far meshes (bots) and the
   // shadow proxy geometry. Player cars ('hi') also get the cockpit, the live mirrors and the wheel display.
-  const LIVERY_RES = CarGLB.LIVERY_RES = { low: [1024, 2048], medium: [1536, 2048], high: [2048, 4096] };
+  const LIVERY_RES = CarGLB.LIVERY_RES = { low: [768, 1536], medium: [1024, 2048], high: [2048, 4096] };   // [bots, players] (agreed with PERF, wave 6)
   function build(car, lod) {
     if (!CarGLB.ready) return EI.CarModel.build(car);
     const lo = lod === 'lo'; const detailed = !lo && car.isPlayer !== false;
@@ -1265,7 +1270,9 @@ window.EI = window.EI || {};
     // player cars start at <= 2048 and a 4096 sheet (High) follows the same way, so the race build never stalls on it.
     const res = LIVERY_RES[EI.quality] || LIVERY_RES.medium; const full = lo ? res[0] : res[1];
     let tex = texCache[liveryKey(car.team, car.num, code, full)];
-    if (!tex) tex = composeLivery(car.team, car.num, code, lo && !CarGLB.syncLiveries ? 512 : Math.min(full, 2048));
+    // painted now, at the race build (the team layer once per team, then a small per-car pass), so nothing paints during the race on
+    // Low / Medium; CarGLB.asyncLiveries = the old 512 stand-in + background upgrade
+    if (!tex) tex = composeLivery(car.team, car.num, code, lo && CarGLB.asyncLiveries ? 512 : Math.min(full, 2048));
     const paint = paintMaterial(tex), lm = lodMaterial(tex, car, T), U = lm.userData.u;
     // per-car livery state for the background upgrades: base = this quality's size, near = the size the cars closest to a camera
     // get (see pump); cur = what the car wears now

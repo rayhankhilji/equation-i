@@ -262,14 +262,14 @@ window.EI = window.EI || {};
   // contiguous draw range (no extra draw calls): big cells hold [main | detail] (detail dropped in the distance), small cells hold
   // the fine near-only clutter, yacht cells hold [far hulls | near detail] and swap between them. The blended chain-link fence and
   // the line batches keep their own cells.
-  const GRIDS = { A: { cell: 400, order: ['main', 'detail'] }, B: { cell: 130, order: ['fine'] }, Y: { cell: 300, order: ['yFar', 'yNear'] } };   // (cells were 600 / 260 / 450 m; measured 300 / 130 / 200 = -47 % street tris but +8 calls: a cell is drawn whole, so the big ones put 30-70k tris of far-away detail in every view)
+  const GRIDS = { A: { cell: 600, order: ['main', 'detail'] }, B: { cell: 130, order: ['fine'] }, Y: { cell: 450, order: ['yFar', 'yNear'] } };   // (B was 260 m: a cell is drawn whole, the 30k-tri clutter cells cost 36k tris in view; 130 m = 13k at the same call count. A / Y at 300 / 200 m cut 47 % of the street tris but added 8 calls + 100 objects: reverted)
   const LAYERS = {
     main: { grid: 'A' }, detail: { grid: 'A' }, fine: { grid: 'B' }, yFar: { grid: 'Y' }, yNear: { grid: 'Y' },
     fence: { cell: 600, vis: [240, 600, 1100], mat: 'fence' },
     lines: { cell: 800, vis: [220, 500, 900], lines: true },
     linesNear: { cell: 400, vis: [120, 260, 400], lines: true },
   };
-  const NEAR = [100, 190, 300], NEARY = [120, 230, 340], MID = [250, 440, 800], SHADOW = [100, 150, 220];
+  const NEAR = [100, 190, 300], NEARY = [0, 230, 340], MID = [250, 440, 800], SHADOW = [100, 150, 220];
   SK.LAYERS = LAYERS;
   class World {
     constructor(sc) {

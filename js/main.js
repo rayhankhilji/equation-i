@@ -218,7 +218,7 @@ window.EI = window.EI || {};
     // the shadow box: +-70 m (+-55 m on low, where the map is 1024); the cached static shadow is rebuilt for the new settings
     const R = q === 'low' ? 55 : 70, sc = sun.shadow.camera; if (sc.right !== R) { sc.left = -R; sc.right = R; sc.top = R; sc.bottom = -R; sc.updateProjectionMatrix(); } invalidateShadowCache();
     if (scenery && scenery.group) scenery.group.traverse(o => { if (o.name === 'trees' || o.name === 'crowd') o.castShadow = q === 'high'; });
-    applyTexCap(q); EI.quality = q; if (scenery && scenery.setQuality) scenery.setQuality(q); if (EI.Pit && EI.Pit.setQuality) EI.Pit.setQuality(q); if (track && track.setQuality) track.setQuality(q); if (EI.Canopy && EI.Canopy.setQuality) EI.Canopy.setQuality(q);
+    applyTexCap(q); if (EI.Env && EI.Env.setQuality) EI.Env.setQuality(q); EI.quality = q; if (scenery && scenery.setQuality) scenery.setQuality(q); if (EI.Pit && EI.Pit.setQuality) EI.Pit.setQuality(q); if (track && track.setQuality) track.setQuality(q); if (EI.Canopy && EI.Canopy.setQuality) EI.Canopy.setQuality(q);
     // low: no live mirrors, no grass tufts / decorative instancing named 'detail', fog closer
     scene.traverse(o => { if (/tuft|detail/i.test(o.name || '')) o.visible = q !== 'low'; });
     if (scene.fog) { const L = EI.look || { fog: [600, 2600], fogLow: [350, 1500] }; const f = q === 'low' ? L.fogLow : L.fog; scene.fog.near = f[0]; scene.fog.far = f[1]; } fitFarPlane();
@@ -288,7 +288,7 @@ window.EI = window.EI || {};
     const q = EI.quality || quality, T = S.TIERS[q]; if (!T) return;
     if (!on) { scenery.setQuality(q); return; }
     const m = (v, f, cap) => Math.min(v * f, cap == null ? Infinity : cap);
-    const tight = Object.assign({}, T, { treeNear: m(T.treeNear, 0.7), treeFar: m(T.treeFar, 0.75, 1600), grass: [T.grass[0] * 0.8, T.grass[1] * 0.8], crowd: m(T.crowd, 0.75), cars: m(T.cars, 0.7, 700), tents: m(T.tents, 1, 700), clutter: m(T.clutter, 0.7, 900) });
+    const tight = Object.assign({}, T, { treeNear: m(T.treeNear, 0.7), treeFar: m(T.treeFar, 0.75, 1600), grass: [T.grass[0] * 0.8, T.grass[1] * 0.8], crowd: m(T.crowd, 0.75), cars: m(T.cars, 0.7, 700), tents: m(T.tents, 1, 700), clutter: m(T.clutter, 0.7, 900), cityDetail: m(T.cityDetail || 0, 0.75), cityFar: m(T.cityFar || 0, 0.75) });   // city ranges too (PERF: the street city is the bulk of Monaco's 2P cost)
     S.TIERS[q] = tight; try { scenery.setQuality(q); } finally { S.TIERS[q] = T; }
   }
   // Bot skill = the named levels in #opt-diff (Very easy ... Very hard, Official F1 = real 2026 pace, Ultra = car limit); the pick is remembered.
@@ -348,7 +348,7 @@ window.EI = window.EI || {};
   const LOD_TIER = { low: 2.2, medium: 1, high: 0.8 };   // low: full-detail bots within ~12 m, the 14k-triangle mid LOD to ~33 m
   let contactShadows = null, lodFrame = -1;
   function updateCarLod() {
-    const ts = LOD_TIER[quality] || 1;
+    const ts = (LOD_TIER[quality] || 1) * (cameras.length > 1 ? 1.3 : 1);   // two views: every car is drawn twice, switch to the lighter LODs sooner
     for (const c of race.cars) {
       let d = 1e9;
       for (const cam of cameras) { const dx = c.x - cam.position.x, dy = c.y - cam.position.y, dz = c.z - cam.position.z; const z = Math.tan(cam.fov * Math.PI / 360) * 1.732; const dd = Math.sqrt(dx * dx + dy * dy + dz * dz) * z; if (dd < d) d = dd; }
@@ -366,7 +366,7 @@ window.EI = window.EI || {};
     // already nears 12 ms, so on a slow laptop the background painting never pushes a frame past the 60 Hz refresh
     if (EI.CarGLB && EI.CarGLB.pump) {
       _eyes.length = 0; for (const cam of cameras) _eyes.push(cam.position);
-      const t = performance.now(); EI.CarGLB.pump(!race.started && introT < introLen ? 10 : U.clamp(12 - cpuEma, 0.5, 3), race.cars, _eyes); pumpMs = performance.now() - t;
+      const t = performance.now(); EI.CarGLB.pump(!race.started && introT < introLen ? 14 : U.clamp(12 - cpuEma, 0.5, 3), race.cars, _eyes); pumpMs = performance.now() - t;
     }
   }
   const _eyes = []; let cpuEma = 6, pumpMs = 0, frameT0 = 0;
@@ -850,7 +850,10 @@ window.EI = window.EI || {};
     });
     if (PF) PF.to('post'); pipeResolve(); pushFence(gl2); cpuEma += (performance.now() - frameT0 - pumpMs - cpuEma) * 0.1; if (PF) PF.end(renderer, perfRes);
   }
-  const MAX_FRAME = 0.1, MAX_STEPS = 12;
+  // catch-up cap: at most 6 physics steps (50 ms of race time) per frame. A long frame (a hitch, a slow machine below 20 fps) then slows the
+  // race down for a moment instead of piling up to 12 steps (~15-25 ms of CPU with 22 cars) on the NEXT frame, which made that one long
+  // too - the spiral that turned a stutter into seconds of low frame rate (PERF)
+  const MAX_FRAME = 0.05, MAX_STEPS = 6;
   // Cars are drawn where the last physics step is heading, a fraction of a step ahead (extrapolated from the last two steps),
   // instead of blended between the last two steps: the same smooth motion at any refresh rate, one 120 Hz step (8.3 ms) less
   // between a key press and the screen. A jump of more than 5 m between steps (a reset, the pit lane) is drawn as it is.
