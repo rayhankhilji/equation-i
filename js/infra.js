@@ -70,13 +70,15 @@ window.EI = window.EI || {};
     reserve(s, side, half) { this.reserved.push([s, side, half]); }
     isReserved(s, side) { const L = this.t.length; for (const r of this.reserved) { if (r[1] !== side) continue; let d = Math.abs(s - r[0]); d = Math.min(d, L - d); if (d < r[2]) return true; } return false; }
     // interpolated point at distance s, lateral wall+off on `side` (y follows the track; the verge ribbon is at track level out to wall+40)
+    // forest ground (Spa): the lowest drawn ground under a ~5 x 3 m footprint (board legs, tower feet, huts across a bank)
+    forestY(x, z, tx, tz, nx, nz) { const h = (a, b) => this.sc.height(x + tx * a + nx * b, z + tz * a + nz * b); return Math.min(h(0, 0), h(2.4, 0), h(-2.4, 0), h(0, 1.5), h(0, -1.5)); }
     at(s, side, off) {
       const t = this.t; const f = U.mod(s / t.ds, t.n); const i = Math.floor(f), j = (i + 1) % t.n, u = f - i;
       const wall = side < 0 ? U.lerp(t.wallL[i], t.wallL[j], u) : U.lerp(t.wallR[i], t.wallR[j], u); let d = wall + off;
       // inside of a corner: never place anything beyond the local radius (the normals cross there)
       if (t.kFold) { const kf = t.kFold[i]; if ((kf > 0 && side > 0) || (kf < 0 && side < 0)) d = Math.min(d, Math.max(2, 0.88 / (Math.abs(kf) + 1e-6))); }
-      const px = U.lerp(t.x[i], t.x[j], u) + t.nx[i] * side * d, pz = U.lerp(t.z[i], t.z[j], u) + t.nz[i] * side * d; const fe = this.sc && this.sc.env && this.sc.env.forestOn;   // forest ground (Spa, SPA-STITCH): the drawn ground (lowest within +-2.4 m along: board legs, tower feet), not the road level
-      return { x: px, y: fe ? Math.min(this.sc.height(px, pz), this.sc.height(px + t.tx[i] * 2.4, pz + t.tz[i] * 2.4), this.sc.height(px - t.tx[i] * 2.4, pz - t.tz[i] * 2.4)) : U.lerp(t.y[i], t.y[j], u) - 0.03, z: pz, tx: t.tx[i], tz: t.tz[i], nx: t.nx[i] * side, nz: t.nz[i] * side, i, wall, d };
+      const px = U.lerp(t.x[i], t.x[j], u) + t.nx[i] * side * d, pz = U.lerp(t.z[i], t.z[j], u) + t.nz[i] * side * d; const fe = this.sc && this.sc.env && this.sc.env.forestOn;   // forest ground (Spa, SPA-STITCH): the drawn ground, not the road level
+      return { x: px, y: fe ? this.forestY(px, pz, t.tx[i], t.tz[i], t.nx[i], t.nz[i]) : U.lerp(t.y[i], t.y[j], u) - 0.03, z: pz, tx: t.tx[i], tz: t.tz[i], nx: t.nx[i] * side, nz: t.nz[i] * side, i, wall, d };
     }
     // ground height for anything: verge level near the track, terrain beyond
     ground(x, z) { return this.sc.height(x, z); }

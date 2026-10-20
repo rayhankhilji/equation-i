@@ -48,6 +48,14 @@ window.EI = window.EI || {};
       for (let j = 0; j < DN; j++) for (let i = 0; i < DN; i++) { let s = 0, c = 0; for (let d = -R; d <= R; d++) { const jj = j + d; if (jj < 0 || jj >= DN) continue; s += tmp[jj * DN + i]; c++; } fo[j * DN + i] = s / c; }
     }
     this.fOff = fo;
+    // paved / built ground (paddocks, car parks, the pit complex): levelled - the DEM eased towards its ~70 m average there
+    const pav = new Float32Array(n), dm = new Float32Array(n), DH = (DN - 1) * 5;
+    for (let gz = 0; gz < DN; gz++) for (let gx = 0; gx < DN; gx++) { const x = -DH + gx * 10, z = -DH + gz * 10, k = gz * DN + gx; dm[k] = this.demAt(x, z); const c = this.forestClass(x, z); pav[k] = c === C.PAVED ? 1 : 0; }
+    const blur = (src, R, passes) => { let a = src; for (let pass = 0; pass < passes; pass++) { const tmp = new Float32Array(n), out = new Float32Array(n);
+      for (let j = 0; j < DN; j++) for (let i = 0; i < DN; i++) { let s2 = 0, c2 = 0; for (let d = -R; d <= R; d++) { const ii = i + d; if (ii < 0 || ii >= DN) continue; s2 += a[j * DN + ii]; c2++; } tmp[j * DN + i] = s2 / c2; }
+      for (let j = 0; j < DN; j++) for (let i = 0; i < DN; i++) { let s2 = 0, c2 = 0; for (let d = -R; d <= R; d++) { const jj = j + d; if (jj < 0 || jj >= DN) continue; s2 += tmp[jj * DN + i]; c2++; } out[j * DN + i] = s2 / c2; } a = out; } return a; };
+    const pb = blur(pav, 1, 2), db = blur(dm, 3, 2); this.fFlat = new Float32Array(n);
+    for (let k = 0; k < n; k++) this.fFlat[k] = (db[k] - dm[k]) * U.smoothstep(0.25, 0.65, pb[k]) * (1 - U.smoothstep(400, 700, this.dC[k]));
     // the visible ground for every placement (Scenery.prototype.height stays for the other circuits)
     const E = this; this.sc.height = (x, z) => E.forestGround(x, z);
     this.stats.forest = { dem: [D.dem.near.n, D.dem.far.n], cover: [this.fcov.nx, this.fcov.nz] };
@@ -64,7 +72,7 @@ window.EI = window.EI || {};
   Ctx.prototype.isCanopy = function (x, z) { const c = this.forestClass(x, z); return c === C.SPRUCE || c === C.BEECH; };
 
   // natural ground (DEM) pulled to the road level near the lap
-  Ctx.prototype.forestDem = function (x, z) { return this.demAt(x, z) + this._bil(this.fOff, x, z, 0); };
+  Ctx.prototype.forestDem = function (x, z) { return this.demAt(x, z) + this._bil(this.fOff, x, z, 0) + this._bil(this.fFlat, x, z, 0); };
   // terrain height: shelf + banks near the barriers, the hills beyond
   Ctx.prototype.forestHeight = function (x, z) {
     const G = this.forestDem(x, z); const f = this.fsAt(x, z); if (f > 300) return G;
@@ -114,6 +122,8 @@ window.EI = window.EI || {};
     const P = (ii, c) => [t.x[ii] + t.nx[ii] * lat[ii * K + c], yy[ii * K + c], t.z[ii] + t.nz[ii] * lat[ii * K + c]];
     const tris = []; const cell = new Map(), CS = 8;
     const add = (A, B, C) => {
+      // (near-vertical slivers where a folded / steeply draped ribbon stands on edge are not ground)
+      const ux = B[0] - A[0], uy = B[1] - A[1], uz = B[2] - A[2], wx = C[0] - A[0], wy = C[1] - A[1], wz = C[2] - A[2]; const ny = uz * wx - ux * wz, nl = Math.hypot(uy * wz - uz * wy, ny, ux * wy - uy * wx); if (!(nl > 1e-9) || Math.abs(ny) / nl < 0.3) return;
       const id = tris.length; tris.push([A, B, C]); const x0 = Math.min(A[0], B[0], C[0]), x1 = Math.max(A[0], B[0], C[0]), z0 = Math.min(A[2], B[2], C[2]), z1 = Math.max(A[2], B[2], C[2]);
       for (let gx = Math.floor(x0 / CS); gx <= Math.floor(x1 / CS); gx++) for (let gz = Math.floor(z0 / CS); gz <= Math.floor(z1 / CS); gz++) { const k = gx * 100003 + gz; let l = cell.get(k); if (!l) cell.set(k, l = []); l.push(id); }
     };
