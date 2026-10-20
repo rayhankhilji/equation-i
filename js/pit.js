@@ -656,8 +656,11 @@ window.EI = window.EI || {};
   const COMP_N = 3;
   const PIT_LOSS = { silverstone: 19, monaco: 21, abudhabi: 22, monza: 24 };   // measured lane time - racing time (f1-QA gate), s
   const PASS_COST = { monaco: 7, silverstone: 2.2, abudhabi: 2.5, monza: 1.6 };    // what a car loses to a car it must re-pass on track, s
-  const W_PLAN = 0.6, W_FAIL = 0.8;   // planned stint limit (bots get loose beyond it) / "about to fail": stops even in the last quarter
-  const WARMUP = 0.6, MARGIN = 1.0, LATE = 0.75, B_K = 0.035;
+  // worn tyres and the bots: ai.js slows a bot by wearK x wear but grip falls faster, so past ~0.3 they slide off more and more
+  // (Silverstone softs, 9 bots x 5 laps: 0.04 offs per bot-lap at wear 0-0.27, 0.18 at 0.37-0.42, 0.27 at 0.52-0.58). That risk is
+  // a cost (C_K x lap per unit^2 beyond W_RISK) and W_PLAN caps a planned stint; W_FAIL = "about to fail": stops even in the last quarter
+  const W_RISK = 0.3, W_PLAN = 0.48, W_FAIL = 0.8;
+  const WARMUP = 0.6, MARGIN = 1.0, LATE = 0.75, B_K = 0.035, C_K = 0.6;
   const Strat = { log: [], sg: null };
   Pit.strategyLog = Strat.log;
   function sgFor(race) {
@@ -674,18 +677,25 @@ window.EI = window.EI || {};
   // wear per lap on compound key: the car's own observed rate (scaled from the compound it is on), else the field's, else the model
   function wearRate(car, st, key, sg) { const k = st.strat && st.strat.kw > 0 ? st.strat.kw : sg.kN >= 3 ? sg.kSum / sg.kN : 1; return EI.TYRES[key].wear * 0.01 * sg.lapRef * k; }
   // lap-time cost of n laps starting at wear w0, r per lap: sum of f(w0 + r (i + 0.5)), f(w) = A w + B w^2 (closed form)
-  function stintCost(A, B, w0, r, n) { if (n <= 0) return 0; return A * (n * w0 + r * n * n / 2) + B * (n * w0 * w0 + w0 * r * n * n + r * r * (n * n * n / 3 - n / 12)); }
+  // lap-time cost of n laps starting at wear w0, r per lap: sum over laps of f(w0 + r (i + 0.5)), f(w) = A w + B w^2 + C max(0, w - W_RISK)^2
+  // (closed forms: no loops, no allocations)
+  const sq = (c, r, n) => n <= 0 ? 0 : n * c * c + c * r * n * (n - 1) + r * r * (n - 1) * n * (2 * n - 1) / 6;   // sum_{i<n} (c + r i)^2
+  function stintCost(A, B, w0, r, n, C) {
+    if (n <= 0) return 0; let v = A * (n * w0 + r * n * n / 2) + B * (n * w0 * w0 + w0 * r * n * n + r * r * (n * n * n / 3 - n / 12));
+    if (C > 0 && w0 + r * (n - 0.5) > W_RISK) { const i0 = r > 0 ? Math.max(0, Math.ceil((W_RISK - w0) / r - 0.5)) : 0, c = w0 - W_RISK + r * 0.5; v += C * (sq(c, r, n) - sq(c, r, i0)); }
+    return v;
+  }
   const over = (w, lim) => w > lim ? 400 * (w - lim + 0.02) : 0;   // a stint past the planned limit (bots slide around): not an option
   // best plan for the laps after the current one: stay out to the flag, or one stop at the end of lap k (now .. last-1) onto c2.
   // out: stay, now (stop at the end of this lap, best compound nowC), later (best stop after this lap), best / k / c2 overall
   function plan(car, st, race, sg, lap, w, extraStop, out) {
-    const Lr = race.laps, key = car.tyreKey, A = tyreA(car, sg), B = sg.lapRef * B_K, r = wearRate(car, st, key, sg), oc = paceOff(key, sg);
+    const Lr = race.laps, key = car.tyreKey, A = tyreA(car, sg), B = sg.lapRef * B_K, C = sg.lapRef * C_K, r = wearRate(car, st, key, sg), oc = paceOff(key, sg);
     const n = Lr - lap;
-    out.stay = stintCost(A, B, w, r, n) + oc * n + over(w + r * n, W_PLAN); out.best = out.stay; out.k = 0; out.c2 = null; out.now = Infinity; out.nowC = null; out.later = Infinity; out.r = r;
+    out.stay = stintCost(A, B, w, r, n, C) + oc * n + over(w + r * n, W_PLAN); out.best = out.stay; out.k = 0; out.c2 = null; out.now = Infinity; out.nowC = null; out.later = Infinity; out.r = r;
     for (let k = Math.max(lap, 1); k < Lr; k++) {
-      const m = k - lap, wS = w + r * m, cur = stintCost(A, B, w, r, m) + oc * m + over(wS, W_PLAN) + sg.PL + WARMUP + extraStop, n2 = Lr - k;
+      const m = k - lap, wS = w + r * m, cur = stintCost(A, B, w, r, m, C) + oc * m + over(wS, W_PLAN) + sg.PL + WARMUP + extraStop, n2 = Lr - k;
       for (let ci = 0; ci < COMP_N; ci++) {
-        const c2 = COMP[ci], r2 = wearRate(car, st, c2, sg); const c = cur + stintCost(A, B, 0, r2, n2) + paceOff(c2, sg) * n2 + over(r2 * n2, W_PLAN);
+        const c2 = COMP[ci], r2 = wearRate(car, st, c2, sg); const c = cur + stintCost(A, B, 0, r2, n2, C) + paceOff(c2, sg) * n2 + over(r2 * n2, W_PLAN);
         if (c < out.best) { out.best = c; out.k = k; out.c2 = c2; }
         if (k === Math.max(lap, 1)) { if (c < out.now) { out.now = c; out.nowC = c2; } } else if (c < out.later) out.later = c;
       }
@@ -765,7 +775,7 @@ window.EI = window.EI || {};
       const a = i > 0 ? o[i - 1] : null;
       if (a && !a.finished && !(a.pit && (a.pit.active || a.pit.request)) && race.lapGap(a, car) < 1 && car.gapAhead < 2.0 && p.nowC && ss.stopLap && ss.stopLap - lap <= 4 && p.now < p.best + 2.5 && rj <= sg.pass * 1.5) {
         const Aa = tyreA(a, sg), wa = a.wear + wearRate(a, a.pit && a.pit.strat ? a.pit : st, a.tyreKey, sg);
-        const dU = Aa * wa + paceOff(a.tyreKey, sg) - (tyreA(car, sg) * wearRate(car, st, p.nowC, sg) * 0.5 + paceOff(p.nowC, sg)) - WARMUP;
+        const dU = stintCost(Aa, sg.lapRef * B_K, wa, 0, 1, sg.lapRef * C_K) + paceOff(a.tyreKey, sg) - (tyreA(car, sg) * wearRate(car, st, p.nowC, sg) * 0.5 + paceOff(p.nowC, sg)) - WARMUP;
         if (dU > car.gapAhead + 0.3) why = 'undercut ' + (a.driver && a.driver.code || a.name) + ' (gap ' + car.gapAhead.toFixed(1) + ' s, fresh-tyre lap +' + dU.toFixed(1) + ' s)';
       }
       // cover: the car right behind has just stopped and we are in our window

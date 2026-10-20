@@ -151,7 +151,7 @@ window.EI = window.EI || {};
         if (nx * t.nx[im] * side + nz * t.nz[im] * side < 0) { nx = -nx; nz = -nz; }
         const len = L - 0.5; const depth = 0.4 + rows * 0.82 + 0.6; const cx = (A[0] + B[0]) / 2, cz = (A[1] + B[1]) / 2;
         const ok = len > 6 && !near((s + sb) / 2, side) && E.rectFree(cx + nx * depth / 2, cz + nz * depth / 2, ax, az, len / 2, depth / 2 + (roof ? 1 : 0), OCC.BUILT | OCC.WATER | OCC.ROAD) > 0.9 && E.fsAt(cx + nx * depth, cz + nz * depth) > 4 && E.fAt(cx + nx * depth, cz + nz * depth) > -60
-          && [A, B].every(P => E.fsAt(P[0], P[1]) > 1 && E.fsAt(P[0] + nx * depth, P[1] + nz * depth) > 2);   // every corner clear of the barriers (the back of a deep block reached the next leg of a chicane; FIT-AUDIT)
+          && [A, B].every(P => E.fsAt(P[0], P[1]) > 1 && E.dcAt(P[0] + nx * depth, P[1] + nz * depth) > t.halfWidth + t.kerbWidth + 4);   // every corner clear of the barriers (the back of a deep block reached the next leg of a chicane; FIT-AUDIT)
         if (ok) {
           const blk = { cx, cz, ax, az, nx, nz, len, rows, roof, seat, y: t.y[im] - 0.03, s: (s + sb) / 2, first: false, last: false };
           if (first || !runBlocks.length) blk.first = true; first = false;

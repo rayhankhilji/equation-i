@@ -64,7 +64,7 @@
       let nx = -az, nz = ax; const im = t.idxAtS((s + sb) / 2); if (nx * t.nx[im] * side + nz * t.nz[im] * side < 0) { nx = -nx; nz = -nz; }
       const avail = R.rowsFix ? R.rowsFix * 0.82 + 1.6 : (R.dmax != null ? R.dmax - d : 14);
       // every corner clear of the barriers: through the Rettifilo chicane the chords crossed the other leg onto the track (FIT-AUDIT)
-      if ([A, B].some(P => E.fsAt(P[0], P[1]) < 1 || E.fsAt(P[0] + nx * Math.max(avail, 2), P[1] + nz * Math.max(avail, 2)) < 1)) { s = sb; continue; }
+      if ([A, B].some(P => E.fsAt(P[0], P[1]) < 1 || E.dcAt(P[0] + nx * Math.max(avail, 2), P[1] + nz * Math.max(avail, 2)) < t.halfWidth + t.kerbWidth + 4)) { s = sb; continue; }
       const y = t.y[im] - 0.03; const cx = (A[0] + B[0]) / 2, cz = (A[1] + B[1]) / 2;
       const mk = (rows, off, dy, tier) => {
         const blk = { cx: cx + nx * off, cz: cz + nz * off, ax, az, nx, nz, len: len - 0.3, rows, roof: false, seat: R.seat, y: y + dy, s: (s + sb) / 2, first: false, last: false, name: R.label || R.name.replace(/^Tribuna /, '').toUpperCase(), mz: { tier, run, k } };

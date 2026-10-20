@@ -557,7 +557,11 @@ window.EI = window.EI || {};
     // tuft's ground is that ribbon where it lies over the point, the terrain mesh beyond it
     const VF = [0, 0.1, 0.3, 0.6, 1], drape = !!(VW && sc.heights && E.dem);
     const groundAt = (i, side, d, x, z) => {
-      if (!VW) return Math.max(sc.height(x, z), sc.gridHeight(x, z));   // (where the terrain mesh rises through the flat verge, it is the ground) const vw = VW[side < 0 ? 0 : 1][i], w = side < 0 ? t.wallL[i] : t.wallR[i]; const kf = t.kFold[i]; if (d > w + vw || ((kf > 0) === (side > 0) && d > 0.85 / (Math.abs(kf) + 1e-6))) return sc.gridHeight(x, z);   // (beyond the centre of a tight bend the ribbon folds: terrain) if (!drape) return sc.height(x, z);
+      // where the terrain mesh rises through the flat verge it is the ground; beyond the centre of a tight bend the ribbon folds: terrain
+      if (!VW) return Math.max(t.y[i] - 0.03, sc.gridHeight(x, z));   // (the flat verge at this row's level, or the terrain where it rises through)
+      const vw = VW[side < 0 ? 0 : 1][i], w = side < 0 ? t.wallL[i] : t.wallR[i]; const kf = t.kFold[i];
+      if (d > w + vw || ((kf > 0) === (side > 0) && d > 0.85 / (Math.abs(kf) + 1e-6))) return sc.gridHeight(x, z);
+      if (!drape) return sc.height(x, z);
       const yAt = (l) => { if (l < w + 0.5) return t.y[i]; const g = sc.gridHeight(t.x[i] + t.nx[i] * side * l, t.z[i] + t.nz[i] * side * l) - t.y[i] + 0.25; return t.y[i] + Math.max(-40, Math.min(0, g)); };
       for (let k = 0; k + 1 < VF.length; k++) { const a = w + vw * VF[k], b = w + vw * VF[k + 1]; if (d <= b) { const u = b > a ? (d - a) / (b - a) : 0; return Math.max(sc.gridHeight(x, z), yAt(a) + (yAt(b) - yAt(a)) * Math.max(0, u) - 0.03); } }
       return sc.gridHeight(x, z);
