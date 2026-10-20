@@ -702,9 +702,10 @@ window.EI = window.EI || {};
     const keep = car.tyreKey; let best = Infinity; const cost = [0, 0, 0];
     for (let ci = 0; ci < COMP_N; ci++) { car.tyreKey = COMP[ci]; plan(car, st, race, sg, 0, 0, toll, _P); cost[ci] = _P.best; best = Math.min(best, cost[ci]); }
     car.tyreKey = keep;
-    let tot = 0; const wgt = [0, 0, 0]; for (let ci = 0; ci < COMP_N; ci++) { wgt[ci] = Math.exp(-(cost[ci] - best) / 1.2); tot += wgt[ci]; }
+    let tot = 0; const wgt = [0, 0, 0]; const temp = 0.8 * U.clamp((race.laps - 8) / 10, 0, 1);   // short races: the whole field on the best tyre (a mixed pack makes lap 1 messy)
+    for (let ci = 0; ci < COMP_N; ci++) { const d = cost[ci] - best; wgt[ci] = d > 2.5 ? 0 : temp > 0 ? Math.exp(-d / temp) : d === 0 ? 1 : 0; tot += wgt[ci]; }
     let x = sg.rng() * tot, pick = 0; for (let ci = 0; ci < COMP_N; ci++) { x -= wgt[ci]; if (x <= 0) { pick = ci; break; } }
-    const key = COMP[pick];
+    const key = Pit.strategyStart && EI.TYRES[Pit.strategyStart] ? Pit.strategyStart : COMP[pick];   // (QA knob: force the bots' starting tyre)
     if (key !== car.tyreKey) { car.tyreKey = key; car.tyre = EI.TYRES[key]; if (car._pitWheels) for (const w of car._pitWheels) setWheelCompound(w, key); }
     plan(car, st, race, sg, 0, 0, toll, _P); st.strat.stopLap = _P.best < _P.stay - MARGIN ? _P.k : 0; st.strat.next = _P.c2; st.next = _P.c2 || otherCompound(key);
     st.strat.why = 'start ' + key + (st.strat.stopLap ? ', stop ~L' + st.strat.stopLap + ' -> ' + _P.c2 : ', no stop') + ' (' + cost.map((c, i) => COMP[i][0] + (c - best).toFixed(1)).join(' ') + ')';
@@ -769,19 +770,19 @@ window.EI = window.EI || {};
       }
       // cover: the car right behind has just stopped and we are in our window
       const b = i >= 0 && i + 1 < o.length ? o[i + 1] : null;
-      if (!why && b && b.pit && race.lapGap(car, b) < 1 && b.gapAhead < sg.PL * 0.35 + 2 && (b.pit.active || (b.pit.tOut != null && race.time - b.pit.tOut < sg.lapRef * 0.6)) && ss.stopLap && p.now < p.best + 3 && p.now < p.stay)
+      if (!why && b && b.pit && race.lapGap(car, b) < 1 && b.gapAhead < 3.0 && (b.pit.active || (b.pit.tOut != null && race.time - b.pit.tOut < sg.lapRef * 0.6)) && ss.stopLap && p.now < p.best + 3 && p.now < p.stay)
         why = 'cover ' + (b.driver && b.driver.code || b.name) + ' (stopped ' + b.gapAhead.toFixed(1) + ' s behind)';
       // time: now is the best lap to stop (traffic included) and it wins time over staying out
       if (!why && gain > MARGIN && nowT <= p.later + 0.3) why = 'gains ' + gain.toFixed(1) + ' s (stay ' + p.stay.toFixed(1) + ' / stop ' + p.now.toFixed(1) + ' + rejoin ' + rj.toFixed(1) + ' over ' + _why.n + ' cars), wear ' + wE.toFixed(2);
       // forced: the tyre cannot reach the flag and a later stop is no better
       if (!why && p.stay >= 400 && nowT <= p.later + 0.3) why = 'must stop: wear at the flag ' + (wE + r0 * (Lr - lap)).toFixed(2);
       if (!why) {
-        if (newLap) { const h = ss.stopLap ? 'plan stop ~L' + ss.stopLap + ' -> ' + ss.next + (rj > 0 && p.k === lap ? ' (waiting: rejoin behind ' + _why.n + ' cars)' : '') : 'no stop (stay ' + p.stay.toFixed(1) + ' s vs best stop ' + (p.best === p.stay ? Math.min(p.now, p.later).toFixed(1) : p.best.toFixed(1)) + ')'; if (h !== ss.hold) { ss.hold = h; note(car, race, h); } }
+        if (newLap) { const wait = rj > 0 && p.k === lap, hk = ss.stopLap ? 'p' + ss.stopLap + ss.next + wait : 'n'; if (hk !== ss.hold) { ss.hold = hk; note(car, race, ss.stopLap ? 'plan: stop ~L' + ss.stopLap + ' -> ' + ss.next + (wait ? ' (waiting: rejoin behind ' + _why.n + ' cars, +' + rj.toFixed(1) + ' s)' : '') : 'plan: no stop (stay ' + p.stay.toFixed(1) + ' s vs best stop ' + Math.min(p.now, p.later).toFixed(1) + ' s)'); } }
         return;
       }
       // one garage per team: let the team-mate's stop clear first (not for a cover / undercut)
       const mate = race.cars.find(c => c !== car && c.team === car.team && c.pit && (c.pit.active || c.pit.request));
-      if (mate && !/^(cover|undercut)/.test(why) && p.stay < 400) { const h = 'hold a lap: team-mate ' + (mate.driver && mate.driver.code || mate.name) + ' in the box'; if (h !== ss.hold) { ss.hold = h; note(car, race, h); } return; }
+      if (mate && !/^(cover|undercut)/.test(why) && p.stay < 400) { if (ss.hold !== 'm') { ss.hold = 'm'; note(car, race, 'hold: team-mate ' + (mate.driver && mate.driver.code || mate.name) + ' in the box (' + why + ')'); } return; }
     }
     st.request = true; st.next = p.nowC || otherCompound(car.tyreKey); st.why = why + ' -> ' + st.next; ss.why = st.why; ss.hold = '';
     note(car, race, 'BOX ' + car.tyreKey + ' -> ' + st.next + ': ' + why);

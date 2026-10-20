@@ -446,6 +446,16 @@ window.EI = window.EI || {};
         this.wallL[i] = l; this.wallR[i] = r;
       }
       this.wallL = this.smooth(this.wallL, 30); this.wallR = this.smooth(this.wallR, 30);
+      // the map's grandstands stand behind the barrier: without measured barriers (data.wallProfile / data.walls) the generic run-off
+      // (up to ~52 m on the outside of a corner) enclosed whole stands (Abbey, Village, Luffield, Jim Clark, Copse at Silverstone). The
+      // barrier is pulled in to 4 m in front of any stand, easing in and out at 0.5 m per metre of lap (FIT-AUDIT)
+      if (!(this.data.wallProfile && this.data.wallProfile.length > 2) && !this.data.walls) {
+        const pr = {}; const caps = [new Float32Array(n).fill(1e9), new Float32Array(n).fill(1e9)];
+        for (const gs of (this.data.scenery && this.data.scenery.grandstands) || []) { const p = gs.p; if (!p || p.length < 3) continue;
+          for (let k = 0; k < p.length; k++) { const a = p[k], b = p[(k + 1) % p.length]; const m = Math.max(1, Math.ceil(Math.hypot(b[0] - a[0], b[1] - a[1]) / 2));
+            for (let j = 0; j < m; j++) { this.project(a[0] + (b[0] - a[0]) * j / m, a[1] + (b[1] - a[1]) * j / m, null, pr); if (pr.dist < hw + 8) continue; const c = caps[pr.lat < 0 ? 0 : 1]; c[pr.i] = Math.min(c[pr.i], pr.dist - 4); } } }
+        [[caps[0], this.wallL], [caps[1], this.wallR]].forEach(([cap, wall]) => { for (let i = 0; i < n; i++) { if (cap[i] > 1e8) continue; for (let j = -60; j <= 60; j++) { const k = (i + j + n) % n; wall[k] = Math.min(wall[k], Math.max(hw + 3, cap[i] + Math.abs(j) * this.ds * 0.5)); } } });
+      }
       // measured barrier positions (data.wallProfile = [[s, L, R], ...], metres from the centre line, from aerial imagery) replace the generic model
       const WP = this.data.wallProfile;
       if (WP && WP.length > 2) {
@@ -1445,14 +1455,16 @@ window.EI = window.EI || {};
       }
       // braking boards: 150 / 100 / 50 m before the turn-in of the heavy stops, on the outside of the approach
       const stops = this.data.brakeStops || ['Village', 'Brooklands', 'Stowe', 'Vale', 'Club', 'Abbey', 'Luffield'];
-      for (const c of this.data.corners) { if (stops.indexOf(c.name) < 0 || named['_d' + c.name]) continue; named['_d' + c.name] = true; const side = outsideAt(c.s + 30); const BB = this.data.brakeBoards; for (const d of (BB && (BB[c.name] || BB.default)) || [150, 100, 50]) addBoard(c.s - d, side, 'brake:' + d, 1.5, 1.5, 1.45, Math.min(wallAt(c.s - d, side) - 1.4, this.halfWidth + this.kerbWidth + 4)); }
-      for (const z of this.drs) { const dd = (s, sd, w) => Math.min(wallAt(s, sd) - 0.6 - w / 2, this.halfWidth + 5 + w / 2); addBoard(z.detect, -1, 'drsDetect', 4, 1.0, 2.3, dd(z.detect, -1, 4)); addBoard(z.start, -1, 'drs', 2.4, 1.2, 2.2, dd(z.start, -1, 2.4)); addBoard(z.start, 1, 'drs', 2.4, 1.2, 2.2, dd(z.start, 1, 2.4)); }
+      for (const c of this.data.corners) { if (stops.indexOf(c.name) < 0 || named['_d' + c.name]) continue; named['_d' + c.name] = true; const side = outsideAt(c.s + 30); const BB = this.data.brakeBoards; for (const d of (BB && (BB[c.name] || BB.default)) || [150, 100, 50]) { const w = Math.max(wallAt(c.s - d - 6, side), wallAt(c.s - d, side), wallAt(c.s - d + 6, side)), room = !this.data.street && w - 1.4 >= this.halfWidth + this.kerbWidth + 2.5; addBoard(c.s - d, side, 'brake:' + d, 1.5, 1.5, room ? 1.45 : 2.05, room ? Math.min(w - 1.4, this.halfWidth + this.kerbWidth + 4) : w + 0.35); } }
+      for (const z of this.drs) { const dd = (s, sd, w) => wallAt(s, sd) - 0.6 - w / 2 >= this.halfWidth + this.kerbWidth + 2 ? Math.min(wallAt(s, sd) - 0.6 - w / 2, this.halfWidth + 5 + w / 2) : wallAt(s, sd) + 0.35; addBoard(z.detect, -1, 'drsDetect', 4, 1.0, 2.3, dd(z.detect, -1, 4)); addBoard(z.start, -1, 'drs', 2.4, 1.2, 2.2, dd(z.start, -1, 2.4)); addBoard(z.start, 1, 'drs', 2.4, 1.2, 2.2, dd(z.start, 1, 2.4)); }
       // sponsor bridges
       const bridge = (s, text, beam) => {
         const i = this.idxAtS(s); const grp = new THREE.Group();
-        for (const side of [-1, 1]) { const post = solid(new THREE.BoxGeometry(0.8, 8, 0.8), 'post'); post.position.set(0, 4, side * (hw + 3)); post.castShadow = true; grp.add(post); }
-        const b = solid(new THREE.BoxGeometry(1.2, 2.2, hw * 2 + 7), beam); b.position.y = 8.5; b.castShadow = true; grp.add(b);
-        for (const dir of [-1, 1]) { const f = new THREE.Mesh(uvFace(new THREE.PlaneGeometry(hw * 2 + 6.8, 2.1), 'bridge:' + text), mat); f.position.set(dir * 0.62, 8.5, 0); f.rotation.y = dir * Math.PI / 2; grp.add(f); }
+        // street circuits: the legs stand behind the barriers (a run-off widened there put them in the escape road, Ste Devote; FIT-AUDIT)
+        const po = this.data.street ? Math.max(hw + 3, Math.max(this.wallL[i], this.wallR[i]) + 0.8) : hw + 3;
+        for (const side of [-1, 1]) { const post = solid(new THREE.BoxGeometry(0.8, 8, 0.8), 'post'); post.position.set(0, 4, side * po); post.castShadow = true; grp.add(post); }
+        const b = solid(new THREE.BoxGeometry(1.2, 2.2, po * 2 + 1), beam); b.position.y = 8.5; b.castShadow = true; grp.add(b);
+        for (const dir of [-1, 1]) { const f = new THREE.Mesh(uvFace(new THREE.PlaneGeometry(po * 2 + 0.8, 2.1), 'bridge:' + text), mat); f.position.set(dir * 0.62, 8.5, 0); f.rotation.y = dir * Math.PI / 2; grp.add(f); }
         grp.position.set(this.x[i], this.y[i], this.z[i]); grp.rotation.y = -this.heading[i]; g.add(grp);
       };
       const F = this.data.furniture || {};

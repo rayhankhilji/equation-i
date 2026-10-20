@@ -414,7 +414,10 @@ window.EI = window.EI || {};
   // the level Auto settled on is remembered per preset, so a slow machine starts the next race there instead of stuttering
   // through the first seconds while it steps down again
   const lvKey = () => 'ei-autolv-' + quality;
-  const loadLv = () => { try { const v = +localStorage.getItem(lvKey()); return v >= 0 && v < LEVELS.length ? v : 0; } catch (e) { return 0; } };
+  // first race on a preset: Medium starts on FXAA (level 1) and climbs to MSAA only when the frames have room (PERF wave 6: MSAA was the
+  // dearest default on an integrated GPU); Low / High start at the top
+  const lv0 = () => quality === 'medium' ? 1 : 0;
+  const loadLv = () => { try { const s = localStorage.getItem(lvKey()); if (s == null) return lv0(); const v = +s; return v >= 0 && v < LEVELS.length ? v : lv0(); } catch (e) { return lv0(); } };
   const saveLv = () => { try { localStorage.setItem(lvKey(), String(autoLv)); } catch (e) { } };
   // internal scale (of the canvas resolution) and whether the target is multisampled
   function viewState() {

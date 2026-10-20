@@ -85,11 +85,13 @@ window.EI = window.EI || {};
       for (const ds of [0, 15, -15, 30, -30, 45, -45, 60, -60, 80, -80, 100, -100]) {
         if (maxSlide != null && Math.abs(ds) > maxSlide) break;
         const p = this.at(s + ds, side, off); let ok = !this.inPit(s + ds, side) && !this.isReserved(s + ds, side);
-        for (const [a, b] of [[-half, 0], [half, 0], [-half, depth], [half, depth], [0, depth / 2]]) { const x = p.x + p.tx * a + p.nx * b, z = p.z + p.tz * a + p.nz * b; if (this.inObstacle(x, z)) { ok = false; break; } }
+        for (const [a, b] of [[-half, 0], [half, 0], [-half, depth], [half, depth], [0, depth / 2]]) { const x = p.x + p.tx * a + p.nx * b, z = p.z + p.tz * a + p.nz * b; if (this.inObstacle(x, z) || this.inCorridor(x, z)) { ok = false; break; } }
         if (ok) { p.s = s + ds; return p; }
       }
       return null;
     }
+    // inside the rendered barriers of whichever stretch is nearest (the wall widens within a footprint's length at escape roads; FIT-AUDIT)
+    inCorridor(x, z) { const E = this.sc && this.sc.env; if (!E) return false; const t = this.t; const q = t.project(x, z, null, this._cq || (this._cq = {})); return q.dist < E.wallCap(q.i, q.lat < 0 ? -1 : 1) + 0.5; }
     add(mesh, name) { mesh.name = name || mesh.name; this.group.add(mesh); return mesh; }
     // untextured vertex-coloured structures go to the scenery's merged, spatially chunked statics (one material for everything)
     // street circuits: everything goes into the street world's cells (shared atlas material) instead of the lap-wide statics
@@ -153,7 +155,7 @@ window.EI = window.EI || {};
     let brand = 0, run = 0;
     // drop boards that would overlap the previous one on the same side (the clamped line on the inside of hairpins bunches up)
     const last = {}; const kept = [];
-    for (const sp of spots) { const p = cx.at(sp[0], sp[1], 1.9); const l = last[sp[1]]; if (l && Math.hypot(p.x - l.x, p.z - l.z) < 4.8) continue; last[sp[1]] = p; kept.push(sp); }
+    for (const sp of spots) { const p = cx.at(sp[0], sp[1], 1.9); const l = last[sp[1]]; if (l && Math.hypot(p.x - l.x, p.z - l.z) < 4.8) continue; if (cx.inCorridor(p.x + p.tx * 2.5, p.z + p.tz * 2.5) || cx.inCorridor(p.x - p.tx * 2.5, p.z - p.tz * 2.5)) continue; last[sp[1]] = p; kept.push(sp); }   // never inside another stretch's barriers (FIT-AUDIT)
     spots.length = 0; spots.push(...kept);
     inst.count = spots.length; posts.count = spots.length;
     spots.forEach((sp, k) => {

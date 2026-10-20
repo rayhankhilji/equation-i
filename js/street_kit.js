@@ -478,8 +478,8 @@ window.EI = window.EI || {};
     for (const [kind, s0, s1, side, off, spacing] of ST.lamps || []) K.runs(s0, s1, spacing, (s) => {
       if (K.inTunnel(s) || (lampK++ & 1)) return; const p = K.at(s + 1.2, side, off + 0.1); if (K.inBuilding(p.x, p.z, 0.5)) return; const m = EI.Env.frame(p.x, p.y, p.z, p.tx, p.tz, -p.nx, -p.nz);
       Bc.mat(0.55, 0.3); Bc.col(m, 0, 0, 0, 0.95, 0.24, 0.27, 8, binC, true); Bc.col(m, 0, 0, 0.72, 0.8, 0.275, 0.275, 8, crest, false); Bc.col(m, 0, 0, 0.95, 1.0, 0.28, 0.2, 8, C(0x2a2d31), true); nBin++; });
-    for (const [s, w] of ST.zebras || []) for (const sd of [-1, 1]) { const p = K.at(s - w * 0.5 - 1.5, sd, 0.9); if (!K.inBuilding(p.x, p.z, 0.3)) sign(p, 0, 2.3); }
-    for (const [s, sd, kind] of ST.signs || [[3010, 1, 1], [2905, -1, 3], [1180, 1, 2], [700, -1, 2], [1990, 1, 4], [2440, -1, 2], [420, -1, 4], [1335, 1, 3]]) { const p = K.at(s, sd, 1.0); if (!K.inBuilding(p.x, p.z, 0.3)) sign(p, kind, 2.2); }
+    for (const [s, w] of ST.zebras || []) for (const sd of [-1, 1]) { const p = K.at(s - w * 0.5 - 1.5, sd, 0.9); if (!K.inBuilding(p.x, p.z, 0.3) && p.d > K.wallAt(p.i, sd) + 0.3) sign(p, 0, 2.3); }
+    for (const [s, sd, kind] of ST.signs || [[3010, 1, 1], [2905, -1, 3], [1180, 1, 2], [700, -1, 2], [1990, 1, 4], [2440, -1, 2], [420, -1, 4], [1335, 1, 3]]) { const p = K.at(s, sd, 1.0); if (!K.inBuilding(p.x, p.z, 0.3) && p.d > K.wallAt(p.i, sd) + 0.3) sign(p, kind, 2.2); }   // (inside a hairpin the clamped line runs inside the rail: no sign there; FIT-AUDIT)
     E.stats.streetSigns = nSign; E.stats.streetBins = nBin;
     // ---- bollards (black posts with a steel cap) and planters (stone troughs with clipped shrubs or flowers)
     for (const [s0, s1, side, off, spacing] of ST.bollards || []) K.runs(s0, s1, spacing, (s) => { const p = K.at(s, side, off); if (K.inBuilding(p.x, p.z, 0.3)) return; const m = EI.Env.frame(p.x, p.y, p.z, p.tx, p.tz, -p.nx, -p.nz); col(Bc, m, 0, 0, 0, 0.85, 0.07, 0.07, 6, C(0x1d1f22)); col(Bc, m, 0, 0, 0.85, 0.95, 0.08, 0.05, 6, C(0xb7bcc0), true); nBoll++; });

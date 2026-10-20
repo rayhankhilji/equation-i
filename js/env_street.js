@@ -212,6 +212,8 @@ window.EI = window.EI || {};
     for (const w of polys) for (let i = 0; i < w.length; i++) {
       const a = w[i], b = w[(i + 1) % w.length]; const l = Math.hypot(b[0] - a[0], b[1] - a[1]); if (l < 0.5 || l > 600) continue;
       const ga = sc.height(a[0], a[1]), gb = sc.height(b[0], b[1]); if (Math.max(ga, gb) < seaY + 0.3) continue;
+      // a basin outline that runs inside the barriers (the chicane's escape road) left a stone lip across the asphalt (FIT-AUDIT)
+      { const q = t.project((a[0] + b[0]) / 2, (a[1] + b[1]) / 2, null, E._qpr || (E._qpr = {})); if (q.dist < E.wallCap(q.i, q.lat < 0 ? -1 : 1) + 0.3) continue; }
       const nx = (b[1] - a[1]) / l, nz = -(b[0] - a[0]) / l;      // one side; the material is double sided
       if (Q) { const A = [a[0], seaY - 1, a[1]], Bq = [b[0], seaY - 1, b[1]], Cq = [b[0], gb + 0.15, b[1]], D = [a[0], ga + 0.15, a[1]]; const ha = (ga + 1.15 - seaY) / 2, hb = (gb + 1.15 - seaY) / 2; const qc = C(0xd8d0c0);
         Q.quad(A, Bq, Cq, D, qc, [0, 0, l / 4, 0, l / 4, hb, 0, ha]); Q.quad(A, D, Cq, Bq, qc, [0, 0, 0, ha, l / 4, hb, l / 4, 0]);
@@ -693,7 +695,10 @@ window.EI = window.EI || {};
     const white = C(0xf4f4f1), shade = C(0xdcdedd), glass = C(0x24384a), rail = C(0xd4d8db), canvas = C(0xfbfbf8), teak = C(0xa47a4a), red = C(0xc8102e), navy = C(0x1b2c4e);
     const along = (s0, s1, side, gap) => { const i0 = t.idxAtS(s0), i1 = t.idxAtS(s1); const w0 = (side < 0 ? t.wallL[i0] : t.wallR[i0]) + gap, w1 = (side < 0 ? t.wallL[i1] : t.wallR[i1]) + gap;
       const A = [t.x[i0] + t.nx[i0] * side * w0, t.z[i0] + t.nz[i0] * side * w0], Bp = [t.x[i1] + t.nx[i1] * side * w1, t.z[i1] + t.nz[i1] * side * w1]; const L = Math.hypot(Bp[0] - A[0], Bp[1] - A[1]); let ax = (Bp[0] - A[0]) / L, az = (Bp[1] - A[1]) / L; let nx = -az, nz = ax; const im = t.idxAtS((s0 + s1) / 2); if (nx * t.nx[im] * side + nz * t.nz[im] * side < 0) { nx = -nx; nz = -nz; }
-      return { cx: (A[0] + Bp[0]) / 2, cz: (A[1] + Bp[1]) / 2, ax, az, nx, nz, L, y: t.y[im] - 0.03 }; };
+      // the straight front between the two ends cuts across the bend in between (the YCM stood in the chicane's escape road): slide the
+      // whole block back until every point of its front clears the barrier line by min(gap, 2) m (FIT-AUDIT)
+      let push = 0; const pq = {}; for (let k = 0; k <= 24; k++) { const u = k / 24; t.project(A[0] + (Bp[0] - A[0]) * u, A[1] + (Bp[1] - A[1]) * u, null, pq); const sd = pq.lat < 0 ? -1 : 1; const w = sd < 0 ? t.wallL[pq.i] : t.wallR[pq.i]; push = Math.max(push, w + Math.min(gap, 2) + (sd === side ? -pq.dist : pq.dist)); }
+      return { cx: (A[0] + Bp[0]) / 2 + nx * push, cz: (A[1] + Bp[1]) / 2 + nz * push, ax, az, nx, nz, L, y: t.y[im] - 0.03 }; };
     // Yacht Club de Monaco: a long white liner of a building, decks stepping back towards a rounded bow at the harbour end, porthole band below
     if (ST.ycm) {
       const [s0, s1, side, gap] = ST.ycm; const f = along(s0, s1, side, gap); const m = EI.Env.frame(f.cx, f.y, f.cz, f.ax, f.az, f.nx, f.nz); const L = f.L, hl = L / 2;

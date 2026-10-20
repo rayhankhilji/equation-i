@@ -425,7 +425,11 @@ window.EI = window.EI || {};
   // podium is a half-round, the other end square with an exposed stair down to the strip.
   function buildTower(E, BK, F) {
     const { B, G, S, F: Fd } = BK; const t = E.t; const m = F.m, X = F.X;
-    const xc = F.xTow, zc = F.maxWall + 1.6; const i = t.idxAtS(t.sf + xc); const yg = t.y[i] - F.y0 - 0.05;   // ground (strip) level
+    const xc = F.xTow; let zc = F.maxWall + 1.6;
+    // the start-line frame is straight but the lap drifts ~5 m off it this far down the straight: the column stood inside the barriers,
+    // a metre off the track edge (FIT-AUDIT) - slide it out until it clears the wall line where it actually stands
+    { const pq = {}; for (let it = 0; it < 4; it++) { const w = Env.xf(m, X(xc), 0, zc); t.project(w[0], w[2], null, pq); const need = (F.side < 0 ? t.wallL[pq.i] : t.wallR[pq.i]) + 1.6 - pq.lat * F.side; if (need <= 0.05) break; zc += need; } }
+    const i = t.idxAtS(t.sf + xc); const yg = t.y[i] - F.y0 - 0.05;   // ground (strip) level
     const P = (x, y, z) => Env.xf(m, X(xc + x), yg + y, zc + z);
     const hw = 4.4, hd = 3.3, rs = Math.sign(F.xPod - xc) || -1;          // rs: the rounded end points at the podium
     // plan (x along, z across), counter-clockwise: the square end, then the half-round

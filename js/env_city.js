@@ -1609,7 +1609,14 @@ window.EI = window.EI || {};
   function portholeBlock(E, G, claimed) {
     const t = E.t, sc = E.sc; const PB = (t.data.street && t.data.street.pthBlock) || (t.data.id === 'monaco' ? [2012, 2096, -1, 6, 17, 7] : null); if (!PB) return;
     const [s0, s1, side, gap, depth, nf] = PB; const near = [], far = [];
-    for (let s = s0; s <= s1 + 0.01; s += 6) { const i = t.idxAtS(s); const w = E.wallCap(i, side) + gap; near.push([t.x[i] + t.nx[i] * side * w, t.z[i] + t.nz[i] * side * w, i]); far.push([t.x[i] + t.nx[i] * side * (w + depth), t.z[i] + t.nz[i] * side * (w + depth)]); }
+    // the back of the block reached across Beau Rivage (the stretch above the chicane) and its roof spanned the road: each slice now
+    // stops short of any other stretch's barrier line (FIT-AUDIT)
+    // clearance beyond the barrier of the nearest OTHER stretch (> 80 m of lap away; brute force: project() can settle on the near stretch)
+    const otherClear = (px, pz, i) => { let bd = Infinity, bj = 0; for (let j = 0; j < t.n; j += 2) { const di = Math.abs(j - i); if (Math.min(di, t.n - di) < 40) continue; const d = (t.x[j] - px) ** 2 + (t.z[j] - pz) ** 2; if (d < bd) { bd = d; bj = j; } } return Math.sqrt(bd) - Math.max(t.wallL[bj], t.wallR[bj]); };
+    for (let s = s0; s <= s1 + 0.01; s += 6) { const i = t.idxAtS(s); const w = E.wallCap(i, side) + gap; let dd = depth; for (let d2 = 1; d2 <= depth; d2++) { const px = t.x[i] + t.nx[i] * side * (w + d2), pz = t.z[i] + t.nz[i] * side * (w + d2); if (otherClear(px, pz, i) < 2.5) { dd = Math.max(2, d2 - 1); break; } }
+      near.push([t.x[i] + t.nx[i] * side * w, t.z[i] + t.nz[i] * side * w, i, w, dd]); }
+    // eroded (min with the neighbours) so the back edge between two slices cannot cut the corner of the other road either
+    for (let k = 0; k < near.length; k++) { const q = near[k], dd = Math.min(q[4], (near[k - 1] || q)[4], (near[k + 1] || q)[4]), i = q[2]; far.push([t.x[i] + t.nx[i] * side * (q[3] + dd), t.z[i] + t.nz[i] * side * (q[3] + dd)]); }
     const ring = cleanRing(near.map(q => [q[0], q[1]]).concat(far.reverse())); if (ring.length < 4) return; claimed.push(ring);
     const c = centroid(ring); const D = forced('pth', nf, 0xf8f8f5, 'flat', { pth: true, noBalc: true, noChimneys: true, shops: false }); both(E, G, ring, D, c);
     // wavy balcony slabs along the face that looks at the road: one white slab per floor, its outer edge swinging 0.3 .. 1.3 m out

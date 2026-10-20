@@ -133,7 +133,7 @@ window.EI = window.EI || {};
 
   // ---- grandstand runs -> straight blocks following the lap
   V.layoutStands = function (E) {
-    const t = E.t, OCC = Env.OCC; E.blocks = []; E.treeLines = E.treeLines || []; E.standPolys = [];
+    const t = E.t, OCC = Env.OCC; E.blocks = []; E.treeLines = E.treeLines || []; E.standPolys = []; const pr = {};
     const spots = (EI.Infra && EI.Infra.SPOTS) || []; const kk = t.smooth(t.k, 10);
     const near = (s, side) => { for (const [ss, sd, half] of spots) { if (sd && sd !== side) continue; let d = Math.abs(U.mod(s - ss, t.length)); d = Math.min(d, t.length - d); if (d < half) return true; } return false; };
     for (const run of E.data.standRuns || []) {
@@ -141,12 +141,17 @@ window.EI = window.EI || {};
       while (s < s1 - 6) {
         const i0 = t.idxAtS(s); const R = 1 / (Math.abs(kk[i0]) + 1e-5); const step = U.clamp(R * 0.3, 10, 26); const sb = Math.min(s1, s + step);
         const ia = t.idxAtS(s), ib = t.idxAtS(sb); let wmax = 0; for (let i = ia; i !== (ib + 1) % t.n; i = (i + 1) % t.n) wmax = Math.max(wmax, E.wallCap(i, side));
-        const d = wmax + gap; const inner = (kk[i0] > 0) === (side > 0); if (inner && d > R * 0.8) { s = sb; continue; }
-        const A = [t.x[ia] + t.nx[ia] * side * d, t.z[ia] + t.nz[ia] * side * d], B = [t.x[ib] + t.nx[ib] * side * d, t.z[ib] + t.nz[ib] * side * d];
+        let d = wmax + gap; const inner = (kk[i0] > 0) === (side > 0); if (inner && d > R * 0.8) { s = sb; continue; }
+        let A = [t.x[ia] + t.nx[ia] * side * d, t.z[ia] + t.nz[ia] * side * d], B = [t.x[ib] + t.nx[ib] * side * d, t.z[ib] + t.nz[ib] * side * d];
+        // where the run-off widens fast (generic corners) the block's front still projected inside a neighbouring sample's barrier (stands
+        // in the run-off at Silverstone's Chapel / Luffield): push the block out until its front clears every barrier it faces (FIT-AUDIT)
+        for (let it = 0; it < 3; it++) { let need = 0; for (const u of [0, 0.5, 1]) { t.project(A[0] + (B[0] - A[0]) * u, A[1] + (B[1] - A[1]) * u, null, pr); const own = (pr.lat < 0 ? -1 : 1) === side; need = Math.max(need, E.wallCap(pr.i, side) + gap * 0.5 + (own ? -pr.dist : pr.dist)); }
+          if (need <= 0.05) break; d += need; A = [t.x[ia] + t.nx[ia] * side * d, t.z[ia] + t.nz[ia] * side * d]; B = [t.x[ib] + t.nx[ib] * side * d, t.z[ib] + t.nz[ib] * side * d]; }
         let ax = B[0] - A[0], az = B[1] - A[1]; const L = Math.hypot(ax, az); ax /= L; az /= L; let nx = -az, nz = ax; const im = t.idxAtS((s + sb) / 2);
         if (nx * t.nx[im] * side + nz * t.nz[im] * side < 0) { nx = -nx; nz = -nz; }
         const len = L - 0.5; const depth = 0.4 + rows * 0.82 + 0.6; const cx = (A[0] + B[0]) / 2, cz = (A[1] + B[1]) / 2;
-        const ok = len > 6 && !near((s + sb) / 2, side) && E.rectFree(cx + nx * depth / 2, cz + nz * depth / 2, ax, az, len / 2, depth / 2 + (roof ? 1 : 0), OCC.BUILT | OCC.WATER | OCC.ROAD) > 0.9 && E.fsAt(cx + nx * depth, cz + nz * depth) > 4 && E.fAt(cx + nx * depth, cz + nz * depth) > -60;
+        const ok = len > 6 && !near((s + sb) / 2, side) && E.rectFree(cx + nx * depth / 2, cz + nz * depth / 2, ax, az, len / 2, depth / 2 + (roof ? 1 : 0), OCC.BUILT | OCC.WATER | OCC.ROAD) > 0.9 && E.fsAt(cx + nx * depth, cz + nz * depth) > 4 && E.fAt(cx + nx * depth, cz + nz * depth) > -60
+          && [A, B].every(P => E.fsAt(P[0], P[1]) > 1 && E.fsAt(P[0] + nx * depth, P[1] + nz * depth) > 2);   // every corner clear of the barriers (the back of a deep block reached the next leg of a chicane; FIT-AUDIT)
         if (ok) {
           const blk = { cx, cz, ax, az, nx, nz, len, rows, roof, seat, y: t.y[im] - 0.03, s: (s + sb) / 2, first: false, last: false };
           if (first || !runBlocks.length) blk.first = true; first = false;
@@ -375,7 +380,10 @@ window.EI = window.EI || {};
       t.project(cx, cz, null, pr); if (pr.dist < t.halfWidth + 8) continue; const i = pr.i, side = pr.lat > 0 ? 1 : -1; const tx = t.tx[i], tz = t.tz[i], nx = t.nx[i] * side, nz = t.nz[i] * side;
       let a0 = Infinity, a1 = -Infinity, b0 = Infinity, b1 = -Infinity; for (const q of poly) { const dx = q[0] - cx, dz = q[1] - cz; const a = dx * tx + dz * tz, b = dx * nx + dz * nz; a0 = Math.min(a0, a); a1 = Math.max(a1, a); b0 = Math.min(b0, b); b1 = Math.max(b1, b); }
       const len = a1 - a0, depth = Math.min(b1 - b0, 24); if (len < 10 || depth < 5) continue; const rows = U.clamp(Math.floor((depth - 1) / 0.82), 5, 22);
-      const fx = cx + tx * (a0 + a1) / 2 + nx * b0, fz = cz + tz * (a0 + a1) / 2 + nz * b0;
+      let fx = cx + tx * (a0 + a1) / 2 + nx * b0, fz = cz + tz * (a0 + a1) / 2 + nz * b0;
+      // the block is straight but the lap curves under it: its ends came inside the barriers (Silverstone Village / Copse / Luffield) -
+      // slide it out until the whole front clears them (FIT-AUDIT)
+      for (let it = 0; it < 3; it++) { let need = 0; for (const u of [-0.5, 0, 0.5]) { t.project(fx + tx * len * u, fz + tz * len * u, null, pr); const own = (pr.lat < 0 ? -1 : 1) === side; need = Math.max(need, E.wallCap(pr.i, side) + 1.5 + (own ? -pr.dist : pr.dist)); } if (need <= 0.05) break; fx += nx * need; fz += nz * need; }
       blocks.push({ cx: fx, cz: fz, ax: tx, az: tz, nx, nz, len, rows, roof: !E.data.sailRoofs, seat: [0x24418f, 0x8c1d24, 0x2b3a55][Math.floor(Math.abs(cx) % 3)], y: E.ground(cx, cz) - 0.4, first: true, last: true, osm: true, name: st.n });
     }
     // spectator colours (sRGB): everyday clothes, a lot of team merchandise

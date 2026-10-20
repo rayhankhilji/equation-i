@@ -20,7 +20,7 @@ window.EI = window.EI || {};
 (function () {
   const BASE = 'assets/models/';
   const FLAP_CLOSED = 0.5, FLAP_OPEN = FLAP_CLOSED - 55 * Math.PI / 180;   // ~55 degrees of DRS travel
-  const cache = { hi: null, lo: null, meta: null, idImg: null, aoImg: null };
+  const cache = { hi: null, lo: null, meta: null, idImg: null, aoImg: null, lods: null };
   const texCache = {}, helmetMats = {}, shared = {}, roleMaps = {};
   let loading = null;
   const CarGLB = { ready: false, preload, build, composeLivery, FLAP_CLOSED, FLAP_OPEN, cache };
@@ -33,8 +33,10 @@ window.EI = window.EI || {};
       const loader = new THREE.GLTFLoader();
       const glb = (f) => new Promise((res, rej) => loader.load(BASE + f, res, undefined, rej));
       const img = (f) => new Promise((res, rej) => { const im = new Image(); im.crossOrigin = 'anonymous'; im.onload = () => res(im); im.onerror = () => rej(new Error('failed to load ' + f)); im.src = BASE + f; });
-      Promise.all([glb('ei-car-hi.glb'), glb('ei-car-lo.glb'), img('ei-car-id.png'), img('ei-car-ao.png')]).then(([hi, lo, idImg, aoImg]) => {
-        cache.hi = hi.scene; cache.lo = lo.scene; cache.idImg = idImg; cache.aoImg = aoImg;
+      // the mid / far / vfar LOD index lists (ei-car-lods.bin, see lodSubset): optional, the vertex-clustered LODs stand in without it
+      const lods = fetch(CarGLB.lodsUrl || BASE + 'ei-car-lods.bin').then((r) => r.ok ? r.arrayBuffer() : null).catch(() => null);
+      Promise.all([glb('ei-car-hi.glb'), glb('ei-car-lo.glb'), img('ei-car-id.png'), img('ei-car-ao.png'), lods]).then(([hi, lo, idImg, aoImg, lodBuf]) => {
+        cache.hi = hi.scene; cache.lo = lo.scene; cache.idImg = idImg; cache.aoImg = aoImg; cache.lods = lodBuf;
         cache.meta = hi.scene.userData && hi.scene.userData.anchors ? hi.scene.userData : (lo.scene.userData || {});
         for (const s of [cache.hi, cache.lo]) prepare(s);
         CarGLB.ready = true; resolve(CarGLB);
@@ -1069,6 +1071,31 @@ window.EI = window.EI || {};
     }
     out.setIndex(new THREE.BufferAttribute(m > 65535 ? new Uint32Array(tri) : new Uint16Array(tri), 1)); out.computeBoundingSphere(); out.computeBoundingBox(); return out;
   }
+  // proper LODs: assets/models/ei-car-lods.bin holds, per LOD, an index list into the lo car's merged vertex array (template 'lo',
+  // lists.all), made offline by edge-collapse simplification (meshoptimizer, seam- and border-preserving, normal / UV aware: no
+  // holes, cracks or smeared liveries; hidden parts dropped). lodSubset copies the vertices those lists use. The file carries the
+  // vertex count and a position checksum of the array it was made from: if the GLB or template() changes, it no longer matches and
+  // the vertex-clustered LODs stand in (regenerate it: node tools/carlods/gen.js).
+  function lodChecksum(P) { let s = 0; for (let i = 0, n = P.length / 3; i < n; i++) s += (P[i * 3] + P[i * 3 + 1] * 3 + P[i * 3 + 2] * 7) * ((i % 13) + 1); return s; }
+  function readLods(buf, all) {
+    if (!buf || buf.byteLength < 20) return null; const dv = new DataView(buf);
+    if (String.fromCharCode(dv.getUint8(0), dv.getUint8(1), dv.getUint8(2), dv.getUint8(3)) !== 'EIL1') return null;
+    const nv = dv.getUint32(4, true), sum = dv.getFloat64(8, true), P = all.attributes.position.array;
+    if (nv !== P.length / 3 || Math.abs(lodChecksum(P) - sum) > 1e-6 * Math.abs(sum) + 1e-3) { console.warn('EI.CarGLB: ei-car-lods.bin does not match the lo car, using clustered LODs'); return null; }
+    const out = {}; let o = 20;
+    for (let k = dv.getUint32(16, true); k > 0; k--) {
+      const name = String.fromCharCode(dv.getUint8(o), dv.getUint8(o + 1), dv.getUint8(o + 2), dv.getUint8(o + 3)).trim(), n = dv.getUint32(o + 4, true); o += 8;
+      out[name] = new Uint16Array(buf, o, n); o += Math.ceil(n * 2 / 4) * 4;
+    }
+    return out;
+  }
+  function lodSubset(all, ix) {
+    const n = all.attributes.position.count, map = new Int32Array(n).fill(-1); let m = 0;
+    const idx = new Uint16Array(ix.length); for (let i = 0; i < ix.length; i++) { const v = ix[i]; if (map[v] < 0) map[v] = m++; idx[i] = map[v]; }
+    const out = new THREE.BufferGeometry();
+    for (const name of Object.keys(all.attributes)) { const a = all.attributes[name], s = a.itemSize, arr = new Float32Array(m * s); for (let v = 0; v < n; v++) { const r = map[v]; if (r >= 0) for (let q = 0; q < s; q++) arr[r * s + q] = a.array[v * s + q]; } out.setAttribute(name, new THREE.BufferAttribute(arr, s)); }
+    out.setIndex(new THREE.BufferAttribute(idx, 1)); out.computeBoundingSphere(); out.computeBoundingBox(); return out;
+  }
   const templates = {};
   const MID_CELL = 0.08, FAR_CELL = 0.14, VFAR_CELL = 0.3;   // ~14k and ~6.5k triangles from the 45k-triangle lo car; vfar: a ~1-2k-triangle silhouette for cars far away (main.js updateCarLod, PERF)
   function template(lod, detailed) {
@@ -1088,7 +1115,7 @@ window.EI = window.EI || {};
       if (o.material && o.material.name === 'tyre') pv.tyreHalfW = Math.max(Math.abs(tmpBox.min.z), Math.abs(tmpBox.max.z));
     }
     const seat = {}; for (const c of CORNERS) { const pv = piv[c]; seat[c] = new THREE.Vector3(pv.p.x, pv.bb.isEmpty() ? pv.p.y : -pv.bb.min.y - 0.005, pv.p.z); }
-    const lists = { paint: [], carbon: [], floor: [], lod: [], all: [] }, mirrorGlass = [];
+    const lists = { paint: [], carbon: [], floor: [], lod: [], all: [], proxy: [] }, mirrorGlass = [];
     const strip = (g) => { const out = new THREE.BufferGeometry(); out.setAttribute('position', g.attributes.position.clone()); if (g.attributes.normal) out.setAttribute('normal', g.attributes.normal.clone()); else { out.setAttribute('normal', g.attributes.position.clone()); } if (g.attributes.uv) out.setAttribute('uv', g.attributes.uv.clone()); if (g.index) out.setIndex(g.index.clone()); if (!g.attributes.normal) out.computeVertexNormals(); return out; };
     for (const o of meshes) {
       const n = o.name || '', mname = o.material && o.material.name;
@@ -1098,34 +1125,55 @@ window.EI = window.EI || {};
       if (w) { const c = w[1], pv = piv[c].p, st = seat[c]; g = G_WHEEL + CORNERS.indexOf(c); M = new THREE.Matrix4().makeTranslation(st.x - pv.x, st.y - pv.y, st.z - pv.z).multiply(o.matrixWorld); }
       else if (n.startsWith('drsflap_')) { g = G_FLAP; M = new THREE.Matrix4().makeTranslation(hinge[0], hinge[1], 0); }   // flap geometry is local to its hinge
       else if (n.startsWith('helmet_')) g = G_HELMET;
-      const geo = strip(o.geometry); geo.applyMatrix4(M); const lp = lodParams(o.material, n); const it = { geo, lp, g };
+      const geo = strip(o.geometry); geo.applyMatrix4(M); const lp = lodParams(o.material, n); const it = { geo, lp, g, name: n };
       lists.all.push(it);
       if (g === 0 && ((mname === 'paint' && !n.startsWith('body_cockpit')) || n === 'halo_main')) lists.paint.push(it);
       else if (g === 0 && (mname === 'carbon' || mname === 'paint')) (mname === 'carbon' && FLOOR_RE.test(n) ? lists.floor : lists.carbon).push(it);
       else lists.lod.push(it);
     }
     // T-cam on top of the airbox (slot 5: black on a team's first car, fluorescent yellow on the second, uTcam)
-    { const tc = new THREE.BoxGeometry(0.1, 0.04, 0.06, 1, 1, 1); tc.translate(-0.05, 1.1, 0); const it = { geo: tc, lp: { s: 5, m: 0.1, r: 0.45, c: 1, col: [1, 1, 1] }, g: 0 }; lists.lod.push(it); lists.all.push(it); }
+    { const tc = new THREE.BoxGeometry(0.1, 0.04, 0.06, 1, 1, 1); tc.translate(-0.05, 1.1, 0); const it = { geo: tc, lp: { s: 5, m: 0.1, r: 0.45, c: 1, col: [1, 1, 1] }, g: 0, name: 'tcam' }; lists.lod.push(it); lists.all.push(it); }
     // tyre walls (compound stripe + lettering, slot 4) just proud of each tyre's own width; brake-glow rings for the glow mesh
     const glow = [];
     CORNERS.forEach((c, k) => {
       const hw = piv[c].tyreHalfW + 0.003, st = seat[c];
       const r1 = new THREE.RingGeometry(0.27, 0.335, 64, 1); r1.translate(0, 0, hw); const r2 = new THREE.RingGeometry(0.27, 0.335, 64, 1); r2.rotateY(Math.PI); r2.translate(0, 0, -hw);
-      for (const r of [r1, r2]) { r.translate(st.x, st.y, st.z); const it = { geo: r, lp: { s: 4, m: 0, r: 0.8, c: 0, col: [0.0018, 0.0018, 0.0022] }, g: G_WHEEL + k }; lists.lod.push(it); lists.all.push(it); }
+      for (const r of [r1, r2]) { r.translate(st.x, st.y, st.z); const it = { geo: r, lp: { s: 4, m: 0, r: 0.8, c: 0, col: [0.0018, 0.0018, 0.0022] }, g: G_WHEEL + k, name: 'wheel_' + c + '_wall' }; lists.lod.push(it); lists.all.push(it); }
       const g1 = new THREE.RingGeometry(0.232, 0.273, 48, 1); g1.translate(0, 0, hw + 0.0015); const g2 = new THREE.RingGeometry(0.1, 0.165, 40, 1); g2.translate(0, 0, -hw + 0.04);
       const g4 = g1.clone(); g4.rotateY(Math.PI); const g5 = g2.clone(); g5.rotateY(Math.PI);
       for (const gg of [g1, g2, g4, g5]) { gg.translate(st.x, st.y, st.z); glow.push({ geo: gg }); }
     });
+    // proxy wheels for the far / vfar LODs only (lists.proxy, appended to the LOD source, see lodSubset): a GLB tyre cannot be decimated to a few dozen triangles and
+    // stay round, so the far LODs swap the wheel parts for clean cylinders - tread, compound-stripe wall ring (slot 4, same UVs as the
+    // walls above), team cover disc (slot 6) outside, dark rim face inside. far: 20 sides, walls both faces; vfar: 12 sides, outer only
+    if (lod === 'lo') {
+      const TYRE = { s: 0, m: 0, r: 0.86, c: 0, col: [0.0018, 0.0018, 0.0022] }, WALL = { s: 4, m: 0, r: 0.8, c: 0, col: [0.0018, 0.0018, 0.0022] }, COVER = { s: 6, m: 0.15, r: 0.45, c: 0.6, col: [1, 1, 1] }, RIM = { s: 0, m: 0.6, r: 0.5, c: 0, col: [0.03, 0.031, 0.034] };
+      CORNERS.forEach((c, k) => {
+        const pv = piv[c], st = seat[c], hw = pv.tyreHalfW, R = pv.bb.isEmpty() ? WHEEL_R : Math.max(0.3, (pv.bb.max.y - pv.bb.min.y) * 0.5 - 0.004), out = st.z >= 0 ? 1 : -1;
+        for (const [tag, n, full] of [['far', 20, true], ['vfar', 12, false]]) {
+          const add = (geo, lp, side) => { if (side) { if (side < 0) geo.rotateY(Math.PI); geo.translate(0, 0, side * (hw + (lp === WALL ? 0.003 : 0.002))); } geo.translate(st.x, st.y, st.z); const it = { geo, lp, g: G_WHEEL + k, name: 'proxy_' + tag + '_' + c }; lists.proxy.push(it); };
+          const tread = new THREE.CylinderGeometry(R, R, hw * 2, n, 1, true); tread.rotateX(Math.PI / 2); add(tread, TYRE, 0);
+          add(new THREE.CircleGeometry(0.27, n), COVER, out);
+          if (full) { for (const sd of [1, -1]) { add(new THREE.RingGeometry(0.27, 0.335, n, 1), WALL, sd); add(new THREE.RingGeometry(0.335, R, n, 1), TYRE, sd); } add(new THREE.CircleGeometry(0.27, n), RIM, -out); }
+          else { add(new THREE.RingGeometry(0.27, R, n, 1), TYRE, out); add(new THREE.CircleGeometry(R, n), TYRE, -out); }
+        }
+      });
+    }
     const T = {
       paint: mergeIndexed(lists.paint), carbon: mergeIndexed(lists.carbon), floor: mergeIndexed(lists.floor), lod: mergeIndexed(lists.lod, true), glow: mergeIndexed(glow),
       wheels: CORNERS.map((c) => seat[c].clone()), hinge: new THREE.Vector2(hinge[0], hinge[1]), mirrorGlass,
     };
-    if (lod === 'lo') { const all = mergeIndexed(lists.all, true); T.mid = clusterGeo(all, CarGLB.midCell || MID_CELL); T.far = clusterGeo(all, CarGLB.farCell || FAR_CELL); T.vfar = clusterGeo(all, CarGLB.vfarCell || VFAR_CELL); if (CarGLB.keepAll) T.all = all; else all.dispose(); }
-    for (const it of lists.all) it.geo.dispose();
+    if (lod === 'lo') {
+      const items = lists.all.concat(lists.proxy), all = mergeIndexed(items, true), L = !CarGLB.noLods && readLods(cache.lods, all);
+      if (L && L.mid && L.far && L.vfar) { T.mid = lodSubset(all, L.mid); T.far = lodSubset(all, L.far); T.vfar = lodSubset(all, L.vfar); }
+      else { const car = mergeIndexed(lists.all, true); T.mid = clusterGeo(car, CarGLB.midCell || MID_CELL); T.far = clusterGeo(car, CarGLB.farCell || FAR_CELL); T.vfar = clusterGeo(car, CarGLB.vfarCell || VFAR_CELL); car.dispose(); }
+      if (CarGLB.keepAll) { T.all = all; T.allParts = items.map((it) => [it.name || '', it.geo.attributes.position.count]); } else all.dispose();
+    }
+    for (const it of lists.all.concat(lists.proxy)) it.geo.dispose();
     for (const g of [T.lod, T.mid, T.far, T.vfar]) if (g) g.boundingSphere.radius += 0.3;   // room for the shader-animated wheels and flap
     templates[key] = T; return T;
   }
-  CarGLB.template = template; CarGLB.clusterGeo = clusterGeo;
+  CarGLB.template = template; CarGLB.clusterGeo = clusterGeo; CarGLB.lodSubset = lodSubset;
   // the per-car LOD material (see template): physical material with per-vertex colour / metalness / roughness / clearcoat and the
   // part animation in the vertex shader. One program for every car.
   // T-cam colour: driver.tcam ('y' / 'b', from race photos) or the FIA default (black on a team's first car, yellow on the second)
