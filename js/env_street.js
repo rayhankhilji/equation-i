@@ -209,11 +209,19 @@ window.EI = window.EI || {};
     // world material is single sided); street circuits draw them through the shared atlas, other tracks keep the plain mesh
     const SKx = EI.StreetKit && E.t.data.street && EI.StreetKit.World ? EI.StreetKit : null; const Q = SKx ? new SKx.Batch().set(SKx.stone(), 0.9, 0) : null;
     const pos = [], nrm = [], col = [], uv = []; const quay = C(0xb9b3a6), tide = C(0x5a5f58);
+    // a basin outline that runs inside the barriers (the chicane's escape road, the Piscine exit) left a stone lip across the asphalt:
+    // edges are cut into ~4 m pieces where they come inside, and those pieces are dropped (FIT-AUDIT)
+    const qpr = {}, inCorr = (x, z) => { t.project(x, z, null, qpr); return qpr.dist < E.wallCap(qpr.i, qpr.lat < 0 ? -1 : 1) + 0.3; }; const edges = [];
     for (const w of polys) for (let i = 0; i < w.length; i++) {
       const a = w[i], b = w[(i + 1) % w.length]; const l = Math.hypot(b[0] - a[0], b[1] - a[1]); if (l < 0.5 || l > 600) continue;
+      const n = Math.max(1, Math.ceil(l / 4)), P = (u) => [a[0] + (b[0] - a[0]) * u, a[1] + (b[1] - a[1]) * u]; const bad = []; let any = false;
+      for (let k = 0; k <= 2 * n; k++) { const p = P(k / (2 * n)); bad.push(inCorr(p[0], p[1])); any = any || bad[k]; }
+      if (!any) { edges.push([a, b]); continue; }
+      for (let k = 0; k < n; k++) if (!bad[2 * k] && !bad[2 * k + 1] && !bad[2 * k + 2]) edges.push([P(k / n), P((k + 1) / n)]);
+    }
+    for (const [a, b] of edges) {
+      const l = Math.hypot(b[0] - a[0], b[1] - a[1]); if (l < 0.5) continue;
       const ga = sc.height(a[0], a[1]), gb = sc.height(b[0], b[1]); if (Math.max(ga, gb) < seaY + 0.3) continue;
-      // a basin outline that runs inside the barriers (the chicane's escape road) left a stone lip across the asphalt (FIT-AUDIT)
-      { const q = t.project((a[0] + b[0]) / 2, (a[1] + b[1]) / 2, null, E._qpr || (E._qpr = {})); if (q.dist < E.wallCap(q.i, q.lat < 0 ? -1 : 1) + 0.3) continue; }
       const nx = (b[1] - a[1]) / l, nz = -(b[0] - a[0]) / l;      // one side; the material is double sided
       if (Q) { const A = [a[0], seaY - 1, a[1]], Bq = [b[0], seaY - 1, b[1]], Cq = [b[0], gb + 0.15, b[1]], D = [a[0], ga + 0.15, a[1]]; const ha = (ga + 1.15 - seaY) / 2, hb = (gb + 1.15 - seaY) / 2; const qc = C(0xd8d0c0);
         Q.quad(A, Bq, Cq, D, qc, [0, 0, l / 4, 0, l / 4, hb, 0, ha]); Q.quad(A, D, Cq, Bq, qc, [0, 0, 0, ha, l / 4, hb, l / 4, 0]);
