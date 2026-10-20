@@ -13,6 +13,8 @@ window.EI = window.EI || {};
   const SECTORS = [[18, -250, 1, -350, 0.5], [1, -350, 2, 100, 0.4], [2, 100, 4, 130, 0.55], [4, 130, 5, -50, 0.7], [5, -50, 8, 0, 0.45],
     [8, 0, 10, -70, 0.65], [10, -70, 12, -200, 0.7], [12, -200, 16, -300, 0.25], [16, -300, 18, -250, 0.6]];
   SF.SECTORS = SECTORS;
+  // per-instance colour multipliers (Veg.instance record [8]): Norway spruce cool blue-green, beech a deep green, the understory between
+  const SPRUCE_C = [0.8, 0.94, 1.02], BEECH_C = [0.95, 1.0, 0.86], SHRUB_C = [0.9, 0.97, 0.9];
 
   SF.build = function (E, Veg) {
     const T0 = performance.now(); const t = E.t, sc = E.sc, SP = Veg.SP, OCC = Env.OCC, rng = U.rng(2026); const trees = [];
@@ -31,12 +33,12 @@ window.EI = window.EI || {};
     for (let j = nz - 1; j >= 0; j--) for (let i = nx - 1; i >= 0; i--) { const k = j * nx + i; if (!ed[k]) continue; let v = ed[k]; if (i < nx - 1) v = Math.min(v, ed[k + 1] + A); if (j < nz - 1) { v = Math.min(v, ed[k + nx] + A); if (i < nx - 1) v = Math.min(v, ed[k + nx + 1] + B); if (i > 0) v = Math.min(v, ed[k + nx - 1] + B); } ed[k] = v; }
     // the track corridor counts as open: the walls face the circuit (cells inside the barriers are paved / gravel classes anyway)
     const pr = {};
-    const spruce = (x, z, big) => [SP.POPLAR, 5.2 + rng() * 2.4, (big ? 23 : 19) + rng() * 7];
-    const beech = (x, z) => { const s = 0.85 + rng() * 0.3; return [SP.OAK, 11 * s, 17.5 * s + rng() * 3]; };
+    const spruce = (x, z, big) => [SP.POPLAR, 6.2 + rng() * 2.6, (big ? 25 : 23) + rng() * 7];
+    const beech = (x, z) => { const s = 0.85 + rng() * 0.3; return [SP.OAK, 12 * s, 20 * s + rng() * 3]; };
     let nEdge = 0, nIn = 0, nShrub = 0, nOpen = 0;
     const plant = (x, z, conif, edge, fs) => {
       const [sp, w, h] = conif ? spruce(x, z, !edge) : beech(x, z); if (!free(x, z, w * 0.5)) return false;
-      trees.push([x, z, sp, w, h, rng() < 0.5 ? 0 : 1, rng(), edge ? 0 : 1]); if (edge) nEdge++; else nIn++; return true;
+      trees.push([x, z, sp, w, h, rng() < 0.5 ? 0 : 1, conif ? -0.75 + rng() * 0.35 : -0.35 + rng() * 0.35, edge ? 0 : 1, conif ? SPRUCE_C : BEECH_C]); if (edge) nEdge++; else nIn++; return true;
     };
     // ---- 4 m raster: jittered 4.5 m lattice over the canopy
     const ST = 4.6; const x0 = G.x0, z0 = G.z0, X1 = G.x0 + nx * A, Z1 = G.z0 + nz * A;
@@ -45,12 +47,14 @@ window.EI = window.EI || {};
       const k = j * nx + i, c = cl[k]; const fs = E.fsAt(px, pz); if (fs < 3) continue;
       if (c <= 1) {
         const de = ed[k]; const near = fs < 260;
-        const p = de <= 8 ? (near ? 1 : fs < 600 ? 0.55 : 0.3) : de <= 20 ? (near ? 0.4 : 0.15) : fs < 120 ? 0.16 : fs < 350 ? 0.08 : 0.035;
+        const p = de <= 9 ? (near ? 1 : fs < 600 ? 0.55 : 0.3) : de <= 22 ? (near ? 0.55 : 0.15) : fs < 110 ? 0.3 : fs < 320 ? 0.1 : 0.035;
         if (rng() > p) continue;
         t.project(px, pz, null, pr); const con = conAt(pr.s); const conif = c === 0 ? rng() < 0.6 + 0.4 * con : rng() < con * 0.45;
-        if (!plant(px, pz, conif, de <= 8, fs)) continue;
+        if (!plant(px, pz, conif, de <= 9, fs)) continue;
+        // the walls along the circuit: a second, staggered tree (closed canopy, no sky between the crowns)
+        if (de <= 9 && fs < 160 && rng() < 0.55) plant(px + (rng() - 0.5) * 4, pz + (rng() - 0.5) * 4, rng() < 0.5 ? conif : !conif, true, fs);
         // understory at the walls facing the circuit: shrubs and young spruce in front of the trunks
-        if (de <= 6 && fs < 70 && rng() < 0.45) { const sx = px + (rng() - 0.5) * 3, sz = pz + (rng() - 0.5) * 3; const sw = 3.6 + rng() * 2.6; if (free(sx, sz, sw * 0.5)) { trees.push([sx, sz, rng() < 0.55 ? SP.SHRUB : SP.POPLAR, sw, rng() < 0.55 ? 3 + rng() * 2.5 : 6 + rng() * 4, rng() < 0.5 ? 0 : 1, rng(), 0]); nShrub++; } }
+        if (de <= 6 && fs < 70 && rng() < 0.45) { const sx = px + (rng() - 0.5) * 3, sz = pz + (rng() - 0.5) * 3; const sw = 3.6 + rng() * 2.6; if (free(sx, sz, sw * 0.5)) { trees.push([sx, sz, rng() < 0.55 ? SP.SHRUB : SP.POPLAR, sw, rng() < 0.55 ? 3 + rng() * 2.5 : 6 + rng() * 4, rng() < 0.5 ? 0 : 1, -0.5 + rng() * 0.4, 0, SHRUB_C]); nShrub++; } }
       } else if (c === 2 || c === 3) {
         // pasture / fen: lone trees, birch-spruce clumps on the rough ground
         const p = c === 3 ? 0.012 : 0.0025; if (rng() > p || fs < 12) continue; t.project(px, pz, null, pr);

@@ -70,8 +70,8 @@ window.EI = window.EI || {};
     reserve(s, side, half) { this.reserved.push([s, side, half]); }
     isReserved(s, side) { const L = this.t.length; for (const r of this.reserved) { if (r[1] !== side) continue; let d = Math.abs(s - r[0]); d = Math.min(d, L - d); if (d < r[2]) return true; } return false; }
     // interpolated point at distance s, lateral wall+off on `side` (y follows the track; the verge ribbon is at track level out to wall+40)
-    // forest ground (Spa): the lowest drawn ground under a ~5 x 3 m footprint (board legs, tower feet, huts across a bank)
-    forestY(x, z, tx, tz, nx, nz) { const h = (a, b) => this.sc.height(x + tx * a + nx * b, z + tz * a + nz * b); return Math.min(h(0, 0), h(2.4, 0), h(-2.4, 0), h(0, 1.5), h(0, -1.5)); }
+    // forest ground (Spa): the lowest drawn ground within +-2.4 m along the lap (board legs, tower feet; not across: the verge shelf ends in a bank)
+    forestY(x, z, tx, tz, nx, nz) { const h = (a, b) => this.sc.height(x + tx * a + nx * b, z + tz * a + nz * b); const h0 = h(0, 0); return Math.max(h0 - 0.25, Math.min(h0, h(2.4, 0), h(-2.4, 0))); }
     at(s, side, off) {
       const t = this.t; const f = U.mod(s / t.ds, t.n); const i = Math.floor(f), j = (i + 1) % t.n, u = f - i;
       const wall = side < 0 ? U.lerp(t.wallL[i], t.wallL[j], u) : U.lerp(t.wallR[i], t.wallR[j], u); let d = wall + off;

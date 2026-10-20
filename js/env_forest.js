@@ -155,7 +155,8 @@ window.EI = window.EI || {};
     out = out || [0, 0, 0]; const f = this.fsAt(x, z);
     const n1 = this._coarse ? 0.5 : U.noise2(x / 47 + 3.3, z / 47 + 7.1);
     if (f < 7 && f > -40) { const c = (Math.floor((this.dcAt(x, z) - this.t.halfWidth) / 7.5) & 1) ? MOW_A : MOW_B; const k = 0.94 + n1 * 0.1; out[0] = c[0] * k; out[1] = c[1] * k; out[2] = c[2] * k; return out; }
-    const cl = this.forestClass(x, z); const c = PAL[cl] || PAL[2]; let k = 0.9 + n1 * 0.2;
+    let cl = this.forestClass(x, z); if (cl === C.PAVED && f < 35 && f > 0) cl = C.ROUGH;   // (bare run-off fringes behind the barriers read as rough grass, not car parks)
+    const c = PAL[cl] || PAL[2]; let k = 0.9 + n1 * 0.2;
     if (cl <= 1) { const ci = Math.floor(x / 5), cj = Math.floor(z / 5); k *= 0.72 + 0.5 * hash(ci, cj, cl + 3); }
     else if (cl === 2) k *= 0.94 + 0.12 * U.noise2(x / 140 + 1.1, z / 140 + 4.7);
     out[0] = c[0] * k; out[1] = c[1] * k; out[2] = c[2] * k; return out;
@@ -166,7 +167,7 @@ window.EI = window.EI || {};
     const draw = (g, crown) => {
       if (!g) return; const [c, cx] = Env.canvas(g.nx, g.nz); const im = cx.createImageData(g.nx, g.nz), d = im.data;
       for (let j = 0; j < g.nz; j++) for (let i = 0; i < g.nx; i++) {
-        const o = j * g.nx + i, cl = g.cls[o]; const p = PAL[cl] || PAL[2]; let v = 0.92 + 0.14 * hash(i, j, 11);
+        const o = j * g.nx + i; let cl = g.cls[o]; if (crown && cl === C.PAVED) { const f = this.fsAt(g.x0 + (i + 0.5) * g.cell, g.z0 + (j + 0.5) * g.cell); if (f > 0 && f < 35) cl = C.ROUGH; } const p = PAL[cl] || PAL[2]; let v = 0.92 + 0.14 * hash(i, j, 11);
         if (cl <= 1 && crown) v = 0.68 + 0.56 * hash(i, j, cl + 5);   // crowns ~4 m: lit tops and dark gaps
         else if (cl <= 1) v = 0.8 + 0.3 * hash(i, j, 9);
         d[o * 4] = p[0] * v; d[o * 4 + 1] = p[1] * v; d[o * 4 + 2] = p[2] * v; d[o * 4 + 3] = 255;

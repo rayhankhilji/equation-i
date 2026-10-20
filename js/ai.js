@@ -70,7 +70,7 @@ window.EI = window.EI || {};
 
   // lap time of the season's fastest car + driver at skill 100 (no form), headless sim on the circuit (qsim.js, solo flying laps):
   // the anchor that turns a real lap time into the game's scale. Re-measure with C_LIMIT.
-  const LIMIT_LAP = { silverstone: 80.7, monaco: 64.0, abudhabi: 79.23, monza: 76.5, spa: 94.68 }, OFFICIAL_LOSS_DEFAULT = 0.08;
+  const LIMIT_LAP = { silverstone: 80.7, monaco: 64.0, abudhabi: 79.23, monza: 76.5, spa: 94.21 }, OFFICIAL_LOSS_DEFAULT = 0.08;
   // real 2026 pole lap of a circuit (s): EI.RACEPACE (real lap data) > EI.SEASON.tracks > the season's real grids (pole time)
   const GRID_NAME = { silverstone: /british/i, monaco: /monaco/i, abudhabi: /abu dhabi/i, monza: /italian/i, spa: /belgian/i };
   const parseLap = t => { if (typeof t === 'number') return t; const m = /^(?:(\d+):)?(\d+(?:\.\d+)?)$/.exec(String(t || '').trim()); return m ? (+(m[1] || 0)) * 60 + (+m[2]) : 0; };

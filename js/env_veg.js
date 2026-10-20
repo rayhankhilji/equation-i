@@ -430,7 +430,8 @@ window.EI = window.EI || {};
     for (const tr of trees) {
       const [x, z, sp, w, h, v, tint, interior] = tr; const y = sc.height(x, z) - 0.15;
       const br = 0.82 + tint * 0.3; const warm = (rng() - 0.5) * 0.12; const yaw = rng() * Math.PI;
-      set.push(x, z, [[x, y, z, yaw], [w, h, sp, v], [br * (1 + warm), br, br * (1 - warm * 1.5), sp !== SP.SHRUB && !interior ? 1 : 0]]);
+      const cm = tr[8];   // optional colour multiplier [r, g, b] (forest ground: cool blue-green spruce, deep beech)
+      set.push(x, z, [[x, y, z, yaw], [w, h, sp, v], [br * (1 + warm) * (cm ? cm[0] : 1), br * (cm ? cm[1] : 1), br * (1 - warm * 1.5) * (cm ? cm[2] : 1), sp !== SP.SHRUB && !interior ? 1 : 0]]);
     }
     set.finalize(); const N = trees.length;
     const uni = { uEye: { value: new THREE.Vector3() }, uLodN: { value: new THREE.Vector2(0, 500) }, uLodF: { value: new THREE.Vector2(500, 1e5) } };
