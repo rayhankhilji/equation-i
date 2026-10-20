@@ -101,11 +101,25 @@ window.EI = window.EI || {};
       ' if (ra > 0.0) { float rd = clamp(direction.y / max(rh, 0.001), 0.0, 1.0); float rn = 0.5 + 0.5 * sin(rph * 64.0 + 2.2 * sin(rph * 23.0) + direction.y * 6.0) * (0.6 + 0.4 * sin(rph * 17.0 + 1.3));' +
       ' vec3 rc = hz0 * uSkyGain * mix(vec3(0.8, 0.82, 0.82), vec3(0.5, 0.5, 0.42), smoothstep(0.0, 0.8, rd)) * (0.88 + 0.22 * rn);' +
       ' retColor = mix(retColor, rc, ra); }'; })();
-    { const SG = LK.sky || [0.62, 0.35]; su.uSkyGain = { value: SG[0] }; su.uSkyDeep = { value: SG[1] };
-      skyMesh.material.onBeforeCompile = (sh) => { sh.uniforms.uSkyGain = su.uSkyGain; sh.uniforms.uSkyDeep = su.uSkyDeep;
-        sh.fragmentShader = sh.fragmentShader.replace('void main() {', 'uniform float uSkyGain; uniform float uSkyDeep;\nvoid main() {')
-          .replace('gl_FragColor = vec4( retColor, 1.0 );', 'vec3 hz0 = retColor; float zk = smoothstep(0.02, 0.75, direction.y); retColor *= uSkyGain * mix(vec3(1.0), vec3(0.78, 0.9, 1.08), zk * uSkyDeep);' + RIDGE + ' gl_FragColor = vec4( retColor, 1.0 );'); };
-      skyMesh.material.customProgramCacheKey = () => 'ei-sky-gain' + (LK.ridge ? 'r' : ''); }
+    // LOOKS haze: [k, height as sin(elevation)]: the sky melts into the fog colour towards the horizon (a milky rim). LOOKS hills:
+    // [[crest as sin(elevation), darkness 0..1, seed], ...] full-circle wooded ridges painted into the sky, farthest first: each rises
+    // out of the fog colour and darkens / cools towards its serrated (tree-lined) crest, nearer layers darker = aerial perspective.
+    // Both are mixed AFTER the tone map + grade + sRGB encoding, exactly where three's fog mixes, so fogged ground at the far plane
+    // and the painted hills meet without a seam. Integer frequencies round the circle (no step in the west). Sky pixels only.
+    const HAZE = !(LK.haze || LK.hills) ? '' : (() => { const f = (v) => (+v).toFixed(4), Hz = LK.haze || [0, 0.1];
+      let s = '\n{ vec3 hc = gl_FragColor.rgb; float hy = direction.y, hph = atan(direction.z, direction.x);' +
+        ' hc = mix(hc, uHz, ' + f(Hz[0]) + ' * (1.0 - smoothstep(-0.01, ' + f(Hz[1]) + ', hy)));';
+      for (const [C, K, q] of LK.hills || []) s += ' { float rh = ' + f(C) + ' * (0.56 + 0.2 * sin(hph * 2.0 + ' + f(q) + ') + 0.12 * sin(hph * 5.0 + ' + f(q * 2.3) + ') + 0.07 * sin(hph * 11.0 + ' + f(q * 3.7) + ')' +
+        ' + 0.035 * sin(hph * 23.0 + ' + f(q * 1.9) + ') + 0.03 * abs(sin(hph * 170.0 + 2.0 * sin(hph * 41.0 + ' + f(q) + '))));' +
+        ' float rm = 1.0 - smoothstep(rh - 0.0015, rh, hy); float rd = clamp(hy / max(rh, 0.001), 0.0, 1.0);' +
+        ' hc = mix(hc, uHz * mix(vec3(1.0), vec3(0.55, 0.66, 0.68), ' + f(K) + ' * smoothstep(0.0, 1.0, rd)), rm); }';
+      return s + ' gl_FragColor.rgb = hc; }\n'; })();
+    { const SG = LK.sky || [0.62, 0.35]; su.uSkyGain = { value: SG[0] }; su.uSkyDeep = { value: SG[1] }; su.uHz = { value: new THREE.Color(LK.horizon) };
+      skyMesh.material.onBeforeCompile = (sh) => { sh.uniforms.uSkyGain = su.uSkyGain; sh.uniforms.uSkyDeep = su.uSkyDeep; sh.uniforms.uHz = su.uHz;
+        sh.fragmentShader = sh.fragmentShader.replace('void main() {', 'uniform float uSkyGain; uniform float uSkyDeep; uniform vec3 uHz;\nvoid main() {')
+          .replace('gl_FragColor = vec4( retColor, 1.0 );', 'vec3 hz0 = retColor; float zk = smoothstep(0.02, 0.75, direction.y); retColor *= uSkyGain * mix(vec3(1.0), vec3(0.78, 0.9, 1.08), zk * uSkyDeep);' + RIDGE + ' gl_FragColor = vec4( retColor, 1.0 );')
+          .replace('#include <encodings_fragment>', '#include <encodings_fragment>' + HAZE); };
+      skyMesh.material.customProgramCacheKey = () => 'ei-sky-gain' + (LK.ridge ? 'r' : '') + (HAZE ? 'h' + HAZE.length : ''); }
     if (nightLook) { scene.remove(skyMesh); skyMesh = EI.Night.makeSky(nightWest); scene.add(skyMesh); }
     const t0 = performance.now(); const pm = new THREE.PMREMGenerator(renderer); pm.compileEquirectangularShader();
     const skyScene = new THREE.Scene(); const sky2 = new THREE.Sky(); sky2.scale.setScalar(5500); sky2.material.uniforms.turbidity.value = LK.turb; sky2.material.uniforms.rayleigh.value = LK.ray; if (LK.skyElev != null) { sky2.material.uniforms.mieCoefficient.value = LK.mie; sky2.material.uniforms.mieDirectionalG.value = LK.mieG || 0.85; } sky2.material.uniforms.sunPosition.value.copy(skySun); skyScene.add(sky2);
@@ -124,6 +138,8 @@ window.EI = window.EI || {};
     const tdata = EI.TRACKS[trackId] || EI.TRACKS.silverstone; EI.trackId = tdata.id;
     track = new EI.Track(tdata); lap('track-math');
     scenery = new EI.Scenery(track); scene.add(scenery.build()); lap('scenery');
+    // LOOKS clouds: [opacity of the low deck, of the high deck, tint hex]: a heavier, greyer sky with the same two draws
+    if (LK.clouds && scenery.clouds && scenery.clouds2) { const C = LK.clouds; scenery.clouds.material.opacity = C[0]; scenery.clouds2.material.opacity = C[1]; if (C[2] != null) { scenery.clouds.material.color.setHex(C[2]); scenery.clouds2.material.color.setHex(C[2]); } }
     scene.add(track.build(scenery)); lap('track-mesh');
     if (EI.Night && EI.Night.on) { EI.Night.build(scene, track, scenery); lap('night'); } timings.pmrem = tPmrem; EI.debug.timings = timings;
     scene.traverse(o => { if (o.material && o.material.isMeshStandardMaterial && o.material.envMapIntensity === 1) o.material.envMapIntensity = 0.3; });
