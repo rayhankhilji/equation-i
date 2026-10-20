@@ -550,7 +550,7 @@ window.EI = window.EI || {};
     // candidate tufts, cell-sorted: a ready instance matrix + colour each (the regather around the eye is then a few block copies)
     const set = new Env.CellSet([16, 3], 32); let total = 0; const col = new THREE.Color();
     const m = new THREE.Matrix4(), q = new THREE.Quaternion(), sv = new THREE.Vector3(), p = new THREE.Vector3(), up = new THREE.Vector3(0, 1, 0);
-    const push = (x, y, z, s) => { E.mapColor(x, z, col); const k = 1.45 + rng() * 0.45; p.set(x, y, z); q.setFromAxisAngle(up, rng() * Math.PI); sv.set(s, s * (0.8 + (total % 5) * 0.1), s); m.compose(p, q, sv); set.push(x, z, [m.elements, [col.r * k * 1.1, col.g * k * 1.04, col.b * k]]); total++; };
+    const push = (x, y, z, s) => { E.mapColor(x, z, col); const k = (1.45 + rng() * 0.45) * 1.06; /* x1.06 (BEAUTY): the richer grade deepened the blade bases into dark 'stars' */ p.set(x, y, z); q.setFromAxisAngle(up, rng() * Math.PI); sv.set(s, s * (0.8 + (total % 5) * 0.1), s); m.compose(p, q, sv); set.push(x, z, [m.elements, [col.r * k * 1.1, col.g * k * 1.04, col.b * k]]); total++; };
     for (let i = 0; i < t.n; i++) {
       for (const side of [-1, 1]) {
         const run = side < 0 ? t.runoffL[i] : t.runoffR[i], grav = side < 0 ? t.gravelL[i] : t.gravelR[i];

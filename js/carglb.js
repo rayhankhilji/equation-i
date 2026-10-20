@@ -1060,7 +1060,11 @@ window.EI = window.EI || {};
     const ix = geo.index.array, tri = [], seen = new Set();
     for (let t = 0; t < ix.length; t += 3) {
       const i0 = rep[ix[t]], i1 = rep[ix[t + 1]], i2 = rep[ix[t + 2]]; if (i0 === i1 || i1 === i2 || i0 === i2) continue;
-      const s0 = Math.min(i0, i1, i2), s2 = Math.max(i0, i1, i2), s1 = i0 + i1 + i2 - s0 - s2; const key = s0 * 4294967296 + s1 * 65536 + s2;
+      // duplicates by vertex set AND winding: a thin two-sided panel (outer skin + inner skin) collapses onto the same cluster vertices
+      // with opposite windings; keying on the set alone kept only one of the pair - often the inward-facing one, culled from outside,
+      // which made mid / far cars lose most of their bodywork ('bodyless' cars at ~20-25 m, PERF wave 6)
+      const r = i0 < i1 ? (i0 < i2 ? 0 : 2) : (i1 < i2 ? 1 : 2); const a0 = r === 0 ? i0 : r === 1 ? i1 : i2, a1 = r === 0 ? i1 : r === 1 ? i2 : i0, a2 = r === 0 ? i2 : r === 1 ? i0 : i1;
+      const key = (a0 * m + a1) * m + a2;
       if (seen.has(key)) continue; seen.add(key); tri.push(i0, i1, i2);
     }
     out.setIndex(new THREE.BufferAttribute(m > 65535 ? new Uint32Array(tri) : new Uint16Array(tri), 1)); out.computeBoundingSphere(); out.computeBoundingBox(); return out;

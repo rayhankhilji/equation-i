@@ -1094,6 +1094,7 @@ window.EI = window.EI || {};
       // on a slope the walls stand on a foundation: where the ground just outside the face falls well below the base (a building on a
       // cliff edge), a rough limestone retaining wall carries it down to the ground instead of the facade being repeated down the slope
       const yLow = faceFoundation(E, s, yG, yb);
+      if (yb - yLow > 8 && !proxy) (E.stats.foundTall || (E.stats.foundTall = [])).push({ c: [Math.round(cx), Math.round(cz)], L: +s.L.toFixed(1), d: +(yb - yLow).toFixed(1), yG: +yG.toFixed(1), yb: +yb.toFixed(1), st: D.style, nf: D.nf, mode, casino: !!D.casino, pth: !!D.pth, hdp: !!D.hdp, nseg: seg.length });
       if (yLow < yb - 0.01) { const sw = Math.max(1, Math.round(s.L / 2.6)); G.quad([s.P1[0], yLow, s.P1[1]], [s.P0[0], yLow, s.P0[1]], [s.P0[0], yG, s.P0[1]], [s.P1[0], yG, s.P1[1]], s.n, [0, 0, sw, 0, sw, (yG - yLow) / 2.6, 0, (yG - yLow) / 2.6], C(0xe2d7c4), cell('stone')); if (!proxy) wq(s, yb, yG, (yb - yG) / 2.4, 0, cell('plinth'), C(0xe8e2d8)); }
       else if (!proxy) wq(s, yb, yG, (yb - yG) / 2.4, 0, cell('plinth'), C(0xe8e2d8));
       const g0 = proxy && yLow >= yb - 0.01 ? yb : yG; wq(s, g0, yG + S.gh, 1 - (yG + S.gh - g0) / S.gh, 1, fc.gnd);
