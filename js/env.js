@@ -262,7 +262,8 @@ window.EI = window.EI || {};
         if (this.data.dem) this.initStreetGround();
       }
       if (this.data.kind === 'desert') this.initDesert();
-      if (this.data.kind === 'park' && this.initPark) this.initPark();   // env_park.js (Royal Park of Monza)
+      if (this.data.kind === 'park' && this.data.forest && this.initForest) this.initForest();   // env_forest.js (Spa: hill ground in the woods)
+      else if (this.data.kind === 'park' && this.initPark) this.initPark();   // env_park.js (Royal Park of Monza)
     }
     // ------------------------------------------------ desert circuit (Yas Marina): flat ground round the circuit, low dunes far out, the sea and the
     // marina basin from the map's water polygons as a raster mask (isSea), with a seabed a few metres below the quays
@@ -561,6 +562,7 @@ window.EI = window.EI || {};
   };
   // terrain height: flat at track level near the circuit (and a touch below the verge ribbons), rolling countryside beyond
   Ctx.prototype.terrainHeight = function (x, z) {
+    if (this.forestOn) return this.forestHeight(x, z);
     if (this.dem) return this.streetHeight(x, z);
     if (this.parkOn) return this.parkHeight(x, z);
     if (this.data.kind === 'desert') return this.desertHeight(x, z);
@@ -592,7 +594,7 @@ window.EI = window.EI || {};
   };
   Ctx.prototype.buildTerrain = function () {
     // street circuits with a terrain model use a 12 m grid inside +-1.8 km (roads, quays and slopes meet more tightly), 24 m otherwise
-    const fine = !!this.dem; const KIN = fine ? 150 : KIN0, GS = fine ? 12 : GS0, KTOT = fine ? 183 : KTOT0;
+    const fine = !!this.dem; const KIN = fine ? (this.terrainKin || 150) : KIN0, GS = fine ? 12 : GS0, KTOT = fine ? KIN + 33 : KTOT0;
     const sc = this.sc; const K = KTOT, W = K * 2 + 1;
     const pos = new Float32Array(W * W * 3), col = new Float32Array(W * W * 3), uv = new Float32Array(W * W * 2);
     const heights = new Float32Array((KIN * 2 + 1) * (KIN * 2 + 1)); const HW = KIN * 2 + 1;
@@ -721,8 +723,8 @@ window.EI = window.EI || {};
     return (Env._scrub = c);
   };
   Ctx.prototype.groundMaterial = function (tinted) {
-    if (!this._detail) this._detail = this.dem ? Env.groundDetail() : Env.grassDetail();
-    const det = this._detail; const rocky = !!this.dem && !tinted;
+    if (!this._detail) this._detail = this.dem && !this.forestOn ? Env.groundDetail() : Env.grassDetail();
+    const det = this._detail; const rocky = !!this.dem && !this.forestOn && !tinted;
     const mat = new THREE.MeshStandardMaterial({ map: this.fieldTex, vertexColors: true, roughness: 0.96, metalness: 0.0 }); if (rocky) mat.extensions = { derivatives: true };
     mat.onBeforeCompile = (sh) => {
       sh.uniforms.detailMap = { value: det };
@@ -796,11 +798,12 @@ window.EI = window.EI || {};
   // writes sRGB bytes into `out` (reused array) and returns it
   // venue grass colour, or false when (x, z) is out in the farmland
   Ctx.prototype.venueRGB = function (x, z, out) {
-    const f = this.fAt(x, z); if (!(f < this.VENUE_F || (f < 900 && this.inside(x, z)))) return false; if (this.parkOn && f >= 48) return false;
+    const f = this.fAt(x, z); if (!(f < this.VENUE_F || (f < 900 && this.inside(x, z)))) return false; if ((this.parkOn || this.forestOn) && f >= 48) return false;
     return this.fieldRGB(x, z, null, out, f);
   };
   Ctx.prototype.fieldRGB = function (x, z, cell, out, fpre) {
     out = out || [0, 0, 0];
+    if (this.forestOn) return this.forestRGB(x, z, out, fpre);
     if (this.parkOn) return this.parkRGB(x, z, out, fpre);
     if (this.dem) return this.streetRGB(x, z, out);
     if (this.data.kind === 'desert') return this.desertRGB(x, z, out, fpre);
@@ -997,6 +1000,7 @@ window.EI = window.EI || {};
       bctx.putImageData(bi, 0, 0); ctx.imageSmoothingEnabled = true; ctx.drawImage(bc, 0, 0, S, S);
     }
     if (this.parkOn) this.parkBase(ctx, S, H);   // satellite-classified ground cover (env_park.js)
+    if (this.forestOn) { this.forestBase(ctx, S, H); this.allWoods = []; }   // env_forest.js: cover rasters (the OSM woods' flat floor fill is not wanted)
     if (street && this.dem) {
       // natural / built-up ground per 9 m pixel, smoothed up to the full map (the overlays add the streets, paving, parks...)
       const BN = 512; const [bc, bctx] = Env.canvas(BN, BN); const bi = bctx.createImageData(BN, BN); const col = [0, 0, 0];
@@ -1013,7 +1017,7 @@ window.EI = window.EI || {};
     const path = (poly) => { ctx.beginPath(); ctx.moveTo(poly[0][0], poly[0][1]); for (let i = 1; i < poly.length; i++) ctx.lineTo(poly[i][0], poly[i][1]); ctx.closePath(); };
     const R = this.FR, W = this.FW; const polys = []; this.fieldPolys = polys;
     for (let k = 0; k < W * W; k++) {
-      if (street || desert || this.parkOn) break;
+      if (street || desert || this.parkOn || this.forestOn) break;
       const sx = this.seedX[k], sz = this.seedZ[k]; if (Math.abs(sx) > H + FC * 1.5 || Math.abs(sz) > H + FC * 1.5) continue;
       const poly = this.fieldPoly(k); if (poly.length < 3) continue; polys.push([k, poly]);
       const ty = this.fType[k], tone = this.fTone[k]; path(poly); ctx.fillStyle = rgb(PAL.fields[ty], 0.88 + tone * 0.16); ctx.fill();
