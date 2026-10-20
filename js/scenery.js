@@ -363,7 +363,7 @@ window.EI = window.EI || {};
   }
   // draw ranges stop at (or short of) the fog's far end per circuit (~2.4-2.6 km; ~1.4-1.5 km on low): past it nothing shows anyway
   Scenery.TIERS = {
-    low: { treeNear: 250, treeFar: 700, grass: [0, 0], crowd: 220, crowdFar: 500, cars: 350, tents: 350, clutter: 380, blobs: true, shadows: false, cityDetail: 220, cityFar: 1450 },
+    low: { treeNear: 220, treeFar: 600, grass: [0, 0], crowd: 200, crowdFar: 420, cars: 300, tents: 300, clutter: 320, blobs: true, shadows: false, cityDetail: 200, cityFar: 1150 },   // PERF wave 6: tighter (Low fog is 15 % closer too)
     medium: { treeNear: 420, treeFar: 1100, grass: [34, 55], crowd: 350, crowdFar: 1100, cars: 600, tents: 1200, clutter: 650, blobs: true, shadows: false, cityDetail: 340, cityFar: 2500 },
     high: { treeNear: 500, treeFar: 1600, grass: [50, 80], crowd: 550, crowdFar: 1600, cars: 1000, tents: 1800, clutter: 1100, blobs: true, shadows: true, cityDetail: 520, cityFar: 2650 },
   };

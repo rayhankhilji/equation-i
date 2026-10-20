@@ -161,6 +161,7 @@ window.EI = window.EI || {};
     const s = car.trk ? car.trk.s : -1e9, inT = s > TD.s0 + 4 && s < TD.s1 - 2 ? 1 : 0;
     tunF[k] += (inT - tunF[k]) * Math.min(1, dt * 3.5);
     renderer.toneMappingExposure = (EI.look.exp || 1.05) * (1 + 0.45 * tunF[k]); hemi.intensity = EI.look.hemi[2] * (1 - 0.45 * tunF[k]);
+    if (sun && EI.look.sun) sun.intensity = EI.look.sun[1] * (renderer.shadowMap.enabled ? 1 : 1 - 0.92 * tunF[k]);   // no shadow map (Low): the roof cannot shade the bore, so the sun fades in the tunnel
   }
   function renderView(cam, usePost, rect) {
     if (!(usePost && composer && quality === 'high')) { pipeDraw(cam, rect); return; }
@@ -214,14 +215,18 @@ window.EI = window.EI || {};
     // shadow filtering: the 4-tap bilinear PCF on low (above), PCF (17 taps) with a little blur radius on medium, the soft PCF on
     // high
     const st = q === 'high' ? THREE.PCFSoftShadowMap : q === 'low' ? THREE.BasicShadowMap : THREE.PCFShadowMap; sun.shadow.radius = q === 'high' ? 2 : 1.6;
-    if (renderer.shadowMap.type !== st) { renderer.shadowMap.type = st; scene.traverse(o => { const m = o.material; if (m) (Array.isArray(m) ? m : [m]).forEach(x => { x.needsUpdate = true; }); }); }   // programs are keyed by the type
+    // Low: no sun shadow map at all (no shadow pass, no shadow lookups per pixel); the cars keep their contact shadows (one draw for
+    // the field) and the Monaco tunnel dims the sun itself (tunnelLight). PERF wave 6: the user found every Low track laggy.
+    const shOn = q !== 'low'; sun.castShadow = shOn;
+    if (renderer.shadowMap.type !== st || renderer.shadowMap.enabled !== shOn) { renderer.shadowMap.enabled = shOn; renderer.shadowMap.type = st; scene.traverse(o => { const m = o.material; if (m) (Array.isArray(m) ? m : [m]).forEach(x => { x.needsUpdate = true; }); }); }   // programs are keyed by the type
     // the shadow box: +-70 m (+-55 m on low, where the map is 1024); the cached static shadow is rebuilt for the new settings
     const R = q === 'low' ? 55 : 70, sc = sun.shadow.camera; if (sc.right !== R) { sc.left = -R; sc.right = R; sc.top = R; sc.bottom = -R; sc.updateProjectionMatrix(); } invalidateShadowCache();
     if (scenery && scenery.group) scenery.group.traverse(o => { if (o.name === 'trees' || o.name === 'crowd') o.castShadow = q === 'high'; });
     applyTexCap(q); if (EI.Env && EI.Env.setQuality) EI.Env.setQuality(q); EI.quality = q; if (scenery && scenery.setQuality) scenery.setQuality(q); if (EI.Pit && EI.Pit.setQuality) EI.Pit.setQuality(q); if (track && track.setQuality) track.setQuality(q); if (EI.Canopy && EI.Canopy.setQuality) EI.Canopy.setQuality(q);
+    // fog: Low's haze (and the far plane with it) 15 % closer (PERF wave 6)
     // low: no live mirrors, no grass tufts / decorative instancing named 'detail', fog closer
     scene.traverse(o => { if (/tuft|detail/i.test(o.name || '')) o.visible = q !== 'low'; });
-    if (scene.fog) { const L = EI.look || { fog: [600, 2600], fogLow: [350, 1500] }; const f = q === 'low' ? L.fogLow : L.fog; scene.fog.near = f[0]; scene.fog.far = f[1]; } fitFarPlane();
+    if (scene.fog) { const L = EI.look || { fog: [600, 2600], fogLow: [350, 1500] }; const f = q === 'low' ? L.fogLow : L.fog, fk = q === 'low' ? 0.85 : 1; scene.fog.near = f[0] * fk; scene.fog.far = f[1] * fk; } fitFarPlane();
     onResize();
   }
 
@@ -491,7 +496,12 @@ window.EI = window.EI || {};
     const night = !!(EI.Night && EI.Night.on), BL = (EI.look && EI.look.bloom) || (night ? [1, 0.8, 0.55, 0.42] : [0.55, 0.93, 0.84, 0.76]);
     // (day glare is optional polish: it goes as soon as the internal resolution has to drop - the mip chain of the target is a
     // full-screen pass on its own; the night glow stays, the lamps need it)
-    const bloom = quality !== 'high' && !st.msaa && renderer.capabilities.isWebGL2 && BL[0] > 0 && (night || st.sc >= 0.999 || resPref === 'native');
+    // Low at full internal scale: no offscreen target, no resolve pass (FXAA / glow / vignette) - the view renders straight to the
+    // canvas; the target only comes back when Auto has to lower the internal resolution (PERF wave 6)
+    const direct = quality === 'low' && st.sc >= 0.999 && !st.msaa;
+    if (direct) { if (PIPE.rt) { PIPE.rt.dispose(); PIPE.rt = null; } PIPE.direct = true; PIPE.sc = st.sc; PIPE.w = w; PIPE.h = h; PIPE.msaa = false; PIPE.bloom = false; return; }
+    PIPE.direct = false;
+    const bloom = quality !== 'high' && quality !== 'low' && !st.msaa && renderer.capabilities.isWebGL2 && BL[0] > 0 && (night || st.sc >= 0.999 || resPref === 'native');
     PIPE.mat.uniforms.uBloom.value = bloom ? BL[0] : 0; PIPE.mat.uniforms.uBT.value.set(BL[1], BL[2], BL[3]);
     PIPE.mat.uniforms.uVig.value = (EI.look && EI.look.vignette != null) ? EI.look.vignette : 0.22; PIPE.mat.uniforms.uAsp.value = window.innerWidth / Math.max(1, window.innerHeight);
     PIPE.sc = st.sc; if (PIPE.rt && PIPE.w === w && PIPE.h === h && PIPE.msaa === st.msaa && PIPE.bloom === bloom) return;
@@ -509,7 +519,13 @@ window.EI = window.EI || {};
   // draw one view into the offscreen target (rect in CSS pixels, null = the whole screen); the target is cleared on the first
   // view of the frame. Shadow maps, mirrors and the shadow cache render into their own targets and restore this one.
   function pipeDraw(cam, rect) {
-    if (!PIPE.rt) pipeSize(); const rt = PIPE.rt, fx = PIPE.w / window.innerWidth, fy = PIPE.h / window.innerHeight;
+    if (PIPE.direct) {
+      renderer.setRenderTarget(null);
+      if (rect) { const y = window.innerHeight - rect[1] - rect[3]; renderer.setViewport(rect[0], y, rect[2], rect[3]); renderer.setScissor(rect[0], y, rect[2], rect[3]); renderer.setScissorTest(true); }
+      else { renderer.setViewport(0, 0, window.innerWidth, window.innerHeight); renderer.setScissorTest(false); }
+      renderer.render(scene, cam); return;
+    }
+    if (!PIPE.rt) pipeSize(); if (PIPE.direct) { pipeDraw(cam, rect); return; } const rt = PIPE.rt, fx = PIPE.w / window.innerWidth, fy = PIPE.h / window.innerHeight;
     if (!PIPE.open) { renderer.setRenderTarget(rt); rt.viewport.set(0, 0, PIPE.w, PIPE.h); rt.scissorTest = false; renderer.setRenderTarget(rt); renderer.clear(); PIPE.open = true; }
     if (rect) {
       const x = Math.round(rect[0] * fx), y = Math.round((window.innerHeight - rect[1] - rect[3]) * fy), w = Math.round(rect[2] * fx), h = Math.round(rect[3] * fy);
@@ -524,7 +540,7 @@ window.EI = window.EI || {};
     renderer.render(PIPE.scene, PIPE.cam);
   }
   // the readout's resolution line: preset, internal resolution (pixels) and anti-aliasing
-  function perfRes() { return quality[0].toUpperCase() + quality.slice(1) + ' ' + (resPref === 'auto' ? 'auto ' : '') + PIPE.w + 'x' + PIPE.h + (PIPE.msaa ? ' MSAA' : ' FXAA') + (PIPE.sc < 0.999 ? ' CAS' : ''); }
+  function perfRes() { return quality[0].toUpperCase() + quality.slice(1) + ' ' + (resPref === 'auto' ? 'auto ' : '') + PIPE.w + 'x' + PIPE.h + (PIPE.direct ? ' direct' : PIPE.msaa ? ' MSAA' : ' FXAA') + (PIPE.sc < 0.999 ? ' CAS' : ''); }
   function setRes(v) { if (RES_OPTS[v] == null) return; resPref = v; try { localStorage.setItem('ei-res', v); } catch (e) { } autoLv = 0; saveLv(); lockUpUntil = 0; ftEma = 16.7; if (renderer) onResize(); }
   function splitDir(w, h) { return splitPref === 'tb' || splitPref === 'sbs' ? splitPref : (w / h > 2.2 ? 'sbs' : 'tb'); }
   function onResize() {

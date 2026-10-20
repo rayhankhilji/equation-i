@@ -607,7 +607,7 @@ window.EI = window.EI || {};
     const st = { active: false, request: false, next: otherCompound(car.tyreKey), phase: null, d: 0, v: 0, o: 0, off0: 0, d0: 0, served: false, stops: 0, keyPrev: false, prevS: null, box: null, queued: false, stopD: null, plan: null, lastStop: null, ui: null };
     car.pit = st;
     // strategy for bots
-    if (!car.isPlayer) { const laps = race.laps; st.planLap = laps >= 5 ? U.clamp(Math.round(laps * (0.38 + race.rng() * 0.27)), 2, laps - 2) : 0; }
+    // (bot strategy and starting tyres: Strat.start, after the wheels below are known)
     // physics override: while in the pit lane this module moves the car along the lane
     const orig = car.update;
     car.update = function (dt, track, rc) { if (this.pit && this.pit.active) return stepPitCar(this, dt, track, rc || race); return orig.call(this, dt, track, rc); };
@@ -622,6 +622,7 @@ window.EI = window.EI || {};
       if (kind === 'map' && !RING_TEX[car.tyreKey]) RING_TEX[car.tyreKey] = { tex: rings[0].material.map || mat.map, key: car.tyreKey };
       return { spin: w, x: piv.x, z: piv.z, mat, kind, key: car.tyreKey };
     });
+    if (!car.isPlayer) Strat.start(car, st, race);
   }
   // sidewall textures per compound: taken from the cars' own rings, or recoloured from one of them when no car started on that compound
   const RING_TEX = {};
@@ -641,12 +642,152 @@ window.EI = window.EI || {};
     else w.mat.color.set(EI.TYRES[key].color);
   }
   function otherCompound(k) { return k === 'soft' ? 'medium' : k === 'medium' ? 'hard' : 'medium'; }
-  function chooseBotCompound(car, race) {
-    const left = race.laps - car.lap; const frac = left / Math.max(1, race.laps);
-    if (car.tyreKey === 'soft') return frac > 0.45 ? 'hard' : 'medium';
-    if (car.tyreKey === 'medium') return frac > 0.4 ? 'hard' : 'soft';
-    return frac > 0.35 ? 'medium' : 'soft';
+
+  // ================================================================ bot race strategy (owner STRATEGY)
+  // Each bot has a strategist. Tyre model (car.js, read-only): wear grows ~ TYRES[k].wear x 0.01 x lap time per lap (about
+  // 0.015 / 0.008 / 0.004 a lap on soft / medium / hard at Silverstone, never scaled by race length); grip x (1 - 0.3 wear) and the
+  // bot's own tyre-care fade (ai.js wearK) cost about lap x (0.03 + 0.33 wearK) s per unit of wear (+ a small square term).
+  // A stop costs the circuit's pit loss + an out-lap warm-up. The strategist stops only when that wins time over the rest of the
+  // race (one stop, best lap and compound, re-planned every sector from the car's own wear rate), never in the last 25 % unless a
+  // tyre is about to fail, and reads the race around it: the lead and the cars a stop would drop it behind (track position is
+  // worth a lot when passing is hard), undercutting a close car ahead, covering the car behind when it stops, waiting a lap
+  // rather than rejoining in traffic, and not stacking behind a team-mate (one garage per team). Runs on lap / sector changes
+  // only. QA: EI.debugStrategy = true logs every decision; Pit.strategyLog keeps the last 300; car.pit.strat / car.pit.why.
+  const COMP_N = 3;
+  const PIT_LOSS = { silverstone: 19, monaco: 21, abudhabi: 22, monza: 24 };   // measured lane time - racing time (f1-QA gate), s
+  const PASS_COST = { monaco: 7, silverstone: 2.2, abudhabi: 2.5, monza: 1.6 };    // what a car loses to a car it must re-pass on track, s
+  const W_PLAN = 0.6, W_FAIL = 0.8;   // planned stint limit (bots get loose beyond it) / "about to fail": stops even in the last quarter
+  const WARMUP = 0.6, MARGIN = 1.0, LATE = 0.75, B_K = 0.035;
+  const Strat = { log: [], sg: null };
+  Pit.strategyLog = Strat.log;
+  function sgFor(race) {
+    if (Strat.sg && Strat.sg.race === race) return Strat.sg;
+    const t = race.track, id = t.data.id; let lap = 0;
+    if (t.aiSpeed && t.n) { for (let i = 0; i < t.n; i++) lap += t.ds / Math.max(8, t.aiSpeed[i]); lap *= 1.03; }
+    if (!(lap > 20)) lap = t.length / 62;
+    const PL = t.data.pitLoss || PIT_LOSS[id] || 21;
+    Strat.sg = { race, lapRef: lap, PL, pass: PASS_COST[id] != null ? PASS_COST[id] : 2.2, kSum: 0, kN: 0, rng: U.rng(((race.seed || 1) * 2654435761 + 977) >>> 0) };
+    Strat.log.length = 0; return Strat.sg;
   }
+  function tyreA(car, sg) { const P = car.persona && car.persona.par; const wk = P && P.wearK != null ? P.wearK : 0.15; return sg.lapRef * (0.03 + 0.33 * wk); }
+  function paceOff(key, sg) { return sg.lapRef * 0.6 * (1 / Math.sqrt(EI.TYRES[key].grip) - 1); }
+  // wear per lap on compound key: the car's own observed rate (scaled from the compound it is on), else the field's, else the model
+  function wearRate(car, st, key, sg) { const k = st.strat && st.strat.kw > 0 ? st.strat.kw : sg.kN >= 3 ? sg.kSum / sg.kN : 1; return EI.TYRES[key].wear * 0.01 * sg.lapRef * k; }
+  // lap-time cost of n laps starting at wear w0, r per lap: sum of f(w0 + r (i + 0.5)), f(w) = A w + B w^2 (closed form)
+  function stintCost(A, B, w0, r, n) { if (n <= 0) return 0; return A * (n * w0 + r * n * n / 2) + B * (n * w0 * w0 + w0 * r * n * n + r * r * (n * n * n / 3 - n / 12)); }
+  const over = (w, lim) => w > lim ? 400 * (w - lim + 0.02) : 0;   // a stint past the planned limit (bots slide around): not an option
+  // best plan for the laps after the current one: stay out to the flag, or one stop at the end of lap k (now .. last-1) onto c2.
+  // out: stay, now (stop at the end of this lap, best compound nowC), later (best stop after this lap), best / k / c2 overall
+  function plan(car, st, race, sg, lap, w, extraStop, out) {
+    const Lr = race.laps, key = car.tyreKey, A = tyreA(car, sg), B = sg.lapRef * B_K, r = wearRate(car, st, key, sg), oc = paceOff(key, sg);
+    const n = Lr - lap;
+    out.stay = stintCost(A, B, w, r, n) + oc * n + over(w + r * n, W_PLAN); out.best = out.stay; out.k = 0; out.c2 = null; out.now = Infinity; out.nowC = null; out.later = Infinity; out.r = r;
+    for (let k = Math.max(lap, 1); k < Lr; k++) {
+      const m = k - lap, wS = w + r * m, cur = stintCost(A, B, w, r, m) + oc * m + over(wS, W_PLAN) + sg.PL + WARMUP + extraStop, n2 = Lr - k;
+      for (let ci = 0; ci < COMP_N; ci++) {
+        const c2 = COMP[ci], r2 = wearRate(car, st, c2, sg); const c = cur + stintCost(A, B, 0, r2, n2) + paceOff(c2, sg) * n2 + over(r2 * n2, W_PLAN);
+        if (c < out.best) { out.best = c; out.k = k; out.c2 = c2; }
+        if (k === Math.max(lap, 1)) { if (c < out.now) { out.now = c; out.nowC = c2; } } else if (c < out.later) out.later = c;
+      }
+    }
+    return out;
+  }
+  const _P = {};
+  // starting tyre: the plan cost from the grid on each compound (a stop there pays an expected traffic toll); the field picks among
+  // the near-best ones (seeded), so a long race mixes strategies and a short one is (nearly) all one compound
+  Strat.start = function (car, st, race) {
+    const sg = sgFor(race); st.strat = { kw: 0, setD0: null, setLaps: 0, why: 'grid', stopLap: 0, next: null, sk: -1, hold: '' };
+    if (!(race.laps >= 2)) return;
+    const toll = sg.pass * (car.pos <= 2 ? 0.5 : 2);
+    const keep = car.tyreKey; let best = Infinity; const cost = [0, 0, 0];
+    for (let ci = 0; ci < COMP_N; ci++) { car.tyreKey = COMP[ci]; plan(car, st, race, sg, 0, 0, toll, _P); cost[ci] = _P.best; best = Math.min(best, cost[ci]); }
+    car.tyreKey = keep;
+    let tot = 0; const wgt = [0, 0, 0]; for (let ci = 0; ci < COMP_N; ci++) { wgt[ci] = Math.exp(-(cost[ci] - best) / 1.2); tot += wgt[ci]; }
+    let x = sg.rng() * tot, pick = 0; for (let ci = 0; ci < COMP_N; ci++) { x -= wgt[ci]; if (x <= 0) { pick = ci; break; } }
+    const key = COMP[pick];
+    if (key !== car.tyreKey) { car.tyreKey = key; car.tyre = EI.TYRES[key]; if (car._pitWheels) for (const w of car._pitWheels) setWheelCompound(w, key); }
+    plan(car, st, race, sg, 0, 0, toll, _P); st.strat.stopLap = _P.best < _P.stay - MARGIN ? _P.k : 0; st.strat.next = _P.c2; st.next = _P.c2 || otherCompound(key);
+    st.strat.why = 'start ' + key + (st.strat.stopLap ? ', stop ~L' + st.strat.stopLap + ' -> ' + _P.c2 : ', no stop') + ' (' + cost.map((c, i) => COMP[i][0] + (c - best).toFixed(1)).join(' ') + ')';
+    note(car, race, st.strat.why);
+  };
+  function note(car, race, msg) {
+    const e = { t: +race.time.toFixed(1), lap: car.lap || 0, car: car.driver && car.driver.code || car.name, pos: car.pos, msg };
+    Strat.log.push(e); if (Strat.log.length > 300) Strat.log.shift();
+    if (EI.debugStrategy) console.log('[strategy] t' + e.t + ' L' + e.lap + ' P' + e.pos + ' ' + e.car + ': ' + msg);
+  }
+  // seconds a stop at the end of this lap costs in track position: each car within the pit loss behind that will not stop soon
+  // itself has to be re-passed; the leader also gives the lead away; rejoining just behind a car = stuck in its dirty air
+  function rejoinCost(car, race, sg, why) {
+    const o = race.order, i = o.indexOf(car); if (i < 0) return 0; let acc = 0, cost = 0, n = 0;
+    for (let j = i + 1; j < o.length; j++) {
+      const c = o[j]; acc += c.gapAhead || 0;
+      if (acc > sg.PL) { if (acc - sg.PL < 1.2 && !c.finished && race.lapGap(car, c) < 1) cost += sg.pass * 0.4; break; }
+      if (c.finished || (c.pit && (c.pit.active || c.pit.request)) || race.lapGap(car, c) >= 1) continue;
+      const s2 = c.pit && c.pit.strat, soon = s2 && s2.stopLap > 0 && s2.stopLap <= (car.lap || 1) + 3;
+      cost += soon ? sg.pass * 0.25 : sg.pass; n++;
+    }
+    if (i === 0 && n > 0) cost += 6;   // the lead: worth more than the laps of fresher tyres
+    why.n = n; return cost;
+  }
+  const _why = { n: 0 };
+  Strat.eval = function (car, st, race) {
+    const ss = st.strat; if (!ss || st.active || car.finished) return;
+    const sec = car.sector || 0, key = (car.lap || 0) * 4 + sec; if (key === ss.sk) return;   // once per sector
+    const newLap = ss.lapSeen !== car.lap; ss.sk = key; ss.lapSeen = car.lap;
+    const sg = sgFor(race), Lr = race.laps, lap = car.lap || 1, TL = race.track.length;
+    // the car's own wear rate on this set (race distance on the set), for the plan and as the field's reference
+    if (ss.setD0 == null) ss.setD0 = car.dist;
+    const onSet = (car.dist - ss.setD0) / TL;
+    if (newLap && onSet > 0.7 && car.wear > 0) { const k = car.wear / onSet / (car.tyre.wear * 0.01 * sg.lapRef); if (k > 0.2 && k < 5) { ss.kw = k; sg.kSum += k; sg.kN++; } }
+    if (st.request) { if (lap >= Lr) { st.request = false; note(car, race, 'final lap: stop cancelled'); } return; }
+    if (st.stops >= 3 || lap >= Lr || !race.started) return;
+    const dTo = U.mod(L.sCap - car.trk.s, TL); if (dTo < 260) return;   // too late on this lap: decided next sector / lap
+    const prog = U.mod(car.trk.s - race.track.sf, TL) / TL;
+    const r0 = wearRate(car, st, car.tyreKey, sg), wE = car.wear + r0 * (1 - prog);   // wear at the end of this lap
+    const fracAfter = (Lr - lap) / Lr;                                               // race left after a stop at the end of this lap
+    const damage = (car.damage || 0) > 0.5 || !!car.puncture;
+    let why = '';
+    if (damage) why = 'damage';
+    else if (wE > W_FAIL) why = 'wear ' + wE.toFixed(2) + ' about to fail';
+    if (!why) {
+      if (fracAfter < 1 - LATE) {   // last quarter: stay out unless the tyre fails before the flag
+        const wFin = wE + r0 * (Lr - lap); if (wFin <= W_FAIL) { if (newLap && ss.stopLap) { ss.stopLap = 0; note(car, race, 'last quarter: staying out (wear at flag ' + wFin.toFixed(2) + ')'); } return; }
+        why = 'wear ' + wFin.toFixed(2) + ' at the flag: would fail';
+      }
+    }
+    const p = plan(car, st, race, sg, lap, wE, 0, _P);
+    ss.stopLap = p.best < p.stay - MARGIN ? p.k : 0; ss.next = p.c2;
+    if (!why) {
+      const rj = rejoinCost(car, race, sg, _why), nowT = p.now + rj, gain = p.stay - nowT;
+      const o = race.order, i = o.indexOf(car);
+      // undercut: a close car ahead on older tyres; our fresh out-lap beats its in-lap by more than the gap
+      const a = i > 0 ? o[i - 1] : null;
+      if (a && !a.finished && !(a.pit && (a.pit.active || a.pit.request)) && race.lapGap(a, car) < 1 && car.gapAhead < 2.0 && p.nowC && ss.stopLap && ss.stopLap - lap <= 4 && p.now < p.best + 2.5 && rj <= sg.pass * 1.5) {
+        const Aa = tyreA(a, sg), wa = a.wear + wearRate(a, a.pit && a.pit.strat ? a.pit : st, a.tyreKey, sg);
+        const dU = Aa * wa + paceOff(a.tyreKey, sg) - (tyreA(car, sg) * wearRate(car, st, p.nowC, sg) * 0.5 + paceOff(p.nowC, sg)) - WARMUP;
+        if (dU > car.gapAhead + 0.3) why = 'undercut ' + (a.driver && a.driver.code || a.name) + ' (gap ' + car.gapAhead.toFixed(1) + ' s, fresh-tyre lap +' + dU.toFixed(1) + ' s)';
+      }
+      // cover: the car right behind has just stopped and we are in our window
+      const b = i >= 0 && i + 1 < o.length ? o[i + 1] : null;
+      if (!why && b && b.pit && race.lapGap(car, b) < 1 && b.gapAhead < sg.PL * 0.35 + 2 && (b.pit.active || (b.pit.tOut != null && race.time - b.pit.tOut < sg.lapRef * 0.6)) && ss.stopLap && p.now < p.best + 3 && p.now < p.stay)
+        why = 'cover ' + (b.driver && b.driver.code || b.name) + ' (stopped ' + b.gapAhead.toFixed(1) + ' s behind)';
+      // time: now is the best lap to stop (traffic included) and it wins time over staying out
+      if (!why && gain > MARGIN && nowT <= p.later + 0.3) why = 'gains ' + gain.toFixed(1) + ' s (stay ' + p.stay.toFixed(1) + ' / stop ' + p.now.toFixed(1) + ' + rejoin ' + rj.toFixed(1) + ' over ' + _why.n + ' cars), wear ' + wE.toFixed(2);
+      // forced: the tyre cannot reach the flag and a later stop is no better
+      if (!why && p.stay >= 400 && nowT <= p.later + 0.3) why = 'must stop: wear at the flag ' + (wE + r0 * (Lr - lap)).toFixed(2);
+      if (!why) {
+        if (newLap) { const h = ss.stopLap ? 'plan stop ~L' + ss.stopLap + ' -> ' + ss.next + (rj > 0 && p.k === lap ? ' (waiting: rejoin behind ' + _why.n + ' cars)' : '') : 'no stop (stay ' + p.stay.toFixed(1) + ' s vs best stop ' + (p.best === p.stay ? Math.min(p.now, p.later).toFixed(1) : p.best.toFixed(1)) + ')'; if (h !== ss.hold) { ss.hold = h; note(car, race, h); } }
+        return;
+      }
+      // one garage per team: let the team-mate's stop clear first (not for a cover / undercut)
+      const mate = race.cars.find(c => c !== car && c.team === car.team && c.pit && (c.pit.active || c.pit.request));
+      if (mate && !/^(cover|undercut)/.test(why) && p.stay < 400) { const h = 'hold a lap: team-mate ' + (mate.driver && mate.driver.code || mate.name) + ' in the box'; if (h !== ss.hold) { ss.hold = h; note(car, race, h); } return; }
+    }
+    st.request = true; st.next = p.nowC || otherCompound(car.tyreKey); st.why = why + ' -> ' + st.next; ss.why = st.why; ss.hold = '';
+    note(car, race, 'BOX ' + car.tyreKey + ' -> ' + st.next + ': ' + why);
+  };
+  // after a stop: a new set, measured from the release
+  Strat.newSet = function (car) { const ss = car.pit && car.pit.strat; if (ss) { ss.setD0 = car.dist; ss.sk = -1; ss.stopLap = 0; } };
 
   Pit.init = function (race) {
     try {
@@ -703,16 +844,7 @@ window.EI = window.EI || {};
   };
   // a car that still owes the second dry compound (races of 3 laps or more)
   function owesCompound() { return false; }   // the two-compound rule is not used in this game (kept as a hook)
-  function strategy(car, st, race) {
-    if (st.active) return;
-    const owes = owesCompound(car, race), lastLap = owes ? race.laps - 1 : race.laps - 2;
-    if (st.request) { if (car.lap > lastLap) st.request = false; return; }
-    if (st.stops >= 3 || car.lap > lastLap || car.lap < 1) return;
-    const due = car.wear > 0.55 || (st.planLap > 0 && st.stops === 0 && car.lap >= st.planLap) || (owes && car.lap >= lastLap);
-    if (!due) return;
-    const dTo = U.mod(L.sCap - car.trk.s, race.track.length); if (dTo < 260) return; // too late on this lap: commit next time round
-    st.request = true; st.next = chooseBotCompound(car, race);
-  }
+  function strategy(car, st, race) { Strat.eval(car, st, race); }
   function capture(car, race) {
     const st = car.pit; let best = L.dCap, bd = Infinity;
     for (let i = Math.max(0, L.dCap - 70); i < Math.min(L.n, L.dCap + 70); i++) { const d = (L.x[i] - car.x) ** 2 + (L.z[i] - car.z) ** 2; if (d < bd) { bd = d; best = i; } }
@@ -840,6 +972,7 @@ window.EI = window.EI || {};
     if (race.started) car.dist = st.distBase + sR + dw;
     st.active = false; st.phase = null; st.request = false; st.box = null; st.plan = null; st.prevS = car.trk.s; st.tOut = race.time;
     st.lastStop && (st.lastStop.laneTime = race.time - st.tIn);
+    if (!car.isPlayer) Strat.newSet(car);
     if (car._pitWheels) for (const w of car._pitWheels) w.spin.visible = true;
     if (car.isPlayer) uiFlash(car, 'PIT EXIT', 'muted', 1.2);
   }
