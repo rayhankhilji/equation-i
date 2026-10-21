@@ -37,7 +37,7 @@
   // ================================================================ layout
   St.layout = function (E) {
     const t = E.t; E.mxRuns = []; E.mxRibbons = []; E.standPolys = E.standPolys || []; const why = E.stats.mexicoWhy = {};
-    for (const x of TEMP) { const c = Mx.cs(t, x.anchor); const s0 = c + x.ds0, s1 = c + x.ds1; const side = sideOf(t, x.side, s0, s1); let run = null; for (const gap of x.gaps) { run = St.run(E, Object.assign({}, x, { gap, s0, s1, side })); if (run.blocks.length >= Math.max(1, Math.floor((x.ds1 - x.ds0) / 30))) break; St.unrun(E, run); run = null; } if (!run) why[x.label] = 'none'; }
+    for (const x of TEMP) { const c = Mx.cs(t, x.anchor); const s0 = c + x.ds0, s1 = c + x.ds1; const side = sideOf(t, x.side, s0, s1); let best = null; for (const gap of x.gaps) { const run = St.run(E, Object.assign({}, x, { gap, s0, s1, side })); if (!best || run.blocks.length > best.blocks.length) best = run; if (run.blocks.length >= Math.max(1, Math.floor((x.ds1 - x.ds0) / 30))) break; } if (best && best.blocks.length) St.accept(E, best); else why[x.label] = 'none'; }
     try { St.layoutMain(E); } catch (e) { console.error('EnvMexico main GS', e); }
     try { St.layoutForoSol(E); } catch (e) { console.error('EnvMexico Foro Sol', e); }
     try { St.layoutHarp(E); } catch (e) { console.error('EnvMexico Harp Helu', e); }
@@ -62,15 +62,18 @@
       if (!St.clear(E, W, hl, depth)) { why[wk + ':clear'] = (why[wk + ':clear'] || 0) + 1; s = sb; continue; }
       if (E.rectFree(cx + nx * depth / 2, cz + nz * depth / 2, ax, az, hl + 2, depth / 2 + 1, OCC.BUILT | OCC.WATER) < 0.9 || E.rectFree(cx + nx * depth / 2, cz + nz * depth / 2, ax, az, hl, depth / 2, OCC.ROAD) < 0.6) { why[wk + ':occ'] = (why[wk + ':occ'] || 0) + 1; s = sb; continue; }
       const blk = { cx, cz, ax, az, nx, nz, len: hl * 2, rows, roof: false, seat: R.seat, y: 0, s: (s + sb) / 2, first: !run.blocks.length, last: false, name: R.label, mx: { R, run } };
-      St.fitY(E, blk); E.blocks.push(blk); run.blocks.push(blk);
-      const poly = E.markRect(blk.cx + blk.nx * depth / 2, blk.cz + blk.nz * depth / 2, blk.ax, blk.az, blk.len / 2 + 2.4, depth / 2 + 0.8, Env.OCC.BUILT); E.standPolys.push(poly); E.mxOwnPolys.push(poly); run.polys.push(poly);
+      St.fitY(E, blk); run.blocks.push(blk);
       s = sb;
     }
-    if (run.blocks.length) { run.blocks[run.blocks.length - 1].last = true; E.mxRuns.push(run); }
     return run;
   };
-  // undo a run that came out too short (another gap is tried); its BUILT marks stay (harmless: only this stand's own footprint)
-  St.unrun = function (E, run) { for (const b of run.blocks) { const k = E.blocks.indexOf(b); if (k >= 0) E.blocks.splice(k, 1); } const k = E.mxRuns.indexOf(run); if (k >= 0) E.mxRuns.splice(k, 1); };
+  // accept a run: the venue builds its chords; the footprints (+ the stair towers at the ends) are reserved only now, so a rejected
+  // attempt leaves no marks behind for the next gap
+  St.accept = function (E, run) {
+    const depth = Z0 + run.R.rows * TREAD + 0.8; run.blocks[run.blocks.length - 1].last = true;
+    for (const b of run.blocks) { E.blocks.push(b); const ex = (b.first || b.last) ? 4.0 : 0.3; const poly = E.markRect(b.cx + b.nx * depth / 2, b.cz + b.nz * depth / 2, b.ax, b.az, b.len / 2 + ex, depth / 2 + 0.8, Env.OCC.BUILT); E.standPolys.push(poly); E.mxOwnPolys.push(poly); }
+    E.mxRuns.push(run);
+  };
   // every sample of a chord (front corners >= 1.5 m, the rest >= 2.5 m beyond the rendered barrier; the stair towers at the ends too)
   St.clear = function (E, W, hl, depth) {
     const t = E.t; const why = E.stats.mexicoWhy; const pts = [[-hl, 0, 1.5], [hl, 0, 1.5], [0, 0, 1.5], [-hl, depth, 2.5], [hl, depth, 2.5], [0, depth, 2.5], [-hl, depth / 2, 2.5], [hl, depth / 2, 2.5], [-hl - 3.6, depth - 2, 2.5], [hl + 3.6, depth - 2, 2.5]];
