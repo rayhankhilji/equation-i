@@ -38,7 +38,7 @@
       E.mxInfra.s12 = s12;
       const pod = spotAt(s13 - 95, s13 - 40, side, [8, 10, 12, 14], 10, 7.5);
       if (pod) { fit(pod); reserve(box(pod, 2)); E.mxInfra.podium = pod;
-        const pc = [spotAt(pod.s - 52, pod.s - 30, side, [6, 9, 12], 13, 8), spotAt(pod.s + 30, pod.s + 70, side, [6, 9, 12, 16], 13, 8)];
+        const pc = [spotAt(pod.s - 50, pod.s - 30, side, [5, 7, 9, 12], 18, 6.5), spotAt(pod.s + 30, pod.s + 56, side, [5, 7, 9, 12, 16], 18, 6.5)];
         E.mxInfra.clubs = pc.filter(Boolean); for (const c of E.mxInfra.clubs) { fit(c); reserve(box(c, 1.5)); } }
     }
     // footbridges: GEN's OSM bridge lines (the deck crosses where the line crosses the lap), unless the track data lists its own
@@ -53,6 +53,11 @@
   In.refit = function (E) {
     const I = E.mxInfra; if (!I) return; const sc = E.sc;
     for (const o of [I.podium].concat(I.clubs || [])) { if (!o) continue; let gmin = Infinity, gmax = -Infinity; for (const [u, v] of [[-1, -1], [1, -1], [1, 1], [-1, 1], [0, 0]]) { const g = sc.height(o.cx + o.ax * u * o.hl + o.nx * v * o.hd, o.cz + o.az * u * o.hl + o.nz * v * o.hd); gmin = Math.min(gmin, g); gmax = Math.max(gmax, g); } o.y = gmin; o.gmax = gmax; }
+    // the guests on the Paddock Club terraces: standing people in the shared crowd (shade sentinel 0.999, shade in the accessory alpha)
+    const recs = E.mxBankRecs = []; const rng = U.rng(1313); const cols = ['#e8e8e4', '#1a1a1a', '#2a2b2e', '#3b404a', '#1b2a4a', '#8a1c22', '#c9b28a', '#ff6a00', '#c8102e', '#e0d8c8'].map(h => { const c = C(h); return [c.r, c.g, c.b]; });
+    for (const o of I.clubs || []) { const m = frameOf(o); const L = o.hl * 2 - 1, D = o.hd * 2 - 1; const y1 = 4.0 + (o.gmax - o.y) + 0.12; const f = Mx.dir(Env.xf(m, 0, 0, 0), Env.xf(m, 0, 0, -1)); const yaw = Math.atan2(f[0], f[2]);
+      for (let x = -L / 2 + 0.8; x < L / 2 - 0.8; x += 0.75) for (const z of [-D / 2 + 0.6, -D / 2 + 1.5, -D / 2 + 2.6]) { if (rng() > (z < -D / 2 + 1 ? 0.8 : 0.45)) continue; const p = Env.xf(m, x + (rng() - 0.5) * 0.3, y1, z + (rng() - 0.5) * 0.3); const sh = cols[Math.floor(rng() * cols.length)], ac = cols[Math.floor(rng() * cols.length)];
+        recs.push([[p[0], p[1], p[2], yaw + (rng() - 0.5) * 0.5], [10 + Math.floor(rng() * 4), 0.93 + rng() * 0.12, rng(), rng() < 0.2 ? 1 : 0], [sh[0], sh[1], sh[2], 0.999], [ac[0], ac[1], ac[2], 0.82]]); } }
   };
 
   In.build = function (E, BK, out) {
@@ -124,21 +129,35 @@
     E.stats.mexico.podium = { x: Math.round(o.cx), z: Math.round(o.cz), s: Math.round(o.s), y: +o.y.toFixed(2) };
     return 1;
   }
-  // ---------------------------------------------------------------- the Paddock Club blocks flanking the podium
+  // ---------------------------------------------------------------- the Paddock Club blocks flanking the podium (photo mex_stadium_green_heineken_kerb):
+  // long two-storey white blocks, a glazed ground floor, an open first-floor terrace full of guests under the flat white roof, a deep BLACK
+  // fascia ('F1 PADDOCK CLUB', the event lettering), a black mid band ('WHERE ADRENALINE MEETS ELEGANCE'), one Heineken-green bay
   function clubs(E, BK) {
-    const I = E.mxInfra; let n = 0; const { B, G, S, F: Fd, H } = BK;
+    const I = E.mxInfra; let n = 0; const { B, G, S, F: Fd, A } = BK;
+    const fasR = A.region('mxClubFascia', 512, 48, (x2, w, h) => { x2.fillStyle = '#121316'; x2.fillRect(0, 0, w, h); if (EI.Ads && EI.Ads.drawF1) EI.Ads.drawF1(x2, h * 1.1, h * 0.5, h * 1.6, h * 0.5, '#e8e8e8'); x2.fillStyle = '#e8e8e8'; x2.font = '800 ' + Math.round(h * 0.42) + 'px Arial'; x2.textAlign = 'left'; x2.textBaseline = 'middle'; x2.fillText('PADDOCK CLUB', h * 2.1, h * 0.53); x2.fillStyle = '#ce1126'; x2.fillRect(w * 0.62, h * 0.2, 3, h * 0.6); x2.fillStyle = '#d8d8d8'; x2.font = '700 ' + Math.round(h * 0.36) + 'px Arial'; x2.fillText('MÉXICO CITY', w * 0.65, h * 0.53); });
+    const midR = A.region('mxClubMid', 512, 24, (x2, w, h) => { x2.fillStyle = '#121316'; x2.fillRect(0, 0, w, h); x2.fillStyle = '#e2e2e2'; x2.font = '700 ' + Math.round(h * 0.62) + 'px Arial'; x2.textAlign = 'center'; x2.textBaseline = 'middle'; x2.fillText('WHERE  ADRENALINE  MEETS  ELEGANCE', w / 2, h * 0.55); });
+    const heiR = A.region('mxClubHei', 256, 48, (x2, w, h) => { x2.fillStyle = '#1f8a4c'; x2.fillRect(0, 0, w, h); if (EI.Ads && EI.Ads.drawPartner) EI.Ads.drawPartner(x2, 'heineken', w / 2, h / 2, w * 0.8, h * 0.62, { tone: 'white' }); else Mz.paintText(x2, w, h, 'Heineken', { bg: '#1f8a4c', fg: '#ffffff' }); });
     for (const o of (I && I.clubs) || []) {
       const m = frameOf(o); const P = (x, y, z) => Env.xf(m, x, y, z); const lift = o.gmax - o.y; const L = o.hl * 2 - 1, D = o.hd * 2 - 1, hl = L / 2, hd = D / 2;
-      const white = C(0xd3d6d7), whiteS = C(0xc8cbcd), glass = C(0x2a3846), glassL = C(0x3d5265), frame = C(0xb3b8bc), sail = C(0xd6d9da);
-      const y1 = 4.2 + lift, y2 = y1 + 4.0;
-      B.box(m, L, y2 + 0.3, D, 0, -0.3, 0, whiteS, { top: C(0x9aa0a4) });
-      for (const sz of [-1, 1]) { const want = Mx.dir(P(0, 0, 0), P(0, 0, sz)); for (const [ya, yb] of [[lift + 0.6, y1 - 0.5], [y1 + 0.4, y2 - 0.4]]) Mx.face(G, P(-hl + 0.8, ya, sz * (hd + 0.03)), P(hl - 0.8, ya, sz * (hd + 0.03)), P(hl - 0.8, yb, sz * (hd + 0.03)), P(-hl + 0.8, yb, sz * (hd + 0.03)), sz < 0 ? glassL : glass, want); }
-      for (const sx of [-1, 1]) { const want = Mx.dir(P(0, 0, 0), P(sx, 0, 0)); Mx.face(G, P(sx * (hl + 0.03), y1 + 0.4, -hd + 0.8), P(sx * (hl + 0.03), y1 + 0.4, hd - 0.8), P(sx * (hl + 0.03), y2 - 0.4, hd - 0.8), P(sx * (hl + 0.03), y2 - 0.4, -hd + 0.8), glass, want); }
-      // the balcony slab towards the track, its glass rail; the roof terrace: three white sails on posts
-      B.box(m, L + 1.2, 0.35, 2.6, 0, y1 - 0.1, -hd - 1.2, white); Mx.face(G, P(-hl - 0.6, y1 + 0.25, -hd - 2.45), P(hl + 0.6, y1 + 0.25, -hd - 2.45), P(hl + 0.6, y1 + 1.25, -hd - 2.45), P(-hl - 0.6, y1 + 1.25, -hd - 2.45), C(0x8aa7b2), Mx.dir(P(0, 0, 0), P(0, 0, -1)));
-      for (let k = 0; k < 3; k++) { const x = -hl + L * (k + 0.5) / 3, w2 = L / 3 * 0.45; for (const [px, pz] of [[-w2, -hd + 1], [w2, hd - 1]]) S.beam(I4(), P(x + px, y2, pz), P(x + px, y2 + 4.2, pz), 0.14, frame); for (const [px, pz] of [[w2, -hd + 1], [-w2, hd - 1]]) S.beam(I4(), P(x + px, y2, pz), P(x + px, y2 + 2.6, pz), 0.14, frame);
-        const a = P(x - w2, y2 + 4.2, -hd + 1), b = P(x + w2, y2 + 2.6, -hd + 1), c = P(x + w2, y2 + 4.2, hd - 1), d = P(x - w2, y2 + 2.6, hd - 1); Mx.face(B, a, b, c, d, sail, [0, 1, 0]); Mx.face(B, a, b, c, d, C(0xbfc3c5), [0, -1, 0]); }
-      Fd.beam(m, [-hl, y2 + 1.0, -hd], [hl, y2 + 1.0, -hd], 0.06, frame); Fd.beam(m, [-hl, y2 + 1.0, hd], [hl, y2 + 1.0, hd], 0.06, frame);
+      const white = C(0xcdd0d2), whiteS = C(0xc4c7c9), glass = C(0x2a3846), glassL = C(0x3d5265), frame = C(0xb3b8bc), black = C(0x16171a), green = C(0x1f7a4a);
+      const F = Mx.dir(P(0, 0, 0), P(0, 0, -1)); const y1 = 4.0 + lift, yB = y1 + 0.9, y2 = y1 + 4.2;
+      // ground floor box (glazed front towards the track), the first-floor slab, the back + end walls of the terrace, the roof slab
+      B.box(m, L, y1 + 0.3, D, 0, -0.3, 0, whiteS, { top: C(0xb9bcbe) });
+      Mx.face(G, P(-hl + 0.6, lift + 0.4, -hd - 0.03), P(hl - 0.6, lift + 0.4, -hd - 0.03), P(hl - 0.6, y1 - 0.4, -hd - 0.03), P(-hl + 0.6, y1 - 0.4, -hd - 0.03), glassL, F);
+      B.box(m, L, y2 - y1, 0.4, 0, y1, hd - 0.2, white); for (const sx of [-1, 1]) B.box(m, 0.4, y2 - y1, D, sx * (hl - 0.2), y1, 0, white);
+      Mx.face(G, P(-hl + 0.6, y1 + 1.2, hd - 0.42), P(hl - 0.6, y1 + 1.2, hd - 0.42), P(hl - 0.6, y2 - 0.6, hd - 0.42), P(-hl + 0.6, y2 - 0.6, hd - 0.42), glass, F);
+      B.box(m, L + 1.0, 0.5, D + 1.6, 0, y2, -0.6, white, { bottom: true });
+      for (let x = -hl + 4; x < hl - 2; x += 6) S.beam(Mx.I4(), P(x, y1, -hd + 0.4), P(x, y2, -hd + 0.4), 0.3, frame);
+      // the terrace rail (glass) with the black mid band below it; the deep black fascia on the roof edge (signs in the atlas)
+      Mx.face(G, P(-hl, y1 + 0.02, -hd - 0.05), P(hl, y1 + 0.02, -hd - 0.05), P(hl, yB + 0.1, -hd - 0.05), P(-hl, yB + 0.1, -hd - 0.05), C(0x8aa7b2), F);
+      Mx.face(B, P(-hl, y1 - 0.7, -hd - 0.06), P(hl, y1 - 0.7, -hd - 0.06), P(hl, y1 + 0.02, -hd - 0.06), P(-hl, y1 + 0.02, -hd - 0.06), black, F);
+      Mx.face(B, P(-hl - 0.5, y2 - 1.1, -hd - 1.42), P(hl + 0.5, y2 - 1.1, -hd - 1.42), P(hl + 0.5, y2 + 0.5, -hd - 1.42), P(-hl - 0.5, y2 + 0.5, -hd - 1.42), black, F);
+      const nb = Math.max(2, Math.floor(L / 9)); const hb = Math.floor(nb * 0.7);
+      for (let k = 0; k < nb; k++) { const xa = -hl + k * L / nb + 0.3, xb = -hl + (k + 1) * L / nb - 0.3; const [l, r] = Mx.lr(F, P(xa, 0, -hd - 1.45), P(xb, 0, -hd - 1.45)); const y0 = o.y + y2 - 1.0, yt = o.y + y2 + 0.4;
+        Mx.faceA(A, k === hb ? heiR : fasR, [l[0], y0, l[2]], [r[0], y0, r[2]], [r[0], yt, r[2]], [l[0], yt, l[2]], F);
+        const [l2, r2] = Mx.lr(F, P(xa, 0, -hd - 0.08), P(xb, 0, -hd - 0.08)); Mx.faceA(A, midR, [l2[0], o.y + y1 - 0.62, l2[2]], [r2[0], o.y + y1 - 0.62, r2[2]], [r2[0], o.y + y1 - 0.08, r2[2]], [l2[0], o.y + y1 - 0.08, l2[2]], F);
+        if (k === hb) { B.box(m, xb - xa, y2 - y1 - 0.2, 0.3, (xa + xb) / 2, y1, hd - 0.6, green); for (const x of [xa, xb]) B.box(m, 0.5, y2 - lift + 0.3, 0.5, x, -0.3, -hd + 0.2, green); } }
+      Fd.beam(m, [-hl, y2 + 1.2, hd], [hl, y2 + 1.2, hd], 0.06, frame);
       n++;
     }
     return n;
