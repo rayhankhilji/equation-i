@@ -118,6 +118,15 @@
     }
     return st;
   };
+  // GEN's barriers reach deep into the stadium field where the run-off is wide (T13 / T14: 45-48 m): slide each station's front back
+  // along its normal until it is >= `need` m beyond the rendered barrier (smoothed along the line so the front stays fair), <= maxS m
+  St.pushBack = function (E, st, need, maxS) {
+    const sh = st.map(s => { let d = 0; for (let k = 0; k < 40; k++) { let ok = true; for (const z of [0, 2.5, 5]) { const x = s.x + s.nx * (d + z), zz = s.z + s.nz * (d + z); if (E.fsAt(x, zz) < need) { ok = false; break; } } if (ok) break; d += 0.5; } return Math.min(d, maxS); });
+    const n = st.length, sm = new Float32Array(n);
+    for (let i = 0; i < n; i++) { let m = 0; for (let j = Math.max(0, i - 2); j <= Math.min(n - 1, i + 2); j++) m = Math.max(m, sh[j] - Math.abs(i - j) * 1.2); sm[i] = m; }
+    for (let i = 0; i < n; i++) { st[i].x += st[i].nx * sm[i]; st[i].z += st[i].nz * sm[i]; st[i].push = sm[i]; }
+    return st;
+  };
   // drop stations whose cross-section footprint is not clear; returns the runs of consecutive good stations (>= 2 each)
   St.trim = function (E, st, depth, front, backPit) {
     const t = E.t; const ok = st.map(s => {
@@ -159,6 +168,7 @@
       const dep = ds.length ? ds[Math.floor(ds.length / 2)] : 32;
       const lowEnd = FS.low.z0 + FS.low.rows * FS.low.tread; const upZ0 = lowEnd + FS.up.zOff; const upRows = U.clamp(Math.floor((dep + 1.0 - upZ0 - 0.6) / FS.up.tread), 8, 26);
       const depth = upZ0 + upRows * FS.up.tread + 0.6;
+      St.pushBack(E, st, 3.2, 14);
       const runs = St.trim(E, st, depth, 3.0, 9);
       for (const r of runs) { const R = { name: 'foroSol' + hk + '_' + E.mxRibbons.length, kind: 'foroSol', half: hk, st: r, depth, upRows, upZ0, lowEnd, y: 0 }; St.reserve(E, R, depth); St.fitRibbon(E, R); E.mxRibbons.push(R); E.mxBowls.push(R); }
     });
@@ -343,14 +353,14 @@
       const sx = s.x + s.nx * (zBk - 4) * s.m + want[0] * 3.2, sz = s.z + s.nz * (zBk - 4) * s.m + want[2] * 3.2; B.box(Env.frame(sx, R.y + gy, sz, want[0], want[2], s.nx, s.nz), 6.0, yFac - gy + 0.6, 7.5, 0, 0, 0, facadeD, { top: concL }); }
     // the stadium's name on the outer facade (the long straight run of each half: towards the pit straight / the back straight)
     { let bi = -1, bl = 0; for (let i = 0; i + 4 < NS; i++) { const a = st[i], b = st[i + 4]; const l = Math.hypot(b.x - a.x, b.z - a.z); const straight = Math.abs(a.nx * b.nx + a.nz * b.nz) > 0.995; if (straight && l > bl) { bl = l; bi = i; } }
-      if (bi >= 0) { const a = st[bi], b = st[bi + 4]; const N = [(a.nx + b.nx) / 2, 0, (a.nz + b.nz) / 2]; const nr = A.region('mxGNPname', 1024, 96, (x2, w, h) => { x2.clearRect(0, 0, w, h); x2.fillStyle = '#c4bfb2'; x2.fillRect(0, 0, w, h); Mz.paintText(x2, w, h, 'ESTADIO GNP SEGUROS', { bg: 'rgba(0,0,0,0)', fg: '#1d3d6e', size: 0.66, font: '800 ' }); });
+      if (bi >= 0) { const a = st[bi], b = st[bi + 4]; const N = [(a.nx + b.nx) / 2, 0, (a.nz + b.nz) / 2]; const nr = A.region('mxGNPname', 1024, 80, (x2, w, h) => { x2.clearRect(0, 0, w, h); x2.fillStyle = '#c4bfb2'; x2.fillRect(0, 0, w, h); Mz.paintText(x2, w, h, 'ESTADIO GNP SEGUROS', { bg: 'rgba(0,0,0,0)', fg: '#1d3d6e', size: 0.66, font: '800 ' }); });
         const zz = zBk + 0.08; const pa = SP(R, a, zz, yFac - 3.6), pb = SP(R, b, zz, yFac - 3.6), pc = SP(R, b, zz, yFac - 0.6), pd = SP(R, a, zz, yFac - 0.6); Mx.faceA(A, nr, pa, pb, pc, pd, N); } }
     R.prof = { yFac, zBk, yRf, zRf, yU0, zU0, yUT };
     E.stats.mexico.foroSol = (E.stats.mexico.foroSol || 0) + 1;
   };
   // the outer facade bay (atlas): pale concrete, two rows of arched openings onto the concourses, a pilaster at the bay edge
   St.facadeR = function (A, i) {
-    return A.region('mxFacade' + (i % 2), 96, 320, (x2, w, h) => {
+    return A.region('mxFacade' + (i % 2), 64, 192, (x2, w, h) => {
       x2.fillStyle = '#c4bfb2'; x2.fillRect(0, 0, w, h); x2.fillStyle = 'rgba(0,0,0,0.06)'; for (let y = 0; y < h; y += 16) x2.fillRect(0, y, w, 1);
       x2.fillStyle = '#a9a497'; x2.fillRect(0, 0, 7, h); x2.fillRect(w - 7, 0, 7, h); x2.fillRect(0, h * 0.06, w, 6); x2.fillRect(0, h * 0.52, w, 8);
       const arch = (y0, y1) => { x2.fillStyle = '#3a3c40'; const ax = 20, aw = w - 40; x2.beginPath(); x2.moveTo(ax, y1); x2.lineTo(ax, y0 + aw / 2); x2.arc(ax + aw / 2, y0 + aw / 2, aw / 2, Math.PI, 0); x2.lineTo(ax + aw, y1); x2.closePath(); x2.fill(); x2.fillStyle = 'rgba(255,255,255,0.08)'; x2.fillRect(ax, y1 - 4, aw, 4); };

@@ -198,7 +198,7 @@ window.EI = window.EI || {};
     const tryUnit = (x, z, L, D, kind) => {
       const c = F.W(x, z), c2 = F.W(x + 1, z); let ax = c2[0] - c[0], az = c2[1] - c[1]; const l = Math.hypot(ax, az) || 1; ax /= l; az /= l;
       const corners = [[-1, -1], [1, -1], [1, 1], [-1, 1], [0, 0]].map(([u, v]) => [c[0] + ax * u * (L / 2 + 2) - az * v * (D / 2 + 2), c[1] + az * u * (L / 2 + 2) + ax * v * (D / 2 + 2)]);
-      if (E.rectFree(c[0], c[1], ax, az, L / 2 + 2, D / 2 + 2, OCC.WATER | OCC.ROAD | OCC.BUILT) < 0.9 || corners.some(q => E.fsAt(q[0], q[1]) < 14 || E.mxOwnPolys.some(p => U.pointInPoly(q[0], q[1], p)) || Mx.nearPit(E, q[0], q[1]) < 10)) return false;
+      if (E.rectFree(c[0], c[1], ax, az, L / 2 + 2, D / 2 + 2, OCC.WATER | OCC.ROAD) < 0.9 || corners.some(q => E.fsAt(q[0], q[1]) < 14 || E.mxOwnPolys.some(p => U.pointInPoly(q[0], q[1], p)) || Mx.nearPit(E, q[0], q[1]) < 10)) return false;
       let gmin = Infinity, gmax = -Infinity; for (const [u, v] of [[-1, -1], [1, -1], [1, 1], [-1, 1], [0, 0]]) { const g = E.sc.height(c[0] + ax * u * L / 2 - az * v * D / 2, c[1] + az * u * L / 2 + ax * v * D / 2); gmin = Math.min(gmin, g); gmax = Math.max(gmax, g); }
       if (gmax - gmin > 2.5) return false;
       const tp = E.markRect(c[0], c[1], ax, az, L / 2 + 1.5, D / 2 + 1.5, OCC.BUILT); E.standPolys.push(tp); E.mxOwnPolys.push(tp);
@@ -228,7 +228,7 @@ window.EI = window.EI || {};
     ST.add(BK.B.geometry(), 0.82, 0.03, 'main'); ST.add(BK.S.geometry(), 0.42, 0.55, 'main'); ST.add(BK.G.geometry(), 0.08, 0.55, 'main'); ST.add(BK.F.geometry(), 0.5, 0.35, 'clutter');
     out.tris = { main: BK.B.count / 3, steel: BK.S.count / 3, glass: BK.G.count / 3, fine: BK.F.count / 3, high: BK.H.count / 3 };
     if (BK.H.count) { const st = new Env.Statics(); st.add(BK.H.geometry(), 0.45, 0.4, 'clutter'); const g = new THREE.Group(); g.name = 'mexHigh'; st.build(g); g.children.forEach(c => { c.name = 'mexHi'; c.userData.clutter = true; }); g.visible = EI.quality === 'high'; sc.group.add(g); }
-    const am = A.mesh('mexicoSigns'); if (am) { sc.group.add(am); out.signTris = am.geometry.attributes.position.count / 3; }
+    const am = A.mesh('mexicoSigns'); if (am) { sc.group.add(am); out.signTris = am.geometry.attributes.position.count / 3; } out.atlasUsed = A.y + A.rowH;
     out.ms = Math.round(performance.now() - T0);
   };
 

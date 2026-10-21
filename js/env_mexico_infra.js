@@ -76,12 +76,12 @@
     for (let k = 0; k < 3; k++) B.box(m, 7, (k + 1) * yD / 4 + 0.3, 0.45, 0, -0.3, zF - 0.45 * (3 - k) + 0.2, C(0x24272c), { top: C(0x3a3d42) });
     for (let x = -7.8; x < 7.8; x += 0.8) Fd.beam(I4(), P(x, yD - 0.15, zF - 0.05), P(x + 0.8, yD - 0.35 - 0.15 * Math.sin((x + 7.8) / 0.8 * Math.PI) * 0 - 0.12, zF - 0.06), 0.22, (Math.floor(x / 0.8) % 2) ? marigold : marigoldD);
     // the rostrum 2 - 1 - 3 (P2 on the crowd's left), white tops, numbers on the fronts (atlas digits)
-    const digR = A.region('mxPodDig', 384, 128, (x2, w, h) => { x2.fillStyle = '#1d2025'; x2.fillRect(0, 0, w, h); x2.fillStyle = '#e4e5e6'; x2.font = '900 100px Arial'; x2.textAlign = 'center'; x2.textBaseline = 'middle'; for (let k = 0; k < 3; k++) x2.fillText(String(k + 1), k * 128 + 64, h * 0.56); });
+    const digR = A.region('mxPodDig', 192, 64, (x2, w, h) => { x2.fillStyle = '#1d2025'; x2.fillRect(0, 0, w, h); x2.fillStyle = '#e4e5e6'; x2.font = '900 50px Arial'; x2.textAlign = 'center'; x2.textBaseline = 'middle'; for (let k = 0; k < 3; k++) x2.fillText(String(k + 1), k * 64 + 32, h * 0.56); });
     for (const [pos, dx, h] of [[2, -2.6, 0.75], [1, 0, 1.0], [3, 2.6, 0.5]]) { const xm = dx * xs; B.box(m, 2.4, h, 1.8, xm, yD, zF + 3.2, C(0x24272c), { top: C(0xd5d8da) });
       const k = pos - 1; Mx.faceA(A, digR, P(xm - xs * 0.5, yD + 0.08, zF + 2.29), P(xm + xs * 0.5, yD + 0.08, zF + 2.29), P(xm + xs * 0.5, yD + h - 0.08, zF + 2.29), P(xm - xs * 0.5, yD + h - 0.08, zF + 2.29), fwd, k / 3 + 0.02, (k + 1) / 3 - 0.02, 0, 1); }
     // the backdrop wall (atlas), its steel frame
     const bw = 13, bh = 6.4, zB = zF + 5.4;
-    const bR = A.region('mxPodWall', 640, 320, (x2, w, h) => {
+    const bR = A.region('mxPodWall', 512, 256, (x2, w, h) => {
       const g = x2.createLinearGradient(0, 0, 0, h); g.addColorStop(0, '#1b1530'); g.addColorStop(1, '#2a1f45'); x2.fillStyle = g; x2.fillRect(0, 0, w, h);
       // papel picado along the top, a marigold border along the foot
       const pc = ['#e8820c', '#c2326e', '#2a8fd6', '#ffd23f', '#3fae5a', '#e04848', '#9a4fd0', '#f2f2f2']; for (let k = 0; k < 14; k++) { x2.fillStyle = pc[k % 8]; const x = k * w / 14; x2.beginPath(); x2.moveTo(x + 2, 6); x2.lineTo(x + w / 14 - 2, 6); x2.lineTo(x + w / 14 - 2, 40); x2.lineTo(x + w / 28, 48); x2.lineTo(x + 2, 40); x2.fill(); x2.fillStyle = 'rgba(27,21,48,0.6)'; x2.beginPath(); x2.arc(x + w / 28, 24, 6, 0, 7); x2.fill(); }
@@ -94,8 +94,8 @@
     Mx.faceA(A, bR, P(-xs * bw / 2, yD, zB), P(xs * bw / 2, yD, zB), P(xs * bw / 2, yD + bh, zB), P(-xs * bw / 2, yD + bh, zB), fwd);
     B.box(m, bw + 0.6, yD + bh + 0.4, 0.5, 0, -0.3, zB + 0.3, C(0x15171a));
     // two flanking LED screens on truss legs, the big TV screen above the backdrop (atlas: the broadcast picture), the truss canopy
-    const scrR = A.region('mxPodScreen', 512, 288, (x2, w, h) => { x2.fillStyle = '#0b0c0f'; x2.fillRect(0, 0, w, h); const g = x2.createLinearGradient(0, 0, w, h); g.addColorStop(0, '#2a3f5f'); g.addColorStop(0.55, '#5b7da6'); g.addColorStop(1, '#c9a35a'); x2.fillStyle = g; x2.fillRect(10, 10, w - 20, h - 20);
-      x2.fillStyle = 'rgba(20,20,24,0.85)'; x2.fillRect(10, h - 64, w - 20, 54); x2.fillStyle = '#e10600'; x2.fillRect(10, h - 64, 10, 54); x2.fillStyle = '#ffffff'; x2.font = '800 28px Arial'; x2.textAlign = 'left'; x2.textBaseline = 'middle'; x2.fillText('PODIO  ·  GP DE LA CIUDAD DE MÉXICO', 34, h - 37);
+    const scrR = A.region('mxPodScreen', 384, 216, (x2, w, h) => { x2.fillStyle = '#0b0c0f'; x2.fillRect(0, 0, w, h); const g = x2.createLinearGradient(0, 0, w, h); g.addColorStop(0, '#2a3f5f'); g.addColorStop(0.55, '#5b7da6'); g.addColorStop(1, '#c9a35a'); x2.fillStyle = g; x2.fillRect(10, 10, w - 20, h - 20);
+      x2.fillStyle = 'rgba(20,20,24,0.85)'; x2.fillRect(10, h - 50, w - 20, 40); x2.fillStyle = '#e10600'; x2.fillRect(10, h - 50, 8, 40); x2.fillStyle = '#ffffff'; x2.font = '800 21px Arial'; x2.textAlign = 'left'; x2.textBaseline = 'middle'; x2.fillText('PODIO  ·  GP DE LA CIUDAD DE MÉXICO', 28, h - 30);
       x2.fillStyle = '#e8820c'; x2.beginPath(); x2.moveTo(w * 0.2, h * 0.7); for (let k = 0; k <= 12; k++) x2.lineTo(w * (0.2 + k * 0.05), h * (0.62 - 0.18 * Math.sin(k * 0.6))); x2.lineTo(w * 0.8, h * 0.7); x2.fill(); });
     for (const sx of [-1, 1]) { const xc = sx * 11.8; const y0 = yD + 1.4, sw = 8, sh = 4.5;
       for (const dx of [-3.6, 3.6]) S.beam(I4(), P(xc + dx, -0.3, zF + 3.6), P(xc + dx, y0 + sh + 0.6, zF + 3.6), 0.35, truss);
@@ -197,7 +197,7 @@
     K.dq(B, W(ua, yD, -hw), W(ub, yD, -hw), W(ub, yD, hw), W(ua, yD, hw), C(0x2b2f35)); K.dq(B, W(ua, yD + dep, -hw), W(ub, yD + dep, -hw), W(ub, yD + dep, hw), W(ua, yD + dep, hw), main);
     const span = ub - ua, nb = Math.max(4, Math.round(span / 3.2)), bl = span / nb;
     for (const v of [-hw, hw]) { S.beam(I, W(ua, yD, v), W(ub, yD, v), 0.3, main); S.beam(I, W(ua, yD + dep, v), W(ub, yD + dep, v), 0.3, main); for (let k = 0; k <= nb; k++) Fd.beam(I, W(ua + k * bl, yD, v), W(ua + k * bl, yD + dep, v), 0.14, mainD); for (let k = 0; k < nb; k++) Fd.beam(I, W(ua + k * bl, yD, v), W(ua + (k + 1) * bl, yD + dep, v), 0.1, mainD); }
-    const r = A.region('mxBridge_' + br.which, 1024, 96, (x2, w, h) => { if (EI.Ads && EI.Ads.paintBridge) { x2.fillStyle = '#ffffff'; x2.fillRect(0, 0, w, h); EI.Ads.paintBridge(x2, br.which, w, h, (span - 1) / (dep - 0.6)); } else Mz.paintText(x2, w, h, 'trylumi.co', { bg: '#1b1530', fg: '#ffffff' }); });
+    const r = A.region('mxBridge_' + br.which, 768, 72, (x2, w, h) => { if (EI.Ads && EI.Ads.paintBridge) { x2.fillStyle = '#ffffff'; x2.fillRect(0, 0, w, h); EI.Ads.paintBridge(x2, br.which, w, h, (span - 1) / (dep - 0.6)); } else Mz.paintText(x2, w, h, 'trylumi.co', { bg: '#1b1530', fg: '#ffffff' }); });
     for (const v of [-hw - 0.04, hw + 0.04]) Mx.faceA(A, r, W(ua + 0.5, yD + 0.35, v), W(ub - 0.5, yD + 0.35, v), W(ub - 0.5, yD + dep - 0.35, v), W(ua + 0.5, yD + dep - 0.35, v), [q.tx * Math.sign(v), 0, q.tz * Math.sign(v)]);
     return true;
   }
