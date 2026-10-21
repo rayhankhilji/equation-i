@@ -337,7 +337,7 @@ window.EI = window.EI || {};
         const h1 = 3.4 + lift, h2 = h1 + 3.2;
         B.box(m, T.L, h2 + 0.3, T.D, 0, -0.3, 0, whiteS, { top: grey });
         for (const sz of [-1, 1]) { const want = Mx.dir(P(0, 0, 0), P(0, 0, sz)); for (const [ya, yb] of [[lift + 0.9, h1 - 0.4], [h1 + 0.5, h2 - 0.5]]) Mx.face(G, P(-hl + 1, ya, sz * (hd + 0.03)), P(hl - 1, ya, sz * (hd + 0.03)), P(hl - 1, yb, sz * (hd + 0.03)), P(-hl + 1, yb, sz * (hd + 0.03)), glass, want); }
-        Fd.box(m, T.L, 0.12, T.D, 0, h1 - 0.1, 0, frame); Fd.beam(m, [-hl, h2 + 1.0, -hd], [hl, h2 + 1.0, -hd], 0.06, frame); Fd.beam(m, [-hl, h2 + 1.0, hd], [hl, h2 + 1.0, hd], 0.06, frame);
+        Fd.box(m, T.L, 0.12, T.D, 0, h1 - 0.1, 0, frame); for (const sz of [-1, 1]) { Fd.beam(m, [-hl, h2 + 1.0, sz * hd], [hl, h2 + 1.0, sz * hd], 0.06, frame); for (let x = -hl; x <= hl + 0.01; x += T.L / 4) Fd.beam(m, [x, h2 - 0.05, sz * hd], [x, h2 + 1.03, sz * hd], 0.05, frame); }
       } else {
         const wh = 3.2 + lift, rh = wh + T.D * 0.28;
         B.box(m, T.L, wh + 0.3, T.D, 0, -0.3, 0, whiteS);

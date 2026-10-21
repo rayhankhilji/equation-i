@@ -282,7 +282,7 @@
       const m = Env.frame(b.cx, b.y, b.cz, b.ax, b.az, b.nx, b.nz); const P = (x, y, z) => Env.xf(m, x, y, z); const hl = b.len / 2; const zBack = Z0 + b.rows * TREAD;
       const gl = (x, z) => { const p = P(x, 0, z); return sc.height(p[0], p[2]) - b.y; };
       const fwd = Mx.dir(P(0, 0, 0), P(0, 0, -1)), bwd = [-fwd[0], 0, -fwd[2]];
-      for (const [z, want, dz] of [[0, fwd, -0.02], [zBack, bwd, 0.16]]) { const ga = gl(-hl - 0.1, z), gb = gl(hl + 0.1, z); if (Math.min(ga, gb) < -0.05) { Mx.face(B, P(-hl - 0.1, Math.min(0, ga - 0.3), z + dz), P(hl + 0.1, Math.min(0, gb - 0.3), z + dz), P(hl + 0.1, 0.02, z + dz), P(-hl - 0.1, 0.02, z + dz), skirtT, want); skirts++; } }
+      for (const [z, want, dz] of [[0, fwd, -0.02], [zBack, bwd, 0.16]]) { const ga = gl(-hl - 0.1, z), gb = gl(hl + 0.1, z); if (Math.min(ga, gb) < -0.05 && Math.max(ga, gb, gl(0, z)) < 0.0) { Mx.face(B, P(-hl - 0.1, Math.min(0, ga - 0.3), z + dz), P(hl + 0.1, Math.min(0, gb - 0.3), z + dz), P(hl + 0.1, 0.02, z + dz), P(-hl - 0.1, 0.02, z + dz), skirtT, want); skirts++; } }
       for (const [flag, sx] of [[b.first, -hl - 1.9], [b.last, hl + 1.9]]) { if (!flag) continue; let g = Infinity, gx = -Infinity; for (const [dx, dz] of [[-1.7, -2], [1.7, -2], [1.7, 2], [-1.7, 2], [0, 0]]) { const q = gl(sx + dx, zBack - 2 + dz); g = Math.min(g, q); gx = Math.max(gx, q); } if (g < -0.05) { B.box(m, 3.5, Math.max(0.02, gx + 0.04) - g + 0.3, 4.1, sx, g - 0.3, zBack - 2.0, skirtT); skirts++; } }
     }
     res.tempRuns = (E.mxRuns || []).map(r => r.R.label + ':' + r.blocks.length + '@' + r.R.gap).join(' '); res.tempSkirts = skirts;
@@ -452,7 +452,8 @@
       // the head: a frame of lamp rows facing the field, tilted down
       const hw = 5.0, hh = 4.2, y0 = H - 0.5; B.box(m, hw * 2 + 0.4, 0.35, 1.2, 0, y0, 0.2, head); B.box(m, hw * 2 + 0.4, 0.35, 1.2, 0, y0 + hh, 0.6, head);
       for (const sx of [-hw, hw]) S.beam(m, [sx, y0, 0.2], [sx, y0 + hh, 0.6], 0.25, head);
-      for (let r = 0; r < 3; r++) for (let k = 0; k < 6; k++) { const x = -hw + 0.9 + k * (2 * hw - 1.8) / 5, y = y0 + 0.75 + r * 1.25, z = 0.25 + r * 0.14 + 0.6; Mx.face(B, Env.xf(m, x - 0.62, y - 0.5, z), Env.xf(m, x + 0.62, y - 0.5, z), Env.xf(m, x + 0.62, y + 0.5, z + 0.1), Env.xf(m, x - 0.62, y + 0.5, z + 0.1), lamp, [fx, -0.3, fz]); }
+      B.box(m, hw * 2, hh - 0.35, 0.3, 0, y0 + 0.35, 0.62, head);
+      for (let r = 0; r < 3; r++) for (let k = 0; k < 6; k++) { const x = -hw + 0.9 + k * (2 * hw - 1.8) / 5, y = y0 + 0.75 + r * 1.25, z = 0.765; Mx.face(B, Env.xf(m, x - 0.62, y - 0.5, z + 0.02), Env.xf(m, x + 0.62, y - 0.5, z + 0.02), Env.xf(m, x + 0.62, y + 0.5, z + 0.02), Env.xf(m, x - 0.62, y + 0.5, z + 0.02), lamp, [fx, 0, fz]); }
       n++;
     }
     res.towers = n;

@@ -86,12 +86,20 @@ window.EI = window.EI || {};
       cota: { elev: 30, azim: 308, turb: 2.0, ray: 2.4, mie: 0.0015, mieG: 0.93, horizon: 0xbfd0e2, sky: [0.22, 2.2], fog: [700, 3200], fogLow: [800, 1800],
         hemi: [0x9fbfe8, 0x7a6440, 0.62], sun: [0xffe2bc, 2.65], envSat: 0.45, exp: 0.9, grade: { sat: 1.25, con: 1.2, warm: [1.04, 1.0, 0.96] },
         haze: [0.7, 0.12], clouds: [0.75, 0.4, 0xeef0f0] },
-      // Autodromo Hermanos Rodriguez (MEX-GEN stub; MEX-BEAUTY owns it): race afternoon in Mexico City, 1 Nov 2026 14:00 CST - the sun 48 deg up in the
-      // south-south-west (game azim 325 = compass ~215), 2,240 m up: a bright, hard sun and a deep blue zenith over a warm grey-brown city haze rim
-      // (milky horizon, high turbidity / mie); Low's fog end stays at the default far plane (no cost change). Constants only: no calls, tris or programs.
-      mexico: { elev: 48, azim: 325, turb: 4.5, ray: 1.6, mie: 0.006, mieG: 0.82, horizon: 0xcac6ba, sky: [0.36, 1.6], fog: [600, 2800], fogLow: [380, 1500],
-        hemi: [0xb6c6d8, 0x6c6650, 0.5], sun: [0xfff2de, 2.6], envSat: 0.45, exp: 0.95, grade: { sat: 1.25, con: 1.14, warm: [1.03, 1.0, 0.97] },
-        haze: [0.8, 0.16] } };
+      // Autodromo Hermanos Rodriguez (MEX-BEAUTY): race afternoon in Mexico City, 1 Nov 2026 ~14:45 CST (mid-race) - the sun 40 deg up in the
+      // south-west (game azim 312 = compass ~228), 2,240 m up: a hard white sun, and (as every race photo shows) a PALE, milky light-blue sky - a light
+      // veil over the scattering sky, cool near-white rim, no brown smog band - with white fair-weather cumulus; a cool fill over a park-green bounce;
+      // a moderate grade (less saturation boost than the default so the lawns read green, not lime; exposure a step down so sunlit whites hold).
+      // peaks: the valley rim from GEN's landmarks (compass bearings in the circuit frame, apparent heights after curvature + refraction), farthest
+      // first: Popocatepetl 131 / 64 km and Iztaccihuatl 118 / 53 km (FAINT, snow-capped, their feet lost in the smog: not confirmed visible from
+      // the circuit), Sierra de las Cruces W, Ajusco SW (backlit, very faint), Sierra de Guadalupe N, Santa Catarina SE (in front of the volcanoes),
+      // Cerro de la Estrella S; skyline: GEN's 76 OSM towers >= 70 m (7-17 km: Mitikah SW, the Reforma cluster WNW) merged into 36 silhouettes.
+      // Fog / far plane as the stub (Low far 1275 m). All constants / sky-pixel maths: no calls, tris or programs.
+      mexico: { elev: 40, azim: 312, turb: 4, ray: 1.8, mie: 0.005, mieG: 0.86, horizon: 0xccd2d6, sky: [0.38, 1.3], fog: [650, 2800], fogLow: [700, 1500],
+        hemi: [0xb4c8e0, 0x6e6a54, 0.55], sun: [0xfff4e6, 2.7], envSat: 0.42, exp: 0.92, grade: { sat: 1.2, con: 1.16, warm: [1.02, 1, 0.98] },
+        veil: [0.26, 0xdde3ea], haze: [0.7, 0.12], hills: [[0.01, 0.45, 2.1]], clouds: [0.7, 0.4, 0xf4f4f2],
+        peaks: [[131, 0.19, 0.045, 0.45, 0, 0.65], [117.8, 0.2, 0.053, 0.45, 1, 0.9], [275, 0.55, 0.042, 0.22, 2, 0], [220, 0.22, 0.056, 0.2, 2, 0], [352, 0.38, 0.03, 0.32, 2, 0], [138, 0.17, 0.031, 0.45, 2, 0], [180, 0.2, 0.03, 0.45, 2, 0]],
+        skyline: [0.4, [[237.05, 0.0021, 0.0064, 0.96], [240.32, 0.0057, 0.0275, 0.97], [246.6, 0.0067, 0.0145, 0.88], [257.74, 0.0021, 0.0032, 0.91], [261.13, 0.0035, 0.0142, 0.95], [263.77, 0.0028, 0.0095, 0.96], [264.73, 0.0021, 0.0084, 0.88], [266.03, 0.0057, 0.0161, 1.04], [268.94, 0.0025, 0.0087, 0.98], [282.23, 0.0021, 0.0091, 0.94], [282.71, 0.0021, 0.0098, 0.92], [284.19, 0.0108, 0.0105, 1.02], [285.38, 0.0042, 0.0252, 0.99], [286.2, 0.0025, 0.0261, 0.88], [286.81, 0.0024, 0.0138, 0.96], [287.39, 0.0037, 0.0099, 0.91], [287.88, 0.0023, 0.0169, 0.99], [288.4, 0.0059, 0.0083, 0.89], [289.74, 0.0025, 0.0095, 0.97], [290.63, 0.0025, 0.0194, 0.96], [291.2, 0.0047, 0.0138, 0.9], [291.75, 0.0033, 0.015, 0.87], [292.67, 0.0026, 0.0199, 1.05], [293.85, 0.0069, 0.0119, 1.05], [296.58, 0.003, 0.0116, 0.88], [297.47, 0.0027, 0.0115, 0.95], [298.23, 0.0028, 0.0103, 1.05], [299.36, 0.0028, 0.0133, 0.9], [301.54, 0.0029, 0.0138, 0.94], [302.43, 0.0031, 0.0103, 0.97], [302.89, 0.0033, 0.0165, 0.99], [312.56, 0.0024, 0.014, 0.92], [317.05, 0.0029, 0.0132, 0.89], [318.42, 0.0057, 0.0119, 1.06], [318.96, 0.0027, 0.0099, 0.95], [321.49, 0.0086, 0.0116, 0.91]]] } };
     const LK = Object.assign({ elev: 38, azim: 212, turb: 2.5, ray: 2.0, mie: 0.004, horizon: 0xa9c4e4, sky: [0.42, 1.0], fog: [600, 2600], fogLow: [350, 1500], hemi: [0x9fc4ee, 0x3f5a2e, 0.35], sun: [0xfff1dd, 2.4] }, LOOKS[trackId] || {}); EI.look = LK;
     // look tuning (art direction): ?look={json} merges over the circuit's LOOKS entry, e.g. ?look={"elev":34,"grade":{"sat":1.4,"con":1.1}}
     { const m = /[?&]look=([^&]+)/.exec(location.search); if (m) { try { Object.assign(LK, JSON.parse(decodeURIComponent(m[1]))); } catch (e) { console.warn('bad ?look', e); } } }
@@ -126,15 +134,36 @@ window.EI = window.EI || {};
     // and the painted hills meet without a seam. Integer frequencies round the circle (no step in the west). Sky pixels only.
     // LOOKS veil: [k, hex]: a milky overcast over the whole sky (blue gaps between the cloud decks turn pale blue-grey, the sun's disc
     // is veiled); the clouds draw over it
-    const HAZE = !(LK.haze || LK.hills || LK.veil) ? '' : (() => { const f = (v) => (+v).toFixed(4), Hz = LK.haze || [0, 0.1], Vl = LK.veil, vc = Vl ? new THREE.Color(Vl[1]) : null;
+    // LOOKS peaks: [[compass deg (circuit frame: x east, z south), half width rad, crest as sin(elevation), contrast 0..1, shape (0 cone,
+    // 1 three-summit massif, 2 broad range), snow 0..1], ...], farthest first: distant mountains painted before the hills, their feet lost
+    // in the low smog band (contrast grows with height), sunlit snow above ~80 % of the crest, gullies streaking the snow line. LOOKS
+    // skyline: [contrast, [[compass deg, half width rad, top as sin(elevation), tone], ...]]: far towers painted after the hills (nearer
+    // than the rim), backlit grey, their bases in the city haze. Sky pixels only, each mountain / the skyline behind its own sector test;
+    // compiled only when a circuit's look sets them (every other sky shader is unchanged)
+    const PK = (() => { const f = (v) => (+v).toFixed(4), ang = (c) => f(THREE.MathUtils.euclideanModulo(c - 90, 360) * Math.PI / 180);
+      const sq = (o, w) => 'exp(-(pa - ' + f(o) + ') * (pa - ' + f(o) + ') * ' + f(1 / (w * w)) + ')';
+      let p = ''; for (const [Cp, W, H, Kc, Sh, Sn] of LK.peaks || []) {
+        const shape = Sh === 1 ? '(0.86 * pow(1.0 - pu, 1.15) + 0.15 * ' + sq(-0.08 * W, 0.04 * W) + ' + 0.14 * ' + sq(0, 0.07 * W) + ' + 0.2 * ' + sq(0.135 * W, 0.06 * W) + ' + 0.2 * ' + sq(0.23 * W, 0.05 * W) + ')'
+          : Sh === 2 ? '(1.0 - pu * pu) * (0.78 + 0.12 * sin(pa * 23.0 + ' + f(Cp * 0.37) + ') + 0.07 * sin(pa * 61.0 + ' + f(Cp * 0.71) + ') + 0.03 * abs(sin(pa * 157.0 + ' + f(Cp) + ')))'
+          : 'min(1.0, 1.04 * (1.0 - pu) * (1.0 - pu)) * (1.0 + 0.03 * pu * sin(pa * 140.0 + ' + f(Cp * 0.53) + '))';
+        p += ' { float pa = mod(hph - ' + ang(Cp) + ' + 3.14159, 6.28319) - 3.14159, pu = abs(pa) * ' + f(1 / W) + '; if (pu < 1.0) { float ph = ' + f(H) + ' * ' + shape + ';' +
+          ' float pm = 1.0 - smoothstep(ph - 0.0012, ph, hy); if (pm > 0.0) { vec3 pc = uHz * vec3(0.56, 0.63, 0.76);' +
+          (Sn ? ' pc = mix(pc, min(uHz * 1.1 + 0.03, vec3(1.0)), ' + f(Sn) + ' * smoothstep(' + f(0.8 * H - 0.0015) + ', ' + f(0.8 * H + 0.0015) + ', hy + 0.0016 * sin(pa * 330.0 + 1.3 * sin(pa * 120.0))));' : '') +
+          ' hc = mix(hc, pc, pm * ' + f(Kc) + ' * (0.3 + 0.7 * smoothstep(0.004, 0.034, hy))); } } }'; }
+      let k = ''; if (LK.skyline) { const [Kc, T] = LK.skyline; let lo = 1e9, hi = -1e9, top = 0; for (const [c, w, h] of T) { lo = Math.min(lo, c - w * 57.3); hi = Math.max(hi, c + w * 57.3); top = Math.max(top, h); }
+        const mid = (lo + hi) / 2; k = ' { float sa = mod(hph - ' + ang(mid) + ' + 3.14159, 6.28319) - 3.14159; if (abs(sa) < ' + f((hi - lo) / 2 * Math.PI / 180 + 0.001) + ' && hy < ' + f(top + 0.001) + ') { float th = 0.0, tn = 1.0;';
+        for (const [c, w, h, tone] of T) k += ' { float m = step(abs(sa - ' + f((c - mid) * Math.PI / 180) + '), ' + f(w) + ') * step(th, ' + f(h) + '); th = mix(th, ' + f(h) + ', m); tn = mix(tn, ' + f(tone) + ', m); }';
+        k += ' float tm = (1.0 - smoothstep(th - 0.0005, th, hy)) * step(0.0001, th); hc = mix(hc, uHz * vec3(0.56, 0.6, 0.7) * tn, tm * ' + f(Kc) + ' * (0.45 + 0.55 * smoothstep(0.0, 0.02, hy))); } }'; }
+      return [p, k]; })();
+    const HAZE = !(LK.haze || LK.hills || LK.veil || LK.peaks || LK.skyline) ? '' : (() => { const f = (v) => (+v).toFixed(4), Hz = LK.haze || [0, 0.1], Vl = LK.veil, vc = Vl ? new THREE.Color(Vl[1]) : null;
       let s = '\n{ vec3 hc = gl_FragColor.rgb; float hy = direction.y, hph = atan(direction.z, direction.x);' +
         (Vl ? ' hc = mix(hc, vec3(' + f(vc.r) + ', ' + f(vc.g) + ', ' + f(vc.b) + '), ' + f(Vl[0]) + ');' : '') +
-        ' hc = mix(hc, uHz, ' + f(Hz[0]) + ' * (1.0 - smoothstep(-0.01, ' + f(Hz[1]) + ', hy)));';
+        ' hc = mix(hc, uHz, ' + f(Hz[0]) + ' * (1.0 - smoothstep(-0.01, ' + f(Hz[1]) + ', hy)));' + PK[0];
       for (const [C, K, q] of LK.hills || []) s += ' { float rh = ' + f(C) + ' * (0.56 + 0.2 * sin(hph * 2.0 + ' + f(q) + ') + 0.12 * sin(hph * 5.0 + ' + f(q * 2.3) + ') + 0.07 * sin(hph * 11.0 + ' + f(q * 3.7) + ')' +
         ' + 0.035 * sin(hph * 23.0 + ' + f(q * 1.9) + ') + 0.03 * abs(sin(hph * 170.0 + 2.0 * sin(hph * 41.0 + ' + f(q) + '))));' +
         ' float rm = 1.0 - smoothstep(rh - 0.0015, rh, hy); float rd = clamp(hy / max(rh, 0.001), 0.0, 1.0);' +
         ' hc = mix(hc, uHz * mix(vec3(1.0), vec3(0.55, 0.66, 0.68), ' + f(K) + ' * smoothstep(0.0, 1.0, rd)), rm); }';
-      return s + ' gl_FragColor.rgb = hc; }\n'; })();
+      return s + PK[1] + ' gl_FragColor.rgb = hc; }\n'; })();
     { const SG = LK.sky || [0.62, 0.35]; su.uSkyGain = { value: SG[0] }; su.uSkyDeep = { value: SG[1] }; su.uHz = { value: new THREE.Color(LK.horizon) };
       skyMesh.material.onBeforeCompile = (sh) => { sh.uniforms.uSkyGain = su.uSkyGain; sh.uniforms.uSkyDeep = su.uSkyDeep; sh.uniforms.uHz = su.uHz;
         sh.fragmentShader = sh.fragmentShader.replace('void main() {', 'uniform float uSkyGain; uniform float uSkyDeep; uniform vec3 uHz;\nvoid main() {')
