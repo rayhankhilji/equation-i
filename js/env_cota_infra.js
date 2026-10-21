@@ -78,17 +78,20 @@
   }
   function tower(E, BK) {
     const T = towerFrame(E); if (!T) return 0; const { B, S, G, F: Fd, H } = BK; const sc = E.sc; const I = I4();
-    const core = C(0xbfbcb4), coreD = C(0xa5a39c), red = C(RED), redD = C(0x9e1e17), glass = C(0x2a3846), rail = C(0x9cb8c2), roof = C(0xd3d6d8), steel = C(0x8d939a);
+    // (COTA-UPGRADE, photos tower_aerial_track / aerial_tower_grandstand: the shaft reads WHITE - the stair's landings stacked every ~2.8 m
+    // round a darker core, like a ladder - with the red veil as one dense band up the stage side, curling over the deck as a red canopy)
+    const core = C(0x9a9d9f), coreD = C(0x8f9294), red = C(RED), redD = C(0x9e1e17), glass = C(0x2a3846), rail = C(0x9cb8c2), roof = C(0xb8231b), steel = C(0x8d939a);
+    const land = C(0xd3d5d5), landD = C(0xb9bcbd);
     const W = (r, a, y) => [T.x + Math.cos(T.ang + a) * r, T.g + y, T.z + Math.sin(T.ang + a) * r];
     const m = Env.frame(T.x, T.g, T.z, 1, 0, 0, 1); const yD = T.H - 6.5, yRf = T.H - 0.6;
     // core (16 sides, from just below the ground), the lift lobby box at the foot (its door towards the stage)
     for (let k = 0; k < 16; k++) { const a0 = k / 16 * Math.PI * 2, a1 = (k + 1) / 16 * Math.PI * 2; Ct.face(B, W(3.6, a0, -0.6), W(3.6, a1, -0.6), W(3.6, a1, yD), W(3.6, a0, yD), k % 2 ? core : coreD, [Math.cos(T.ang + (a0 + a1) / 2), 0, Math.sin(T.ang + (a0 + a1) / 2)]); }
     { const mm = Env.frame(T.x, T.g, T.z, Math.cos(T.ang), Math.sin(T.ang), -Math.sin(T.ang), Math.cos(T.ang)); B.box(mm, 9, 4.2, 9, -1.5, -0.4, 0, coreD, { top: C(0x8f9397) }); Ct.face(G, Env.xf(mm, 3.02, 0.2, -2), Env.xf(mm, 3.02, 0.2, 2), Env.xf(mm, 3.02, 3.4, 2), Env.xf(mm, 3.02, 3.4, -2), glass, [Math.cos(T.ang), 0, Math.sin(T.ang)]); }
-    // the double-helix stair: two thin bands (outer stringer face + the underside) climbing at r 4.0 .. 4.9
-    for (const ph of [0, Math.PI]) { const N = 64, turns = 3.5; for (let k = 0; k < N; k++) { const f0 = k / N, f1 = (k + 1) / N; const a0 = ph + f0 * turns * Math.PI * 2, a1 = ph + f1 * turns * Math.PI * 2; const y0 = 4.5 + f0 * (yD - 6), y1 = 4.5 + f1 * (yD - 6);
-      const am = (a0 + a1) / 2; const out = [Math.cos(T.ang + am), 0, Math.sin(T.ang + am)];
-      Ct.face(S, W(4.7, a0, y0 - 0.1), W(4.7, a1, y1 - 0.1), W(4.7, a1, y1 + 0.55), W(4.7, a0, y0 + 0.55), k % 2 ? C(0xa9aeb3) : C(0x9aa0a6), out);
-      Ct.face(S, W(3.6, a0, y0 - 0.1), W(3.6, a1, y1 - 0.1), W(4.7, a1, y1 - 0.1), W(4.7, a0, y0 - 0.1), C(0x7d838a), [0, -1, 0]); } }
+    // the stair cage: white landing bands every 2.8 m round the core (outer face + underside, 12 sides) and four white corner stringers
+    for (let y = 4.2, n = 0; y < yD - 1.5; y += 2.8, n++) for (let k = 0; k < 12; k++) { const a0 = k / 12 * Math.PI * 2, a1 = (k + 1) / 12 * Math.PI * 2; const out = [Math.cos(T.ang + (a0 + a1) / 2), 0, Math.sin(T.ang + (a0 + a1) / 2)];
+      Ct.face(S, W(5.0, a0, y), W(5.0, a1, y), W(5.0, a1, y + 0.7), W(5.0, a0, y + 0.7), k % 2 ? land : landD, out);
+      Ct.face(S, W(3.6, a0, y), W(3.6, a1, y), W(5.0, a1, y), W(5.0, a0, y), C(0x7d838a), [0, -1, 0]); }
+    for (let k = 0; k < 4; k++) { const a = (k + 0.5) / 4 * Math.PI * 2; S.beam(I, W(5.0, a, -0.3), W(5.0, a, yD), 0.42, land); }
     // the observation deck: floor slab, the glass rail band, the glazed room, roof with a red rim
     const seg = 24; for (let k = 0; k < seg; k++) { const a0 = k / seg * Math.PI * 2, a1 = (k + 1) / seg * Math.PI * 2; const out = [Math.cos(T.ang + (a0 + a1) / 2), 0, Math.sin(T.ang + (a0 + a1) / 2)];
       Ct.face(B, W(3.6, a0, yD), W(3.6, a1, yD), W(9.5, a1, yD), W(9.5, a0, yD), C(0x8d9297), [0, -1, 0]);
@@ -102,11 +105,13 @@
     for (let k = 0; k < 48; k++) { const a = k / 48 * Math.PI * 2; H.beam(I, W(9.4, a, yD + 0.6), W(9.4, a, yD + 1.75), 0.05, C(0x8d939a)); }
     // the veil: 18 tubes; angle k round the stage direction, spread wide at the deck and over the stage, narrow at the waist
     const PY = [T.H + 1.2, T.H - 2.0, yD - 3.0, yD - 14, 44, 33, 25.5, 21.0, 18.6, 17.4], PR = [12.0, 11.6, 9.0, 6.9, 6.2, 6.8, 9.8, 15.5, 22.0, 27.5];
-    const SP = [1.0, 1.0, 0.95, 0.8, 0.62, 0.5, 0.46, 0.46, 0.47, 0.48]; const NT = 18, A0 = 1.45;
+    const SP = [0.62, 0.62, 0.58, 0.45, 0.36, 0.34, 0.4, 0.46, 0.47, 0.48]; const NT = 18, A0 = 1.45;
     const tips = [];
     for (let k = 0; k < NT; k++) {
       const f = (k / (NT - 1)) * 2 - 1; const pts = PY.map((y, j) => { const a = f * A0 * SP[j] + Math.sin(j * 0.55 + k * 0.3) * 0.015; const r = PR[j] * (1 - 0.06 * f * f * (j > 5 ? 1 : 0)); return W(r, a, y); });
-      for (let j = 0; j + 1 < pts.length; j++) S.beam(I, pts[j], pts[j + 1], 0.62, k % 2 ? red : C(0xb8231b));
+      for (let j = 0; j + 1 < pts.length; j++) S.beam(I, pts[j], pts[j + 1], j < 6 ? 0.85 : 0.7, k % 2 ? red : C(0xb8231b));
+      // over the top: each tube curls up from the deck rim and across the deck roof, ending past the far side (the red canopy 'hook')
+      { const a = f * A0 * SP[0]; const c1 = W(5.5, a * 0.6, T.H + 3.4), c2 = W(-6.5, -a * 0.25, T.H + 3.0), c3 = W(-12.5, -a * 0.2, T.H + 1.4); S.beam(I, pts[0], c1, 0.6, red); S.beam(I, c1, c2, 0.55, k % 2 ? red : redD); S.beam(I, c2, c3, 0.5, redD); }
       tips.push(pts);
     }
     // ties: rings across the tubes at the waist and the stage canopy edge (thin, red), the canopy edge beam

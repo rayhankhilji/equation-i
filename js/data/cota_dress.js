@@ -24,19 +24,17 @@ window.EI = window.EI || {};
   T.kerbStyle = 'cota';
   T.sausageCorners = [1, 6, 9, 11, 12, 15, 20];
 
-  // ---- painted run-off. COTA's aprons are big pale-asphalt areas; the paint is a strip behind every kerb (runoffGreen, a dark muted green) and
-  // diagonal / banded stripes at the big stops (T1, T11, T12, T15, T20). Colours stay dark and desaturated (the grade adds saturation).
-  // [turn number, pattern (0 band, 1 diagonal stripes, 2 transverse bands, 3 one band at the apron), colour A, colour B]
-  T.runoffGreen = '#173121';
+  // ---- painted run-off (COTA-UPGRADE, from the photos: kerb_stars_banner_car, mclaren_stands_flag, haas_turn_kerb, aerial_tower_grandstand,
+  // tower_aerial_track): a solid RED band behind every kerb (the old dark-green strip does not exist at COTA), then the stars-and-stripes
+  // apron (track.js runoffFlag pattern 4: white | navy | white | navy with white stars | white | red with navy / white stars | white, ~10 m,
+  // plain pale asphalt beyond) at every corner with an asphalt apron; Turn 1 is a solid red apron with a starred navy band (pattern 5).
+  // Reds match the kerb red; navy is the flag's dark blue. [turn number, pattern, colour A (red), colour B (navy)]
+  T.runoffGreen = '#a81d22';
+  T.runoffFlag = true;
   T.runoffTint = [0.8, 0.78, 0.75];   // the apron: a mid warm grey, a little lighter than the track
-  T.runoffSchemes = [
-    [1, 1, '#43201d', '#6a6864'],
-    [2, 3, '#43201d', '#43201d'],
-    [11, 1, '#162b49', '#6a6864'],
-    [12, 3, '#162b49', '#162b49'],
-    [15, 2, '#43201d', '#6a6864'],
-    [20, 3, '#162b49', '#162b49'],
-  ];
+  const RED = '#ab1d23', NAVY = '#1d2a57';
+  T.runoffSchemes = [[1, 5, RED, NAVY]];
+  for (let t = 2; t <= 20; t++) T.runoffSchemes.push([t, 4, RED, NAVY]);
   T.pitColor = 0x6c6b69;   // pit lane asphalt: the plain asphalt map under the default tint reads near white beside COTA's darker racing surface
   T.gravelTint = [1.5, 1.42, 1.2];   // pale limestone / caliche gravel
 

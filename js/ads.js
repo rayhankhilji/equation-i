@@ -225,6 +225,13 @@
   Object.assign(PARTNERS, {
     mexicogp: { n: '#MexicoGP', board: { bg: '#7a1a30', tone: 'white' }, word: W_(SANS, 900, { col: '#ffffff', ls: -0.02 }) },
   });
+  // Monaco (MONACO-UPGRADE, F1 photo set staging/monaco_refs): Explora Journeys' navy boards round the pool and the harbour, the Casino's red
+  // CASINO MONTE-CARLO sign boards on Casino Square, and the event's black MONACO banner boards at Mirabeau / Loews (red lettering)
+  Object.assign(PARTNERS, {
+    explorajourneys: { n: 'EXPLORA JOURNEYS', board: { bg: '#14284a', tone: 'white' }, word: W_('Georgia, "Times New Roman", serif', 400, { up: 1, col: '#ffffff', ls: 0.16 }) },
+    casinomontecarlo: { n: 'CASINO MONTE-CARLO', board: { bg: '#b3122e', tone: 'white' }, word: W_('Georgia, "Times New Roman", serif', 700, { up: 1, col: '#ffffff', ls: 0.06 }) },
+    monacogp: { n: 'MONACO', board: { bg: '#121216', tone: 'color' }, word: W_(F1W, 900, { up: 1, col: '#e3242b', ls: 0.02 }) },
+  });
   // id lookup by any spelling of the name ('Google (Gemini)', 'Mobil 1', 'TAG Heuer', 'MSC Cruises' ...)
   const ALIAS = { gemini: 'googlegemini', google: 'googlegemini', msc: 'msccruises', etihad: 'etihadairways', qatar: 'qatarairways', amex: 'americanexpress', moet: 'moetchandon', mobil: 'mobil1',
     toyotagazooracing: 'tgr', tgrhaas: 'tgr', haas: 'haasautomation', moser: 'hmosercie', hmoser: 'hmosercie', ceva: 'cevalogistics', pmi: 'philipmorrisinternational', lv: 'louisvuitton',

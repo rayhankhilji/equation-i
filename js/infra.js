@@ -722,7 +722,7 @@ window.EI = window.EI || {};
         const tall = want.indexOf('flag') >= 0 && q.k % 3 === 0;
         pole(q.x, q.z, q.g - 0.05, q.g + (tall ? 7.4 : HP + 0.3), 0.14);
         if (tall) { flags++;   // a tricolour flag along the lap direction at the top of the pole, facing the track
-          const y1 = q.g + 7.4, y0 = y1 - 1.35, w = 2.2, e = 0.14; const X = (a) => q.x + q.tx * (e + a), Zc = (a) => q.z + q.tz * (e + a);
+          const y1 = q.g + 7.4, y0 = y1 - 1.35, w = 2.2, e = 0.05; const X = (a) => q.x + q.tx * (e + a), Zc = (a) => q.z + q.tz * (e + a);
           [GREEN, WHITE, RED].forEach((c, m) => quad([X(m * w / 3), y0, Zc(m * w / 3)], [X((m + 1) * w / 3), y0, Zc((m + 1) * w / 3)], [X((m + 1) * w / 3), y1, Zc((m + 1) * w / 3)], [X(m * w / 3), y1, Zc(m * w / 3)], c, q.nx, q.nz)); }
         const r = pts[j + 1]; if (!r) return;
         // never chord across the lap (a pole on the far side of a tight bend): the chord must stay behind the wall line
@@ -730,7 +730,8 @@ window.EI = window.EI || {};
         const L0 = Math.hypot(r.x - q.x, r.z - q.z); if (L0 > step * 1.6) return;
         const yA = q.g + HP, yB = r.g + HP; spans++;
         const at = (u) => [q.x + (r.x - q.x) * u, yA + (yB - yA) * u - (want.indexOf('mg') >= 0 && want.indexOf('pp') < 0 ? 1.15 : 0.7) * 4 * u * (1 - u), q.z + (r.z - q.z) * u];
-        if (want.indexOf('pp') >= 0) { const n = Math.max(5, Math.round(L0 / 1.45)); for (let m = 0; m < n; m++) { const a = at(m / n + 0.004), b = at((m + 1) / n - 0.004), hh = 0.62 + 0.16 * ((m * 7 + q.k * 3) % 3) / 2; const c = PP[(m + q.k * 3) % PP.length];
+        if (want.indexOf('pp') >= 0) { const nr = Math.max(2, Math.round(L0 / 3)); for (let m = 0; m < nr; m++) { const a = at(m / nr), b = at((m + 1) / nr); quad([a[0], a[1], a[2]], [b[0], b[1], b[2]], [b[0], b[1] + 0.06, b[2]], [a[0], a[1] + 0.06, a[2]], POLE, q.nx, q.nz); }   // the string itself, pole to pole
+          const n = Math.max(5, Math.round(L0 / 1.45)); for (let m = 0; m < n; m++) { const a = at(m / n + 0.004), b = at((m + 1) / n - 0.004), hh = 0.62 + 0.16 * ((m * 7 + q.k * 3) % 3) / 2; const c = PP[(m + q.k * 3) % PP.length];
           quad([a[0], a[1], a[2]], [b[0], b[1], b[2]], [b[0], b[1] - hh, b[2]], [a[0], a[1] - hh, a[2]], c, q.nx, q.nz); } }
         else if (want.indexOf('mg') >= 0) { const n = Math.max(7, Math.round(L0 / 1.2)); for (let m = 0; m < n; m++) { const a = at(m / n), b = at((m + 1) / n); const c = MG[(m + q.k) % MG.length], hh = 0.3 + 0.08 * (m % 2);
           quad([a[0], a[1] + 0.05, a[2]], [b[0], b[1] + 0.05, b[2]], [b[0], b[1] - hh, b[2]], [a[0], a[1] - hh, a[2]], c, q.nx, q.nz); } }

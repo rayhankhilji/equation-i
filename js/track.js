@@ -59,6 +59,8 @@ window.EI = window.EI || {};
     eCol = mix(eCol, mix(eCol, vec3(dot(eCol, vec3(0.33))), 0.4) * vec3(0.92, 0.92, 0.935) * (0.95 + 0.1 * eM2.r), ePatch * 0.8);
     eCol *= 1.0 - 0.14 * eSeam;
 #ifdef EI_STREET
+    // Monaco's public-road asphalt (F1 photo set): a neutral-to-cool dark grey, not the warm grey of a purpose-built circuit (MONACO-UPGRADE)
+    eCol = mix(eCol, vec3(dot(eCol, vec3(0.3333))), 0.65) * vec3(0.8, 0.83, 0.88);
     // street circuit: a patchwork of resurfacing (newer, darker and finer repairs and older greyer ones), bitumen sealer lines
     // snaking along and across the lanes over the seams and cracks, glossy where they catch the sun
     float eSeal = 0.0;
@@ -755,8 +757,34 @@ window.EI = window.EI || {};
 ` : '';
       let runFrag = RC ? RUNOFF_FRAG.replace('vec3(0.13, 0.235, 0.105)', v3(lin(RC[2] || RC[0]))).replace('    rCol = mix(rCol, rCol * 0.45, rTyre', RC_STRIPES + '    rCol = mix(rCol, rCol * 0.45, rTyre') : RUNOFF_FRAG;
       if (this.data.runoffGreen && !RC) runFrag = runFrag.replace('vec3(0.13, 0.235, 0.105)', v3(lin(this.data.runoffGreen)));   // the painted green band behind the kerbs (Monza: bright grass green)
+      // data.runoffFlag (COTA, photos kerb_stars_banner / mclaren_stands_flag / aerial_tower): two more run-off patterns, bands parallel to the
+      // track edge with five-point stars: 4 = stars and stripes (white | B | white | B with white stars | white | A with B / white stars | white,
+      // ~9.9 m, then plain asphalt), 5 = a solid A apron with a starred B band (Turn 1). One SDF per fragment, painted rows only.
+      const FLAG = !!(this.data.runoffFlag && !RC);
+      if (FLAG) runFrag = runFrag.replace('float rTop = pat > 2.5 ? aw0 + 3.2 : rOuter - 0.35;', 'float rTop = pat > 4.5 ? rOuter - 0.35 : pat > 3.5 ? min(rOuter - 0.35, aw0 + 9.85) : pat > 2.5 ? aw0 + 3.2 : rOuter - 0.35;')
+        .replace('    rPaint = mix(rPaint, vec3(0.72, 0.72, 0.7), wl);\n', `    rPaint = mix(rPaint, vec3(0.72, 0.72, 0.7), wl);
+    if (pat > 3.5) {
+      float fd = rAl - aw0; vec3 fW = vec3(0.72, 0.72, 0.7); float fN = 0.88 + 0.22 * rM1.g; vec3 fA = vColA * fN, fB = vColB * fN;
+      bool f5 = pat > 4.5; vec3 fC;
+      float sb0 = f5 ? 5.35 : (fd < 6.72 ? 3.95 : 6.9); float sb1 = sb0 + (f5 ? 4.65 : 2.6);
+      if (f5) { fC = fA; fC = mix(fC, fW, smoothstep(5.0 - rAA, 5.0 + rAA, fd)); fC = mix(fC, fB, smoothstep(5.35 - rAA, 5.35 + rAA, fd)); fC = mix(fC, fW, smoothstep(10.0 - rAA, 10.0 + rAA, fd)); fC = mix(fC, fA, smoothstep(10.35 - rAA, 10.35 + rAA, fd)); }
+      else { fC = fW; fC = mix(fC, fB, smoothstep(1.0 - rAA, 1.0 + rAA, fd)); fC = mix(fC, fW, smoothstep(3.6 - rAA, 3.6 + rAA, fd)); fC = mix(fC, fB, smoothstep(3.95 - rAA, 3.95 + rAA, fd));
+        fC = mix(fC, fW, smoothstep(6.55 - rAA, 6.55 + rAA, fd)); fC = mix(fC, fA, smoothstep(6.9 - rAA, 6.9 + rAA, fd)); fC = mix(fC, fW, smoothstep(9.5 - rAA, 9.5 + rAA, fd)); }
+      float fPer = f5 ? 9.0 : 7.5; float fo = sb0 > 5.0 && !f5 ? 0.5 : 0.0; float fq = rS / fPer + fo; float fCell = floor(fq);
+      vec2 sp = vec2(abs((fract(fq) - 0.5) * fPer), fd - 0.5 * (sb0 + sb1)); float fR = f5 ? 1.5 : 1.05;
+      vec2 k1 = vec2(0.809017, -0.587785), k2 = vec2(-0.809017, -0.587785);
+      sp -= 2.0 * max(dot(k1, sp), 0.0) * k1; sp -= 2.0 * max(dot(k2, sp), 0.0) * k2; sp.x = abs(sp.x); sp.y -= fR;
+      vec2 fba = 0.42 * vec2(0.587785, 0.809017) - vec2(0.0, 1.0); float fh = clamp(dot(sp, fba) / dot(fba, fba), 0.0, fR);
+      float fsd = length(sp - fba * fh) * sign(sp.y * fba.x - sp.x * fba.y); float fsw = max(fwidth(fsd), 0.004);
+      bool fInA = !f5 && sb0 > 5.0; vec3 fSt = fInA && mod(fCell, 2.0) > 0.5 ? fB : fW;
+      fC = mix(fC, fW, (1.0 - smoothstep(0.13 - fsw, 0.13 + fsw, fsd)) * (fInA ? 1.0 : 0.0));
+      fC = mix(fC, fSt, 1.0 - smoothstep(-fsw, fsw, fsd));
+      rPaint = mix(fC, fW, wl);
+    }
+`);
+      const FLAGK = FLAG ? '-flag' + (this.data.runoffGreen || '') : '';
       const aw0 = hw + kw + 2.0;
-      const rMat = shaderMat({ map: T.runoff.map, normalMap: T.runoff.normalMap, normalScale: new THREE.Vector2(0.7, 0.7), roughnessMap: T.runoff.roughnessMap, roughness: 1, metalness: 0, polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 2, ...(this.data.runoffTint ? { color: new THREE.Color().fromArray(this.data.runoffTint) } : {}) }, 'runoff' + (RC ? '-' + RC.join('') + '-sp' : ''), RC ? Object.assign({}, common, { eiBrand: { value: brandStripTexture() } }) : common, RC ? VARY_RUN_RC : VARY_RUN, runFrag, RC ? RUNOFF_ROUGH + '    roughnessFactor = mix(roughnessFactor, 0.9, rTq);\n' : RUNOFF_ROUGH, FLATTEN);
+      const rMat = shaderMat({ map: T.runoff.map, normalMap: T.runoff.normalMap, normalScale: new THREE.Vector2(0.7, 0.7), roughnessMap: T.runoff.roughnessMap, roughness: 1, metalness: 0, polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 2, ...(this.data.runoffTint ? { color: new THREE.Color().fromArray(this.data.runoffTint) } : {}) }, 'runoff' + (RC ? '-' + RC.join('') + '-sp' : '') + FLAGK, RC ? Object.assign({}, common, { eiBrand: { value: brandStripTexture() } }) : common, RC ? VARY_RUN_RC : VARY_RUN, runFrag, RC ? RUNOFF_ROUGH + '    roughnessFactor = mix(roughnessFactor, 0.9, rTq);\n' : RUNOFF_ROUGH, FLATTEN);
       const gMat = shaderMat({ map: T.gravel.map, normalMap: T.gravel.normalMap, normalScale: new THREE.Vector2(1.25, 1.25), roughnessMap: T.gravel.roughnessMap, roughness: 1, metalness: 0, color: new THREE.Color(GT.x, GT.y, GT.z), polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 3 }, 'gravel', common, VARY4, GRAVEL_FRAG, GRAVEL_ROUGH, '', GRAVEL_NORMAL);
       this.surfMats = { runoff: rMat, gravel: gMat };
       for (const side of [-1, 1]) {
@@ -1211,14 +1239,19 @@ window.EI = window.EI || {};
       const SLV = [['#4a2a4c', 'lumi'], ['#1f5f9e', 'intake.ink'], ['#141416', 'trylumi.co'], ['#d8343a', 'Ask Lumi.']];
       // the venue's partner panels (EI.Ads.barrierArt: TAG Heuer / Louis Vuitton / MSC + Lumi and Intake) when available, each 4 x 0.88 m half
       // laid out at its true aspect (f1-BRAND); the hand-set lettering below is the fallback
-      const BA = EI.Ads && EI.Ads.barrierArt ? EI.Ads.barrierArt() : null; const SLA = BA && BA.length >= 5 ? [[BA[0], BA[0]], [BA[2], BA[2]], [BA[3], BA[3]], [BA[1], BA[4]]] : null;
+      const BA = EI.Ads && EI.Ads.barrierArt ? EI.Ads.barrierArt() : null; let SLA = BA && BA.length >= 5 ? [[BA[0], BA[0]], [BA[2], BA[2]], [BA[3], BA[3]], [BA[1], BA[4]]] : null;
+      // data.street.sleeves (Monaco): the event's own sleeve designs, one per cover design index - 'id' (both halves) or 'idA/idB', 'L' / 'I' =
+      // Lumi / Intake; partners on their real board colours (TAG Heuer, F1, Louis Vuitton, Qatar Airways, AWS, Heineken ... as in the photos)
+      const SLD = this.data.street && this.data.street.sleeves;
+      if (SLD && BA && BA.length >= 5 && EI.Ads.partnerBoard) { const pnt = (id) => id === 'L' ? BA[1] : id === 'I' ? BA[4] : (x, w, h) => EI.Ads.partnerBoard(x, id, w, h, { lh: 0.6, repeat: 1 }); SLA = SLD.map((d) => { const [a, b] = d.split('/'); return [pnt(a), pnt(b || a)]; }); while (SLV.length < SLA.length) SLV.push(['#141416', '']); }
       const sleeves = SLV.map(([bg, txt], k) => AT.region('armSleeve' + k, 512, 64, (x, w, h) => { x.fillStyle = bg; x.fillRect(0, 0, w, h);
         if (SLA) for (let j = 0; j < 2; j++) { x.save(); x.beginPath(); x.rect(j * w / 2, 0, w / 2, h); x.clip(); x.translate(j * w / 2, 0); const vw = h * 4.55; x.scale((w / 2) / vw, 1); SLA[k][j](x, vw, h); x.restore(); }
         x.fillStyle = 'rgba(255,255,255,0.10)'; x.fillRect(0, 2, w, 2); x.fillStyle = 'rgba(0,0,0,0.22)'; x.fillRect(0, h - 4, w, 4);
         if (!SLA) for (let j = 0; j < 2; j++) { const cx = w / 4 + j * w / 2; if (txt === 'lumi' && EI.Ads) EI.Ads.lockupCentered(x, 'lumi', cx, h * 0.5, h * 0.62, w * 0.4, '#ffffff', true);
           else { x.fillStyle = '#ffffff'; x.font = '800 ' + Math.round(h * 0.5) + 'px "Plus Jakarta Sans", "Titillium Web", Arial, sans-serif'; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText(txt, cx, h * 0.54, w * 0.42); } }
         weather(x, w, h, 61 + k, 70); }, (x, w, h) => { x.fillStyle = 'rgb(120,120,120)'; x.fillRect(0, 0, w, 3); x.fillRect(0, h - 3, w, 3); }, null, 'u'));
-      const chain = AT.region('chain', 64, 64, (x, w, h) => { x.clearRect(0, 0, w, h); x.strokeStyle = 'rgba(204,208,212,0.72)'; x.lineWidth = 1.0; for (let k = -64; k <= 128; k += 8) { x.beginPath(); x.moveTo(k, 0); x.lineTo(k + 64, 64); x.stroke(); x.beginPath(); x.moveTo(k, 64); x.lineTo(k + 64, 0); x.stroke(); } }, null, (x, w, h) => { x.fillStyle = 'rgb(110,110,110)'; x.fillRect(0, 0, w, h); }, 'uv');
+      // (thin dark wire: the real fences are black-coated mesh that reads see-through, not a grey veil over the city - MONACO-UPGRADE)
+      const chain = AT.region('chain', 64, 64, (x, w, h) => { x.clearRect(0, 0, w, h); x.strokeStyle = 'rgba(150,154,158,0.9)'; x.lineWidth = 0.62; for (let k = -64; k <= 128; k += 8) { x.beginPath(); x.moveTo(k, 0); x.lineTo(k + 64, 64); x.stroke(); x.beginPath(); x.moveTo(k, 64); x.lineTo(k + 64, 0); x.stroke(); } }, null, (x, w, h) => { x.fillStyle = 'rgb(110,110,110)'; x.fillRect(0, 0, w, h); }, 'uv');
       const tec = AT.region('tecpro', 128, 96, (x, w, h) => { x.fillStyle = '#ffffff'; x.fillRect(0, 0, w, h); x.fillStyle = 'rgba(0,0,0,0.1)'; x.fillRect(0, 0, w, 4); x.fillRect(0, h - 4, w, 4); x.fillStyle = '#1a1b1e'; x.fillRect(0, h * 0.2, w, h * 0.09); x.fillRect(0, h * 0.68, w, h * 0.09); x.fillStyle = 'rgba(255,255,255,0.9)'; x.font = '900 18px Arial Black, Arial'; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillStyle = 'rgba(30,30,30,0.85)'; x.fillText('SAFETY', w / 2, h * 0.49); weather(x, w, h, 71, 300); },
         (x, w, h) => { x.fillStyle = 'rgb(150,150,150)'; x.fillRect(0, h * 0.2, w, h * 0.09); x.fillRect(0, h * 0.68, w, h * 0.09); const g2 = x.createLinearGradient(0, 0, 0, 10); g2.addColorStop(0, 'rgb(90,90,90)'); g2.addColorStop(1, 'rgb(128,128,128)'); x.fillStyle = g2; x.fillRect(0, 0, w, 10); }, (x, w, h) => { x.fillStyle = 'rgb(160,160,160)'; x.fillRect(0, 0, w, h); }, 'none');
       const belt = AT.region('belt', 256, 64, (x, w, h) => { x.fillStyle = '#6b6e73'; x.fillRect(0, 0, w, h); const r = U.rng(9); x.fillStyle = 'rgba(255,255,255,0.1)'; for (let yy = 16; yy < h - 8; yy += 12) x.fillRect(0, yy, w, 2); x.fillStyle = 'rgba(0,0,0,0.25)'; for (let yy = 18; yy < h - 8; yy += 12) x.fillRect(0, yy, w, 1); for (let i = 0; i < 500; i++) { x.fillStyle = 'rgba(255,255,255,' + (0.03 + r() * 0.07) + ')'; x.fillRect(r() * w, r() * h, 1 + r() * 3, 1); } x.fillStyle = '#8d9196'; for (let k = 8; k < w; k += 32) for (const yy of [8, h - 8]) { x.beginPath(); x.arc(k, yy, 2.6, 0, 6.283); x.fill(); } },
@@ -1227,7 +1260,7 @@ window.EI = window.EI || {};
       // rail profile: three W-beams stacked from 0.1 m to 1.03 m, [height, protrusion towards the road]
       const prof = []; for (let b = 0; b < 3; b++) { const yb = 0.1 + b * 0.31; for (const [dy, d] of [[0, 0], [0.075, 0.055], [0.155, 0.018], [0.235, 0.055]]) prof.push([yb + dy, d]); } prof.push([0.1 + 3 * 0.31, 0]); prof.push([1.03, -0.06]);
       const K = prof.length;
-      const post = lin(0x7d8389), postD = lin(0x5d6267), railPost = lin(0x9ea4a8), cable = lin(0x3a3d40), white = lin(0xf0f0ee), red = lin(0xc8162b), dark = lin(0x1a1a1c), orange = lin(0xf08a1a), gateC = lin(0xe8a21a);
+      const post = lin(this.data.street ? 0x4c5257 : 0x7d8389), postD = lin(this.data.street ? 0x3e4348 : 0x5d6267), railPost = lin(0x9ea4a8), cable = lin(0x3a3d40), white = lin(0xf0f0ee), red = lin(0xc8162b), dark = lin(0x1a1a1c), orange = lin(0xf08a1a), gateC = lin(0xe8a21a);
       let railTris = 0;
       for (const side of [-1, 1]) {
         const z = Z[side], wall = side < 0 ? this.wallL : this.wallR; const base = (ii) => wall[ii] + z.back[ii];
@@ -1284,7 +1317,7 @@ window.EI = window.EI || {};
         }
         // ---- debris fence: chain-link to 3.5 m behind the rail, the catch section leaning 0.75 m over the road; posts every ~4 m
         // wire tone: dark enough that the mesh reads as galvanised wire against the sky and the facades, not as a frosted sheet
-        const fC = lin(0x5e6367); const fl = (ii) => base(ii) + 0.34; let fprev = null, last = null, prevPost = null, sinceGate = 60;
+        const fC = lin(0x3e4347); const fl = (ii) => base(ii) + 0.34; let fprev = null, last = null, prevPost = null, sinceGate = 60;
         const fRuns = []; let fc = null; for (let i = 0; i <= n; i++) { const ii = i % n; if (!fenceOn(ii)) { if (fc && fc.length > 1) fRuns.push(fc); fc = null; continue; } if (!fc) fc = []; if (i % 2 === 0 || !fenceOn((ii + 1) % n)) fc.push(ii); } if (fc && fc.length > 1) fRuns.push(fc);
         for (const run of fRuns) {
           let acc = 0; fprev = null;

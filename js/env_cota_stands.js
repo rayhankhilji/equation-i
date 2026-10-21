@@ -332,9 +332,11 @@
     const b0 = cs[0], b1 = cs[cs.length - 1]; const p0 = Env.xf(b0.ct.m, (St.flip(b0) ? 1 : -1) * b0.len / 2, 0, 0), p1 = Env.xf(b1.ct.m, (St.flip(b1) ? -1 : 1) * b1.len / 2, 0, 0);
     let ax = p1[0] - p0[0], az = p1[2] - p0[2]; const len = Math.hypot(ax, az); ax /= len; az /= len; const nx = b0.nx, nz = b0.nz; const yB = Math.max(b0.y, b1.y);
     const m = Env.frame((p0[0] + p1[0]) / 2, yB, (p0[2] + p1[2]) / 2, ax, az, nx, nz); const P = (x, y, z) => Env.xf(m, x, y, z); const hl = len / 2;
-    const top = C(0xd6d9da), under = [C(0xc6c9ca), C(0xb8bcbe)], mastC = C(0xa9aeb3), cable = C(0x7d838a), rib = C(0x9aa0a6);
-    const zF = -3.2, zR = UP.zBox + 1.2, yF = 27.2, yRr = 25.4, nb = 8, bw = len / nb, NU = 4, NV = 3; const zM = UP.zBox + 3.0, yM = 34.5;
-    const hgt = (u, v) => { const yEdge = yF + (yRr - yF) * v; const sag = Math.sin(Math.PI * u) * (2.2 - 1.2 * v); return yEdge - sag; };
+    // (COTA-UPGRADE, photo cota_stand_canopy_car_blur + grid_start_grandstand: the fabric is a warm cream / beige, and each bay is a peaked
+    // tent: the front edge rises to a point at every mast and sags deeply between them, ~5 m peak to trough; the back stays above the suites)
+    const top = C(0xd5ccb6), under = [C(0xc4b9a0), C(0xb6ab92)], mastC = C(0xa9aeb3), cable = C(0x7d838a), rib = C(0x9aa0a6);
+    const zF = -3.2, zR = UP.zBox + 1.2, yF = 28.6, yRr = 25.6, nb = 8, bw = len / nb, NU = 6, NV = 3; const zM = UP.zBox + 3.0, yM = 35.5;
+    const hgt = (u, v) => { const yEdge = yF + (yRr - yF) * v; const sag = Math.pow(Math.sin(Math.PI * u), 0.75) * (5.0 - 4.0 * v); return yEdge - sag; };
     for (let k = 0; k < nb; k++) {
       const xa = -hl + k * bw; const X = (u) => xa + u * bw; const Z = (v) => zF + (zR - zF) * v;
       for (let i = 0; i < NU; i++) for (let j = 0; j < NV; j++) {
