@@ -245,18 +245,18 @@
         const yTop = Y0 + b.rows * RISE, zBack = Z0 + b.rows * TREAD; b.ct.yTop = yTop; b.ct.zBack = zBack; b.ct.m = m;
         const gl = (x, z) => { const p = P(x, 0, z); return sc.height(p[0], p[2]) - b.y; };
         const fwd = Ct.dir(P(0, 0, 0), P(0, 0, -1)), bwd = [-fwd[0], 0, -fwd[2]];
-        const xs = [-hl - 0.1, -hl / 2, 0, hl / 2, hl + 0.1];
+        const xs = []; { const nseg = Math.max(4, Math.ceil(b.len / 4)); for (let k = 0; k <= nseg; k++) xs.push(-hl - 0.1 + (b.len + 0.2) * k / nseg); }
         // ---- skirts where the ground falls below the floor: front, back, both ends (concrete on permanent stands, dark fabric on scaffold)
         const sk = perm ? concD : skirtT;
-        for (let k = 0; k + 1 < xs.length; k++) { const ga = gl(xs[k], 0.05), gb = gl(xs[k + 1], 0.05); if (Math.min(ga, gb) < -0.05) { Ct.face(B, P(xs[k], Math.min(0, ga - 0.3), -0.02), P(xs[k + 1], Math.min(0, gb - 0.3), -0.02), P(xs[k + 1], 0.02, -0.02), P(xs[k], 0.02, -0.02), sk, fwd); skirts++; } }
-        for (let k = 0; k + 1 < xs.length; k++) { const ga = gl(xs[k], zBack), gb = gl(xs[k + 1], zBack); if (Math.min(ga, gb) < -0.05) { Ct.face(B, P(xs[k], Math.min(0, ga - 0.3), zBack + 0.16), P(xs[k + 1], Math.min(0, gb - 0.3), zBack + 0.16), P(xs[k + 1], 0.02, zBack + 0.16), P(xs[k], 0.02, zBack + 0.16), sk, bwd); skirts++; } }
-        for (const sx of [-hl - 0.08, hl + 0.08]) { const zz = [0, zBack / 2, zBack + 0.16]; const want = Ct.dir(P(0, 0, 0), P(Math.sign(sx), 0, 0));
-          for (let k = 0; k + 1 < zz.length; k++) { const ga = gl(sx, zz[k]), gb = gl(sx, zz[k + 1]); if (Math.min(ga, gb) < -0.05) Ct.face(B, P(sx, Math.min(0, ga - 0.3), zz[k]), P(sx, Math.min(0, gb - 0.3), zz[k + 1]), P(sx, 0.02, zz[k + 1]), P(sx, 0.02, zz[k]), sk, want); } }
+        for (let k = 0; k + 1 < xs.length; k++) { const ga = gl(xs[k], 0.05), gb = gl(xs[k + 1], 0.05); if (Math.min(ga, gb) < -0.05 && gl((xs[k] + xs[k + 1]) / 2, 0.05) < 0.0) { Ct.face(B, P(xs[k], Math.min(0, ga - 0.3), -0.02), P(xs[k + 1], Math.min(0, gb - 0.3), -0.02), P(xs[k + 1], 0.02, -0.02), P(xs[k], 0.02, -0.02), sk, fwd); skirts++; } }
+        for (let k = 0; k + 1 < xs.length; k++) { const ga = gl(xs[k], zBack), gb = gl(xs[k + 1], zBack); if (Math.min(ga, gb) < -0.05 && gl((xs[k] + xs[k + 1]) / 2, zBack) < 0.0) { Ct.face(B, P(xs[k], Math.min(0, ga - 0.3), zBack + 0.16), P(xs[k + 1], Math.min(0, gb - 0.3), zBack + 0.16), P(xs[k + 1], 0.02, zBack + 0.16), P(xs[k], 0.02, zBack + 0.16), sk, bwd); skirts++; } }
+        for (const sx of [-hl - 0.08, hl + 0.08]) { const zz = []; { const nz = Math.max(2, Math.ceil(zBack / 3)); for (let k = 0; k <= nz; k++) zz.push((zBack + 0.16) * k / nz); } const want = Ct.dir(P(0, 0, 0), P(Math.sign(sx), 0, 0));
+          for (let k = 0; k + 1 < zz.length; k++) { const ga = gl(sx, zz[k]), gb = gl(sx, zz[k + 1]); if (Math.min(ga, gb) < -0.05 && gl(sx, (zz[k] + zz[k + 1]) / 2) < 0.0) Ct.face(B, P(sx, Math.min(0, ga - 0.3), zz[k]), P(sx, Math.min(0, gb - 0.3), zz[k + 1]), P(sx, 0.02, zz[k + 1]), P(sx, 0.02, zz[k]), sk, want); } }
         if (!perm) {
           // the venue's scaffold stair towers stand on the floor level: where the ground is lower there, a dark skirt box carries them down
-          for (const [flag, sx] of [[b.first, -hl - 1.9], [b.last, hl + 1.9]]) { if (!flag) continue; let g = Infinity; for (const [dx, dz] of [[-1.7, -2], [1.7, -2], [1.7, 2], [-1.7, 2]]) g = Math.min(g, gl(sx + dx, zBack - 2 + dz)); if (g < -0.05) { B.box(m, 3.5, -g + 0.3, 4.1, sx, g - 0.3, zBack - 2.0, skirtT); skirts++; } }
+          for (const [flag, sx] of [[b.first, -hl - 1.9], [b.last, hl + 1.9]]) { if (!flag) continue; let g = Infinity, gx = -Infinity; for (const [dx, dz] of [[-1.7, -2], [1.7, -2], [1.7, 2], [-1.7, 2], [0, 0]]) { const q = gl(sx + dx, zBack - 2 + dz); g = Math.min(g, q); gx = Math.max(gx, q); } if (g < -0.05) { const top = Math.max(0.02, gx + 0.04); B.box(m, 3.5, top - g + 0.3, 4.1, sx, g - 0.3, zBack - 2.0, skirtT); skirts++; } }
         }
-        { const bi = E.blocks.indexOf(b) + 1; if (!b.first && !b.last && b.rows >= 10 && bi % 3 === 0 && b.len > 12) { let g = Infinity; for (const [dx, dz] of [[-1.6, 0.5], [1.6, 0.5], [1.6, 3.5], [-1.6, 3.5]]) g = Math.min(g, gl(dx, zBack + dz)); if (g < -0.05) { B.box(m, 3.4, -g + 0.3, 3.2, 0, g - 0.3, zBack + 2.0, perm ? concD : skirtT); skirts++; } } }
+        { const bi = E.blocks.indexOf(b) + 1; if (!b.first && !b.last && b.rows >= 10 && bi % 3 === 0 && b.len > 12) { let g = Infinity, gx = -Infinity; for (const [dx, dz] of [[-1.6, 0.5], [1.6, 0.5], [1.6, 3.5], [-1.6, 3.5], [0, 2]]) { const q = gl(dx, zBack + dz); g = Math.min(g, q); gx = Math.max(gx, q); } if (g < -0.05) { const top = Math.max(0.02, gx + 0.04); B.box(m, 3.4, top - g + 0.3, 3.2, 0, g - 0.3, zBack + 2.0, perm ? concD : skirtT); skirts++; } } }
         if (!perm) continue;
         const core = inCore(E, b);
         // ---- permanent stands: back wall from the drawn ground (concrete with a dark window band and pilasters), end walls, stair doors
@@ -356,6 +356,9 @@
       B.box(m, 1.4, 0.8, 1.4, x, ga - 0.4, zM + 16, C(0x8d9196));
       if (k < nb) H.beam(Env.frame(0, 0, 0, 1, 0, 0, 1), P(x, yM, zM), P(x + bw / 2, hgt(0.5, 0.4), zF + (zR - zF) * 0.4), 0.06, cable);
     }
+    // High only: seam cables under the membrane along each bay's ridge line, a lamp row under the front edge
+    for (let k = 0; k < nb; k++) { const xa = -hl + k * bw; for (let j = 0; j < NV; j++) H.beam(Env.frame(0, 0, 0, 1, 0, 0, 1), P(xa + bw / 2, hgt(0.5, j / NV) - 0.12, zF + (zR - zF) * j / NV), P(xa + bw / 2, hgt(0.5, (j + 1) / NV) - 0.12, zF + (zR - zF) * (j + 1) / NV), 0.06, cable);
+      for (const u of [0.25, 0.75]) H.box(m, 0.6, 0.18, 0.35, xa + u * bw, hgt(u, 0.12) - 0.45, zF + (zR - zF) * 0.12, C(0xfff4dc)); }
     E.stats.cota.mainRoof = { bays: nb, len: +len.toFixed(1) };
   };
   // ---- the amphitheatre: polar tiers (riser + tread per segment), a back wall + skirt to the ground, the radial end walls, two aisles; the

@@ -98,6 +98,8 @@
       Ct.face(B, W(3.6, a0, yRf - 0.6), W(3.6, a1, yRf - 0.6), W(10.5, a1, yRf - 0.2), W(10.5, a0, yRf - 0.2), C(0x8d9297), [0, -1, 0]);
       Ct.face(B, W(3.6, a0, yRf + 0.3), W(3.6, a1, yRf + 0.3), W(10.5, a1, yRf - 0.2), W(10.5, a0, yRf - 0.2), roof, [0, 1, 0]);
       Ct.face(B, W(10.5, a0, yRf - 0.75), W(10.5, a1, yRf - 0.75), W(10.5, a1, yRf - 0.2), W(10.5, a0, yRf - 0.2), red, out); }
+    // High only: the deck's rail posts
+    for (let k = 0; k < 48; k++) { const a = k / 48 * Math.PI * 2; H.beam(I, W(9.4, a, yD + 0.6), W(9.4, a, yD + 1.75), 0.05, C(0x8d939a)); }
     // the veil: 18 tubes; angle k round the stage direction, spread wide at the deck and over the stage, narrow at the waist
     const PY = [T.H + 1.2, T.H - 2.0, yD - 3.0, yD - 14, 44, 33, 25.5, 21.0, 18.6, 17.4], PR = [12.0, 11.6, 9.0, 6.9, 6.2, 6.8, 9.8, 15.5, 22.0, 27.5];
     const SP = [1.0, 1.0, 0.95, 0.8, 0.62, 0.5, 0.46, 0.46, 0.47, 0.48]; const NT = 18, A0 = 1.45;

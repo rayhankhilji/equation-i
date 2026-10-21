@@ -279,6 +279,9 @@ window.EI = window.EI || {};
       for (const [ya, yb] of [[2.0, 4.2], [7.2, 9.2], [11.0, 13.4]]) Ct.face(G, P(xa + 0.6, ya, ZB + 0.03), P(xb - 0.6, ya, ZB + 0.03), P(xb - 0.6, yb, ZB + 0.03), P(xa + 0.6, yb, ZB + 0.03), glass, BKW);
       out.pitBays = (out.pitBays || 0) + 1;
     }
+    // ---- High only: roof plant (AC units, louvred boxes) on the deck behind the canopy edge, a terrace rail along the club's roof edge
+    { const H0 = Env.frame(0, 0, 0, 1, 0, 0, 1); for (let x = x0 + 12; x < x1 - 10; x += 23) { const p = P(x, yR1, ZB - 6); H.box(Env.frame(p[0], p[1], p[2], ...Ct.dir(P(x, 0, ZB - 6), P(x + 1, 0, ZB - 6)).filter((_, k) => k !== 1), ...Ct.dir(P(x, 0, ZB - 6), P(x, 0, ZB - 5)).filter((_, k) => k !== 1)), 6, 1.8, 3.2, 0, 0, 0, C(0x9ea3a7), { top: C(0x7d838a) }); }
+      for (let x = x0; x < x1 - 0.1; x += 3) H.beam(H0, P(x, yR1, zG + 2.0), P(x, yR1 + 1.0, zG + 2.0), 0.05, steel); }
     // ---- end walls (silver cladding, down to the drawn ground), the roof canopy's end fascias
     for (const [xe, sg] of [[x0, -1], [x1, 1]]) {
       const want = Ct.dir(P(xe, 0, zG), P(xe + sg, 0, zG));
