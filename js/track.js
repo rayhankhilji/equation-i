@@ -294,7 +294,7 @@ window.EI = window.EI || {};
     }
     else {
     const slant = style === 'street' ? 0 : H * (style === 'spa' || style === 'cota' ? 0.05 : 0.07); const joint = (y0) => [[0, y0 - slant], [W, y0 + slant]];
-    ctx.fillStyle = style === 'street' ? '#b0242a' : style === 'spa' ? '#be1620' : style === 'cota' ? '#c41a24' : '#c8141e';   // 'spa': deep red / white blocks on the raised bevelled kerb
+    ctx.fillStyle = style === 'street' ? '#b0242a' : style === 'spa' ? '#be1620' : style === 'cota' ? '#8c2329' : style === 'greenwhite' ? '#1d9670' : '#c8141e';   // 'greenwhite': Silverstone's green / white exit kerbs   // 'spa': deep red / white blocks on the raised bevelled kerb
     for (const off of [-H, 0, H]) { const a = joint(off), b = joint(off + H / 2); ctx.beginPath(); ctx.moveTo(a[0][0], a[0][1]); ctx.lineTo(a[1][0], a[1][1]); ctx.lineTo(b[1][0], b[1][1]); ctx.lineTo(b[0][0], b[0][1]); ctx.closePath(); ctx.fill(); }
     ctx.strokeStyle = 'rgba(25,10,10,0.55)'; ctx.lineWidth = 3;
     for (const off of [-H, -H / 2, 0, H / 2, H]) { const a = joint(off); ctx.beginPath(); ctx.moveTo(a[0][0], a[0][1]); ctx.lineTo(a[1][0], a[1][1]); ctx.stroke(); }
@@ -699,21 +699,30 @@ window.EI = window.EI || {};
       // data.kerbAlt [[s0, s1, 'ry'], ...] (Spa: the Raidillon crest, Blanchimont): red / yellow kerbs = the red / white tile tinted per vertex (white -> yellow, red stays red)
       const kerbAlt = new Uint8Array(n); for (const [a0, a1] of this.data.kerbAlt || []) for (let s = a0; s <= a1; s += this.ds) kerbAlt[this.idxAtS(s)] = 1;
       const altCol = [1.0, 0.8, 0.1];
+      // data.kerbGW [[s0, s1], ...] (Silverstone: the green / white kerbs at a few exits, F1 photos ref_019 / 033): those stretches are drawn
+      // from a green / white tile in one extra merged mesh (same material type, no new shader); the red / white meshes skip them
+      const kerbGW = new Uint8Array(n); for (const [a0, a1] of this.data.kerbGW || []) for (let s = a0; s <= a1; s += this.ds) kerbGW[this.idxAtS(U.mod(s, this.length))] = 1;
+      const hasGW = kerbGW.some(v => v), gwGeos = [];
       for (const side of [-1, 1]) {
         // stripes advance with the arc length at the kerb's middle so they never stretch on the outside of a corner
         const arc = new Float32Array(n + 1); let acc = 0;
         for (let i = 1; i <= n; i++) { const a = (i - 1) % n, b = i % n; const m = side * (hw + kw / 2); const d = Math.hypot(this.x[b] + this.nx[b] * m - this.x[a] - this.nx[a] * m, this.z[b] + this.nz[b] * m - this.z[a] - this.nz[a] * m); acc = kerbMask(a) ? acc + d : 0; arc[b] = acc; if (i === n) arc[n] = acc; }
-        for (let pIdx = 0; pIdx < 3; pIdx++) {
+        for (let pIdx = 0; pIdx < 3; pIdx++) for (const gwPass of hasGW ? [0, 1] : [0]) {
           const p0 = prof[pIdx], p1 = prof[pIdx + 1];
           const geo = this.strip(2, {
-            mask: kerbMask, normals: 'compute',
+            mask: !hasGW ? kerbMask : gwPass ? (i => kerbMask(i) && kerbGW[i] === 1) : (i => kerbMask(i) && kerbGW[i] === 0), normals: 'compute',
             lat: (ii, c) => side * (hw + (c ? p1[0] : p0[0])),
             y: (ii, c) => (c ? p1[1] : p0[1]) * (0.15 + 0.85 * ramp[ii]),
             uv: (ii, c, l, i) => [(c ? p1[0] : p0[0]) / kw, (i === n ? arc[n] : arc[ii]) / kerbTile],
             attrs: { color: [3, (ii, c) => { const t = kerbTone[ii] * (c === 0 && pIdx === 0 ? 0.9 : 1); return kerbAlt[ii] ? [t * altCol[0], t * altCol[1], t * altCol[2]] : [t, t, t]; }] },
           });
+          if (gwPass) { gwGeos.push(geo); continue; }
           const m = new THREE.Mesh(geo, kerbMat); m.receiveShadow = true; m.castShadow = pIdx === 1; m.name = 'kerb'; g.add(m);
         }
+      }
+      if (gwGeos.length) {
+        const gwMat = kerbMat.clone(); gwMat.map = kerbTexture('greenwhite');
+        const gm = new THREE.Mesh(U.mergeGeometries(gwGeos.map(geo => ({ geo, matrix: new THREE.Matrix4() }))), gwMat); gm.receiveShadow = true; gm.name = 'kerb'; g.add(gm);
       }
       this.buildSausages(g);
 
@@ -774,7 +783,7 @@ window.EI = window.EI || {};
       if (FLAG) runFrag = runFrag.replace('float rTop = pat > 2.5 ? aw0 + 3.2 : rOuter - 0.35;', 'float rTop = pat > 4.5 ? rOuter - 0.35 : pat > 3.5 ? min(rOuter - 0.35, aw0 + 9.85) : pat > 2.5 ? aw0 + 3.2 : rOuter - 0.35;')
         .replace('    rPaint = mix(rPaint, vec3(0.72, 0.72, 0.7), wl);\n', `    rPaint = mix(rPaint, vec3(0.72, 0.72, 0.7), wl);
     if (pat > 3.5) {
-      float fd = rAl - aw0; vec3 fW = vec3(0.72, 0.72, 0.7); float fN = 0.88 + 0.22 * rM1.g; vec3 fA = vColA * fN, fB = vColB * fN;
+      float fd = rAl - aw0; vec3 fW = vec3(0.6, 0.6, 0.585); float fN = 0.88 + 0.22 * rM1.g; vec3 fA = vColA * fN, fB = vColB * fN;
       bool f5 = pat > 4.5; vec3 fC;
       float sb0 = f5 ? 5.35 : (fd < 6.72 ? 3.95 : 6.9); float sb1 = sb0 + (f5 ? 4.65 : 2.6);
       if (f5) { fC = fA; fC = mix(fC, fW, smoothstep(5.0 - rAA, 5.0 + rAA, fd)); fC = mix(fC, fB, smoothstep(5.35 - rAA, 5.35 + rAA, fd)); fC = mix(fC, fW, smoothstep(10.0 - rAA, 10.0 + rAA, fd)); fC = mix(fC, fA, smoothstep(10.35 - rAA, 10.35 + rAA, fd)); }
@@ -1301,7 +1310,7 @@ window.EI = window.EI || {};
       // rail profile: three W-beams stacked from 0.1 m to 1.03 m, [height, protrusion towards the road]
       const prof = []; for (let b = 0; b < 3; b++) { const yb = 0.1 + b * 0.31; for (const [dy, d] of [[0, 0], [0.075, 0.055], [0.155, 0.018], [0.235, 0.055]]) prof.push([yb + dy, d]); } prof.push([0.1 + 3 * 0.31, 0]); prof.push([1.03, -0.06]);
       const K = prof.length;
-      const post = lin(this.data.street ? 0x4c5257 : 0x7d8389), postD = lin(this.data.street ? 0x3e4348 : 0x5d6267), railPost = lin(0x9ea4a8), cable = lin(0x3a3d40), white = lin(0xf0f0ee), red = lin(0xc8162b), dark = lin(0x1a1a1c), orange = lin(0xf08a1a), gateC = lin(0xe8a21a);
+      const tecBlue = lin(0x1d4f9c), post = lin(this.data.street ? 0x4c5257 : 0x7d8389), postD = lin(this.data.street ? 0x3e4348 : 0x5d6267), railPost = lin(0x9ea4a8), cable = lin(0x3a3d40), white = lin(0xf0f0ee), red = lin(0xc8162b), dark = lin(0x1a1a1c), orange = lin(0xf08a1a), gateC = lin(0xe8a21a);
       let railTris = 0;
       for (const side of [-1, 1]) {
         const z = Z[side], wall = side < 0 ? this.wallL : this.wallR; const base = (ii) => wall[ii] + z.back[ii];
@@ -1392,7 +1401,7 @@ window.EI = window.EI || {};
         let lb = null, cnt = 0;
         for (let s = 0; s < L; s += 0.25) {
           const i = Math.floor(s / ds) % n; if (!z.tec[i] || z.gap[i]) { lb = null; continue; } const a = Ps(s, 0.42, 0); if (lb && Math.hypot(a[0] - lb[0], a[2] - lb[2]) < 1.5) continue; lb = a;
-          const m = EI.Env.frame(a[0], a[1], a[2], this.tx[i], this.tz[i], this.nx[i] * side, this.nz[i] * side); const col = (cnt++ & 1) ? white : red; const P2 = (x, y, zz) => EI.Env.xf(m, x, y, zz);
+          const m = EI.Env.frame(a[0], a[1], a[2], this.tx[i], this.tz[i], this.nx[i] * side, this.nz[i] * side); const ci = cnt++ % 3, col = ci === 1 ? white : ci === 2 ? tecBlue : red;   // red / white / blue modules (Monaco photos) const P2 = (x, y, zz) => EI.Env.xf(m, x, y, zz);
           // body: front face textured (logo band and straps), chamfered top edge towards the road, sides and back plain
           Rd.set(tec, 0.62, 0.0); Rd.quad(P2(-0.72, 0.02, -0.38), P2(-0.72, 0.86, -0.38), P2(0.72, 0.86, -0.38), P2(0.72, 0.02, -0.38), col, [0, 0, 0, 0.88, 1, 0.88, 1, 0]);
           Rd.set('white', 0.62, 0.0); Rd.quad(P2(-0.72, 0.86, -0.38), P2(-0.72, 0.98, -0.26), P2(0.72, 0.98, -0.26), P2(0.72, 0.86, -0.38), col); Rd.quad(P2(-0.72, 0.98, -0.26), P2(-0.72, 0.98, 0.38), P2(0.72, 0.98, 0.38), P2(0.72, 0.98, -0.26), col);

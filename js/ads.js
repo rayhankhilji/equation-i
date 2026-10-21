@@ -221,6 +221,14 @@
     vodafone: { n: 'vodafone', board: { bg: '#e60000', tone: 'white' }, word: W_(SANS, 700, { col: '#ffffff', ls: -0.01 }) },
     rolex: { n: 'ROLEX', board: { bg: '#006039', tone: 'white' }, word: W_('Georgia, "Times New Roman", serif', 700, { up: 1, col: '#ffffff', ls: 0.08 }) },
   });
+  // Silverstone (SILVERSTONE-UPGRADE, F1 photo set staging/silverstone_refs): Fly Emirates' red wall boards and Rolex's green stand fronts (2015-16),
+  // UBS on the start gantry and boards (2016), Barilla's blue boards with the red oval round Woodcote (2025-26); DHL / Pirelli / Qatar Airways are above
+  Object.assign(PARTNERS, {
+    flyemirates: { n: 'Fly Emirates', board: { bg: '#d71921', tone: 'white' }, word: W_('Georgia, "Times New Roman", serif', 700, { col: '#ffffff', ls: 0.01 }) },
+    lasvegas: { n: 'LAS VEGAS', board: { bg: '#4b2a83', tone: 'white' }, word: W_(SANS, 900, { up: 1, col: '#ffffff', ls: 0.04 }) },   // the 2026 footbridge over the start straight (ref_037)
+    barilla: { n: 'Barilla', board: { bg: '#1d3f8f', tone: 'color' }, word: W_('Georgia, "Times New Roman", serif', 700, { it: 1, col: '#ffffff', oval: '#d6202b' }) },
+  });
+  PARTNERS.ubs.board = { bg: '#ffffff', tone: 'color' }; PARTNERS.ubs.word = W_('Georgia, serif', 700, { up: 1, ls: 0.05, col: '#111111' });
   // COTA (COTA-UPGRADE, photo cota_mclaren_stands_flag): the event's black '#USGP' wall boards that line the stadium-section walls
   Object.assign(PARTNERS, {
     usgp: { n: '#USGP', board: { bg: '#121418', tone: 'white' }, word: W_(SANS, 900, { col: '#ffffff', ls: -0.02 }) },
@@ -292,6 +300,12 @@
     const font = (o.it ? 'italic ' : '') + o.w + ' ' + fs + 'px ' + o.ff; x.font = font; setLS(x, (o.ls || 0) * fs); const tw = Math.ceil(x.measureText(txt).width + fs * Math.abs(o.ls || 0) + fs * 0.2);
     c.width = Math.min(4096, tw); c.height = PH; x.font = font; setLS(x, (o.ls || 0) * fs); x.textBaseline = 'alphabetic'; x.textAlign = 'left'; x.fillStyle = o.col || '#111111';
     if (c.width < tw) { x.scale(c.width / tw, 1); }
+    if (o.oval) x.fillText(txt, fs * 0.1, PH * 0.8);
+    if (o.oval) {   // the word on a filled oval badge (Barilla's red oval): wider canvas, the oval behind, the word centred on it
+      const ow = Math.min(4096, Math.ceil(tw * 1.32)); const o2 = document.createElement('canvas'); o2.width = ow; o2.height = PH; const y2 = o2.getContext('2d', { willReadFrequently: true });
+      y2.fillStyle = o.oval; y2.beginPath(); y2.ellipse(ow / 2, PH / 2, ow / 2 - 2, PH / 2 - 2, 0, 0, Math.PI * 2); y2.fill();
+      y2.drawImage(c, (ow - c.width) / 2 + fs * 0.02, PH * 0.06); setLS(x, 0); return o2;
+    }
     x.fillText(txt, fs * 0.1, PH * 0.8); setLS(x, 0);
     return trimCanvas(c);
   }
@@ -464,13 +478,16 @@
   // official timekeeper since 2025 (it replaced Rolex): the start gantry carries the F1 logo, the event title and the TAG Heuer clock.
   // Slots: a partner id, or 'L<n>' / 'I<n>' = Lumi / Intake design n. Every format keeps Lumi and Intake to about one board in four.
   const VENUES = Ads.VENUES = {
+    // Silverstone (SILVERSTONE-UPGRADE, the F1 photos 2015-2026): DHL yellow (pit wall, the Wing, straights), Pirelli yellow, Fly Emirates red walls,
+    // Rolex green stand fronts, Qatar Airways (the 2026 title), Barilla blue (2026), UBS (gantry / boards); Lumi / Intake keep about one board in four
     silverstone: { title: 'qatarairways', event: 'British Grand Prix', dark: false,
-      tiles: ['aramco', 'qatarairways', 'L0', 'dhl', 'heineken', 'pirelli', 'I4', 'msccruises'],
-      // wall panels avoid Qatar Airways (it is on the hoardings right behind them: no same-brand stacking), Lenovo instead
-      barrier: ['aramco', 'L', 'lenovo', 'dhl', 'I'], billboard: ['qatarairways', 'L0', 'aramco', 'I1'],
-      runoff: ['aramco', 'L', 'pirelli', 'I'], bridge: { lumi: 'L', intake: 'qatarairways', lumi2: 'aramco', intake2: 'I' } },
+      tiles: ['dhl', 'qatarairways', 'L0', 'flyemirates', 'pirelli', 'rolex', 'I4', 'barilla'],
+      // wall panels avoid Qatar Airways (it is on the hoardings right behind them: no same-brand stacking)
+      barrier: ['dhl', 'flyemirates', 'L', 'rolex', 'pirelli'], billboard: ['qatarairways', 'L0', 'ubs', 'I1'],
+      runoff: ['dhl', 'L', 'pirelli', 'I'], bridge: { lumi: 'lasvegas', intake: 'qatarairways', lumi2: 'L', intake2: 'I' } },
     monaco: { title: 'louisvuitton', event: 'Grand Prix de Monaco', dark: false,
-      tiles: ['tagheuer', 'louisvuitton', 'L1', 'aramco', 'msccruises', 'heineken', 'I5', 'dhl'],
+      // (MONACO-UPGRADE: the partners in the Monaco race photos - Qatar Airways along the harbour, Rolex's green wall, AWS, Heineken)
+      tiles: ['tagheuer', 'louisvuitton', 'L1', 'qatarairways', 'rolex', 'heineken', 'I5', 'aws'],
       barrier: ['tagheuer', 'L', 'louisvuitton', 'msccruises', 'I'], billboard: ['louisvuitton', 'L2', 'tagheuer', 'I3'],
       runoff: ['aramco', 'L', 'pirelli', 'I'], bridge: { lumi: 'L', intake: 'louisvuitton', lumi2: 'tagheuer', intake2: 'I' } },
     abudhabi: { title: 'etihadairways', event: 'Abu Dhabi Grand Prix', dark: true,

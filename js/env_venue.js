@@ -483,7 +483,10 @@ window.EI = window.EI || {};
         const ry = yTop + 4.0, front = -1.6;
         // scaffold venues: a silver sheet roof with a white fascia carrying the stand's name (Club: the green-and-white striped roof)
         const club = galv && /club/i.test(b.name || cornerName(b.s != null ? b.s : t.project(b.cx, b.cz, null, pr).s) || '');
-        B.box(m, L + 0.4, 0.32, zBack - front + 1.0, 0, ry, (front + zBack + 1.0) / 2, galv ? C(0x9da4ab) : roofGrey, { top: galv ? C(0xc3c9cf) : white, bottom: true });
+        // Silverstone (F1 photos ref_062 / 063 / 031, 2015-2026): white fabric canopies on dark steel trusses with a deep white valance
+        const silC = galv && t.data.id === 'silverstone';
+        B.box(m, L + 0.4, 0.32, zBack - front + 1.0, 0, ry, (front + zBack + 1.0) / 2, silC ? C(0xe4e4df) : galv ? C(0x9da4ab) : roofGrey, { top: silC ? C(0xf1f1ec) : galv ? C(0xc3c9cf) : white, bottom: true });
+        if (silC && !club) B.box(m, L + 0.44, 0.55, 0.16, 0, ry - 1.0, front - 0.03, C(0xeeeeea));
         if (club) for (let a = -hl; a < hl - 0.1; a += 4) { const a2 = Math.min(hl, a + 2); B.quad(P(a, ry + 0.335, front - 0.2), P(a, ry + 0.335, zBack + 1.2), P(a2, ry + 0.335, zBack + 1.2), P(a2, ry + 0.335, front - 0.2), C(0x0f6b3a)); }
         B.box(m, L + 0.42, 0.8, 0.18, 0, ry - 0.45, front - 0.02, galv ? (club ? C(0x0f6b3a) : C(0xf2f3f3)) : red);
         const nkF = galv && L >= 14 ? nameSlot(b.name || cornerName(b.s != null ? b.s : t.project(b.cx, b.cz, null, pr).s)) : -1;

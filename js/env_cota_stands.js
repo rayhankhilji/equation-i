@@ -274,7 +274,13 @@
           for (let a = -hl + 7; a < hl - 4; a += 14) B.box(m, 1.8, 2.3, 0.06, a, Math.max(0, gl(a, zBack)), zBack + 0.18, dark); }
         const first = b === run.blocks[0], last = b === run.blocks[run.blocks.length - 1]; const fs = St.flip(b) ? -1 : 1;
         for (const [flag, sx] of [[first, -fs * (hl + 0.1)], [last, fs * (hl + 0.1)]]) if (flag) { const g0 = Math.min(gl(sx, 0), gl(sx, zBack), 0) - 0.3; const want = Ct.dir(P(0, 0, 0), P(Math.sign(sx), 0, 0));
-          Ct.face(B, P(sx, g0, -0.08), P(sx, g0, zBack + 0.14), P(sx, yW, zBack + 0.14), P(sx, Y0 + 0.2, -0.08), concD, want); }
+          Ct.face(B, P(sx, g0, -0.08), P(sx, g0, zBack + 0.14), P(sx, yW, zBack + 0.14), P(sx, Y0 + 0.2, -0.08), concD, want);
+          // (COTA-UPGRADE, photos grid_start_grandstand / grandstand_pack_kerb_flag: the Turn 1 stand's end walls carry a big stars-and-stripes
+          // graphic - red field, a navy wedge, a white star) on the upper rear of the end wall, just proud of it
+          if (R.label === 'TURN 1') { const z0 = zBack * 0.3, sxo = sx + Math.sign(sx) * 0.04, yb = Math.max(g0 + 0.3, 0.6), ys = (z) => Y0 + 0.2 + (yW - Y0 - 0.2) * (z + 0.08) / (zBack + 0.22);
+            const mr = A.region('ctT1Mural', 132, 72, (x2, w, h) => { x2.fillStyle = '#9c1f26'; x2.fillRect(0, 0, w, h); x2.fillStyle = '#1d2a57'; x2.beginPath(); x2.moveTo(w * 0.52, h); x2.lineTo(w, 0); x2.lineTo(w, h); x2.closePath(); x2.fill();
+              x2.fillStyle = '#e8e6df'; x2.fillRect(0, h * 0.86, w, h * 0.06); Ct.star(x2, w * 0.82, h * 0.6, h * 0.24, '#e8e6df'); });
+            Ct.faceA(A, mr, P(sxo, yb, z0), P(sxo, yb, zBack + 0.1), P(sxo, yW - 0.1, zBack + 0.1), P(sxo, ys(z0) - 0.1, z0), want); } }
         if (core) St.mainCore(E, BK, b, run);
       }
       // wedges between consecutive chords of a curved / stepped permanent run (close the gaps in the backs and treads)

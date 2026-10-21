@@ -54,10 +54,12 @@ window.EI = window.EI || {};
     // physically based sky, with the sun light aligned to it and a PMREM environment for reflections / ambient
     // per-circuit light: Silverstone keeps its English afternoon; Monaco gets a high late-May sun from over the sea (so the
     // city facades facing the harbour are lit), a clearer sky, sea haze on the horizon and warm stone bounce light
-    const LOOKS = { monaco: { elev: 52, azim: 338, turb: 1.9, ray: 1.5, mie: 0.003, horizon: 0xbcd3ea, sky: [0.34, 1.2], fog: [550, 2400], fogLow: [320, 1400], hemi: [0xa8cdf2, 0x8a7a66, 0.42], sun: [0xfff3e0, 2.65],
+    const LOOKS = { monaco: { elev: 52, azim: 338, turb: 1.9, ray: 1.5, mie: 0.003, horizon: 0xb4cde8, sky: [0.27, 1.7], fog: [550, 2400], fogLow: [320, 1400], hemi: [0xa8cdf2, 0x8a7a66, 0.42], sun: [0xfff3e0, 2.65],
         // the cyan sky in the reflections tinted the shaded asphalt teal: a greyer environment, a little less saturation boost and
         // more contrast for the hard May sun; the Tete de Chien / Mont Agel ridge painted into the sky to the north (west to east-north-east)
-        envSat: 0.4, grade: { sat: 1.33, con: 1.16, warm: [1.025, 1.0, 0.975] }, ridge: [-3.05, -0.3, 0.38] },
+        // MONACO-UPGRADE (vs the F1 photo set): the clear deep-blue Riviera sky of the race photos (was a pale cyan haze), and less
+        // saturation boost (the sand / cream facades of the Boulevard Albert I read mustard), a touch more contrast for the hard sun
+        envSat: 0.4, grade: { sat: 1.24, con: 1.19, warm: [1.012, 1.0, 0.985] }, ridge: [-3.05, -0.3, 0.38] },
       // Monza: race afternoon in a Lombardy September (~16:00) - the sun in the south-west at 37 degrees (long shadows across the
       // straights without the low-sun glare that washed the asphalt and the crowns towards the sun), a clear blue zenith over a hazy pale
       // horizon, the Royal Park's deep greens bouncing up as a green-olive ground light; a rich grade (deep park greens, vivid kerbs and

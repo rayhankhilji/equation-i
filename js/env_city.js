@@ -203,6 +203,21 @@ window.EI = window.EI || {};
     if (o.rail) ironRail(p, x - 4, y + h - (o.railH || 42), w + 8, o.railH || 42, o.rail === 'ornate', o.railAcc);
   }
 
+  // race-day spectators standing on a balcony (F1 photos 051 / 054: the balconies along the circuit are packed): heads and shoulders over
+  // the parapet line (the slab and parapet in front are geometry or painted), shirts in team colours, a cap or a raised arm now and then
+  function spectators(p, x0, w, seed) {
+    const r = U.rng(seed); const n = 2 + Math.floor(r() * 3); const SK = [[236, 196, 168], [214, 168, 132], [178, 128, 96], [120, 84, 62], [244, 214, 190]];
+    const SH = [[226, 30, 40], [250, 250, 248], [24, 32, 64], [120, 170, 220], [30, 30, 32], [244, 200, 40], [0, 130, 120], [250, 120, 30], [200, 40, 60], [236, 236, 230]];
+    for (let k = 0; k < n; k++) {
+      const cx = x0 + (k + 0.5 + (r() - 0.5) * 0.5) * w / n, hy = 96 + r() * 14, sk = SK[(r() * SK.length) | 0], sh = SH[(r() * SH.length) | 0];
+      if (r() < 0.25) { const ax = cx + (r() < 0.5 ? -14 : 14); p.rect(ax - 3, hy - 34, 7, 50, sp(sh, TN, 0.85, 0, 0.6)); p.ell(ax, hy - 36, 5, 5, sp(sk, TN, 0.8, 0, 0.62)); }
+      p.fill(c => { c.moveTo(cx - 20, 150); c.lineTo(cx - 17, hy + 16); c.quadraticCurveTo(cx, hy + 9, cx + 17, hy + 16); c.lineTo(cx + 20, 150); c.closePath(); }, sp(sh, TN, 0.85, 0, 0.6));
+      p.rect(cx - 4, hy + 6, 8, 8, sp(sk.map(v => v * 0.85), TN, 0.8, 0, 0.61)); p.ell(cx, hy, 8, 9.5, sp(sk, TN, 0.8, 0, 0.63));
+      const hair = r() < 0.3 ? sh : [[40, 30, 24], [90, 64, 40], [190, 160, 110], [30, 28, 28], [150, 150, 150]][(r() * 5) | 0];
+      if (r() < 0.3) p.rect(cx - 9, hy - 10, 18, 7, sp(hair, TN, 0.8, 0, 0.65)); else p.ell(cx, hy - 5, 8.5, 5, sp(hair, TN, 0.9, 0, 0.64));
+      p.shade(c => { c.fillStyle = 'rgba(0,0,0,0.18)'; c.fillRect(cx + 6, hy + 18, 12, 40); });
+    }
+  }
   // ================================================================ the cells
   // ---------------- row 0: the wall behind a balcony (Riviera apartments, bay 3.4 m x storey 3.0 m) - sliding doors, eight states;
   // the balcony slab and parapet in front are geometry
@@ -221,6 +236,7 @@ window.EI = window.EI || {};
       if (v === 6) { roller(p, x, y, w * 0.34, h * 0.9); curtains(p, x + w * 0.34, y, w * 0.66, h, 77); }
       if (v === 7) { p.shade(c => { c.fillStyle = 'rgba(250,250,246,0.85)'; c.fillRect(x + w * 0.55, y + 30, 26, 70); c.fillStyle = 'rgba(70,110,160,0.8)'; c.fillRect(x + w * 0.55 + 30, y + 34, 22, 60); }); }
     }
+    if (v === 0 || v === 3 || v === 6) spectators(p, 12, IN - 24, 901 + v * 17);
     // the slab above: soffit shadow; a drip line where the balcony floor meets the wall
     aoTop(p, 0, 62, 0.42); p.rect(0, 0, IN, 8, wallP([226, 222, 214], 0.56));
     p.shade(c => { c.fillStyle = 'rgba(0,0,0,0.22)'; c.fillRect(0, 216, IN, 8); });
@@ -266,10 +282,10 @@ window.EI = window.EI || {};
     const x = 14, y = 74, w = 196, h = 132;
     reveal(p, x, y, w, h, 4, [120, 116, 110]);
     // the lit interior: back wall, shelves with goods, ceiling lights
-    const back = [[246, 238, 220], [240, 244, 240], [232, 222, 206], [250, 236, 214], [238, 238, 232], [228, 214, 196]][v % 6];
+    const back = [[178, 166, 146], [196, 204, 200], [150, 138, 122], [184, 160, 132], [170, 172, 170], [160, 140, 118]][v % 6];   // (muted: shop glass reads dark from the street, MONACO-UPGRADE)
     p.rect(x, y, w, h, sp(back, TN, 0.4, 0.5, Hh.glass));
     p.shade(c => {
-      for (let s = 0; s < 3; s++) { c.fillStyle = 'rgba(90,70,50,0.35)'; c.fillRect(x + 6, y + 30 + s * 30, w - 12, 3); for (let i = 0; i < 16; i++) { c.fillStyle = 'hsla(' + ((r() * 360) | 0) + ',45%,' + (40 + r() * 30 | 0) + '%,0.85)'; c.fillRect(x + 8 + r() * (w - 24), y + 14 + s * 30, 5 + r() * 8, 14); } }
+      for (let s = 0; s < 3; s++) { c.fillStyle = 'rgba(90,70,50,0.35)'; c.fillRect(x + 6, y + 30 + s * 30, w - 12, 3); for (let i = 0; i < 12; i++) { c.fillStyle = 'hsla(' + ((r() * 360) | 0) + ',16%,' + (28 + r() * 26 | 0) + '%,0.55)'; c.fillRect(x + 8 + r() * (w - 24), y + 14 + s * 30, 5 + r() * 8, 14); } }
       c.fillStyle = 'rgba(255,248,226,0.9)'; for (let i = 0; i < 4; i++) c.fillRect(x + 18 + i * 48, y + 4, 22, 3);
       c.fillStyle = 'rgba(40,30,24,0.4)'; for (let i = 0; i < 2; i++) c.fillRect(x + 30 + r() * (w - 80), y + h - 52, 36, 52);   // a counter, a display
       const g = c.createLinearGradient(0, y, 0, y + h); g.addColorStop(0, 'rgba(160,180,196,0.32)'); g.addColorStop(0.5, 'rgba(255,255,255,0.0)'); g.addColorStop(1, 'rgba(0,0,0,0.12)'); c.fillStyle = g; c.fillRect(x, y, w, h);
@@ -637,7 +653,7 @@ window.EI = window.EI || {};
   // to a cell repaints): read at script load (the scenery is built after the ads are in), written after a fresh build.
   let ATLAS = null, CACHED = null, SIG = null;
   function atlasSig() {
-    if (SIG) return SIG; const fns = DEF.map(d => d[2]).concat([buildAtlas, glass, win, frame, reveal, sill, louvre, roller, ironRail, awning, plants, curtains, rvBack, shopFront, noiseTile, aoTop, joints], Object.values(Painter.prototype));
+    if (SIG) return SIG; const fns = DEF.map(d => d[2]).concat([buildAtlas, glass, win, frame, reveal, sill, louvre, roller, ironRail, awning, plants, curtains, rvBack, shopFront, noiseTile, aoTop, joints, spectators], Object.values(Painter.prototype));
     let h = 2166136261; const src = fns.map(String).join('|') + [AW, AH, CS, GUT, IN].join(','); for (let i = 0; i < src.length; i++) { h ^= src.charCodeAt(i); h = Math.imul(h, 16777619); }
     return (SIG = 'atlas-' + (h >>> 0).toString(36));
   }
@@ -731,6 +747,9 @@ window.EI = window.EI || {};
           'vec2 cG1 = dFdx(cTu) * ' + f1(IN) + ' / cAt, cG2 = dFdy(cTu) * ' + f1(IN) + ' / cAt;',
           'float cL = max(length(cG1 * cAt), length(cG2 * cAt));',
           'if (cL > 30.0) { float k = 30.0 / cL; cG1 *= k; cG2 *= k; }',
+          // grazing facades: the Low map has 2x anisotropy, so a footprint longer than 2:1 sparkles (window dots); widen the minor axis to
+          // half the major one (what 2x anisotropic hardware samples anyway: no change there, no shimmer where anisotropy is weaker)
+          'float cA1 = length(cG1), cA2 = length(cG2); if (cA1 > 2.0 * cA2) cG2 *= 0.5 * cA1 / max(cA2, 1e-6); else if (cA2 > 2.0 * cA1) cG1 *= 0.5 * cA2 / max(cA1, 1e-6);',
           'vec4 cTex = texture2DGradEXT(map, cAuv, cG1, cG2);',
           'float cFar = smoothstep(30.0, 90.0, cL);',
           'if (cFar > 0.0) { vec2 cc = (cCell * ' + f1(CS) + ' + ' + f1(CS / 2) + ') / cAt; cTex = mix(cTex, texture2DLodEXT(map, cc, 8.0), cFar); }',

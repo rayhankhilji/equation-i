@@ -290,7 +290,7 @@
         n++; continue;
       }
       // pole: a white tapered mast with a gold finial, a concrete footing
-      const Hp = g.kind === 'us' ? 46 : 40, wd = g.kind === 'us' ? 21 : 17, ht = wd * (g.kind === 'us' ? 0.53 : 0.62);
+      const Hp = g.kind === 'us' ? 48 : 45, wd = g.kind === 'us' ? 24 : 22, ht = wd * (g.kind === 'us' ? 0.53 : 0.62);
       S.beam(I0, [g.x, y - 0.5, g.z], [g.x, y + Hp * 0.55, g.z], 0.75, C(0xcfd2d3)); S.beam(I0, [g.x, y + Hp * 0.55, g.z], [g.x, y + Hp, g.z], 0.5, C(0xcfd2d3));
       S.beam(I0, [g.x, y + Hp, g.z], [g.x, y + Hp + 0.8, g.z], 0.7, C(0xb8962e));
       B.box(Env.frame(g.x, y, g.z, g.tx, g.tz, g.nx, g.nz), 2.4, 0.9, 2.4, 0, -0.5, 0, C(0xa9adb0));

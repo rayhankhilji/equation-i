@@ -818,7 +818,7 @@ window.EI = window.EI || {};
     if (this.data.kind === 'desert') return this.desertRGB(x, z, out, fpre);
     if (this.data.kind === 'street') { const n0 = U.noise2(x / 23 + 1.7, z / 23 + 4.2); const g = 118 + n0 * 22; const h = this.hillRaw(x, z); const k = U.smoothstep(14, 60, h); out[0] = (g + 6) * (1 - k) + 92 * k; out[1] = (g + 3) * (1 - k) + 104 * k; out[2] = (g - 4) * (1 - k) + 66 * k; return out; }
     const f = fpre != null ? fpre : this.fAt(x, z); const n1 = U.noise2(x / 61 + 3.3, z / 61 + 7.1);
-    let c, k;
+    let c, k; const PAL = this.data.pal ? (this._pal || (this._pal = Object.assign({}, Env.PAL, this.data.pal))) : Env.PAL;   // ENVDATA[id].pal: a circuit's own grass tones (Silverstone)
     if (f < 48) {
       const dc = this.dcAt(x, z); c = (Math.floor((dc - this.t.halfWidth) / 7.5) & 1) ? PAL.mowA : PAL.mowB; k = 0.94 + n1 * 0.1;
       out[0] = c[0] * k; out[1] = c[1] * k; out[2] = c[2] * k; return out;
