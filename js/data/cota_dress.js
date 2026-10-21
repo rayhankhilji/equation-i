@@ -59,6 +59,7 @@ window.EI = window.EI || {};
   F.bridges = [];
   F.gantries = [2740, mod(tin(19) - 90)].map(Math.round);
   F.floodlights = [];
+  F.paddockSnap = true;   // infra.js buildPaddock: trucks / motorhomes stand on the lowest drawn ground under their whole footprint
   // concrete spectator walls with sponsor covers behind the tyre / TecPro stack: the heavy outsides only (the rest of the lap is Armco + fence)
   F.sponsorWallCorners = [1, 11, 12, 15];
   // ---- partner boards (hoardings, 5 x 1 m): [s0, s1, side (0 = both), spacing m]. A continuous board band on the grandstand wall of the pit straight

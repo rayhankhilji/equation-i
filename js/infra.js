@@ -609,6 +609,9 @@ window.EI = window.EI || {};
     const pr = t.project(mid[0], mid[1], null); const side = pr.lat > 0 ? 1 : -1; const nx = t.nx[pr.i] * side, nz = t.nz[pr.i] * side;
     const L = Math.min(len * 0.9, 320);
     const geos = []; let trucks = 0, homes = 0;
+    // data.furniture.paddockSnap (COTA): the lowest drawn ground over a dense grid under the footprint, so a vehicle never hangs over a dip between the 5 corner / centre samples
+    const snap = !!(cx.F && cx.F.paddockSnap && sc.env && sc.env.forestOn);
+    const lowY = (x, z, ax, az, hl, hw, nl, nw) => { let lo = Infinity; for (let i = 0; i <= nl; i++) for (let j = 0; j <= nw; j++) { const a = (i / nl * 2 - 1) * hl, b = (j / nw * 2 - 1) * hw; lo = Math.min(lo, sc.height(x + ax * a - az * b, z + az * a + ax * b)); } return lo; };
     const place = (al, zo) => [mid[0] + dx * al + nx * zo, mid[1] + dz * al + nz * zo];
     const okSpot = (x, z) => { const p = t.project(x, z, null); return p.dist > Math.max(t.wallL[p.i], t.wallR[p.i]) + 12 && !cx.inObstacle(x, z, cx.obstacles); };
     // two rows of transporters nose-in towards the garages, then a row of hospitality motorhomes behind
@@ -616,12 +619,12 @@ window.EI = window.EI || {};
     for (const [zo, flip] of rows) for (let al = -L / 2 + 8; al < L / 2 - 8; al += 4.6) {
       const [x, z] = place(al, zo); if (!okSpot(x, z)) continue;
       // truck +x (nose) points along n, away from the garages, for the first row; the second row faces it across an aisle
-      _q.setFromAxisAngle(_y, Math.atan2(-nz, nx) + flip + (rng() - 0.5) * 0.04); _p.set(x, cx.footY(x, z, nx, nz, 8, 1.25) - 0.04, z); _s.set(1, 1, 1); _m.compose(_p, _q, _s);
+      _q.setFromAxisAngle(_y, Math.atan2(-nz, nx) + flip + (rng() - 0.5) * 0.04); _p.set(x, (snap ? lowY(x, z, nx, nz, 8.1, 1.3, 12, 2) : cx.footY(x, z, nx, nz, 8, 1.25)) - 0.04, z); _s.set(1, 1, 1); _m.compose(_p, _q, _s);
       truck(geos, _m, teams[trucks % teams.length]); trucks++;
     }
     for (let al = -L / 2 + 10; al < L / 2 - 10; al += 19) {
       const [x, z] = place(al, 82); if (!okSpot(x, z)) continue;
-      _q.setFromAxisAngle(_y, Math.atan2(-dz, dx)); _p.set(x, cx.footY(x, z, dx, dz, 7.5, 7) - 0.05, z); _s.set(1, 1, 1); _m.compose(_p, _q, _s);
+      _q.setFromAxisAngle(_y, Math.atan2(-dz, dx)); _p.set(x, (snap ? lowY(x, z, dx, dz, 7.6, 7.1, 6, 6) : cx.footY(x, z, dx, dz, 7.5, 7)) - 0.05, z); _s.set(1, 1, 1); _m.compose(_p, _q, _s);
       motorhome(geos, _m, teams[homes % teams.length]); homes++;
     }
     cx.static(geos, 0.5, 0.1, 'main', 'paddock');
