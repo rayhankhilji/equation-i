@@ -106,8 +106,11 @@ window.EI = window.EI || {};
     // out of the fog colour and darkens / cools towards its serrated (tree-lined) crest, nearer layers darker = aerial perspective.
     // Both are mixed AFTER the tone map + grade + sRGB encoding, exactly where three's fog mixes, so fogged ground at the far plane
     // and the painted hills meet without a seam. Integer frequencies round the circle (no step in the west). Sky pixels only.
-    const HAZE = !(LK.haze || LK.hills) ? '' : (() => { const f = (v) => (+v).toFixed(4), Hz = LK.haze || [0, 0.1];
+    // LOOKS veil: [k, hex]: a milky overcast over the whole sky (blue gaps between the cloud decks turn pale blue-grey, the sun's disc
+    // is veiled); the clouds draw over it
+    const HAZE = !(LK.haze || LK.hills || LK.veil) ? '' : (() => { const f = (v) => (+v).toFixed(4), Hz = LK.haze || [0, 0.1], Vl = LK.veil, vc = Vl ? new THREE.Color(Vl[1]) : null;
       let s = '\n{ vec3 hc = gl_FragColor.rgb; float hy = direction.y, hph = atan(direction.z, direction.x);' +
+        (Vl ? ' hc = mix(hc, vec3(' + f(vc.r) + ', ' + f(vc.g) + ', ' + f(vc.b) + '), ' + f(Vl[0]) + ');' : '') +
         ' hc = mix(hc, uHz, ' + f(Hz[0]) + ' * (1.0 - smoothstep(-0.01, ' + f(Hz[1]) + ', hy)));';
       for (const [C, K, q] of LK.hills || []) s += ' { float rh = ' + f(C) + ' * (0.56 + 0.2 * sin(hph * 2.0 + ' + f(q) + ') + 0.12 * sin(hph * 5.0 + ' + f(q * 2.3) + ') + 0.07 * sin(hph * 11.0 + ' + f(q * 3.7) + ')' +
         ' + 0.035 * sin(hph * 23.0 + ' + f(q * 1.9) + ') + 0.03 * abs(sin(hph * 170.0 + 2.0 * sin(hph * 41.0 + ' + f(q) + '))));' +
