@@ -290,6 +290,7 @@ window.EI = window.EI || {};
     for (const off of [-H, 0, H]) { const a = joint(off), b = joint(off + H / 2); ctx.beginPath(); ctx.moveTo(a[0][0], a[0][1]); ctx.lineTo(a[1][0], a[1][1]); ctx.lineTo(b[1][0], b[1][1]); ctx.lineTo(b[0][0], b[0][1]); ctx.closePath(); ctx.fill(); }
     ctx.strokeStyle = 'rgba(25,10,10,0.55)'; ctx.lineWidth = 3;
     for (const off of [-H, -H / 2, 0, H / 2, H]) { const a = joint(off); ctx.beginPath(); ctx.moveTo(a[0][0], a[0][1]); ctx.lineTo(a[1][0], a[1][1]); ctx.stroke(); }
+    if (style === 'mexico') { ctx.fillStyle = '#2c5fb4'; ctx.fillRect(0, 0, W * 0.085, H); }   // Mexico City (F1 photos: mex_kerb_redwhiteblue_redbull, mex_grandstand_crowd_kerb_mclaren): a thin blue band on the track-side edge of the red / white kerb
     }
     const r = U.rng(8);
     // rubber smudges where tyres ride the kerb (inner half), grit and paint chips

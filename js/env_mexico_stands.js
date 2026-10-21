@@ -154,7 +154,7 @@
 
   // ================================================================ Foro Sol / Estadio GNP Seguros
   // decks (z from the field wall, y from the field level); numbers chosen so the whole section fits the OSM footprints (~34 m deep)
-  const FS = { wallH: 2.2, low: { z0: 0.35, y0: 2.2, rows: 18, rise: 0.42, tread: 0.85 }, conc: 3.0, up: { zOff: 0.35, yGap: 2.8, rows: 21, rise: 0.52, tread: 0.85 } };
+  const FS = { wallH: 1.5, low: { z0: 0.35, y0: 1.5, rows: 15, rise: 0.45, tread: 0.85 }, aisle: 1.8, aisleRise: 1.15, up: { rise: 0.5, tread: 0.85 } };
   St.layoutForoSol = function (E) {
     const lm = E.data.landmarks || {}; const halves = lm.foroSolStands; if (!halves || !halves.length) return;
     // the bowl centre: the mean of both footprints' vertices (the open side of the C faces the T13 annex / the podium)
@@ -170,7 +170,7 @@
       // the deck depth: the footprint depth along the normals (median), the upper deck rows fitted to it
       const ds = st.map(s => { let d = 0; for (let z = 4; z < 60; z += 0.5) { if (!U.pointInPoly(s.x + s.nx * z, s.z + s.nz * z, P)) break; d = z; } return d; }).filter(d => d > 10).sort((a, b) => a - b);
       const dep = ds.length ? ds[Math.floor(ds.length / 2)] : 32;
-      const lowEnd = FS.low.z0 + FS.low.rows * FS.low.tread; const upZ0 = lowEnd + FS.up.zOff; const upRows = U.clamp(Math.floor((dep + 1.0 - upZ0 - 0.6) / FS.up.tread), 8, 26);
+      const lowEnd = FS.low.z0 + FS.low.rows * FS.low.tread; const upZ0 = lowEnd + FS.aisle; const upRows = U.clamp(Math.floor((dep + 1.0 - upZ0 - 0.6) / FS.up.tread), 8, 26);
       const depth = upZ0 + upRows * FS.up.tread + 0.6;
       St.pushBack(E, st, 3.2, 14);
       const runs = St.trim(E, st, depth, 3.0, 9);
@@ -229,8 +229,8 @@
     const out = [];
     if (R.kind === 'foroSol') {
       const L = FS.low; for (let r = 0; r < L.rows; r++) out.push({ z: L.z0 + r * L.tread, y: L.y0 + (r + 1) * L.rise, tr: L.tread, fill: 0.86, sh: 0.96, pitch: 0.62 });
-      const up = FS.up, yU = FS.low.y0 + FS.low.rows * FS.low.rise + FS.up.yGap; const zr = R.depth * 0.5;
-      for (let r = 0; r < R.upRows; r++) { const z = R.upZ0 + r * up.tread; out.push({ z, y: yU + (r + 1) * up.rise, tr: up.tread, fill: 0.66, sh: z > zr ? 0.74 : 0.95, pitch: 0.7 }); }
+      const up = FS.up, yU = FS.low.y0 + FS.low.rows * FS.low.rise + FS.aisleRise; const zr = R.upZ0 + R.upRows * up.tread * 0.3;
+      for (let r = 0; r < R.upRows; r++) { const z = R.upZ0 + r * up.tread; out.push({ z, y: yU + (r + 1) * up.rise, tr: up.tread, fill: 0.72, sh: z > zr ? 0.72 : 0.95, pitch: 0.68 }); }
     } else if (R.kind === 'main') {
       for (let r = 0; r < MG.rows; r++) out.push({ z: MG.z0 + r * MG.tread, y: MG.wallH + (r + 1) * MG.rise, tr: MG.tread, fill: 0.62, sh: r < 2 ? 0.9 : 0.72, pitch: 0.66 });
     } else if (R.kind === 'harp') {
@@ -298,69 +298,97 @@
 
   // ---------------------------------------------------------------- the Foro Sol stand ribbon
   St.buildForoSol = function (E, BK, R, tiles) {
-    const { B, S, G, F: Fd, H, A } = BK; const st = R.st, NS = st.length;
-    const conc = C(0xb4b0a6), concD = C(0x99958c), concL = C(0xc2beb4), facade = C(0xc4bfb2), facadeD = C(0xaaa597), dark = C(0x2b2d31);
-    const green = [C(0x2f7a4a), C(0x2a6d42)], orange = [C(0xd9772b), C(0xc96c26)], cafe = [C(0x8a5a3c), C(0x7c5136)], gnp = [C(0x3f5873), C(0x37506a)], steel = C(0x7b8189), roofT = C(0xbfc3c4), roofU = [C(0xa6abae), C(0x9ba0a4)];
-    const L = FS.low, up = FS.up; const yL = L.y0 + L.rows * L.rise, zL = R.lowEnd;          // lower deck top / back
-    const yC = yL + 0.25, zCb = zL + FS.conc;                                                  // concourse floor / back wall
-    const yU0 = yL + up.yGap, zU0 = R.upZ0, yUT = yU0 + R.upRows * up.rise, zUB = zU0 + R.upRows * up.tread;   // upper deck
-    const yPar = yUT + 1.15, zBk = zUB + 0.6, yFac = yPar + 0.6;
-    const zRf = R.depth * 0.5 - 1.0, yRf = yFac + 4.8, yRb = yFac + 3.6;                       // the roof over the back half
-    const nCafe = 4, nGnp = 5;
-    // per-row section colour: lower deck green, upper deck orange with the brown Cafe band in the middle and the GNP rows at the top
-    const upCol = (r, i) => { const sec = Math.floor(i / 2) % 2; if (r >= R.upRows - nGnp) return gnp[sec]; const mid = Math.floor((R.upRows - nGnp) / 2); if (r >= mid - nCafe / 2 && r < mid + nCafe / 2) return cafe[sec]; return orange[sec]; };
+    const { B, S, G, F: Fd, H, A } = BK; const st = R.st, NS = st.length; const sc = E.sc;
+    // photos (PHOTOS-A, MEX-BEAUTY round 0): grey concrete steps under a packed crowd, the section colours only as accents; one continuous
+    // canopy over the back rows with a RUST / terracotta underside and radial ribs, rising towards the field; a dark navy LED fascia with
+    // white partner logos under its front edge; a dark LED band along the field wall; the canopy dips towards each gateway
+    const conc = C(0x9f9c95), treadC = [C(0xb0aea8), C(0xa7a59f)], concL = C(0xbdbab2), concD = C(0x8f8c85), facadeD = C(0xa8a397), dark = C(0x2b2d31);
+    const green = C(0x2f7a4a), orange = C(0xd9772b), cafe = C(0x8a5a3c), gnp = C(0x5d6f86), steel = C(0x5e4a40);
+    const rustU = [C(0x9c5a3e), C(0x93553b)], rustT = C(0x6e4433), rib = C(0x5a3a2c), navy = C(0x1e2a44);
+    const L = FS.low, up = FS.up; const yL = L.y0 + L.rows * L.rise, zL = R.lowEnd;          // the lower block's top / back = the cross-aisle
+    const zU0 = R.upZ0, yU0 = yL + FS.aisleRise, yUT = yU0 + R.upRows * up.rise, zUB = zU0 + R.upRows * up.tread;
+    const yPar = yUT + 1.1, zBk = zUB + 0.6, yFac = yPar + 0.6;
+    const zF = zU0 + R.upRows * up.tread * 0.3, zRb = zBk + 1.4;                               // canopy: front edge over the upper block's first third, back over the facade
+    // per-station canopy heights: the front edge rises 7.5 m over the facade top, less (dipping) over the last 2.5 stations of each end
+    const dip = st.map((s, i) => U.clamp(Math.min(i, NS - 1 - i) / 2.5, 0, 1)); const yFr = dip.map(e => yFac + 3.6 + 3.9 * e), yBk = dip.map(e => yFac + 1.6 + 0.6 * e);
+    const CP = (i, z, y) => SP(R, st[i], z, y);
+    const ledR = St.ledRegions(A);
     for (let i = 0; i + 1 < NS; i++) {
-      const N = nrmOf(R, i), F = [-N[0], 0, -N[2]], UP = [0, 1, 0], DN = [0, -1, 0]; const sec = Math.floor(i / 2) % 2;
+      const N = nrmOf(R, i), F = [-N[0], 0, -N[2]], UP = [0, 1, 0], DN = [0, -1, 0];
       const ga = Math.min(R.g[i][0], R.g[i + 1][0]) - 0.4, gb = Math.min(R.g[i][1], R.g[i + 1][1]) - 0.4;
-      // field wall (both faces), the cap, the board band facing the field
-      loftQ(B, R, i, 0, ga, 0, L.y0 + 0.15, concD, F); loftQ(B, R, i, 0, L.y0 + 0.15, L.z0, L.y0 + 0.15, concL, UP);
-      { const a = st[i], b = st[i + 1]; const pa = SP(R, a, -0.03, 0), pb = SP(R, b, -0.03, 0); const len = Math.hypot(pb[0] - pa[0], pb[2] - pa[2]); const w = Math.min(len - 0.6, 6.0); if (w > 2) { const f0 = 0.5 - w / len / 2, f1 = 0.5 + w / len / 2; const P0 = [pa[0] + (pb[0] - pa[0]) * f0, 0, pa[2] + (pb[2] - pa[2]) * f0], P1 = [pa[0] + (pb[0] - pa[0]) * f1, 0, pa[2] + (pb[2] - pa[2]) * f1]; const y0 = R.y + 0.55, y1 = R.y + 1.75; Mx.faceA(A, tiles[(i + R.half * 3) % 8], [P1[0], y0, P1[2]], [P0[0], y0, P0[2]], [P0[0], y1, P0[2]], [P1[0], y1, P1[2]], F); } }
-      // lower deck: risers (concrete) + treads (section colour)
-      for (let r = 0; r < L.rows; r++) { const z = L.z0 + r * L.tread, y = L.y0 + r * L.rise; loftQ(B, R, i, z, y, z, y + L.rise, conc, F); loftQ(B, R, i, z, y + L.rise, z + L.tread, y + L.rise, r % 2 ? green[sec] : C(0x2f7a4a).multiplyScalar(0.9), UP); }
-      // lower deck back: the rail upstand, the concourse floor, the concourse back wall (vomitory band = dark openings) up to the upper deck soffit
-      loftQ(B, R, i, zL, yL, zL, yC + 1.0, concD, F); loftQ(B, R, i, zL, yC + 1.0, zL + 0.25, yC + 1.0, concL, UP); loftQ(B, R, i, zL + 0.25, yC, zCb, yC, concD, UP);
-      loftQ(B, R, i, zCb, yC, zCb, yU0 - 0.6, i % 2 ? dark : facadeD, F);
-      // upper deck: the front fascia (board band with partner tiles / section stripe), the soffit over the concourse, risers + treads
-      loftQ(B, R, i, zU0 - 0.55, yU0 - 1.1, zU0 - 0.55, yU0 + 0.95, concL, F); loftQ(B, R, i, zU0 - 0.55, yU0 - 1.1, zCb, yU0 - 0.6, C(0x8f8b83), DN);
-      loftQ(B, R, i, zU0 - 0.55, yU0 + 0.95, zU0, yU0 + 0.95, concL, UP);
-      { const a = st[i], b = st[i + 1]; const pa = SP(R, a, zU0 - 0.58, 0), pb = SP(R, b, zU0 - 0.58, 0); const len = Math.hypot(pb[0] - pa[0], pb[2] - pa[2]); const w = Math.min(len - 0.4, 5.0); if (w > 2) { const f0 = 0.5 - w / len / 2, f1 = 0.5 + w / len / 2; const P0 = [pa[0] + (pb[0] - pa[0]) * f0, 0, pa[2] + (pb[2] - pa[2]) * f0], P1 = [pa[0] + (pb[0] - pa[0]) * f1, 0, pa[2] + (pb[2] - pa[2]) * f1]; const y0 = R.y + yU0 - 0.9, y1 = R.y + yU0 + 0.1; Mx.faceA(A, tiles[(i * 3 + 1 + R.half) % 8], [P1[0], y0, P1[2]], [P0[0], y0, P0[2]], [P0[0], y1, P0[2]], [P1[0], y1, P1[2]], F); } }
-      for (let r = 0; r < R.upRows; r++) { const z = zU0 + r * up.tread, y = yU0 + r * up.rise; loftQ(B, R, i, z, y, z, y + up.rise, conc, F); const c = upCol(r, i); loftQ(B, R, i, z, y + up.rise, z + up.tread, y + up.rise, r % 2 ? c : C(0x808080).copy(c).multiplyScalar(0.9), UP); }
-      // the top: rear parapet, its cap, the outer facade (atlas: arched concourse openings, pilasters) down to the drawn ground
+      // the field wall with its dark LED band (partner logos), the cap
+      loftQ(B, R, i, 0, ga, 0, FS.wallH, concD, F); loftQ(B, R, i, 0, FS.wallH, L.z0, FS.wallH, concL, UP);
+      St.stripQ(A, R, i, -0.03, 0.2, FS.wallH - 0.15, ledR[(i + R.half * 2) % ledR.length], F, 8.0);
+      // the lower block: risers + grey treads
+      for (let r = 0; r < L.rows; r++) { const z = L.z0 + r * L.tread, y = L.y0 + r * L.rise; loftQ(B, R, i, z, y, z, y + L.rise, conc, F); loftQ(B, R, i, z, y + L.rise, z + L.tread, y + L.rise, treadC[r % 2], UP); }
+      // the cross-aisle (walkway) and the wall behind it: concrete with the dark vomitory openings at the odd stations, a cafe-brown band
+      loftQ(B, R, i, zL, yL, zU0, yL, concL, UP); loftQ(B, R, i, zU0, yL, zU0, yU0, i % 2 ? dark : conc, F);
+      if (i % 2 === 0) loftQ(B, R, i, zU0 - 0.02, yU0 - 0.32, zU0 - 0.02, yU0 - 0.05, cafe, F);
+      // the upper block, the top GNP rows a cooler grey-blue at the riser edge
+      for (let r = 0; r < R.upRows; r++) { const z = zU0 + r * up.tread, y = yU0 + r * up.rise; loftQ(B, R, i, z, y, z, y + up.rise, r >= R.upRows - 4 ? C(0x8f949a) : conc, F); loftQ(B, R, i, z, y + up.rise, z + up.tread, y + up.rise, treadC[r % 2], UP); }
+      // the top: rear parapet, cap, the outer facade (atlas bays + pilasters) down to the drawn ground
       loftQ(B, R, i, zUB, yUT, zUB, yPar, concD, F); loftQ(B, R, i, zUB, yPar, zBk, yPar, concL, UP);
-      // the underside of the upper deck behind the concourse wall (seen from below at the back), closed to the facade
-      loftQ(B, R, i, zCb, yU0 - 0.6, zBk, yUT - 1.2, C(0x8a867e), DN);
       { const a = st[i], b = st[i + 1]; const fA = SP(R, a, zBk, 0), fB = SP(R, b, zBk, 0); const yb0 = R.y + gb, yb1 = R.y + yFac; Mx.faceA(A, St.facadeR(A, i), [fA[0], yb0, fA[2]], [fB[0], yb0, fB[2]], [fB[0], yb1, fB[2]], [fA[0], yb1, fA[2]], N, 0, 1, 0, 1); }
       loftQ(B, R, i, zBk - 0.6, yFac, zBk, yFac, concL, UP); loftQ(B, R, i, zBk - 0.6, yPar, zBk - 0.6, yFac, concD, F);
-      // the roof (2024): a light-grey deck over the back half of the rows, a deep front fascia, a silver underside
-      loftQ(B, R, i, zRf, yRf, zBk + 1.8, yRb, roofT, UP); loftQ(B, R, i, zRf, yRf - 0.12, zBk + 1.8, yRb - 0.12, roofU[i % 2], DN);
-      loftQ(B, R, i, zRf, yRf - 1.25, zRf, yRf, C(0x8c9196), F); loftQ(B, R, i, zRf, yRf - 1.25, zRf + 0.4, yRf - 1.1, C(0x7a7f84), DN);
-      loftQ(B, R, i, zBk + 1.8, yRb - 0.7, zBk + 1.8, yRb, C(0x9aa0a4), N);
-      // aisles at the even stations: concrete strips on the treads of both decks + a handrail (clutter)
-      if (i % 2 === 0 && i > 0) St.aisle(BK, R, i, 1);
+      // under the rake (seen through the vomitories / from the ends): a dark soffit from the cross-aisle to the facade
+      loftQ(B, R, i, zU0, 0.6, zBk, yUT - 1.0, C(0x55524c), DN);
+      // the canopy: rust underside (two tones), dark top, the front LED fascia (navy, white partner logos), the back edge
+      { const a0 = CP(i, zF, yFr[i]), a1 = CP(i + 1, zF, yFr[i + 1]), b1 = CP(i + 1, zRb, yBk[i + 1]), b0 = CP(i, zRb, yBk[i]);
+        Mx.face(B, a0, a1, b1, b0, rustU[i % 2], DN); const t0 = [a0[0], a0[1] + 0.55, a0[2]], t1 = [a1[0], a1[1] + 0.55, a1[2]], u1 = [b1[0], b1[1] + 0.45, b1[2]], u0 = [b0[0], b0[1] + 0.45, b0[2]]; Mx.face(B, t0, t1, u1, u0, rustT, UP);
+        Mx.face(B, [a0[0], a0[1] - 0.05, a0[2]], [a1[0], a1[1] - 0.05, a1[2]], t1, t0, rustT, F); Mx.face(B, [b0[0], b0[1] - 0.1, b0[2]], [b1[0], b1[1] - 0.1, b1[2]], u1, u0, concD, N);
+        // the LED fascia: hung under the front edge (2.3 m), its own navy back
+        const f0 = CP(i, zF + 0.15, yFr[i] - 0.1), f1 = CP(i + 1, zF + 0.15, yFr[i + 1] - 0.1); const g0 = [f0[0], f0[1] - 2.3, f0[2]], g1 = [f1[0], f1[1] - 2.3, f1[2]];
+        Mx.faceA(A, ledR[(i + 1 + R.half * 2) % ledR.length], St.lr(F, g0, g1)[0], St.lr(F, g0, g1)[1], St.lr(F, f0, f1)[1], St.lr(F, f0, f1)[0], F);
+        Mx.face(B, [g0[0], g0[1], g0[2]], [g1[0], g1[1], g1[2]], [f1[0], f1[1], f1[2]], [f0[0], f0[1], f0[2]], navy, N);
+        Mx.face(B, [g0[0], g0[1], g0[2]], [g1[0], g1[1], g1[2]], CP(i + 1, zF + 0.45, yFr[i + 1] - 2.3), CP(i, zF + 0.45, yFr[i] - 2.3), navy, DN); }
+      // stair aisles at the even stations: concrete strips with coloured nosings (green below the cross-aisle, orange above) + rails
+      if (i % 2 === 0 && i > 0) St.aisle(BK, R, i, 1.1, (row) => row.z < zL ? green : orange);
+      // field-level white umbrellas (the hospitality 'palcos' along the stands' foot) where the strip in front of the wall is wide enough
+      { const a = st[i], b = st[i + 1]; const mx = (a.x + b.x) / 2 - N[0] * 1.7, mz = (a.z + b.z) / 2 - N[2] * 1.7; if (E.fsAt(mx - N[0] * 1.3, mz - N[2] * 1.3) > 1.0 && E.fsAt(mx, mz) > 1.6) { const g = sc.height(mx, mz); const m = Env.frame(mx, g, mz, -N[2], N[0], N[0], N[2]); Fd.beam(m, [0, -0.2, 0], [0, 2.3, 0], 0.07, C(0x9aa0a6)); const r0 = 1.25, yC2 = 2.25, yA = 2.85; const c = [Env.xf(m, -r0, yC2, -r0), Env.xf(m, r0, yC2, -r0), Env.xf(m, r0, yC2, r0), Env.xf(m, -r0, yC2, r0)], ap = Env.xf(m, 0, yA, 0); for (let k = 0; k < 4; k++) { const p = c[k], q = c[(k + 1) % 4]; Mx.tri(Fd, p, q, ap, C(0xd3d5d4), [(p[0] + q[0]) / 2 - ap[0], 1.2, (p[2] + q[2]) / 2 - ap[2]]); } } }
     }
-    // the roof structure at every second station: a raked mast behind the facade, a cantilever truss over the roof, a front strut (Low: main
-    // members only; the lattice web is clutter / High)
-    for (let i = 0; i < NS; i += 2) {
-      const s = st[i]; const gB = R.g[i][1]; const zM = zBk + 2.6;
-      const foot = SP(R, s, zM, gB - 0.3), head = SP(R, s, zM, yRb + 7.0), tip = SP(R, s, zRf + 0.3, yRf + 0.6), mid = SP(R, s, (zRf + zM) / 2, yRf + 3.2);
-      S.beam(Mx.I4(), foot, head, 0.9, steel); S.beam(Mx.I4(), head, tip, 0.45, steel); S.beam(Mx.I4(), SP(R, s, zM, yRb), tip, 0.35, steel);
-      Fd.beam(Mx.I4(), head, SP(R, s, (zRf + zM) / 2, yRf - 0.1), 0.2, steel); Fd.beam(Mx.I4(), mid, SP(R, s, (zRf + zM) / 2, (yRf + yRb) / 2), 0.16, steel);
-      H.beam(Mx.I4(), SP(R, s, zM, yRb + 3.5), SP(R, s, zRf + (zM - zRf) * 0.75, yRf + 1.6), 0.12, steel);
+    // the canopy structure: a rib under every station from the back edge to the front, a pylon behind the facade at every second station
+    // (from the drawn ground to above the back edge) with a tie to the front edge; secondary purlins (clutter)
+    for (let i = 0; i < NS; i++) {
+      const s = st[i]; const gB = R.g[i][1];
+      S.beam(Mx.I4(), CP(i, zRb - 0.3, yBk[i] - 0.25), CP(i, zF + 0.3, yFr[i] - 0.3), 0.42, rib);
+      if (i % 2 === 0) { const zM = zBk + 1.0, top = yBk[i] + 4.5; S.beam(Mx.I4(), SP(R, s, zM, gB - 0.3), SP(R, s, zM, top), 0.8, steel); Fd.beam(Mx.I4(), SP(R, s, zM, top), CP(i, zF + 0.6, yFr[i] + 0.5), 0.12, steel); Fd.beam(Mx.I4(), SP(R, s, zM, top), CP(i, (zF + zRb) / 2, (yFr[i] + yBk[i]) / 2 + 0.5), 0.1, steel); }
+      if (i + 1 < NS) for (const f of [0.33, 0.66]) H.beam(Mx.I4(), CP(i, zF + (zRb - zF) * f, yFr[i] + (yBk[i] - yFr[i]) * f - 0.2), CP(i + 1, zF + (zRb - zF) * f, yFr[i + 1] + (yBk[i + 1] - yFr[i + 1]) * f - 0.2), 0.16, rib);
     }
-    // end walls: the full cross-section (field wall -> lower deck -> concourse -> upper deck -> parapet -> facade) down to the ground
-    const prof = [[0, L.y0 + 0.15], [L.z0, L.y0 + 0.15]]; for (let r = 0; r < L.rows; r++) { const z = L.z0 + r * L.tread, y = L.y0 + (r + 1) * L.rise; prof.push([z, y], [z + L.tread, y]); }
-    prof.push([zL, yC + 1.0], [zU0 - 0.55, yU0 + 0.95]); for (let r = 0; r < R.upRows; r++) { const z = zU0 + r * up.tread, y = yU0 + (r + 1) * up.rise; prof.push([z, y], [z + up.tread, y]); } prof.push([zUB, yPar], [zBk, yFac]);
-    for (const k of [0, 1]) { const s = k === 0 ? st[0] : st[NS - 1]; const gy = Math.min(R.g[k === 0 ? 0 : NS - 1][0], R.g[k === 0 ? 0 : NS - 1][1]) - 0.4; const want = endWant(R, k); endWall(B, R, s, prof, gy, facadeD, want);
-      // the roof's end fascia
-      Mx.face(B, SP(R, s, zRf, yRf - 1.25), SP(R, s, zBk + 1.8, yRb - 0.7), SP(R, s, zBk + 1.8, yRb), SP(R, s, zRf, yRf), C(0x9aa0a4), want);
-      // a stair tower at the end (concrete, the full height) beside the facade
-      const sx = s.x + s.nx * (zBk - 4) * s.m + want[0] * 3.2, sz = s.z + s.nz * (zBk - 4) * s.m + want[2] * 3.2; B.box(Env.frame(sx, R.y + gy, sz, want[0], want[2], s.nx, s.nz), 6.0, yFac - gy + 0.6, 7.5, 0, 0, 0, facadeD, { top: concL }); }
-    // the stadium's name on the outer facade (the long straight run of each half: towards the pit straight / the back straight)
+    // end walls: the cross-section down to the ground; the canopy's end fascia; an exposed stair ramp beside each end (photos)
+    const prof = [[0, FS.wallH], [L.z0, FS.wallH]]; for (let r = 0; r < L.rows; r++) { const z = L.z0 + r * L.tread, y = L.y0 + (r + 1) * L.rise; prof.push([z, y], [z + L.tread, y]); }
+    prof.push([zU0, yL], [zU0, yU0]); for (let r = 0; r < R.upRows; r++) { const z = zU0 + r * up.tread, y = yU0 + (r + 1) * up.rise; prof.push([z, y], [z + up.tread, y]); } prof.push([zUB, yPar], [zBk, yFac]);
+    for (const k of [0, 1]) { const ii = k === 0 ? 0 : NS - 1; const s = st[ii]; const gy = Math.min(R.g[ii][0], R.g[ii][1]) - 0.4; const want = endWant(R, k); endWall(B, R, s, prof, gy, facadeD, want);
+      Mx.face(B, CP(ii, zF, yFr[ii] - 2.3), CP(ii, zRb, yBk[ii] - 0.1), CP(ii, zRb, yBk[ii] + 0.45), CP(ii, zF, yFr[ii] + 0.55), rustT, want);
+      // the stair ramp: a sloped slab + side wall rising from the ground at the front to the cross-aisle, just outside the end wall
+      const o = (z, y, d) => { const p = SP(R, s, z, y); return [p[0] + want[0] * d, p[1], p[2] + want[2] * d]; };
+      if ([[2, 0.6], [zL, 0.6], [2, 3.0], [zL, 3.0]].some(([z, d]) => { const p = o(z, 0, d); return E.fsAt(p[0], p[2]) < 2.5; })) continue;
+      Mx.face(B, o(1.5, gy + 0.4, 0.2), o(1.5, gy + 0.4, 2.8), o(zL, yL, 2.8), o(zL, yL, 0.2), concL, [0, 1, 0]); Mx.face(B, o(1.5, gy, 2.8), o(zL, gy, 2.8), o(zL, yL + 1.1, 2.8), o(1.5, gy + 1.5, 2.8), concD, want);
+      Fd.beam(Mx.I4(), o(1.5, gy + 1.5, 2.75), o(zL, yL + 1.1, 2.75), 0.06, C(0x9aa0a6)); }
+    // the stadium's name on the outer facade (the long straight run: towards the pit straight / the back straight)
     { let bi = -1, bl = 0; for (let i = 0; i + 4 < NS; i++) { const a = st[i], b = st[i + 4]; const l = Math.hypot(b.x - a.x, b.z - a.z); const straight = Math.abs(a.nx * b.nx + a.nz * b.nz) > 0.995; if (straight && l > bl) { bl = l; bi = i; } }
-      if (bi >= 0) { const a = st[bi], b = st[bi + 4]; const N = [(a.nx + b.nx) / 2, 0, (a.nz + b.nz) / 2]; const nr = A.region('mxGNPname', 1024, 80, (x2, w, h) => { x2.clearRect(0, 0, w, h); x2.fillStyle = '#c4bfb2'; x2.fillRect(0, 0, w, h); Mz.paintText(x2, w, h, 'ESTADIO GNP SEGUROS', { bg: 'rgba(0,0,0,0)', fg: '#1d3d6e', size: 0.66, font: '800 ' }); });
-        const zz = zBk + 0.08; const pa = SP(R, a, zz, yFac - 3.6), pb = SP(R, b, zz, yFac - 3.6), pc = SP(R, b, zz, yFac - 0.6), pd = SP(R, a, zz, yFac - 0.6); Mx.faceA(A, nr, pa, pb, pc, pd, N); } }
-    R.prof = { yFac, zBk, yRf, zRf, yU0, zU0, yUT };
+      if (bi >= 0) { const a = st[bi], b = st[bi + 4]; const N = [(a.nx + b.nx) / 2, 0, (a.nz + b.nz) / 2]; const nr = A.region('mxGNPname', 1024, 80, (x2, w, h) => { x2.fillStyle = '#c4bfb2'; x2.fillRect(0, 0, w, h); Mz.paintText(x2, w, h, 'ESTADIO GNP SEGUROS', { bg: 'rgba(0,0,0,0)', fg: '#1d3d6e', size: 0.66, font: '800 ' }); });
+        const zz = zBk + 0.08; const lr = St.lr(N, SP(R, a, zz, yFac - 4.0), SP(R, b, zz, yFac - 4.0)); Mx.faceA(A, nr, lr[0], lr[1], [lr[1][0], R.y + yFac - 1.0, lr[1][2]], [lr[0][0], R.y + yFac - 1.0, lr[0][2]], N); } }
+    R.prof = { yFac, zBk, zF, yFr, zRb };
     E.stats.mexico.foroSol = (E.stats.mexico.foroSol || 0) + 1;
+  };
+  // two points of a sign on a face that faces `want` -> [left, right] as seen by someone in front of it (atlas text reads left to right)
+  St.lr = function (want, p, q) { const rx = want[2], rz = -want[0]; return ((q[0] - p[0]) * rx + (q[2] - p[2]) * rz) >= 0 ? [p, q] : [q, p]; };
+  // a sign strip along a ribbon gap (z = const, y0 .. y1), centred, at most `wmax` m long, reading left to right from the front
+  St.stripQ = function (A, R, i, z, y0, y1, reg, want, wmax) {
+    const a = R.st[i], b = R.st[i + 1]; const pa = SP(R, a, z, 0), pb = SP(R, b, z, 0); const len = Math.hypot(pb[0] - pa[0], pb[2] - pa[2]); const w = Math.min(len - 0.3, wmax || 8); if (w < 1.5) return;
+    const f0 = 0.5 - w / len / 2, f1 = 0.5 + w / len / 2; const P0 = [pa[0] + (pb[0] - pa[0]) * f0, 0, pa[2] + (pb[2] - pa[2]) * f0], P1 = [pa[0] + (pb[0] - pa[0]) * f1, 0, pa[2] + (pb[2] - pa[2]) * f1];
+    const [l, r] = St.lr(want, P0, P1); Mx.faceA(A, reg, [l[0], R.y + y0, l[2]], [r[0], R.y + y0, r[2]], [r[0], R.y + y1, r[2]], [l[0], R.y + y1, l[2]], want);
+  };
+  // LED strips (dark navy, white partner logos): the F1 partners seen on the stadium (MSC, Salesforce, Heineken, LVMH) + Lumi / Intake
+  St.ledRegions = function (A) {
+    const ids = ['msccruises', 'salesforce', 'heineken', 'msccruises', 'lvmh', 'L', 'salesforce', 'I'];
+    return ids.map((id, k) => A.region('mxLED' + k, 448, 48, (x2, w, h) => {
+      const asp = 7.0; x2.save(); x2.scale(w / (h * asp), 1);
+      if ((id === 'L' || id === 'I') && EI.Ads && EI.Ads.paintBrandTile) EI.Ads.paintBrandTile(x2, id === 'L' ? 1 : 7, 0, 0, h * asp, h, asp);
+      else if (EI.Ads && EI.Ads.partnerBoard) EI.Ads.partnerBoard(x2, id, h * asp, h, { dark: true });
+      else Mz.paintText(x2, h * asp, h, id.toUpperCase(), { bg: '#1e2a44', fg: '#e8e8e8', size: 0.6, font: '700 ' });
+      x2.restore(); if (id !== 'L' && id !== 'I') { x2.save(); x2.globalCompositeOperation = 'lighten'; x2.fillStyle = '#1e2a44'; x2.fillRect(0, 0, w, h); x2.restore(); }
+    }));
   };
   // the outer facade bay (atlas): pale concrete, two rows of arched openings onto the concourses, a pilaster at the bay edge
   St.facadeR = function (A, i) {
@@ -373,11 +401,11 @@
     });
   };
   // an aisle at station i: a light strip over every tread of the ribbon's decks, a centre handrail (clutter)
-  St.aisle = function (BK, R, i, w) {
+  St.aisle = function (BK, R, i, w, noseOf) {
     const { B, F: Fd } = BK; const s = R.st[i]; const prev = R.st[i - 1], next = R.st[i + 1]; let ax = next.x - prev.x, az = next.z - prev.z; const l = Math.hypot(ax, az) || 1; ax /= l; az /= l;
     const P = (z, y, u) => { const p = SP(R, s, z, y); return [p[0] + ax * u, p[1], p[2] + az * u]; };
     const col = C(0xc6c2b8), nose = C(0xd8b23a); const rows = St.rowsOf(R);
-    for (const row of rows) { const z0 = row.z, z1 = row.z + row.tr; Mx.face(B, P(z0, row.y + 0.012, -w / 2), P(z0, row.y + 0.012, w / 2), P(z1, row.y + 0.012, w / 2), P(z1, row.y + 0.012, -w / 2), col, [0, 1, 0]); Mx.face(Fd, P(z0, row.y + 0.02, -w / 2), P(z0, row.y + 0.02, w / 2), P(z0 + 0.07, row.y + 0.02, w / 2), P(z0 + 0.07, row.y + 0.02, -w / 2), nose, [0, 1, 0]); }
+    for (const row of rows) { const z0 = row.z, z1 = row.z + row.tr; Mx.face(B, P(z0, row.y + 0.012, -w / 2), P(z0, row.y + 0.012, w / 2), P(z1, row.y + 0.012, w / 2), P(z1, row.y + 0.012, -w / 2), col, [0, 1, 0]); Mx.face(Fd, P(z0, row.y + 0.02, -w / 2), P(z0, row.y + 0.02, w / 2), P(z0 + 0.09, row.y + 0.02, w / 2), P(z0 + 0.09, row.y + 0.02, -w / 2), noseOf ? noseOf(row) : nose, [0, 1, 0]); }
     if (rows.length > 1) { let k0 = 0; for (let k = 1; k <= rows.length; k++) { if (k < rows.length && Math.abs((rows[k].y - rows[k - 1].y) - (rows[1].y - rows[0].y)) < 0.2 && rows[k].z - rows[k - 1].z < 1.0) continue; const a = rows[k0], b = rows[k - 1]; if (k - 1 > k0) Fd.beam(Mx.I4(), P(a.z + 0.3, a.y + 0.95, 0), P(b.z + 0.3, b.y + 0.95, 0), 0.05, C(0x9aa0a6)); k0 = k; } }
   };
 
@@ -439,7 +467,7 @@
   // ---------------------------------------------------------------- light towers (Foro Sol: behind the facades; the Harp Helu outfield)
   St.buildTowers = function (E, BK, res) {
     const { B, S, F: Fd } = BK; const sc = E.sc; const T = E.mxTowers = E.mxTowers || []; const c = E.mxBowlC;
-    for (const R of E.mxBowls || []) { const n = R.st.length; const ks = n >= 10 ? [1, Math.floor(n / 2), n - 2] : [Math.floor(n / 2)]; for (const k of ks) { const s = R.st[k]; const d = (R.prof ? R.prof.zBk : R.depth) + 7; const x = s.x + s.nx * d * s.m, z = s.z + s.nz * d * s.m; if (E.fsAt(x, z) < 6 || Mx.nearPit(E, x, z) < 9) continue; T.push({ x, z, h: 46, fx: c[0] - x, fz: c[1] - z, kind: 'foro' }); } }
+    for (const R of E.mxBowls || []) { const n = R.st.length; const ks = n >= 12 ? [1, n - 2] : []; for (const k of ks) { const s = R.st[k]; const d = (R.prof ? R.prof.zBk : R.depth) + 7; const x = s.x + s.nx * d * s.m, z = s.z + s.nz * d * s.m; if (E.fsAt(x, z) < 6 || Mx.nearPit(E, x, z) < 9) continue; T.push({ x, z, h: 42, fx: c[0] - x, fz: c[1] - z, kind: 'foro' }); } }
     const steel = C(0x7b8189), lamp = C(0xe9e6d8), head = C(0x3a3d42); let n = 0;
     for (const tw of T) {
       const g = Math.min(sc.height(tw.x, tw.z), sc.height(tw.x + 1.5, tw.z + 1.5), sc.height(tw.x - 1.5, tw.z - 1.5)) - 0.3; const l = Math.hypot(tw.fx, tw.fz) || 1; const fx = tw.fx / l, fz = tw.fz / l;
@@ -459,5 +487,6 @@
     res.towers = n;
   };
 
+  Mx.lr = St.lr;
   Mx.Stands = St;
 })();

@@ -22,24 +22,22 @@ window.EI = window.EI || {};
   const outS = (t) => (TU[t] && TU[t].dir === 'L' ? -1 : 1);   // the side of the outside of turn t (clockwise lap: a right-hander has its outside on the left = +1)
   const ST0 = 3534, ST1 = 3903;                                   // the stadium section (Foro Sol outline +30 m)
 
-  // ---- kerbs: red / white painted blocks, low and flat (track.js kerbStyle 'cota' = the flat painted-block tile; GEN's 'mexico' alias fell back to the tall Silverstone
-  // profile). Yellow / black sausage kerbs on the inside of the slow corners where cars cut: T2 / T3 (the Solana flick), T6 (Recorte Rebaque hairpin),
-  // T12 (stadium entry) and T16 (the loop, exit onto the Peraltada). [K]
-  T.kerbStyle = 'cota';
-  T.sausageCorners = [2, 3, 6, 12, 16];
+  // ---- kerbs: red / white raised ridged blocks with a thin blue band on the track-side edge (F1 photos mex_kerb_redwhiteblue_redbull, mex_grandstand_crowd_kerb_mclaren, mex_kerb_blue_runoff_car):
+  // track.js kerbStyle 'mexico' (GEN's value; the default raised red / white tile + the blue edge band). Sausage kerbs: the photos show orange flexi-bollards on the stadium apexes and no sausage
+  // humps, so only the slow hairpin / stadium apexes keep a (yellow / black) one: T3, T6, T12, T16. [K]
+  T.kerbStyle = 'mexico';
+  T.sausageCorners = [3, 6, 12, 16];
 
-  // ---- painted run-off. Mexico City's aprons are plain asphalt [K]: the dark green strip behind the kerbs and a subdued band at the biggest stops
-  // (T1 after the 1.2 km straight, T4, T6, T12); colours dark and desaturated (the grade adds saturation), nothing neon.
-  // [turn number, pattern (0 band, 1 diagonal stripes, 2 transverse bands, 3 one band at the apron), colour A, colour B]
-  T.runoffGreen = '#173121';
+  // ---- painted run-off, from the photos (mex_kerb_blue_runoff_car, mex_stadium_green_heineken_kerb, mex_stadium_bowl_mc_wall): the aprons are painted royal BLUE at the opening corners and GREEN
+  // (with big white 'Heineken' lettering) in the stadium; plain asphalt elsewhere. Which corner carries which colour is [K] (the photos carry no turn number): blue T1 / T3 / T4 / T6, green T12-T17.
+  // Colours pre-darkened (the grade adds saturation, nothing neon). [turn number, pattern (0 = inner band + outer field, 3 = one band), colour A, colour B]
+  T.runoffGreen = '#1f5a37';   // the green strip behind every kerb (the photos: a mid green beyond the kerb)
   T.runoffTint = [0.78, 0.77, 0.75];
   T.runoffSchemes = [
-    [1, 1, '#3d211f', '#6a6864'],
-    [4, 3, '#162b49', '#162b49'],
-    [6, 3, '#43201d', '#43201d'],
-    [12, 3, '#162b49', '#162b49'],
+    [1, 0, '#1a3a82', '#1e438e'], [3, 0, '#1a3a82', '#1e438e'], [4, 0, '#1a3a82', '#1e438e'], [6, 0, '#1a3a82', '#1e438e'],
+    [12, 0, '#1e5e38', '#236840'], [13, 0, '#1e5e38', '#236840'], [14, 0, '#1e5e38', '#236840'], [15, 0, '#1e5e38', '#236840'], [16, 0, '#1e5e38', '#236840'], [17, 0, '#1e5e38', '#236840'],
   ];
-  T.pitColor = 0xffffff;   // pit lane asphalt: the plain map under the default tint reads near white in the altitude sun
+  T.pitColor = 0x6c6b69;   // pit lane asphalt: the plain map under the default tint reads near white in the altitude sun
 
   // ---- marshal posts: the outsides of the corners (the stadium S-pair gets one), then a post every ~220-300 m along the straights, sides alternating
   const posts = [];
@@ -82,20 +80,20 @@ window.EI = window.EI || {};
   // ---- braking boards: white 300 / 200 / 150 / 100 / 50 at T1 (the big stop at the end of the 1.2 km straight), 200..50 at T4 / T6 / T12; they stand on the outside of the approach
   T.brakeStops = [1, 4, 6, 12];
   T.brakeBoards = { 1: [300, 200, 150, 100, 50], 4: [200, 150, 100, 50], 6: [200, 150, 100, 50], 12: [200, 150, 100, 50], default: [200, 100, 50] };
-  // painted partner logos on the run-off tarmac (turn number, run-off row 0-3, length m): the T1 apron, T4, the T12 exit and the T6 hairpin
-  T.logoSpots = [[1, 0, 36], [4, 1, 30], [12, 2, 30], [6, 3, 28]];
+  // painted partner logos on the run-off (turn number, run-off row 0-3 = VENUES.mexico.runoff, length m): Heineken on the green stadium aprons (T12, T14, T16: the photos' white lettering), Pirelli T1, Lumi T4, Intake T6
+  T.logoSpots = [[1, 2, 36], [4, 1, 30], [6, 3, 28], [12, 0, 38], [14, 0, 34], [16, 0, 38]];
 
   // ---- barriers: red / white cushion blocks (TecPro) on the outsides of the medium corners and the stadium (T16: the wall so close), tyre walls at the heavy stops and
   // the tight outsides (grey Armco + sponsor panels elsewhere). tyreCorners lists every corner that gets a protected outside (TecPro takes precedence).
   T.tecProCorners = [2, 3, 6, 12, 13, 16, 17];
   T.tyreCorners = [1, 2, 3, 4, 5, 6, 7, 9, 11, 12, 13, 14, 15, 16, 17];
 
-  // ---- the catch fence: dark charcoal welded mesh on dark posts, 3.6 m (kept on Low: it is in every photo); taller in front of the stands, low along the pit wall
+  // ---- the catch fence: dark charcoal welded mesh on dark posts, 4 m (kept on Low: it is in every photo, mex_start_pack_smoke_trees_barrier / mex_barrier_wall_mercedes_pair); taller in front of the stands, low along the pit wall
   T.fence = Object.assign({}, T.fence || {}, {
-    h: 3.6, op: 0.64, mesh: 'rgba(30,32,36,1)', postColor: 0x2a2d31, posts: 8, low: true, ground: true,
+    h: 4.0, op: 0.7, mesh: 'rgba(24,26,30,1)', postColor: 0x2a2d31, posts: 8, low: true, ground: true,
     runs: [
-      [mod(tin(17) + 150), mod(tin(1) - 170), 1, 4.2],   // Main Grandstand front
-      [ST0, ST1, 0, 4.4],                                // the stadium: both sides, in front of the decks
+      [mod(tin(17) + 150), mod(tin(1) - 170), 1, 4.8],   // Main Grandstand front (the photos: a tall dark catch fence over a pale concrete wall)
+      [ST0, ST1, 0, 5.0],                                // the stadium: both sides, in front of the decks
       [3961, 417, -1, 2.4],                              // pit wall (pit side = -1): low debris fence along the pit lane, entry (inside T17) to exit
     ],
   });

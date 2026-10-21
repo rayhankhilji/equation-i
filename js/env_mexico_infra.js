@@ -68,7 +68,7 @@
     const I = E.mxInfra; const o = I && I.podium; if (!o) return 0; const { B, S, G, F: Fd, H, A } = BK;
     const m = frameOf(o); const P = (x, y, z) => Env.xf(m, x, y, z); const lift = o.gmax - o.y; const fwd = Mx.dir(P(0, 0, 0), P(0, 0, -1));
     // the frame may be mirrored by Env.frame (x flips): 'right as seen by the crowd' = the sign that makes x run left->right facing the stage
-    const xs = (() => { const a = P(0, 0, 0), b = P(1, 0, 0); const rx = fwd[2], rz = -fwd[0]; return ((b[0] - a[0]) * -rx + (b[2] - a[2]) * -rz) >= 0 ? 1 : -1; })();
+    const xs = (() => { const a = P(0, 0, 0), b = P(1, 0, 0); const rx = fwd[2], rz = -fwd[0]; return ((b[0] - a[0]) * rx + (b[2] - a[2]) * rz) >= 0 ? 1 : -1; })();
     const zF = -o.hd + 1.0, yD = 1.2 + lift;   // stage front, deck level
     const black = C(0x1b1c1f), deckC = C(0x2b2e33), steel = C(0x8d939a), truss = C(0xb3b8bc), marigold = C(0xe8820c), marigoldD = C(0xc96f0a), magenta = C(0xc2326e);
     // deck + skirt, front steps, the marigold garland along the front edge
@@ -119,7 +119,8 @@
         const L = Math.hypot(b[0] - a[0], b[2] - a[2]); const n = Math.max(4, Math.round(L / 0.55));
         for (let k = 0; k < n; k++) { const u = (k + 0.5) / n; const sag = Math.sin(u * Math.PI) * 1.4; const x = a[0] + (b[0] - a[0]) * u, y = a[1] + (b[1] - a[1]) * u - sag, z = a[2] + (b[2] - a[2]) * u; const tx = (b[0] - a[0]) / L * 0.18, tz = (b[2] - a[2]) / L * 0.18;
           const q0 = [x - tx, y, z - tz], q1 = [x + tx, y, z + tz], q2 = [x + tx, y - 0.42, z + tz], q3 = [x - tx, y - 0.42, z - tz]; A.quad(R[k % 8], q3, q2, q1, q0); A.quad(R[k % 8], q2, q3, q0, q1); }
-        Fd.beam(I4(), a, b, 0.03, C(0x6b6f74)); } }
+        // the string follows the same sag
+        for (let k = 0; k < 8; k++) { const u0 = k / 8, u1 = (k + 1) / 8; const pt = (u) => [a[0] + (b[0] - a[0]) * u, a[1] + (b[1] - a[1]) * u - Math.sin(u * Math.PI) * 1.4 + 0.01, a[2] + (b[2] - a[2]) * u]; Fd.beam(I4(), pt(u0), pt(u1), 0.03, C(0x6b6f74)); } } }
     E.stats.mexico.podium = { x: Math.round(o.cx), z: Math.round(o.cz), s: Math.round(o.s), y: +o.y.toFixed(2) };
     return 1;
   }

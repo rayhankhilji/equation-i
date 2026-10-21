@@ -221,6 +221,10 @@
     vodafone: { n: 'vodafone', board: { bg: '#e60000', tone: 'white' }, word: W_(SANS, 700, { col: '#ffffff', ls: -0.01 }) },
     rolex: { n: 'ROLEX', board: { bg: '#006039', tone: 'white' }, word: W_('Georgia, "Times New Roman", serif', 700, { up: 1, col: '#ffffff', ls: 0.08 }) },
   });
+  // Mexico City (MEX-DRESS): the event's own hashtag board, the crimson '#MexicoGP' band that runs along the stadium walls and the stand fronts (F1 photo set, PHOTOS-A: mex_stadium_bowl_*, mex_podium_*)
+  Object.assign(PARTNERS, {
+    mexicogp: { n: '#MexicoGP', board: { bg: '#7a1a30', tone: 'white' }, word: W_(SANS, 900, { col: '#ffffff', ls: -0.02 }) },
+  });
   // id lookup by any spelling of the name ('Google (Gemini)', 'Mobil 1', 'TAG Heuer', 'MSC Cruises' ...)
   const ALIAS = { gemini: 'googlegemini', google: 'googlegemini', msc: 'msccruises', etihad: 'etihadairways', qatar: 'qatarairways', amex: 'americanexpress', moet: 'moetchandon', mobil: 'mobil1',
     toyotagazooracing: 'tgr', tgrhaas: 'tgr', haas: 'haasautomation', moser: 'hmosercie', hmoser: 'hmosercie', ceva: 'cevalogistics', pmi: 'philipmorrisinternational', lv: 'louisvuitton',
@@ -480,12 +484,13 @@
     tiles: ['msccruises', 'aramco', 'L0', 'cryptocom', 'heineken', 'pirelli', 'I4', 'aws'],
     barrier: ['aramco', 'L', 'dhl', 'cryptocom', 'aws'], billboard: ['msccruises', 'L2', 'heineken', 'I3'],
     runoff: ['pirelli', 'L', 'aramco', 'I'], bridge: { lumi: 'L', intake: 'I', lumi2: 'tagheuer', intake2: 'msccruises' } };
-  // Autodromo Hermanos Rodriguez (MEX-DRESS): "Formula 1 Gran Premio de la Ciudad de Mexico" (the brief's title partner MSC Cruises; the 2025 programme names Heineken as the
-  // presenting partner, hence two Heineken slots); the F1 global partners only (no Mexico-market brand has a source at this GP); Lumi / Intake 2 of the 8 hoarding tiles
+  // Autodromo Hermanos Rodriguez (MEX-DRESS): "Formula 1 Gran Premio de la Ciudad de Mexico" (the brief's title partner MSC Cruises; the 2025 programme names Heineken as the presenting partner).
+  // Boards seen in the F1 photo set: MSC Cruises + LVMH on the stadium decks, Heineken (green) and the crimson #MexicoGP band on the walls, Lenovo along the grandstand fronts; no other Mexico-market
+  // brand has a source at this GP. Lumi / Intake 2 of the 8 hoarding tiles and 2 of the 5 wall panels
   VENUES.mexico = { title: 'msccruises', event: 'Gran Premio de la Ciudad de México', dark: false,
-    tiles: ['msccruises', 'heineken', 'L0', 'aramco', 'dhl', 'pirelli', 'I4', 'aws'],
-    barrier: ['aramco', 'L', 'heineken', 'dhl', 'I'], billboard: ['msccruises', 'L2', 'heineken', 'I3'],
-    runoff: ['pirelli', 'L', 'aramco', 'I'], bridge: { lumi: 'L', intake: 'I', lumi2: 'tagheuer', intake2: 'msccruises' } };
+    tiles: ['msccruises', 'mexicogp', 'L0', 'heineken', 'lenovo', 'mexicogp', 'I4', 'lvmh'],
+    barrier: ['mexicogp', 'L', 'lenovo', 'heineken', 'I'], billboard: ['msccruises', 'L2', 'heineken', 'I3'],
+    runoff: ['heineken', 'L', 'pirelli', 'I'], bridge: { lumi: 'L', intake: 'I', lumi2: 'tagheuer', intake2: 'msccruises' } };
   const venue = Ads.venue = () => VENUES[EI.trackId] || VENUES.silverstone;
   // the track's width (m): the start gantry banner ((width + 2.6) x 0.9 m) and the bridge fascias ((width + 6.8) x 2.1 m) span it
   const trackW = () => (EI.TRACKS && EI.TRACKS[EI.trackId] && EI.TRACKS[EI.trackId].width) || 15;
