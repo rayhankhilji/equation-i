@@ -610,7 +610,10 @@ window.EI = window.EI || {};
         // vA: the car ahead's speed a moment from now if it keeps braking as hard as it is now; the kinematic cap is the most
         // this car can carry and still match vA before the gap closes to 3.5 m (braking at 25 m/s2, well inside the brakes)
         const start = car.lapsDone < 1;
-        const vA = Math.max(0, ahead.v + ahead.aLong * (ahead.aLong < 0 ? (start ? 0.1 : 0.3) : 0.5));   // + its acceleration: off the line the car ahead is gone 0.5 s later, so do not queue behind it
+        // + its acceleration: off the line the car ahead is gone 0.5 s later, so do not queue behind it; but a car ahead braking hard for a
+        // corner (beyond -15 m/s2, not just lifting off the line) is read 0.3 s ahead on lap 1 too: the short lap-1 read rear-ended the
+        // first-corner queues (SPA-GEN, 5 tracks x 2 levels x 2 seeds: race contacts -6 %, lap-1 -10 %, bot wall hits 0 -> 0)
+        const vA = Math.max(0, ahead.v + ahead.aLong * (ahead.aLong < 0 ? (start && ahead.aLong > -15 ? 0.1 : 0.3) : 0.5));
         // attacking in the tow on a straight: only the closing speed it can still kill (10 m/s2 more than the car ahead) limits
         // it, so the tow builds the run that the late pull-out turns into a pass; otherwise follow at the gap
         if (attack && overlap) target = Math.min(target, ahead.v + Math.sqrt(2 * 10 * Math.max(0, aheadGap - 4.5 - av * 0.03)));

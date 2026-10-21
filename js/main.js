@@ -69,11 +69,14 @@ window.EI = window.EI || {};
       // high up so the cars keep their contact shadows
       abudhabi: { night: true, elev: 70, azim: 200, west: [-0.7, 0, 0.7], horizon: 0x1c150e, fog: [800, 3400], fogLow: [480, 1900], hemi: [0x2c3a5a, 0x221a12, 0.42], sun: [0xc8d2ff, 0.2], nightTrack: { core: 0.6, halo: 0.2 }, nightAir: [1.0, 0.84, 0.62, 0.05],
         grade: { sat: 1.22, con: 1.12, warm: [1.02, 1.0, 0.985] } },
-      // Spa-Francorchamps: race afternoon in the Ardennes in July (19 Jul 2026, 15:00 CEST: sun ~55 deg up in the south-south-west,
-      // brought down a little for readable shadows), a cool hazy sky with high cloud (race day was overcast, 17-20 C), deep spruce
-      // greens bouncing up as a dark olive ground light, a slightly cooler and less saturated grade than Monza (SPA-GEN; SPA-BEAUTY owns the look)
-      spa: { elev: 48, azim: 325, turb: 4.4, ray: 2.2, mie: 0.006, mieG: 0.82, horizon: 0xc2cacd, sky: [0.5, 1.0], fog: [450, 2100], fogLow: [300, 1300],
-        hemi: [0xb2c2d2, 0x3c5230, 0.5], sun: [0xfff2e0, 2.25], envSat: 0.5, exp: 1.0, grade: { sat: 1.36, con: 1.14, warm: [1.0, 1.0, 0.99] } } };
+      // Spa-Francorchamps (SPA-BEAUTY): race afternoon in the Ardennes, 19 Jul 2026 15:00 CEST - the sun ~57 deg up in the south-west
+      // (52 here), veiled by a milky overcast: soft sun, a strong cool-grey sky fill (no shadow map on Low, so the fill carries the shape),
+      // white-grey sky with pale blue gaps (veil) under heavy cumulus decks, a hazy rim and two layers of blue-grey wooded ridges
+      // (hills); the fog starts close so the spruce walls take an aerial blue-grey haze with distance and the far stands sit in it;
+      // a cool, moderate grade (deep blue-green forest, mid-grey asphalt). All constants / sky-pixel maths: no calls, tris or programs.
+      spa: { elev: 52, azim: 325, turb: 6, ray: 1.6, mie: 0.010, mieG: 0.78, horizon: 0xb2bcc2, sky: [0.48, 0.5], fog: [60, 1850], fogLow: [35, 1200],
+        hemi: [0xc4ccd4, 0x34402c, 1.05], sun: [0xfff0dc, 1.5], envSat: 0.35, exp: 0.92, grade: { sat: 1.18, con: 1.1, warm: [0.98, 1.0, 1.02] },
+        veil: [0.55, 0xd1d5da], haze: [0.65, 0.14], hills: [[0.052, 0.55, 1.3], [0.031, 1.1, 4.1]], clouds: [1.0, 0.7, 0xe2e6ea] } };
     const LK = Object.assign({ elev: 38, azim: 212, turb: 2.5, ray: 2.0, mie: 0.004, horizon: 0xa9c4e4, sky: [0.42, 1.0], fog: [600, 2600], fogLow: [350, 1500], hemi: [0x9fc4ee, 0x3f5a2e, 0.35], sun: [0xfff1dd, 2.4] }, LOOKS[trackId] || {}); EI.look = LK;
     // look tuning (art direction): ?look={json} merges over the circuit's LOOKS entry, e.g. ?look={"elev":34,"grade":{"sat":1.4,"con":1.1}}
     { const m = /[?&]look=([^&]+)/.exec(location.search); if (m) { try { Object.assign(LK, JSON.parse(decodeURIComponent(m[1]))); } catch (e) { console.warn('bad ?look', e); } } }
