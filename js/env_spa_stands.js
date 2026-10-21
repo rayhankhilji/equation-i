@@ -79,10 +79,8 @@
       if ([W(-hl, 0), W(hl, 0)].some(P => E.fsAt(P[0], P[1]) < 1) || [W(-hl, depth), W(hl, depth), W(0, depth)].some(P => E.dcAt(P[0], P[1]) < t.halfWidth + t.kerbWidth + 4)) { why('clear'); s = sb; k++; continue; }
       if (E.rectFree(cx + nx * depth / 2, cz + nz * depth / 2, ax, az, hl, depth / 2, OCC.BUILT | OCC.WATER) < 0.85) { why('occ' + E.rectFree(cx + nx * depth / 2, cz + nz * depth / 2, ax, az, hl, depth / 2, OCC.BUILT).toFixed(1)); s = sb; k++; continue; }
       // the floor level: the front no more than 0.5 m into the ground at its high end, every row >= 0.3 m clear of a rising hillside
-      let gF = -Infinity, need = -Infinity, gMin = Infinity;
-      for (const x of [-hl, 0, hl]) for (const z of [0, zBack * 0.33, zBack * 0.66, zBack]) { const p = W(x, z); const g = sc.height(p[0], p[1]); gMin = Math.min(gMin, g); if (z === 0) gF = Math.max(gF, g); need = Math.max(need, g + 0.3 - (Y0 + z / TREAD * RISE)); }
-      const y = Math.max(gF - 0.5, need);
-      const blk = { cx, cz, ax, az, nx, nz, len: hl * 2, rows, roof: !PERM[R.style] && !!R.roof, seat: R.seat, y, s: (s + sb) / 2, first: false, last: false, name: R.label || R.name, sp: { R, run, k, gMin } };
+      const blk = { cx, cz, ax, az, nx, nz, len: hl * 2, rows, roof: !PERM[R.style] && !!R.roof, seat: R.seat, y: 0, s: (s + sb) / 2, first: false, last: false, name: R.label || R.name, sp: { R, run, k } };
+      St.fitY(E, blk);
       if (R.fill != null) blk.fill = R.fill;
       if (!PERM[R.style]) { blk.first = !run.blocks.length; blk.last = sb >= R.s1 - 0.01; }
       E.blocks.push(blk); run.blocks.push(blk);
@@ -91,6 +89,21 @@
     }
     if (run.blocks.length) { if (!PERM[R.style]) run.blocks[run.blocks.length - 1].last = true; E.spRuns.push(run); }
     return run;
+  };
+  // the floor level of a chord: the front no more than 0.5 m into the ground at its high end, every row >= 0.3 m clear of a rising hillside.
+  // Called at layout and again just before the venue builds (St.refit): the drawn ground (sc.height) is final only after the terrain / verge.
+  St.fitY = function (E, b) {
+    const sc = E.sc, hl = b.len / 2, zBack = Z0 + b.rows * TREAD; let gF = -Infinity, need = -Infinity;
+    for (const x of [-hl, 0, hl]) for (const z of [0, zBack * 0.33, zBack * 0.66, zBack]) { const g = sc.height(b.cx + b.ax * x + b.nx * z, b.cz + b.az * x + b.nz * z); if (z === 0) gF = Math.max(gF, g); need = Math.max(need, g + 0.3 - (Y0 + z / TREAD * RISE)); }
+    b.y = Math.max(gF - 0.5, need);
+  };
+  St.refit = function (E) {
+    const sc = E.sc;
+    for (const run of E.spRuns || []) for (const b of run.blocks) St.fitY(E, b);
+    const off = E.spBankOff || []; (E.spBankRecs || []).forEach((r, k) => { r[0][1] = sc.height(r[0][0], r[0][2]) - (off[k] || 0); });
+    for (const f of E.spBankFlags || []) f[1] = sc.height(f[0], f[2]);
+    const c = E.spChalet; if (c && c.poly) { let g = Infinity; for (const p of c.poly) g = Math.min(g, sc.height(p[0], p[1])); c.y = g; }
+    for (const T of E.spTents || []) { let gmin = Infinity, gmax = -Infinity; for (const [u, v] of [[-1, -1], [1, -1], [1, 1], [-1, 1], [0, 0]]) { const g = sc.height(T.cx + T.ax * u * T.L / 2 - T.az * v * T.D / 2, T.cz + T.az * u * T.L / 2 + T.ax * v * T.D / 2); gmin = Math.min(gmin, g); gmax = Math.max(gmax, g); } T.y = gmin; T.gmax = gmax; }
   };
   // the chalet (OSM 'Ancienne douane', the old customs house at the Raidillon) and the white marquee on the Raidillon infield
   St.layoutExtras = function (E) {
@@ -101,12 +114,12 @@
       let bl = 0, ax = 1, az = 0; for (let i = 0; i < b.p.length; i++) { const p = b.p[i], q = b.p[(i + 1) % b.p.length]; const l = Math.hypot(q[0] - p[0], q[1] - p[1]); if (l > bl) { bl = l; ax = (q[0] - p[0]) / l; az = (q[1] - p[1]) / l; } }
       let hl = 0, hd = 0; for (const p of b.p) { hl = Math.max(hl, Math.abs((p[0] - x) * ax + (p[1] - z) * az)); hd = Math.max(hd, Math.abs(-(p[0] - x) * az + (p[1] - z) * ax)); }
       let gmin = Infinity; for (const p of b.p) gmin = Math.min(gmin, sc.height(p[0], p[1]));
-      E.spChalet = { cx: x, cz: z, ax, az, hl: Math.max(5, hl), hd: Math.max(4, hd), y: gmin }; E.spOwnPolys.push(b.p); }
+      E.spChalet = { cx: x, cz: z, ax, az, hl: Math.max(5, hl), hd: Math.max(4, hd), y: gmin, poly: b.p }; E.spOwnPolys.push(b.p); }
     // marquee 12 x 25 m: the flattest free spot on the Raidillon infield beside the kerb (the inside of T3)
     const s3 = Sp.cs(t, 3), side = -Sp.outside(t, s3 + 20); let best = null;
-    for (let s = s3 + 10; s <= s3 + 140; s += 10) for (const off of [6, 12, 20, 30]) {
+    for (let s = s3 - 40; s <= s3 + 160; s += 10) for (const off of [6, 12, 20, 30, 42]) {
       const i = t.idxAtS(s); const p = Sp.at(t, s, side, E.wallCap(i, side) + off + 6); const hl = 12.5, hd = 6;
-      if (E.fsAt(p.x, p.z) < 4 || E.rectFree(p.x, p.z, p.tx, p.tz, hl + 2, hd + 2, OCC.BUILT | OCC.WATER) < 0.95) continue;
+      if (E.fsAt(p.x, p.z) < 4 || E.rectFree(p.x, p.z, p.tx, p.tz, hl + 2, hd + 2, OCC.BUILT | OCC.WATER) < 0.9) { E.stats.spaMq = (E.stats.spaMq || 0) + 1; continue; }
       let gmin = Infinity, gmax = -Infinity; for (const [u, v] of [[-1, -1], [1, -1], [1, 1], [-1, 1], [0, 0]]) { const g = sc.height(p.x + p.tx * u * hl + p.nx * v * hd, p.z + p.tz * u * hl + p.nz * v * hd); gmin = Math.min(gmin, g); gmax = Math.max(gmax, g); }
       const sc2 = gmax - gmin + off * 0.02; if (!best || sc2 < best.score) best = { score: sc2, cx: p.x, cz: p.z, ax: p.tx, az: p.tz, L: 25, D: 12, y: gmin, gmax };
     }
@@ -114,7 +127,7 @@
   };
   // spectator banks: people standing / sitting on the drawn ground behind the fence, facing the track; trees kept off (OCC.KEEP)
   St.layoutBanks = function (E) {
-    const t = E.t, OCC = Env.OCC, sc = E.sc; const rng = U.rng(4711); const recs = E.spBankRecs = []; E.spBankFlags = [];
+    const t = E.t, OCC = Env.OCC, sc = E.sc; const rng = U.rng(4711); const recs = E.spBankRecs = []; const offs = E.spBankOff = []; E.spBankFlags = [];
     const shirts = ['#d8d8d4', '#1a1a1a', '#2a2b2e', '#3b404a', '#6c717a', '#1b2a4a', '#2a4a78', '#7d8ea4', '#8a1c22', '#3c5a3a', '#b39a4a', '#f2f2f2', '#c9b28a'].map(h => { const c = C(h); return [c.r, c.g, c.b]; });
     const STAND = [10, 11, 12, 13, 14, 15], SIT = [0, 1, 2, 3, 4, 8];
     for (const Bk of BANKS) {
@@ -129,7 +142,7 @@
           const sit = rng() < 0.3; const pose = sit ? SIT[Math.floor(rng() * SIT.length)] : STAND[Math.floor(rng() * STAND.length)];
           const sh = shirts[Math.floor(rng() * shirts.length)], ac = shirts[Math.floor(rng() * shirts.length)]; const yaw = Math.atan2(-p.nx, -p.nz) + (rng() - 0.5) * 0.6;
           // seated poses are drawn for a seat 0.45 m high: on the grass they sit lower
-          recs.push([[p.x, g - (sit ? 0.42 : 0.02), p.z, yaw], [pose, 0.92 + rng() * 0.14, rng(), pose >= 11 && rng() < 0.4 ? 2 : 0], [sh[0], sh[1], sh[2], 0.999], [ac[0], ac[1], ac[2], 0]]);
+          offs.push(sit ? 0.42 : 0.02); recs.push([[p.x, g - (sit ? 0.42 : 0.02), p.z, yaw], [pose, 0.92 + rng() * 0.14, rng(), pose >= 11 && rng() < 0.4 ? 2 : 0], [sh[0], sh[1], sh[2], 0.999], [ac[0], ac[1], ac[2], 0]]);
         }
         // a flag pole every ~22 m along the bank
         if (rng() < 1.25 / 22) { const p = Sp.at(t, s, side, w + 4.5 + Bk.depth * (0.3 + rng() * 0.6)); if (E.fsAt(p.x, p.z) > 3 && !(E.occAt(p.x, p.z) & (OCC.BUILT | OCC.ROAD))) E.spBankFlags.push([p.x, sc.height(p.x, p.z), p.z, Math.atan2(p.tx, p.tz), Math.floor(rng() * 3)]); }

@@ -69,7 +69,7 @@
 
   // ---- the catch fence: dark-green welded mesh on dark-green posts, 3.6 m (kept on Low: it is in every photo); the debris fence along the pit wall is low
   T.fence = Object.assign({}, T.fence || {}, {
-    h: 3.6, op: 0.92, mesh: 'rgba(3,22,10,1)', postColor: 0x16281d, low: true,
+    h: 3.6, op: 0.92, mesh: 'rgba(3,22,10,1)', postColor: 0x16281d, posts: 6, low: true,
     runs: [
       [6577, 445, -1, 2.4],      // pit wall: low debris fence along the pit lane
     ],

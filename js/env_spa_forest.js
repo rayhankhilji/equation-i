@@ -47,7 +47,7 @@ window.EI = window.EI || {};
       const k = j * nx + i, c = cl[k]; const fs = E.fsAt(px, pz); if (fs < 3) continue;
       if (c <= 1) {
         const de = ed[k]; const near = fs < 260;
-        const p = de <= 9 ? (near ? 1 : fs < 600 ? 0.55 : 0.3) : de <= 22 ? (near ? 0.55 : 0.15) : fs < 110 ? 0.3 : fs < 320 ? 0.1 : 0.035;
+        const p = de <= 9 ? (near ? 1 : fs < 600 ? 0.55 : 0.3) : de <= 22 ? (near ? 0.55 : 0.15) : fs < 110 ? 0.3 : fs < 320 ? 0.07 : 0.02;   // (deep interior: the crown mosaic + strips carry it; PERF far-billboard budget)
         if (rng() > p) continue;
         t.project(px, pz, null, pr); const con = conAt(pr.s); const conif = c === 0 ? rng() < 0.75 + 0.25 * con : rng() < con * 0.7;   // (SPEC v2 4.11: spruce-dominated)
         if (!plant(px, pz, conif, de <= 9, fs)) continue;
@@ -70,7 +70,7 @@ window.EI = window.EI || {};
         const cx = GF.x0 + (i + 0.5) * GF.cell, cz = GF.z0 + (j + 0.5) * GF.cell; if (cx >= x0 && cx < X1 && cz >= z0 && cz < Z1) continue; if (Math.abs(cx) > H || Math.abs(cz) > H) continue;
         const c = GF.cls[j * GF.nx + i]; if (c > 1) continue;
         let edge = false; for (const [a, b] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) { const ii = i + a, jj = j + b; if (ii < 0 || jj < 0 || ii >= GF.nx || jj >= GF.nz || GF.cls[jj * GF.nx + ii] > 1) edge = true; }
-        const n = edge ? 4 : (rng() < 0.35 ? 1 : 0);
+        const n = edge ? 3 : (rng() < 0.2 ? 1 : 0);
         for (let q = 0; q < n; q++) { const px = cx + (rng() - 0.5) * GF.cell, pz = cz + (rng() - 0.5) * GF.cell; if (plant(px, pz, c === 0 ? rng() < 0.85 : rng() < 0.25, edge, 1e3)) nFar++; }
       }
     }

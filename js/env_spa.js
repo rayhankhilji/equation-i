@@ -60,6 +60,8 @@ window.EI = window.EI || {};
     };
     const oBuild = V.build;
     V.build = function (E) {
+      // the drawn ground is final now (terrain + verge built): re-fit every Spa floor / base before the venue builds the stands and crowd
+      if (isSpa(E.t)) { try { E._spPF = undefined; if (Sp.Stands && Sp.Stands.refit) Sp.Stands.refit(E); } catch (e) { console.error('EnvSpa refit', e); } }
       const r = oBuild.call(this, E);
       if (isSpa(E.t)) { try { Sp.build(E); } catch (e) { console.error('EnvSpa build', e); } finally { if (E._spGs) E.t.data.scenery.grandstands = E._spGs; } }
       return r;
@@ -159,9 +161,11 @@ window.EI = window.EI || {};
     for (let k = 0; k < 40 && E.spTents.length < 8; k++) {
       const x = F.x0 + 20 + rng() * (F.x1 - F.x0 - 40), z = F.ZB + 16 + rng() * 40, L = 22 + rng() * 10, D = 12 + (rng() < 0.5 ? 0 : 4);
       const c = F.W(x, z), c2 = F.W(x + 1, z); let ax = c2[0] - c[0], az = c2[1] - c[1]; const l = Math.hypot(ax, az) || 1; ax /= l; az /= l;
-      if (E.rectFree(c[0], c[1], ax, az, L / 2 + 3, D / 2 + 3, OCC.BUILT | OCC.WATER) < 0.95 || E.fsAt(c[0], c[1]) < 14) continue;
+      // (the venue marks the whole paddock BUILT for the generic pit complex: keep clear of water, the track and the Spa structures only)
+      const corners = [[-1, -1], [1, -1], [1, 1], [-1, 1], [0, 0]].map(([u, v]) => [c[0] + ax * u * (L / 2 + 3) - az * v * (D / 2 + 3), c[1] + az * u * (L / 2 + 3) + ax * v * (D / 2 + 3)]);
+      if (E.rectFree(c[0], c[1], ax, az, L / 2 + 3, D / 2 + 3, OCC.WATER | OCC.ROAD) < 0.9 || corners.some(q => E.fsAt(q[0], q[1]) < 14 || E.spOwnPolys.some(p => U.pointInPoly(q[0], q[1], p)))) continue;
       let gmin = Infinity, gmax = -Infinity; for (const [u, v] of [[-1, -1], [1, -1], [1, 1], [-1, 1], [0, 0]]) { const g = E.sc.height(c[0] + ax * u * L / 2 - az * v * D / 2, c[1] + az * u * L / 2 + ax * v * D / 2); gmin = Math.min(gmin, g); gmax = Math.max(gmax, g); }
-      if (gmax - gmin > 1.6) continue;
+      if (gmax - gmin > 3.0) continue;
       const tp = E.markRect(c[0], c[1], ax, az, L / 2 + 2, D / 2 + 2, OCC.BUILT); E.standPolys.push(tp); E.spOwnPolys.push(tp);
       E.spTents.push({ cx: c[0], cz: c[1], ax, az, L, D, y: gmin, gmax });
     }

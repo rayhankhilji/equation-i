@@ -91,7 +91,7 @@ window.EI = window.EI || {};
         if (maxSlide != null && Math.abs(ds) > maxSlide) break;
         const p = this.at(s + ds, side, off); let ok = !this.inPit(s + ds, side) && !this.isReserved(s + ds, side);
         for (const [a, b] of [[-half, 0], [half, 0], [-half, depth], [half, depth], [0, depth / 2]]) { const x = p.x + p.tx * a + p.nx * b, z = p.z + p.tz * a + p.nz * b; if (this.inObstacle(x, z) || this.inCorridor(x, z)) { ok = false; break; } }
-        if (ok) { p.s = s + ds; if (this.sc && this.sc.env && this.sc.env.forestOn) for (const [a, b] of [[-half, 0], [half, 0], [-half, depth], [half, depth]]) p.y = Math.min(p.y, this.sc.height(p.x + p.tx * a + p.nx * b, p.z + p.tz * a + p.nz * b)); return p; }   // (forest: the footprint's lowest ground, no corner in the air)
+        if (ok) { p.s = s + ds; if (this.sc && this.sc.env && this.sc.env.forestOn) { for (const [a, b] of [[-half, 0], [half, 0], [-half, depth], [half, depth]]) p.y = Math.min(p.y, this.sc.height(p.x + p.tx * a + p.nx * b, p.z + p.tz * a + p.nz * b)); } return p; }   // (forest: the footprint's lowest ground, no corner in the air)
       }
       return null;
     }
@@ -392,8 +392,8 @@ window.EI = window.EI || {};
       for (const [a, b] of [[[-1.25, H + 1.2, -1.25], [1.25, H + 1.2, -1.25]], [[-1.25, H + 1.2, 1.25], [1.25, H + 1.2, 1.25]], [[-1.25, H + 1.2, -1.25], [-1.25, H + 1.2, 1.25]], [[1.25, H + 1.2, -1.25], [1.25, H + 1.2, 1.25]]]) beam(geos, a, b, 0.05, steel, m);
       // tripod, camera body and lens pointing at the track
       beam(geos, [0, H + 0.1, 0], [0, H + 1.45, 0], 0.08, dark, m); box(geos, 0.5, 0.45, 0.9, 0, H + 1.7, 0.2, cam, m); const lens = new THREE.CylinderGeometry(0.12, 0.16, 0.5, 8); lens.rotateX(Math.PI / 2); lens.translate(0, H + 1.7, 0.85); lens.applyMatrix4(m); lens.userData.color = cam; geos.push(lens);
-      box(geos, 0.55, 1.0, 0.4, 0.75, H + 1.75, -0.2, C(0x5a4a3a), m); // the operator
-      cyl(geos, 0.16, 0.16, 0.3, 6, 0.75, H + 2.45, -0.2, C(0xe2c3a8), m);
+      box(geos, 0.55, 1.6, 0.4, 0.75, H + 0.94, -0.2, C(0x5a4a3a), m); // the operator (standing on the deck: was centred 1.1 m above it - FIT, SPA-STITCH)
+      cyl(geos, 0.16, 0.16, 0.3, 6, 0.75, H + 1.88, -0.2, C(0xe2c3a8), m);
       // Yas: a small canopy over the platform (sun / dew), white with a dark trim
       if (cx.desert) { for (const [rx, rz] of [[-1.25, -1.25], [1.25, -1.25], [-1.25, 1.25], [1.25, 1.25]]) beam(geos, [rx, H + 1.2, rz], [rx, H + 3.1, rz], 0.05, steel, m); box(geos, 3.0, 0.1, 3.0, 0, H + 3.15, 0, C(0xf0f0ee), m); box(geos, 3.04, 0.22, 3.04, 0, H + 3.0, 0, C(0x1d2a44), m); }
       cx.reserve(p.s, side, 4); placed++; (cx.stats.towerAt = cx.stats.towerAt || []).push([Math.round(p.s), side]);

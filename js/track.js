@@ -44,27 +44,29 @@ window.EI = window.EI || {};
     vec4 eM1 = texture2D(eiAux, vec2(eLat * 0.021 + 0.13, eS * eiSP.x));
     vec4 eM2 = texture2D(eiAux, vec2(eLat * 0.071 + 0.61, eS * eiSP.y));
     eCol *= 0.86 + 0.28 * eM1.r;
+    // repair patches / resurfacing: edges wander with the low-frequency noise and are soft (a patch is not a ruled rectangle lying on the road)
+    float ePw = eLat + (eM2.g - 0.5) * 0.4, ePs = eS + (eM1.g - 0.5) * 2.2; float ePA = max(eAA, 0.12), ePS = max(eAS, 0.6);
     eCol *= mix(vec3(1.0), vec3(1.05, 1.02, 0.95), smoothstep(0.35, 0.75, eM2.r));
     float eLane = floor((eLat + eiHW) / (2.0 * eiHW / 3.0));
     eCol *= 0.965 + 0.07 * eiHash(vec2(eLane, 7.0));
     float eSeg = floor(eS / 34.0); float eh = eiHash(vec2(eSeg, 3.1)); float ePatch = 0.0, eSeam = 0.0;
-    if (eh > 0.62) {
+    if (eh > 0.7) {
       float pc = (eiHash(vec2(eSeg, 9.7)) - 0.5) * eiHW * 1.3; float pw = 0.9 + eiHash(vec2(eSeg, 1.3)) * 2.8;
       float ps0 = eSeg * 34.0 + eiHash(vec2(eSeg, 5.5)) * 10.0; float ps1 = ps0 + 5.0 + eiHash(vec2(eSeg, 2.2)) * 18.0;
-      ePatch = eiBox(eLat, pc - pw * 0.5, pc + pw * 0.5, eAA) * eiBox(eS, ps0, ps1, eAS);
-      eSeam = eiBox(eLat, pc - pw * 0.5 - 0.06, pc + pw * 0.5 + 0.06, eAA) * eiBox(eS, ps0 - 0.06, ps1 + 0.06, eAS) - ePatch;
+      ePatch = eiBox(ePw, pc - pw * 0.5, pc + pw * 0.5, ePA) * eiBox(ePs, ps0, ps1, ePS);
+      eSeam = max(eiBox(ePw, pc - pw * 0.5 - 0.1, pc + pw * 0.5 + 0.1, ePA) * eiBox(ePs, ps0 - 0.1, ps1 + 0.1, ePS) - ePatch, 0.0) * smoothstep(0.35, 0.6, eM1.g);
     }
-    eCol = mix(eCol, mix(eCol, vec3(dot(eCol, vec3(0.33))), 0.6) * vec3(0.84, 0.84, 0.86) * (0.95 + 0.1 * eM2.r), ePatch);
-    eCol *= 1.0 - 0.5 * eSeam;
+    eCol = mix(eCol, mix(eCol, vec3(dot(eCol, vec3(0.33))), 0.4) * vec3(0.92, 0.92, 0.935) * (0.95 + 0.1 * eM2.r), ePatch * 0.8);
+    eCol *= 1.0 - 0.14 * eSeam;
 #ifdef EI_STREET
     // street circuit: a patchwork of resurfacing (newer, darker and finer repairs and older greyer ones), bitumen sealer lines
     // snaking along and across the lanes over the seams and cracks, glossy where they catch the sun
     float eSeal = 0.0;
     { float sg = floor((eS + 11.0) / 23.0); float hh = eiHash(vec2(sg, 7.7));
       if (hh > 0.42) { float pc = (eiHash(vec2(sg, 2.3)) - 0.5) * eiHW * 1.5; float pw = 1.2 + eiHash(vec2(sg, 8.1)) * 3.6; float ps0 = sg * 23.0 - 11.0 + eiHash(vec2(sg, 3.9)) * 6.0; float ps1 = ps0 + 3.5 + eiHash(vec2(sg, 6.6)) * 13.0;
-        float pin = eiBox(eLat, pc - pw * 0.5, pc + pw * 0.5, eAA) * eiBox(eS, ps0, ps1, eAS); float pse = eiBox(eLat, pc - pw * 0.5 - 0.07, pc + pw * 0.5 + 0.07, eAA) * eiBox(eS, ps0 - 0.07, ps1 + 0.07, eAS) - pin;
+        float pin = eiBox(ePw, pc - pw * 0.5, pc + pw * 0.5, ePA) * eiBox(ePs, ps0, ps1, ePS); float pse = max(eiBox(ePw, pc - pw * 0.5 - 0.1, pc + pw * 0.5 + 0.1, ePA) * eiBox(ePs, ps0 - 0.1, ps1 + 0.1, ePS) - pin, 0.0) * smoothstep(0.3, 0.6, eM1.g);
         float newer = step(0.5, eiHash(vec2(sg, 4.4)));
-        eCol = mix(eCol, newer > 0.5 ? eCol * vec3(0.7, 0.7, 0.72) : mix(eCol, vec3(dot(eCol, vec3(0.33))), 0.7) * 1.14, pin * (0.75 + 0.25 * eM1.g)); eSeal = max(eSeal, pse * 0.9); }
+        eCol = mix(eCol, newer > 0.5 ? eCol * vec3(0.78, 0.78, 0.8) : mix(eCol, vec3(dot(eCol, vec3(0.33))), 0.7) * 1.14, pin * (0.75 + 0.25 * eM1.g)); eSeal = max(eSeal, pse * 0.5); }
       float cl = floor(eS / 13.0); float h2 = eiHash(vec2(cl, 1.9));
       if (h2 > 0.55) { float c0 = (eiHash(vec2(cl, 5.1)) - 0.5) * eiHW * 1.6; float cc = c0 + 0.55 * sin(eS * 0.31 + h2 * 6.28) + 0.18 * sin(eS * 1.7 + h2 * 3.1);
         float cw = 0.022 + 0.022 * eiHash(vec2(cl, 9.3)); float ca = cl * 13.0 + eiHash(vec2(cl, 3.3)) * 5.0; float cb = ca + 4.0 + eiHash(vec2(cl, 7.2)) * 9.0;
@@ -1097,7 +1099,7 @@ window.EI = window.EI || {};
           }
         }
         const pg = new THREE.BufferGeometry(); pg.setAttribute('position', new THREE.Float32BufferAttribute(pp, 3)); pg.setIndex(pi); pg.computeVertexNormals();
-        const pm = new THREE.Mesh(pg, new THREE.MeshStandardMaterial({ color: 0x6f7378, roughness: 0.55, metalness: 0.6, side: THREE.DoubleSide })); pm.name = 'fencePosts'; g.add(pm);
+        const pm = new THREE.Mesh(pg, new THREE.MeshStandardMaterial({ color: FD.postColor != null ? FD.postColor : 0x6f7378, roughness: 0.55, metalness: 0.6, side: THREE.DoubleSide })); pm.name = 'fencePosts'; g.add(pm);
       }
     }
 

@@ -38,14 +38,14 @@
     const W = (u, y, v) => [A0.x + ax * u + tx * v, ty + y, A0.z + az * u + tz * v];
     const white = C(0xf2f3f3), grey = C(0x8c9399), I = I4(); const yD = 8.9, dep = 2.2, hw = 0.8;
     // legs: twin lattice columns per side down to the drawn ground
-    for (const [u, sg] of [[0, -1], [span + 0.6, 1]]) {
+    for (const [u, sg] of [[-0.45, -1], [span + 0.6, 1]]) {
       const g = sc.height(...[W(u, 0, 0)[0], W(u, 0, 0)[2]]) - ty - 0.3;
       for (const v of [-hw, hw]) for (const du of [-0.35, 0.35]) S.beam(I, W(u + du, g, v), W(u + du, yD + dep, v), 0.16, grey);
       for (let y = g + 1.0; y < yD; y += 1.2) for (const v of [-hw, hw]) Fd.beam(I, W(u - 0.35, y, v), W(u + 0.35, y + 1.2, v), 0.06, grey);
-      B.box(Env.frame(...W(u, 0, 0).map((q, k) => k === 1 ? q + g : q), ax, az, tx, tz), 1.4, 0.6, 2.2, 0, 0, 0, C(0xa9adb0));   // footing
+      B.box(Env.frame(...W(u, 0, 0).map((q, k) => k === 1 ? q + g : q), ax, az, tx, tz), 1.0, 0.6, 2.2, 0, 0, 0, C(0xa9adb0));   // footing
     }
     // the white box truss: four chords, verticals and diagonals on both faces, a deck
-    const ua = -0.6, ub = span + 1.2;
+    const ua = -1.0, ub = span + 1.2;
     for (const y of [yD, yD + dep]) for (const v of [-hw, hw]) S.beam(I, W(ua, y, v), W(ub, y, v), 0.2, white);
     const nb = Math.max(4, Math.round((ub - ua) / 2.2)), bl = (ub - ua) / nb;
     for (const v of [-hw, hw]) for (let k = 0; k < nb; k++) { const u = ua + k * bl; Fd.beam(I, W(u, yD, v), W(u, yD + dep, v), 0.1, white); Fd.beam(I, W(u, yD, v), W(u + bl, yD + dep, v), 0.08, white); }

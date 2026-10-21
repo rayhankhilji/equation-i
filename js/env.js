@@ -594,7 +594,7 @@ window.EI = window.EI || {};
   };
   Ctx.prototype.buildTerrain = function () {
     // street circuits with a terrain model use a 12 m grid inside +-1.8 km (roads, quays and slopes meet more tightly), 24 m otherwise
-    const fine = !!this.dem; const KIN = fine ? (this.terrainKin || 150) : KIN0, GS = fine ? (this.terrainGS || 12) : GS0, KTOT = fine ? KIN + 33 : KTOT0;
+    const fine = !!this.dem; const KIN = fine ? (this.terrainKin || 150) : KIN0, GS = fine ? (this.terrainGS || 12) : GS0, KTOT = fine ? KIN + (this.terrainRing || 33) : KTOT0;
     const sc = this.sc; const K = KTOT, W = K * 2 + 1;
     const pos = new Float32Array(W * W * 3), col = new Float32Array(W * W * 3), uv = new Float32Array(W * W * 2);
     const heights = new Float32Array((KIN * 2 + 1) * (KIN * 2 + 1)); const HW = KIN * 2 + 1;
