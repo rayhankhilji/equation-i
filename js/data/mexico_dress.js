@@ -104,8 +104,9 @@ window.EI = window.EI || {};
   // infra.js buildFiesta (opt-in on this key). Runs: [s0, s1, side, kinds]: poles every `step` m behind the board band; kinds: 'pp' papel picado strings between poles
   // (8 pennant colours), 'mg' marigold garlands (cempasuchil orange / yellow) swagged between poles, 'flag' a tricolour flag on every other pole. Panels: calavera
   // panels (marigold frame, skull) at [s, side]. Everything stays behind the fence line, at least 2.5 m behind the wall, never over the lap, skipping stands.
+  const BR = ((EI.ENVDATA && EI.ENVDATA.mexico && EI.ENVDATA.mexico.landmarks && EI.ENVDATA.mexico.landmarks.bridges) || []).map((b) => b.s);   // the OSM footbridges (MEX-MODELS builds them): poles / panels keep 12 m clear
   F.fiesta = {
-    step: 18,
+    step: 18, avoid: BR, avoidHalf: 12,
     runs: [
       [mod(tin(17) + 190), mod(tin(1) - 790), 1, 'pp,flag'],     // Main Grandstand front
       [ST0 + 10, ST1 - 10, 1, 'mg,flag'],

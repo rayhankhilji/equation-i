@@ -480,6 +480,12 @@
     tiles: ['msccruises', 'aramco', 'L0', 'cryptocom', 'heineken', 'pirelli', 'I4', 'aws'],
     barrier: ['aramco', 'L', 'dhl', 'cryptocom', 'aws'], billboard: ['msccruises', 'L2', 'heineken', 'I3'],
     runoff: ['pirelli', 'L', 'aramco', 'I'], bridge: { lumi: 'L', intake: 'I', lumi2: 'tagheuer', intake2: 'msccruises' } };
+  // Autodromo Hermanos Rodriguez (MEX-DRESS): "Formula 1 Gran Premio de la Ciudad de Mexico" (the brief's title partner MSC Cruises; the 2025 programme names Heineken as the
+  // presenting partner, hence two Heineken slots); the F1 global partners only (no Mexico-market brand has a source at this GP); Lumi / Intake 2 of the 8 hoarding tiles
+  VENUES.mexico = { title: 'msccruises', event: 'Gran Premio de la Ciudad de México', dark: false,
+    tiles: ['msccruises', 'heineken', 'L0', 'aramco', 'dhl', 'pirelli', 'I4', 'aws'],
+    barrier: ['aramco', 'L', 'heineken', 'dhl', 'I'], billboard: ['msccruises', 'L2', 'heineken', 'I3'],
+    runoff: ['pirelli', 'L', 'aramco', 'I'], bridge: { lumi: 'L', intake: 'I', lumi2: 'tagheuer', intake2: 'msccruises' } };
   const venue = Ads.venue = () => VENUES[EI.trackId] || VENUES.silverstone;
   // the track's width (m): the start gantry banner ((width + 2.6) x 0.9 m) and the bridge fascias ((width + 6.8) x 2.1 m) span it
   const trackW = () => (EI.TRACKS && EI.TRACKS[EI.trackId] && EI.TRACKS[EI.trackId].width) || 15;
