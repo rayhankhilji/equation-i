@@ -285,8 +285,8 @@ window.EI = window.EI || {};
       ctx.fillStyle = 'rgba(150,205,225,0.55)'; ctx.fillRect(W * 0.965, 0, W * 0.035, H);   // the thin pale-blue outer line
     }
     else {
-    const slant = style === 'street' ? 0 : H * (style === 'spa' ? 0.05 : 0.07); const joint = (y0) => [[0, y0 - slant], [W, y0 + slant]];
-    ctx.fillStyle = style === 'street' ? '#b0242a' : style === 'spa' ? '#be1620' : '#c8141e';   // 'spa': deep red / white blocks on the raised bevelled kerb
+    const slant = style === 'street' ? 0 : H * (style === 'spa' || style === 'cota' ? 0.05 : 0.07); const joint = (y0) => [[0, y0 - slant], [W, y0 + slant]];
+    ctx.fillStyle = style === 'street' ? '#b0242a' : style === 'spa' ? '#be1620' : style === 'cota' ? '#c41a24' : '#c8141e';   // 'spa': deep red / white blocks on the raised bevelled kerb
     for (const off of [-H, 0, H]) { const a = joint(off), b = joint(off + H / 2); ctx.beginPath(); ctx.moveTo(a[0][0], a[0][1]); ctx.lineTo(a[1][0], a[1][1]); ctx.lineTo(b[1][0], b[1][1]); ctx.lineTo(b[0][0], b[0][1]); ctx.closePath(); ctx.fill(); }
     ctx.strokeStyle = 'rgba(25,10,10,0.55)'; ctx.lineWidth = 3;
     for (const off of [-H, -H / 2, 0, H / 2, H]) { const a = joint(off); ctx.beginPath(); ctx.moveTo(a[0][0], a[0][1]); ctx.lineTo(a[1][0], a[1][1]); ctx.stroke(); }
@@ -436,6 +436,11 @@ window.EI = window.EI || {};
       return { x: this.x[i] + this.nx[i] * side, z: this.z[i] + this.nz[i] * side, y: this.y[i], heading: this.heading[i], i };
     }
 
+    // data.corners entry a lap position belongs to (the last one starting within 60 m ahead of s) and list matching: the data lists
+    // (tyreCorners, tecProCorners, sausageCorners, brakeStops, runoffSchemes, logoSpots) take corner NAMES and / or TURN NUMBERS (corners[].t),
+    // so a circuit whose HUD name covers several turns (COTA: "The Esses" T3-T6) can still dress one turn (COTA-DRESS)
+    cornerObj(s) { let k = null; for (const c of this.data.corners) if (s >= c.s - 60) k = c; return k; }
+    cornerIn(list, c) { return !!c && (list.indexOf(c.name) >= 0 || (c.t != null && list.indexOf(c.t) >= 0)); }
     // side arrays (wallL/R, runoffL/R, gravelL/R) follow the drawing convention used by every ribbon: "L" = side -1 = negative lateral
     // offset (project().lat < 0), "R" = side +1. k > 0 bends towards +lat, so the run-off / far barrier of such a corner is on L.
     computeWalls() {
@@ -670,13 +675,13 @@ window.EI = window.EI || {};
       const aMesh = new THREE.Mesh(aGeo, aMat); aMesh.receiveShadow = true; aMesh.name = 'asphalt'; g.add(aMesh);
 
       // ------------------------------------------------ kerbs: bevelled profile (rise, top, fall), sawtooth red/white tiled by arc length
-      const KS = this.data.kerbStyle; const kerbTex = kerbTexture(this.data.street ? 'street' : KS); const kerbTile = KS === 'yas' ? 7.2 : KS === 'monza' ? 12 : KS === 'spa' ? 3.0 : 2.4;
+      const KS = this.data.kerbStyle; const kerbTex = kerbTexture(this.data.street ? 'street' : KS); const kerbTile = KS === 'yas' ? 7.2 : KS === 'monza' ? 12 : KS === 'spa' || KS === 'cota' ? 3.0 : 2.4;
       const kerbMat = new THREE.MeshStandardMaterial({ map: kerbTex, vertexColors: true, roughness: 0.48, metalness: 0, normalMap: T.runoff.normalMap, normalScale: new THREE.Vector2(0.25, 0.25) });
       const ramp = new Float32Array(n); { const a = new Float32Array(n), b = new Float32Array(n);
         for (let k = 0; k < 2 * n; k++) { const i = k % n, p = (i + n - 1) % n; a[i] = kerbMask(p) ? a[p] + 1 : 0; }
         for (let k = 2 * n; k >= 0; k--) { const i = k % n, q = (i + 1) % n; b[i] = kerbMask(i) ? b[q] + 1 : 0; }
         for (let i = 0; i < n; i++) ramp[i] = U.clamp(Math.min(a[i], b[i]) * ds / 3.0, 0, 1); }
-      const prof = this.data.street || KS === 'yas' || KS === 'monza' ? [[0, 0.004], [0.1, 0.026], [kw - 0.1, 0.03], [kw, 0.006]] : [[0, 0.004], [0.3, 0.068], [kw - 0.32, 0.074], [kw, 0.0]];
+      const prof = this.data.street || KS === 'yas' || KS === 'monza' ? [[0, 0.004], [0.1, 0.026], [kw - 0.1, 0.03], [kw, 0.006]] : KS === 'cota' ? [[0, 0.004], [0.22, 0.05], [kw - 0.26, 0.056], [kw, 0.0]] : [[0, 0.004], [0.3, 0.068], [kw - 0.32, 0.074], [kw, 0.0]];   // 'cota': the low painted-block kerb (flatter than Silverstone's)
       const kerbTone = new Float32Array(n); for (let i = 0; i < n; i++) kerbTone[i] = 0.82 + 0.18 * U.noise2(i * 0.11, 4.2);
       // data.kerbAlt [[s0, s1, 'ry'], ...] (Spa: the Raidillon crest, Blanchimont): red / yellow kerbs = the red / white tile tinted per vertex (white -> yellow, red stays red)
       const kerbAlt = new Uint8Array(n); for (const [a0, a1] of this.data.kerbAlt || []) for (let s = a0; s <= a1; s += this.ds) kerbAlt[this.idxAtS(s)] = 1;
@@ -762,7 +767,7 @@ window.EI = window.EI || {};
         const outer = this.smooth(dil, 4); for (let i = 0; i < n; i++) outer[i] = Math.max(hw + 0.6, Math.min(outer[i], wall[i] - 0.4));
         // paint scheme per row (corner name), spread one row so the colour attribute is constant across each paint boundary quad
         const sch = new Int8Array(n).fill(-1); const names = Object.keys(SCHEMES);
-        for (let i = 0; i < n; i++) if (run[i]) { const nm = cornerAt(this.s[i]); const k = names.indexOf(nm); if (k >= 0) sch[i] = k; }
+        for (let i = 0; i < n; i++) if (run[i]) { const co = this.cornerObj(this.s[i]); let k = co && co.t != null ? names.indexOf(String(co.t)) : -1; if (k < 0) k = names.indexOf(co ? co.name : null); if (k >= 0) sch[i] = k; }   // (a scheme keyed by turn number wins over one keyed by the corner's name)
         const schC = Int8Array.from(sch); for (let i = 0; i < n; i++) if (sch[i] < 0) { for (const j of [1, -1, 2, -2]) { const q = sch[(i + j + n) % n]; if (q >= 0) { schC[i] = q; break; } } }
         const green = new Uint8Array(n); if (!this.data.street) for (let i = 0; i < n; i++) green[i] = kerbMask(i) || run[i] || RC ? 1 : 0;
         // painted straights: per-row weights of the kerb and the brand band on this side (pit side: kerb, then turquoise only in a
@@ -856,9 +861,9 @@ window.EI = window.EI || {};
       const prof = [[-0.3, 0], [-0.26, 0.07], [-0.17, 0.135], [-0.06, 0.16], [0.06, 0.16], [0.17, 0.135], [0.26, 0.07], [0.3, 0]];
       const pos = [], col = [], idx = []; const yel = new THREE.Color(0xf2b705).convertSRGBToLinear(), dirt = new THREE.Color(0x7a6a3a).convertSRGBToLinear(), blk = new THREE.Color(0x1a1a1a);
       const seen = {}; this.sausages = [];
-      const stripe = this.data.kerbStyle === 'monza' || this.data.kerbStyle === 'spa';   // Monza's sausage kerbs are yellow with black diagonal bars (refs chicane_yellowblack_sausage)
+      const stripe = this.data.kerbStyle === 'monza' || this.data.kerbStyle === 'spa' || this.data.kerbStyle === 'cota';   // Monza's sausage kerbs are yellow with black diagonal bars (refs chicane_yellowblack_sausage)
       this.data.corners.forEach((c, ci) => {
-        if (corners.indexOf(c.name) < 0) return;
+        if (!this.cornerIn(corners, c)) return;
         const next = this.data.corners[ci + 1]; const sEnd = next ? Math.min(next.s, c.s + 200) : c.s + 200;
         let best = -1, bk = 0; const prv = this.data.corners[ci - 1]; for (let s = c.s - (prv && prv.name === c.name ? 4 : 30); s < sEnd; s += this.ds) { const i = this.idxAtS(s); if (Math.abs(kk[i]) > bk) { bk = Math.abs(kk[i]); best = i; } }
         if (best < 0 || bk < 1 / 260 || seen[best]) return; seen[best] = true;
@@ -976,7 +981,7 @@ window.EI = window.EI || {};
       const L = this.length;
       const spots = this.data.logoSpots || (this.data.street ? [['Nouvelle Chicane', 1, 22], ['Sainte Dévote', 0, 16], ['Tunnel', 2, 18]] : null) || [['Copse', 0, 34], ['Luffield', 1, 30], ['Stowe', 1, 32], ['Club', 2, 26], ['Abbey', 0, 32], ['Village', 1, 26], ['Brooklands', 0, 28], ['Vale', 3, 24], ['Woodcote', 1, 26], ['Maggotts', 0, 26], ['Becketts', 1, 26], ['Chapel Curve', 2, 24], ['The Loop', 3, 20], ['Aintree', 0, 22], ['Farm Curve', 1, 24]];
       for (const [name, slot, len] of spots) {
-        const c = this.data.corners.find(cc => cc.name === name); if (!c) continue;
+        const c = this.data.corners.find(cc => typeof name === 'number' ? cc.t === name : cc.name === name); if (!c) continue;
         // the painted run-off is on the outside: find the widest run-off point in the corner
         let best = -1, bw = 0, bside = 1;
         for (let s = c.s; s < c.s + 160; s += 4) { const i = this.idxAtS(U.mod(s, L)); for (const side of [-1, 1]) { const run = side < 0 ? this.runoffL : this.runoffR; const outer = side < 0 ? this.runoffOuterL : this.runoffOuterR; if (run[i] && outer[i] > bw) { bw = outer[i]; best = s; bside = side; } } }
@@ -1050,7 +1055,7 @@ window.EI = window.EI || {};
       for (const side of [-1, 1]) {
         const wall = side < 0 ? this.wallL : this.wallR;
         const inCorner = i => Math.abs(kk[i]) > 1 / 600;
-        const isTyre = i => inCorner(i) && tyreCorners.indexOf(cornerAt(this.s[i])) >= 0 && (side < 0 ? kk[i] > 0 : kk[i] < 0);
+        const isTyre = i => inCorner(i) && this.cornerIn(tyreCorners, this.cornerObj(this.s[i])) && (side < 0 ? kk[i] > 0 : kk[i] < 0);
         const isPanel = i => !armco && !isTyre(i) && (inCorner(i) || Math.abs(this.s[i] - this.sf) < 500);
         // concrete base + panels
         // v along the wall's own length (not the centre line: no stretch in corners), each panel run scaled to a whole number of
@@ -1080,9 +1085,13 @@ window.EI = window.EI || {};
       // data.fence.runs [[s0, s1, side (0 = both), height m]]: later runs override earlier ones, height 0 = no fence (Monza: tall catch fence by the stands, low along the pit wall)
       const fenceH = (i, side, h0) => { let h = h0; if (FD.runs) for (const r of FD.runs) { if (r[2] && r[2] !== side) continue; const sv = this.s[i]; if (r[0] <= r[1] ? (sv >= r[0] && sv <= r[1]) : (sv >= r[0] || sv <= r[1])) h = r[3]; } return h; };
       this.fenceH = fenceH;
+      // data.fence.ground (COTA): behind a barrier the drawn ground can lie below the road (cut / fill slopes, the pit side of the T1 climb): the net and its posts then
+      // stand on it (drop m below the road level, 0..4) instead of hanging over the slope. Off by default: other circuits are unchanged
+      const fGr = FD.ground && this.scenery && this.scenery.height ? this.scenery : null; const fDrop = {};
+      if (fGr) for (const side of [-1, 1]) { const w0 = side < 0 ? this.wallL : this.wallR; const a = new Float32Array(this.n); for (let i = 0; i < this.n; i++) { const d = w0[i] + 0.8; a[i] = Math.max(0, Math.min(4, this.y[i] - fGr.height(this.x[i] + this.nx[i] * side * d, this.z[i] + this.nz[i] * side * d))); } fDrop[side] = this.smooth(a, 2); }
       for (const side of [-1, 1]) {
-        const wall = side < 0 ? this.wallL : this.wallR;
-        const TD = this.data.tunnel; const fg = this.ribbon(i => side * (wall[i] + 0.8), i => side * (wall[i] + 0.8), { ya: () => 0, yb: (i) => fenceH(i, side, FD.h || 3.4), vScale: 3, mask: TD || FD.runs ? (i => (!TD || this.s[i] < TD.s0 - 6 || this.s[i] > TD.s1 + 6) && fenceH(i, side, 1) > 0) : undefined });
+        const wall = side < 0 ? this.wallL : this.wallR; const fd = fDrop[side];
+        const TD = this.data.tunnel; const fg = this.ribbon(i => side * (wall[i] + 0.8), i => side * (wall[i] + 0.8), { ya: fd ? (i => -fd[i]) : () => 0, yb: (i) => fenceH(i, side, FD.h || 3.4) - (fd ? fd[i] : 0), vScale: 3, mask: TD || FD.runs ? (i => (!TD || this.s[i] < TD.s0 - 6 || this.s[i] > TD.s1 + 6) && fenceH(i, side, 1) > 0) : undefined });
         const fm = new THREE.Mesh(fg, fenceMat); fm.name = 'fence'; g.add(fm);
       }
       // catch-fence posts (data.fence.posts = spacing in metres): grey galvanised posts with the top leaning towards the track (Monza refs m15_t1exit)
@@ -1094,7 +1103,7 @@ window.EI = window.EI || {};
           for (let i = 0; i < this.n; i += step) {
             if (TD0 && this.s[i] > TD0.s0 - 6 && this.s[i] < TD0.s1 + 6) continue;
             const Hh = fenceH(i, side, FD.h || 4.5); if (Hh <= 0) continue;
-            const d = wall[i] + 0.8, d2 = d - side * 0 ; const x = this.x[i] + this.nx[i] * side * d, z = this.z[i] + this.nz[i] * side * d, y = this.y[i]; const ex = -this.nx[i] * side * lean, ez = -this.nz[i] * side * lean;
+            const d = wall[i] + 0.8, d2 = d - side * 0 ; const x = this.x[i] + this.nx[i] * side * d, z = this.z[i] + this.nz[i] * side * d, y = this.y[i] - (fDrop[side] ? fDrop[side][i] : 0); const ex = -this.nx[i] * side * lean, ez = -this.nz[i] * side * lean;
             prism(x, y, z, x, y + Hh - 0.9, z, this.tx[i], this.tz[i]); prism(x, y + Hh - 0.9, z, x + ex, y + Hh, z + ez, this.tx[i], this.tz[i]);
           }
         }
@@ -1469,13 +1478,13 @@ window.EI = window.EI || {};
       }
       // braking boards: 150 / 100 / 50 m before the turn-in of the heavy stops, on the outside of the approach
       const stops = this.data.brakeStops || ['Village', 'Brooklands', 'Stowe', 'Vale', 'Club', 'Abbey', 'Luffield'];
-      for (const c of this.data.corners) { if (stops.indexOf(c.name) < 0 || named['_d' + c.name]) continue; named['_d' + c.name] = true; const side = outsideAt(c.s + 30); const BB = this.data.brakeBoards; for (const d of (BB && (BB[c.name] || BB.default)) || [150, 100, 50]) { const w = Math.max(wallAt(c.s - d - 6, side), wallAt(c.s - d, side), wallAt(c.s - d + 6, side)), room = !this.data.street && w - 1.4 >= this.halfWidth + this.kerbWidth + 2.5; addBoard(c.s - d, side, 'brake:' + d, 1.5, 1.5, room ? 1.45 : 2.05, room ? Math.min(w - 1.4, this.halfWidth + this.kerbWidth + 4) : w + 0.35); } }
+      for (const c of this.data.corners) { const sk = '_d' + (c.t != null ? c.t : c.name); if (!this.cornerIn(stops, c) || named[sk]) continue; named[sk] = true; const side = outsideAt(c.s + 30); const BB = this.data.brakeBoards; for (const d of (BB && (BB[c.t] || BB[c.name] || BB.default)) || [150, 100, 50]) { const w = Math.max(wallAt(c.s - d - 6, side), wallAt(c.s - d, side), wallAt(c.s - d + 6, side)), room = !this.data.street && w - 1.4 >= this.halfWidth + this.kerbWidth + 2.5; addBoard(c.s - d, side, 'brake:' + d, 1.5, 1.5, room ? 1.45 : 2.05, room ? Math.min(w - 1.4, this.halfWidth + this.kerbWidth + 4) : w + 0.35); } }
       for (const z of this.drs) { const dd = (s, sd, w) => wallAt(s, sd) - 0.6 - w / 2 >= this.halfWidth + this.kerbWidth + 2 ? Math.min(wallAt(s, sd) - 0.6 - w / 2, this.halfWidth + 5 + w / 2) : wallAt(s, sd) + 0.35; addBoard(z.detect, -1, 'drsDetect', 4, 1.0, 2.3, dd(z.detect, -1, 4)); addBoard(z.start, -1, 'drs', 2.4, 1.2, 2.2, dd(z.start, -1, 2.4)); addBoard(z.start, 1, 'drs', 2.4, 1.2, 2.2, dd(z.start, 1, 2.4)); }
       // sponsor bridges
       const bridge = (s, text, beam) => {
         const i = this.idxAtS(s); const grp = new THREE.Group();
         // street circuits: the legs stand behind the barriers (a run-off widened there put them in the escape road, Ste Devote; FIT-AUDIT)
-        const po = this.data.street || this.data.kerbStyle === 'spa' ? Math.max(hw + 3, Math.max(this.wallL[i], this.wallR[i]) + 0.8) : hw + 3;   // (Spa: the legs stand behind the barriers too, never in the run-off)
+        const po = this.data.street || this.data.kerbStyle === 'spa' || this.data.kerbStyle === 'cota' ? Math.max(hw + 3, Math.max(this.wallL[i], this.wallR[i]) + 0.8) : hw + 3;   // (Spa: the legs stand behind the barriers too, never in the run-off)
         for (const side of [-1, 1]) { const post = solid(new THREE.BoxGeometry(0.8, 8, 0.8), 'post'); post.position.set(0, 4, side * po); post.castShadow = true; grp.add(post); }
         const b = solid(new THREE.BoxGeometry(1.2, 2.2, po * 2 + 1), beam); b.position.y = 8.5; b.castShadow = true; grp.add(b);
         for (const dir of [-1, 1]) { const f = new THREE.Mesh(uvFace(new THREE.PlaneGeometry(po * 2 + 0.8, 2.1), 'bridge:' + text), mat); f.position.set(dir * 0.62, 8.5, 0); f.rotation.y = dir * Math.PI / 2; grp.add(f); }

@@ -53,6 +53,7 @@ window.EI = window.EI || {};
       this.t = track; this.sc = scenery; this.rng = U.rng(4242); this.group = new THREE.Group(); this.group.name = 'infra'; this.reserved = []; this.stats = {};
       const t = track; this.kk = t.smooth(t.k, 12); this.kw = t.smooth(t.k, 25);
       this.cornerAt = (s) => { let name = null; for (const c of t.data.corners) if (s >= c.s - 60) name = c.name; return name; };
+      this.cornerIn = (list, s) => t.cornerIn(list, t.cornerObj(s));   // data lists take corner names and / or turn numbers (track.js cornerIn)
       // pit lane side and range (hoardings and screens stay off the pit wall side of the start straight)
       const pit = t.data.pit; const pm = t.project(pit[Math.floor(pit.length / 2)][0], pit[Math.floor(pit.length / 2)][1], null);
       this.pitSide = pm.lat > 0 ? 1 : -1; this.pitS0 = t.project(pit[0][0], pit[0][1], null).s; this.pitS1 = t.project(pit[pit.length - 1][0], pit[pit.length - 1][1], null).s;
@@ -66,7 +67,7 @@ window.EI = window.EI || {};
     inPit(s, side) { const L = this.t.length; return side === this.pitSide && U.mod(s - this.pitS0, L) < U.mod(this.pitS1 - this.pitS0, L); }
     outsideSide(i) { return this.kk[i] > 0 ? -1 : 1; } // k > 0 turns towards +lat, so the outside is the -1 side
     inCorner(i) { return Math.abs(this.kk[i]) > 1 / 600; }
-    tyreZone(i, side) { return this.inCorner(i) && this.tyreCorners.indexOf(this.cornerAt(this.t.s[i])) >= 0 && side === this.outsideSide(i); }
+    tyreZone(i, side) { return this.inCorner(i) && this.cornerIn(this.tyreCorners, this.t.s[i]) && side === this.outsideSide(i); }
     reserve(s, side, half) { this.reserved.push([s, side, half]); }
     isReserved(s, side) { const L = this.t.length; for (const r of this.reserved) { if (r[1] !== side) continue; let d = Math.abs(s - r[0]); d = Math.min(d, L - d); if (d < r[2]) return true; } return false; }
     // interpolated point at distance s, lateral wall+off on `side` (y follows the track; the verge ribbon is at track level out to wall+40)
@@ -286,7 +287,7 @@ window.EI = window.EI || {};
     if (cx.desert) return buildTecPro(cx);
     // data.tecProCorners (Monza): those corners get red / white TecPro blocks instead of the tyre wall
     const TP = cx.t.data.tecProCorners;
-    if (TP && TP.length) { cx.tecZone = (i, side) => TP.indexOf(cx.cornerAt(cx.t.s[i])) >= 0; buildTecPro(cx); }
+    if (TP && TP.length) { cx.tecZone = (i, side) => cx.cornerIn(TP, cx.t.s[i]); buildTecPro(cx); }
     const t = cx.t, rng = U.rng(77);
     // one column: 4 tyres with dark gaps and a dark hub hole on top; vertex colour is a brightness mask, instance colour paints the rubber
     // a single 8-sided column with a banded texture (the dark gaps between the four tyres), a cap and a dark hub hole
@@ -547,7 +548,7 @@ window.EI = window.EI || {};
     for (const side of [-1, 1]) {
       let lp = null;
       for (let s = 0; s < t.length; s += 4.2) {
-        const i = t.idxAtS(s); if (!cx.tyreZone(i, side) || cx.inPit(s, side) || cx.isReserved(s, side) || (cx.F.sponsorWallCorners && cx.F.sponsorWallCorners.indexOf(cx.cornerAt(s)) < 0)) { lp = null; continue; }   // data.furniture.sponsorWallCorners (Spa): only at these corners
+        const i = t.idxAtS(s); if (!cx.tyreZone(i, side) || cx.inPit(s, side) || cx.isReserved(s, side) || (cx.F.sponsorWallCorners && !cx.cornerIn(cx.F.sponsorWallCorners, s))) { lp = null; continue; }   // data.furniture.sponsorWallCorners (Spa): only at these corners
         const p = cx.at(s, side, 3.1); if (lp && Math.hypot(p.x - lp.x, p.z - lp.z) < 3.9) continue; if (cx.inObstacle(p.x, p.z)) { lp = null; continue; } lp = p;
         frame(_m, p.x, p.y, p.z, side, p.tx, p.tz); const m = _m.clone();
         box(geos, 4.0, 1.25, 0.35, 0, 0.625, 0, C(0xc9c9c4), m); box(geos, 4.0, 0.1, 0.45, 0, 1.27, 0, C(0xb0b0aa), m);

@@ -18,9 +18,9 @@ window.EI = window.EI || {};
   const C = { EVER: 0, WOOD: 1, GRASS: 2, BRUSH: 3, CALICHE: 4, PAVED: 5, LOT: 6, WATER: 7 };
   CV.C = C;
   // sRGB albedo, muted like env.js PAL (main.js grades with a saturation boost)
-  const PAL = { 0: [26, 37, 29], 1: [36, 46, 26], 2: [124, 106, 64], 3: [104, 92, 58], 4: [152, 145, 124], 5: [116, 114, 108], 6: [116, 106, 74], 7: [40, 54, 56] };
-  const PRAIRIE = [[138, 112, 68], [120, 98, 66], [110, 102, 64]];   // straw gold, tan-brown, olive straw (October: dormant warm-season grass)
-  const MOWN = [[104, 100, 62], [110, 104, 64]];                       // the mown circuit grass, stripes 7.5 m
+  const PAL = { 0: [26, 37, 29], 1: [36, 46, 26], 2: [124, 106, 64], 3: [104, 92, 58], 4: [152, 145, 124], 5: [116, 114, 108], 6: [122, 107, 75], 7: [40, 54, 56] };
+  const PRAIRIE = [[140, 110, 68], [122, 97, 66], [112, 100, 64]];   // straw gold, tan-brown, olive straw (October: dormant warm-season grass)
+  const MOWN = [[106, 100, 62], [112, 104, 65]];                       // the mown circuit grass, stripes 7.5 m
   const BRUSHC = [58, 60, 38], CROWN_EVER = [24, 35, 28], CROWN_WOOD = [34, 44, 24];
   // sector table keyed by turn number (SPEC 4.8): [from turn, ds, to turn, ds, tree density factor] - applied near the lap only (the cover
   // raster decides beyond), relative to 0.35
@@ -42,13 +42,13 @@ window.EI = window.EI || {};
   function classRGB(E, cl, x, z, fs, v, crown, out) {
     if (cl === C.GRASS || cl === C.BRUSH) {
       prairie(x, z, fs, out); let k = 0.96 + 0.07 * v;
-      if (cl === C.BRUSH && crown && v < 0.42) { const c = BRUSHC; out[0] = c[0]; out[1] = c[1]; out[2] = c[2]; k = 0.75 + 0.5 * v; }   // shrub / mesquite crowns in the brush
-      else if (cl === C.BRUSH) k *= 0.86;
+      if (cl === C.BRUSH && crown === 2 && v < 0.42) { const c = BRUSHC; out[0] = c[0]; out[1] = c[1]; out[2] = c[2]; k = 0.75 + 0.5 * v; }   // shrub / mesquite crowns in the brush (point colour; the field map draws them as round blobs)
+      else if (cl === C.BRUSH) k *= 0.9;
       out[0] *= k; out[1] *= k; out[2] *= k; return out;
     }
     const p = cl === C.EVER ? CROWN_EVER : cl === C.WOOD ? CROWN_WOOD : PAL[cl] || PAL[2]; let k = 0.92 + 0.14 * v;
     if (cl <= 1) k = crown ? 0.66 + 0.6 * v : 0.8 + 0.3 * v;   // crowns ~4 m: lit tops and dark gaps
-    else if (cl === C.CALICHE) k = 0.84 + 0.26 * v;
+    else if (cl === C.CALICHE) { if (crown === 1) { prairie(x, z, fs, out); return out; } k = 0.84 + 0.26 * v; }   // (field map: prairie under the round caliche patches)
     out[0] = p[0] * k; out[1] = p[1] * k; out[2] = p[2] * k; return out;
   }
   CV.ground = {
@@ -63,7 +63,7 @@ window.EI = window.EI || {};
       if (f < 7 && f > -40) { const c = (Math.floor((E.dcAt(x, z) - E.t.halfWidth) / 7.5) & 1) ? MOWN[0] : MOWN[1]; const k = 0.94 + n1 * 0.1; out[0] = c[0] * k; out[1] = c[1] * k; out[2] = c[2] * k; return out; }
       let cl = E.forestClass(x, z); if (cl === C.PAVED && f < 35 && f > 0) cl = C.GRASS;   // (bare run-off fringes behind the barriers read as grass, not paving)
       if (cl === C.CALICHE && f < 25) cl = C.GRASS;
-      return classRGB(E, cl, x, z, f, E._coarse ? 0.5 : hash(Math.floor(x / 4), Math.floor(z / 4), 11), !E._coarse, out);
+      return classRGB(E, cl, x, z, f, E._coarse ? 0.5 : hash(Math.floor(x / 4), Math.floor(z / 4), 11), E._coarse ? 0 : 2, out);
     },
     // the field map base from the cover rasters (pixel space ctx, before the venue overlays): far raster, then the 4 m one with the crown mosaic
     base(E, ctx, S, H) {
@@ -73,7 +73,7 @@ window.EI = window.EI || {};
         for (let j = 0; j < g.nz; j++) for (let i = 0; i < g.nx; i++) {
           const o = j * g.nx + i, x = g.x0 + (i + 0.5) * g.cell, z = g.z0 + (j + 0.5) * g.cell; let cl = g.cls[o]; const fs = E.fsAt(x, z);
           if (crown && cl === C.PAVED && fs > 0 && fs < 35) cl = C.GRASS; if (cl === C.CALICHE && fs < 25) cl = C.GRASS;
-          classRGB(E, cl, x, z, fs, hash(i, j, crown ? 5 + cl : 9), crown, col);
+          classRGB(E, cl, x, z, fs, hash(i, j, crown ? 5 + cl : 9), crown ? 1 : 0, col);
           d[o * 4] = col[0]; d[o * 4 + 1] = col[1]; d[o * 4 + 2] = col[2]; d[o * 4 + 3] = 255;
         }
         cx.putImageData(im, 0, 0);
@@ -81,12 +81,34 @@ window.EI = window.EI || {};
         ctx.drawImage(c, (g.x0 + H) * ppm, (g.z0 + H) * ppm, g.nx * g.cell * ppm, g.nz * g.cell * ppm); ctx.restore();
       };
       draw(E.fcovFar, false); draw(E.fcov, true);
+      // brush crowns and caliche / limestone patches as round blobs (4 m cells drawn as flat squares read as a grid from the air)
+      { const G = E.fcov; ctx.save(); ctx.setTransform(ppm, 0, 0, ppm, S / 2, S / 2); const paths = [[], [], [], []];
+        for (let j = 0; j < G.nz; j++) for (let i = 0; i < G.nx; i++) {
+          const c = G.cls[j * G.nx + i]; if (c !== C.BRUSH && c !== C.CALICHE) continue; const x = G.x0 + (i + 0.5) * G.cell, z = G.z0 + (j + 0.5) * G.cell; const v = hash(i, j, 5 + c);
+          if (c === C.BRUSH && v >= 0.42) continue; if (c === C.CALICHE && E.fsAt(x, z) < 25) continue;
+          const jx = (hash(i, j, 21) - 0.5) * 3, jz = (hash(i, j, 22) - 0.5) * 3, r = c === C.BRUSH ? 1.3 + 1.3 * hash(i, j, 23) : 2.2 + 1.4 * hash(i, j, 23);
+          paths[(c === C.BRUSH ? 0 : 2) + (v < 0.21 ? 0 : 1)].push(x + jx, z + jz, r);
+        }
+        const cols = ['rgb(46,49,31)', 'rgb(66,67,42)', 'rgb(140,132,110)', 'rgb(158,150,126)'];
+        paths.forEach((P, k) => { if (!P.length) return; ctx.fillStyle = cols[k]; ctx.globalAlpha = k < 2 ? 0.85 : 0.7; ctx.beginPath(); for (let q = 0; q < P.length; q += 3) { ctx.moveTo(P[q] + P[q + 2], P[q + 1]); ctx.arc(P[q], P[q + 1], P[q + 2], 0, 6.283); } ctx.fill(); });
+        ctx.restore(); }
+      // creeks (OSM waterways): in late October mostly dry - a dark riparian band with a pale limestone-cobble bed, broken under the circuit
+      ctx.save(); ctx.setTransform(ppm, 0, 0, ppm, S / 2, S / 2); ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+      for (const [style, wk, w0] of [['rgba(38,46,27,0.5)', 0.9, 7], ['rgba(146,138,116,0.75)', 0.22, 1.8]]) {
+        ctx.strokeStyle = style;
+        for (const r of E.data.rivers || []) {
+          if (!r.pts || r.pts.length < 2) continue; ctx.lineWidth = Math.max(w0, (r.w || 3) * wk); ctx.beginPath(); let pen = false;
+          for (const [x, z] of r.pts) { if (Math.abs(x) > H || Math.abs(z) > H || E.fsAt(x, z) < 4) { pen = false; continue; } if (pen) ctx.lineTo(x, z); else ctx.moveTo(x, z); pen = true; }
+          ctx.stroke();
+        }
+      }
+      ctx.restore();
     },
   };
 
   // ---------------------------------------------------------------- the 'texas' tree atlas (env_veg.js paintAtlas variant; same 512 px cells)
   const APAL = {
-    liveoak: { dark: [14, 20, 12], mid: [33, 43, 23], light: [60, 72, 39], glow: [90, 98, 57], leaf: 4.4, density: 0.09, holes: 3 },
+    liveoak: { dark: [13, 19, 12], mid: [31, 41, 23], light: [54, 66, 37], glow: [82, 92, 54], leaf: 4.4, density: 0.09, holes: 3 },
     elm: { dark: [24, 29, 17], mid: [56, 63, 34], light: [98, 102, 58], glow: [140, 138, 88], leaf: 4.4, density: 0.065, holes: 9 },
     juniper: { dark: [11, 19, 16], mid: [28, 40, 31], light: [52, 66, 48], glow: [80, 94, 70], leaf: 3.8, density: 0.13 },
     juniper2: { dark: [13, 20, 15], mid: [33, 44, 31], light: [60, 72, 50], glow: [90, 100, 72], leaf: 3.8, density: 0.13 },
