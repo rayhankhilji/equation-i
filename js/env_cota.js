@@ -221,8 +221,8 @@ window.EI = window.EI || {};
     const x0 = F.x0, x1 = F.x1, half = F.half;
     const lane = (x) => { const a = P(x, 0, zG), b = P(x, 0, zG - 1); return [b[0] - a[0], 0, b[2] - a[2]]; };   // world direction towards the track
     const back = (x) => { const v = lane(x); return [-v[0], 0, -v[2]]; };
-    const pan = [C(0xa4a9ae), C(0x969ba0)], conc = C(0xb8bbbc), concD = C(0x9a9ea1), navy = C(0x1d2640), red = C(0xc8102e), white = C(0xd9dcdd), offW = C(0xc9cdcf);
-    const glass = C(0x26323d), glassL = C(0x3a4d5e), mull = C(0xb9bec2), steel = C(0x8f969c), roofT = C(0xd3d6d8), soffit = C(0xaeb3b7), plinth = C(0x5d6166);
+    const pan = [C(0xa4a9ae), C(0x969ba0)], conc = C(0xb3b7ba), concD = C(0x9a9ea1), navy = C(0x1d2640), red = C(0xc8102e), white = C(0xcdd0d2), offW = C(0xc4c8ca);   // piers / fascia a step darker (BEAUTY 17:48: whites clip in the Texas sun)
+    const glass = C(0x26323d), glassL = C(0x3a4d5e), mull = C(0xb3b8bc), steel = C(0x8f969c), roofT = C(0xc9ccce), soffit = C(0xaeb3b7), plinth = C(0x5d6166);
     const yH0 = 4.8, yH1 = 6.0, yB0 = 6.45, yB1 = 6.8, yL2 = 9.9, yS1 = 10.7, yT = 14.0, yR = 14.4, yR1 = 15.0;   // header, balcony slab, level 2 slab, spandrel top, roof
     const zBal = zG - 1.8, zGal = zG + 1.4, zL2 = zG - 0.3, lean = 0.7, zR0 = zG - 7.2;
     const inRC = (x) => x > F.rc0 - 0.01 && x < F.rc1 + 0.01;

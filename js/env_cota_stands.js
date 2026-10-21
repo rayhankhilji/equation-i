@@ -332,7 +332,7 @@
     const b0 = cs[0], b1 = cs[cs.length - 1]; const p0 = Env.xf(b0.ct.m, (St.flip(b0) ? 1 : -1) * b0.len / 2, 0, 0), p1 = Env.xf(b1.ct.m, (St.flip(b1) ? -1 : 1) * b1.len / 2, 0, 0);
     let ax = p1[0] - p0[0], az = p1[2] - p0[2]; const len = Math.hypot(ax, az); ax /= len; az /= len; const nx = b0.nx, nz = b0.nz; const yB = Math.max(b0.y, b1.y);
     const m = Env.frame((p0[0] + p1[0]) / 2, yB, (p0[2] + p1[2]) / 2, ax, az, nx, nz); const P = (x, y, z) => Env.xf(m, x, y, z); const hl = len / 2;
-    const top = C(0xdcdfe0), under = C(0xc2c6c9), mastC = C(0xa9aeb3), cable = C(0x7d838a);
+    const top = C(0xd6d9da), under = [C(0xc6c9ca), C(0xb8bcbe)], mastC = C(0xa9aeb3), cable = C(0x7d838a), rib = C(0x9aa0a6);
     const zF = -3.2, zR = UP.zBox + 1.2, yF = 27.2, yRr = 25.4, nb = 8, bw = len / nb, NU = 4, NV = 3; const zM = UP.zBox + 3.0, yM = 34.5;
     const hgt = (u, v) => { const yEdge = yF + (yRr - yF) * v; const sag = Math.sin(Math.PI * u) * (2.2 - 1.2 * v); return yEdge - sag; };
     for (let k = 0; k < nb; k++) {
@@ -340,14 +340,16 @@
       for (let i = 0; i < NU; i++) for (let j = 0; j < NV; j++) {
         const u0 = i / NU, u1 = (i + 1) / NU, v0 = j / NV, v1 = (j + 1) / NV;
         const a = P(X(u0), hgt(u0, v0), Z(v0)), b = P(X(u1), hgt(u1, v0), Z(v0)), c = P(X(u1), hgt(u1, v1), Z(v1)), d = P(X(u0), hgt(u0, v1), Z(v1));
-        Ct.face(B, a, b, c, d, top, [0, 1, 0]); Ct.face(B, a, b, c, d, under, [0, -1, 0]);
+        Ct.face(B, a, b, c, d, top, [0, 1, 0]); Ct.face(B, a, b, c, d, under[(i + k) % 2], [0, -1, 0]);
       }
       // front edge tube (follows the scallop), the edge stays from the mast head
       for (let i = 0; i < NU; i++) S.beam(Env.frame(0, 0, 0, 1, 0, 0, 1), P(X(i / NU), hgt(i / NU, 0) - 0.1, zF), P(X((i + 1) / NU), hgt((i + 1) / NU, 0) - 0.1, zF), 0.28, mastC);
     }
-    // masts: raked tubes from the ground behind the back wall to the head above the membrane's rear, front stays + back stays to anchors
+    // masts: raked tubes from the ground behind the back wall to the head above the membrane's rear, front stays + back stays to anchors;
+    // under each mast line a steel rib follows the membrane from the front tip to the back (the roof's structure, seen from the track)
     for (let k = 0; k <= nb; k++) {
-      const x = -hl + k * bw; const gb = (() => { const p = P(x, 0, zM + 4); return sc.height(p[0], p[2]) - yB; })();
+      const x = -hl + k * bw;
+      for (let j = 0; j < NV; j++) S.beam(Env.frame(0, 0, 0, 1, 0, 0, 1), P(x, hgt(0, j / NV) - 0.35, zF + (zR - zF) * j / NV), P(x, hgt(0, (j + 1) / NV) - 0.35, zF + (zR - zF) * (j + 1) / NV), 0.45, rib); const gb = (() => { const p = P(x, 0, zM + 4); return sc.height(p[0], p[2]) - yB; })();
       S.beam(Env.frame(0, 0, 0, 1, 0, 0, 1), P(x, gb - 0.3, zM + 4.0), P(x, yM, zM), 0.7, mastC);
       Fd.beam(Env.frame(0, 0, 0, 1, 0, 0, 1), P(x, yM, zM), P(x, hgt(0, 0), zF), 0.09, cable);
       Fd.beam(Env.frame(0, 0, 0, 1, 0, 0, 1), P(x, yM, zM), P(x, hgt(0, 0.5), (zF + zR) / 2), 0.07, cable);

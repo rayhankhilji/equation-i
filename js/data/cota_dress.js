@@ -37,6 +37,7 @@ window.EI = window.EI || {};
     [15, 2, '#43201d', '#6a6864'],
     [20, 3, '#162b49', '#162b49'],
   ];
+  T.pitColor = 0x6c6b69;   // pit lane asphalt: the plain asphalt map under the default tint reads near white beside COTA's darker racing surface
   T.gravelTint = [1.5, 1.42, 1.2];   // pale limestone / caliche gravel
 
   // ---- marshal posts: the outsides of the corners, then a post every ~200-250 m along the straights, sides alternating (infra keeps clear of the pit lane,

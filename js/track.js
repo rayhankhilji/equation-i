@@ -1362,7 +1362,7 @@ window.EI = window.EI || {};
       // the lane only shows where it leaves the racing surface (no pit asphalt painted over the track itself)
       const vis = F.map(f => Math.min(f.dL, f.dR) > hw - 0.3);
       const idx2 = []; for (let i = 0; i < n; i++) if (vis[i] || vis[i + 1]) { const a = i * 2; idx2.push(a, a + 2, a + 1, a + 1, a + 2, a + 3); } geo.setIndex(idx2);
-      const m = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ map: T.asphalt.map, normalMap: T.asphalt.normalMap, roughnessMap: T.asphalt.roughnessMap, color: this.data.street ? 0xe0a08c : 0xdedcd8, roughness: 1, metalness: 0, polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 1 }));
+      const m = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ map: T.asphalt.map, normalMap: T.asphalt.normalMap, roughnessMap: T.asphalt.roughnessMap, color: this.data.street ? 0xe0a08c : this.data.pitColor != null ? this.data.pitColor : 0xdedcd8, roughness: 1, metalness: 0, polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 1 }));   // data.pitColor (COTA): the pit lane's asphalt tint (the racing surface's shader is darker than the plain map)
       m.receiveShadow = true; m.name = 'pitLane'; g.add(m);
       // markings in one batch: lane edge lines, dashed centre, pit entry / exit lines (thicker, on the track-side edge while the lane runs beside the track),
       // and the speed-limit lines with painted "PIT" / "80"
