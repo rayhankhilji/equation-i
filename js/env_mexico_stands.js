@@ -58,8 +58,9 @@
       const im = t.idxAtS((s + sb) / 2); let nx = -az, nz = ax; if (nx * t.nx[im] * side + nz * t.nz[im] * side < 0) { nx = -nx; nz = -nz; }
       const cx = (A.x + Bq.x) / 2, cz = (A.z + Bq.z) / 2, hl = len / 2 - 0.15;
       const W = (x, z) => [cx + ax * x + nx * z, cz + az * x + nz * z];
-      if (!St.clear(E, W, hl, depth)) { s = sb; continue; }
-      if (E.rectFree(cx + nx * depth / 2, cz + nz * depth / 2, ax, az, hl + 2, depth / 2 + 1, OCC.BUILT | OCC.WATER) < 0.9 || E.rectFree(cx + nx * depth / 2, cz + nz * depth / 2, ax, az, hl, depth / 2, OCC.ROAD) < 0.6) { s = sb; continue; }
+      const why = E.stats.mexicoWhy, wk = R.label + '@' + R.gap;
+      if (!St.clear(E, W, hl, depth)) { why[wk + ':clear'] = (why[wk + ':clear'] || 0) + 1; s = sb; continue; }
+      if (E.rectFree(cx + nx * depth / 2, cz + nz * depth / 2, ax, az, hl + 2, depth / 2 + 1, OCC.BUILT | OCC.WATER) < 0.9 || E.rectFree(cx + nx * depth / 2, cz + nz * depth / 2, ax, az, hl, depth / 2, OCC.ROAD) < 0.6) { why[wk + ':occ'] = (why[wk + ':occ'] || 0) + 1; s = sb; continue; }
       const blk = { cx, cz, ax, az, nx, nz, len: hl * 2, rows, roof: false, seat: R.seat, y: 0, s: (s + sb) / 2, first: !run.blocks.length, last: false, name: R.label, mx: { R, run } };
       St.fitY(E, blk); E.blocks.push(blk); run.blocks.push(blk);
       const poly = E.markRect(blk.cx + blk.nx * depth / 2, blk.cz + blk.nz * depth / 2, blk.ax, blk.az, blk.len / 2 + 2.4, depth / 2 + 0.8, Env.OCC.BUILT); E.standPolys.push(poly); E.mxOwnPolys.push(poly); run.polys.push(poly);
@@ -72,8 +73,8 @@
   St.unrun = function (E, run) { for (const b of run.blocks) { const k = E.blocks.indexOf(b); if (k >= 0) E.blocks.splice(k, 1); } const k = E.mxRuns.indexOf(run); if (k >= 0) E.mxRuns.splice(k, 1); };
   // every sample of a chord (front corners >= 1.5 m, the rest >= 2.5 m beyond the rendered barrier; the stair towers at the ends too)
   St.clear = function (E, W, hl, depth) {
-    const t = E.t; const pts = [[-hl, 0, 1.5], [hl, 0, 1.5], [0, 0, 1.5], [-hl, depth, 2.5], [hl, depth, 2.5], [0, depth, 2.5], [-hl, depth / 2, 2.5], [hl, depth / 2, 2.5], [-hl - 3.6, depth - 2, 2.5], [hl + 3.6, depth - 2, 2.5]];
-    for (const [x, z, need] of pts) { const P = W(x, z); if (E.fsAt(P[0], P[1]) < need) return false; if (E.dcAt(P[0], P[1]) < t.halfWidth + t.kerbWidth + 4) return false; if (Mx.nearPit(E, P[0], P[1]) < 10) return false; }
+    const t = E.t; const why = E.stats.mexicoWhy; const pts = [[-hl, 0, 1.5], [hl, 0, 1.5], [0, 0, 1.5], [-hl, depth, 2.5], [hl, depth, 2.5], [0, depth, 2.5], [-hl, depth / 2, 2.5], [hl, depth / 2, 2.5], [-hl - 3.6, depth - 2, 2.5], [hl + 3.6, depth - 2, 2.5]];
+    for (const [x, z, need] of pts) { const P = W(x, z); if (E.fsAt(P[0], P[1]) < need) { why._fs = (why._fs || 0) + 1; return false; } if (E.dcAt(P[0], P[1]) < t.halfWidth + t.kerbWidth + 4) { why._dc = (why._dc || 0) + 1; return false; } if (Mx.nearPit(E, P[0], P[1]) < 10) { why._pit = (why._pit || 0) + 1; return false; } }
     return true;
   };
   // chord floor level: the front no more than 0.5 m into the ground, every row >= 0.3 m clear of the ground (re-run after the terrain)
@@ -224,13 +225,13 @@
   St.rowsOf = function (R) {
     const out = [];
     if (R.kind === 'foroSol') {
-      const L = FS.low; for (let r = 0; r < L.rows; r++) out.push({ z: L.z0 + r * L.tread, y: L.y0 + (r + 1) * L.rise, tr: L.tread, fill: 0.9, sh: 0.96, pitch: 0.58 });
+      const L = FS.low; for (let r = 0; r < L.rows; r++) out.push({ z: L.z0 + r * L.tread, y: L.y0 + (r + 1) * L.rise, tr: L.tread, fill: 0.86, sh: 0.96, pitch: 0.62 });
       const up = FS.up, yU = FS.low.y0 + FS.low.rows * FS.low.rise + FS.up.yGap; const zr = R.depth * 0.5;
-      for (let r = 0; r < R.upRows; r++) { const z = R.upZ0 + r * up.tread; out.push({ z, y: yU + (r + 1) * up.rise, tr: up.tread, fill: 0.86, sh: z > zr ? 0.74 : 0.95, pitch: 0.6 }); }
+      for (let r = 0; r < R.upRows; r++) { const z = R.upZ0 + r * up.tread; out.push({ z, y: yU + (r + 1) * up.rise, tr: up.tread, fill: 0.66, sh: z > zr ? 0.74 : 0.95, pitch: 0.7 }); }
     } else if (R.kind === 'main') {
-      for (let r = 0; r < MG.rows; r++) out.push({ z: MG.z0 + r * MG.tread, y: MG.wallH + (r + 1) * MG.rise, tr: MG.tread, fill: 0.86, sh: r < 2 ? 0.9 : 0.72, pitch: 0.6 });
+      for (let r = 0; r < MG.rows; r++) out.push({ z: MG.z0 + r * MG.tread, y: MG.wallH + (r + 1) * MG.rise, tr: MG.tread, fill: 0.62, sh: r < 2 ? 0.9 : 0.72, pitch: 0.66 });
     } else if (R.kind === 'harp') {
-      for (let r = 0; r < 24; r++) out.push({ z: 0.35 + r * 0.82, y: 1.8 + (r + 1) * 0.44, tr: 0.82, fill: 0.55, sh: r > 11 ? 0.76 : 0.96, pitch: 0.6 });
+      for (let r = 0; r < 24; r++) out.push({ z: 0.35 + r * 0.82, y: 1.8 + (r + 1) * 0.44, tr: 0.82, fill: 0.42, sh: r > 11 ? 0.76 : 0.96, pitch: 0.66 });
     }
     return out;
   };
