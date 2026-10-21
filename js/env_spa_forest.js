@@ -16,6 +16,24 @@ window.EI = window.EI || {};
   // per-instance colour multipliers (Veg.instance record [8]): Norway spruce cool blue-green, beech a deep green, the understory between
   const SPRUCE_C = [0.78, 0.93, 1.02], BEECH_C = [0.86, 0.95, 0.8], SHRUB_C = [0.9, 0.97, 0.9];
 
+  // the lap's open breather (SPEC 4.8 / BEAUTY): Stavelot - Paul Frere on the OUTSIDE of the bends, 75 m of pasture behind the barrier with a few lone
+  // trees (canopy cells of the 4 m cover there become pasture, so the field map and the planting agree)
+  const OPEN = [[12, -200, 16, -300, 75]];
+  SF.openWindows = function (E) {
+    const t = E.t, G = E.fcov; if (!G) return; const cs = (k) => { const c = (t.data.corners || []).find(q => q.t === k); return c ? c.s : null; }; const pr = {}; let n = 0;
+    for (const [a, da, b, db, W] of OPEN) {
+      const s0 = cs(a), s1 = cs(b); if (s0 == null || s1 == null) continue; const A = U.mod(s0 + da, t.length), B = U.mod(s1 + db, t.length);
+      const inS = (s) => (A <= B ? s >= A && s < B : s >= A || s < B);
+      let kSum = 0; for (let s = A; inS(s) && s < A + t.length; s += 4) { kSum += t.kFold[t.idxAtS(s)]; if (s - A > 4000) break; }
+      const outSide = kSum > 0 ? -1 : 1;   // (k > 0 bends towards +lat: the outside is -lat)
+      for (let j = 0; j < G.nz; j++) for (let i = 0; i < G.nx; i++) {
+        const k = j * G.nx + i; if (G.cls[k] > 1) continue; const x = G.x0 + (i + 0.5) * G.cell, z = G.z0 + (j + 0.5) * G.cell;
+        if (E.fsAt(x, z) > W) continue; t.project(x, z, null, pr); if (!inS(pr.s) || (pr.lat < 0 ? -1 : 1) !== outSide) continue;
+        if (Env.hash2(i, j, 71) < 0.03) continue; G.cls[k] = 2; n++;
+      }
+    }
+    E.stats.openCells = n;
+  };
   SF.build = function (E, Veg) {
     const T0 = performance.now(); const t = E.t, sc = E.sc, SP = Veg.SP, OCC = Env.OCC, rng = U.rng(2026); const trees = [];
     const cs = (k) => { const c = (t.data.corners || []).find(q => q.t === k); return c ? c.s : null; };

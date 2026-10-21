@@ -46,7 +46,7 @@ window.EI = window.EI || {};
       spruce: { dark: [10, 20, 17], mid: [24, 40, 32], light: [46, 66, 50], glow: [74, 96, 70], leaf: 4.2, density: 0.12 },
       spruce2: { dark: [12, 22, 16], mid: [28, 44, 32], light: [52, 72, 50], glow: [82, 102, 72], leaf: 4.2, density: 0.12 },
     };
-    const bark = '#3b2c1e', barkLight = '#5a4632', pineBark = '#7a4a2c';
+    const bark = forest ? '#706e68' : '#3b2c1e', barkLight = forest ? '#8c8a83' : '#5a4632', pineBark = '#7a4a2c';   // (forest ground: smooth silver-grey Ardennes beech bark)
     // ---- oak / ash (side views): short forked trunk, broad lumpy crown that comes down low at the sides
     const oakSide = (ox, oy, seed, pal, ash) => {
       const r = U.rng(seed); const base = ash ? 360 : 400;
