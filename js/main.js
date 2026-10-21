@@ -76,7 +76,13 @@ window.EI = window.EI || {};
       // a cool, moderate grade (deep blue-green forest, mid-grey asphalt). All constants / sky-pixel maths: no calls, tris or programs.
       spa: { elev: 52, azim: 325, turb: 6, ray: 1.6, mie: 0.010, mieG: 0.78, horizon: 0xb2bcc2, sky: [0.48, 0.5], fog: [60, 1850], fogLow: [35, 1200],
         hemi: [0xc4ccd4, 0x34402c, 1.05], sun: [0xfff0dc, 1.5], envSat: 0.35, exp: 0.92, grade: { sat: 1.18, con: 1.1, warm: [0.98, 1.0, 1.02] },
-        veil: [0.55, 0xd1d5da], haze: [0.65, 0.14], hills: [[0.052, 0.55, 1.3], [0.031, 1.1, 4.1]], clouds: [1.0, 0.7, 0xe2e6ea] } };
+        veil: [0.55, 0xd1d5da], haze: [0.65, 0.14], hills: [[0.052, 0.55, 1.3], [0.031, 1.1, 4.1]], clouds: [1.0, 0.7, 0xe2e6ea] },
+      // Circuit of the Americas (COTA-GEN, minimal; COTA-BEAUTY owns it): a late-October Texas race afternoon (~14:30 CDT) - the sun ~45 deg up
+      // in the south-south-west, a big clear sky (deep blue zenith, a pale warm haze on the flat horizon), long sight lines (far fog), sun-cured gold
+      // prairie grass bouncing a warm ground light, a few thin fair-weather clouds. All constants: no calls, tris or programs.
+      cota: { elev: 45, azim: 325, turb: 2.2, ray: 1.7, mie: 0.004, mieG: 0.82, horizon: 0xcfd6dc, sky: [0.44, 1.2], fog: [700, 3200], fogLow: [420, 1800],
+        hemi: [0xa8c6ea, 0x8a7442, 0.45], sun: [0xfff0d6, 2.6], envSat: 0.45, exp: 1.0, grade: { sat: 1.38, con: 1.13, warm: [1.035, 1.0, 0.955] },
+        haze: [0.4, 0.08], clouds: [0.45, 0.35, 0xf4f2ee] } };
     const LK = Object.assign({ elev: 38, azim: 212, turb: 2.5, ray: 2.0, mie: 0.004, horizon: 0xa9c4e4, sky: [0.42, 1.0], fog: [600, 2600], fogLow: [350, 1500], hemi: [0x9fc4ee, 0x3f5a2e, 0.35], sun: [0xfff1dd, 2.4] }, LOOKS[trackId] || {}); EI.look = LK;
     // look tuning (art direction): ?look={json} merges over the circuit's LOOKS entry, e.g. ?look={"elev":34,"grade":{"sat":1.4,"con":1.1}}
     { const m = /[?&]look=([^&]+)/.exec(location.search); if (m) { try { Object.assign(LK, JSON.parse(decodeURIComponent(m[1]))); } catch (e) { console.warn('bad ?look', e); } } }
