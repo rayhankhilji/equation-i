@@ -46,7 +46,7 @@ window.EI = window.EI || {};
       spruce: { dark: [10, 20, 17], mid: [24, 40, 32], light: [46, 66, 50], glow: [74, 96, 70], leaf: 4.2, density: 0.12 },
       spruce2: { dark: [12, 22, 16], mid: [28, 44, 32], light: [52, 72, 50], glow: [82, 102, 72], leaf: 4.2, density: 0.12 },
     };
-    const bark = forest ? '#706e68' : '#3b2c1e', barkLight = forest ? '#7e7d78' : '#5a4632', pineBark = '#7a4a2c';   // (forest ground: smooth silver-grey Ardennes beech bark)
+    const bark = forest === true ? '#706e68' : '#3b2c1e', barkLight = forest === true ? '#7e7d78' : '#5a4632', pineBark = '#7a4a2c';   // (forest ground: smooth silver-grey Ardennes beech bark)
     // ---- oak / ash (side views): short forked trunk, broad lumpy crown that comes down low at the sides
     const oakSide = (ox, oy, seed, pal, ash) => {
       const r = U.rng(seed); const base = ash ? 360 : 400;
@@ -101,11 +101,15 @@ window.EI = window.EI || {};
     };
     const rowA = CW * 2, rowB = CW, rowT = 0;
     const cell = (ox, oy, fn) => { ctx.save(); ctx.beginPath(); ctx.rect(ox + 6, oy + 6, CW - 12, CW - 8); ctx.clip(); fn(); ctx.restore(); };
-    cell(0, rowA, () => oakSide(0, rowA, 11, PAL.oak, false)); cell(0, rowB, () => oakSide(0, rowB, 23, PAL.ash, true)); cell(0, rowT, () => top(0, rowT, 5, PAL.oak, 200, 12));
-    if (forest) { cell(CW, rowA, () => spruceSide(CW, rowA, 31, PAL.spruce)); cell(CW, rowB, () => spruceSide(CW, rowB, 37, PAL.spruce2)); cell(CW, rowT, () => top(CW, rowT, 7, PAL.spruce, 130, 9, true)); }   // forest ground (Spa): Norway spruce in the poplar column
+    // forest ground variant (COTA: live oak, ashe juniper, mesquite, brush; env_cota_veg.js): paints the columns it lists, the rest stay
+    const V = forest && forest !== true && Veg.atlas ? Veg.atlas[forest] : null, own = (k) => !!V && V.cols.indexOf(k) >= 0;
+    if (!own(0)) { cell(0, rowA, () => oakSide(0, rowA, 11, PAL.oak, false)); cell(0, rowB, () => oakSide(0, rowB, 23, PAL.ash, true)); cell(0, rowT, () => top(0, rowT, 5, PAL.oak, 200, 12)); }
+    if (own(1)) { /* variant */ }
+    else if (forest) { cell(CW, rowA, () => spruceSide(CW, rowA, 31, PAL.spruce)); cell(CW, rowB, () => spruceSide(CW, rowB, 37, PAL.spruce2)); cell(CW, rowT, () => top(CW, rowT, 7, PAL.spruce, 130, 9, true)); }   // forest ground (Spa): Norway spruce in the poplar column
     else { cell(CW, rowA, () => poplarSide(CW, rowA, 31, PAL.poplar)); cell(CW, rowB, () => poplarSide(CW, rowB, 37, PAL.poplar)); cell(CW, rowT, () => top(CW, rowT, 7, PAL.poplar, 150, 8)); }
-    cell(CW * 2, rowA, () => pineSide(CW * 2, rowA, 41, PAL.pine)); cell(CW * 2, rowB, () => pineSide(CW * 2, rowB, 47, PAL.pine)); cell(CW * 2, rowT, () => top(CW * 2, rowT, 9, PAL.pine, 180, 9, true));
-    cell(CW * 3, rowA, () => shrubSide(CW * 3, rowA, 53, PAL.shrub)); cell(CW * 3, rowB, () => shrubSide(CW * 3, rowB, 59, PAL.shrub2)); cell(CW * 3, rowT, () => top(CW * 3, rowT, 13, PAL.shrub, 200, 12));
+    if (!own(2)) { cell(CW * 2, rowA, () => pineSide(CW * 2, rowA, 41, PAL.pine)); cell(CW * 2, rowB, () => pineSide(CW * 2, rowB, 47, PAL.pine)); cell(CW * 2, rowT, () => top(CW * 2, rowT, 9, PAL.pine, 180, 9, true)); }
+    if (!own(3)) { cell(CW * 3, rowA, () => shrubSide(CW * 3, rowA, 53, PAL.shrub)); cell(CW * 3, rowB, () => shrubSide(CW * 3, rowB, 59, PAL.shrub2)); cell(CW * 3, rowT, () => top(CW * 3, rowT, 13, PAL.shrub, 200, 12)); }
+    if (V) V.paint({ ctx, CW, rowA, rowB, rowT, cell, lobe, trunk, branch, rgb, mixc, oakSide, spruceSide, shrubSide, top, PAL });
     if (med) paintMediterranean(ctx, CW, rowA, rowB, rowT, cell, lobe, trunk, branch, rgb);
     return Env.cutout(c, { aniso: 4 });
   }
@@ -243,7 +247,7 @@ window.EI = window.EI || {};
     if (cur.length > 1) out.push(cur); return out;
   }
   Veg.build = function (E) {
-    if (E.forestOn && EI.SpaForest) return EI.SpaForest.build(E, Veg);   // forest ground (Spa): sector planting, env_spa_forest.js
+    if (E.forestOn && E.forestPlanter()) return E.forestPlanter().build(E, Veg);   // forest ground: the circuit's planting module (Spa: sector planting, env_spa_forest.js; COTA: env_cota_veg.js)
     const sc = E.sc, t = E.t, OCC = Env.OCC, rng = U.rng(2024); const trees = []; const T0 = performance.now();
     const BLOCK = OCC.ROAD | OCC.BUILT | OCC.PARK | OCC.WATER | OCC.KEEP;
     const park = E.data.kind === 'park';   // Royal Park (Monza): tall broadleaf woods in tiles (w.core / w.holes), tree rows, no hedges / crops
@@ -425,7 +429,7 @@ window.EI = window.EI || {};
   // ---------------------------------------------------------------- instancing: one cell-sorted record set feeding the near (3-card) LOD,
   // the soft contact shadows under near trees and the far (1-card billboard) LOD; both regathered around the eye
   Veg.instance = function (E, trees) {
-    const sc = E.sc; const med = E.data.kind === 'street' || E.data.kind === 'desert'; const atlas = paintAtlas(med, !!E.forestOn); const rng = U.rng(99); const mk = med ? '-med' : '';
+    const sc = E.sc; const med = E.data.kind === 'street' || E.data.kind === 'desert'; const atlas = paintAtlas(med, E.forestOn ? ((E.forestPlanter() || {}).atlas || true) : false); const rng = U.rng(99); const mk = med ? '-med' : '';   // (forest: true = Spa's spruce / beech, or the planter's atlas variant name)
     const set = new Env.CellSet([4, 4, 4], 60);
     for (const tr of trees) {
       const [x, z, sp, w, h, v, tint, interior] = tr; const y = sc.height(x, z) - 0.15;

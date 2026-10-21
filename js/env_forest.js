@@ -10,6 +10,9 @@
 //   * ground colour from the ground-cover rasters (4 m over the lap from satellite colour classes, 16 m OSM landuse beyond): spruce / beech
 //     canopy (crown mosaic, the dark forest floor under the near trees), pasture, rough fen grass, paved, gravel, water.
 // Methods are added to Env.Ctx; env.js routes initForest / terrainHeight / fieldRGB / paintFieldMap / groundMaterial here when forestOn.
+// Other hill circuits (COTA-STITCH): ENVDATA.<id>.forest.planter names the planting module (EI[planter], default EI.SpaForest: build /
+// openWindows); its optional `ground` record sets the per-circuit options (pal / mow colours, gs / kin / ring terrain grid, flat shelf, level
+// classes, fallback class, rgb / base colour hooks). Without them every default below is Spa's.
 window.EI = window.EI || {};
 (function () {
   const U = EI.U, Env = EI.Env, Ctx = Env.Ctx;
@@ -31,12 +34,14 @@ window.EI = window.EI || {};
 
   Ctx.prototype.initForest = function () {
     const D = this.data.forest, t = this.t; this.forestOn = true;
+    const PL = this.forestPlanter(), O = (PL && PL.ground) || {}; this.fGround = O;   // per-circuit options (none for Spa)
+    this.fPal = O.pal ? Object.assign({}, PAL, O.pal) : PAL; this.fMow = O.mow || [MOW_A, MOW_B];
     const decD = (g) => ({ h: g.h, step: g.step, n: g.n, a: Env.decodeI16(g.d) });
     this.dem = { near: decD(D.dem.near), far: decD(D.dem.far) }; this.demZ0 = 0;   // heights are already relative to the start line
     this.fcov = F.decodeCover(D.cover); this.fcovFar = D.coverFar ? F.decodeCover(D.coverFar) : null;
-    if (EI.SpaForest && EI.SpaForest.openWindows) EI.SpaForest.openWindows(this);   // (open pasture windows cut into the cover before anything samples it)
-    this.terrainGS = D.gs || 16; this.terrainKin = D.kin || 88; this.terrainRing = D.ring || 24; this.terrainQuads = true;   // 16 m grid inside +-1.4 km (the lap is +-0.65 x +-1.05 km; the DEM is 20 m), a ring out to ~3.4 km, 8 tiles: Low budget <= 6 draws / 90 k tris in view
-    this.forestFlat = 2.5;   // the verge stays level for 2.5 m behind the barrier (debris fence, boards, Armco posts), then drapes   // 12 m grid inside +-1.4 km (the lap is +-0.65 x +-1.05 km): fewer terrain triangles than Monaco's +-1.8 km
+    if (PL && PL.openWindows) PL.openWindows(this);   // (open pasture windows cut into the cover before anything samples it)
+    this.terrainGS = O.gs || D.gs || 16; this.terrainKin = O.kin || D.kin || 88; this.terrainRing = O.ring || D.ring || 24; this.terrainQuads = true;   // 16 m grid inside +-1.4 km (the lap is +-0.65 x +-1.05 km; the DEM is 20 m), a ring out to ~3.4 km, 8 tiles: Low budget <= 6 draws / 90 k tris in view
+    this.forestFlat = O.flat || 2.5;   // the verge stays level for 2.5 m behind the barrier (debris fence, boards, Armco posts), then drapes   // 12 m grid inside +-1.4 km (the lap is +-0.65 x +-1.05 km): fewer terrain triangles than Monaco's +-1.8 km
     // distance-field grids (10 m): the nearest sample's road level, and the road-minus-DEM offset (smoothed along the lap, fading out by 250 m, blurred)
     const DN = Math.round(Math.sqrt(this.dC.length)); const n = DN * DN; this._DN = DN;
     const off = new Float32Array(t.n); for (let i = 0; i < t.n; i++) off[i] = t.y[i] - this.demAt(t.x[i], t.z[i]);
@@ -51,7 +56,7 @@ window.EI = window.EI || {};
     this.fOff = fo;
     // paved / built ground (paddocks, car parks, the pit complex): levelled - the DEM eased towards its ~70 m average there
     const pav = new Float32Array(n), dm = new Float32Array(n), DH = (DN - 1) * 5;
-    for (let gz = 0; gz < DN; gz++) for (let gx = 0; gx < DN; gx++) { const x = -DH + gx * 10, z = -DH + gz * 10, k = gz * DN + gx; dm[k] = this.demAt(x, z); const c = this.forestClass(x, z); pav[k] = c === C.PAVED ? 1 : 0; }
+    for (let gz = 0; gz < DN; gz++) for (let gx = 0; gx < DN; gx++) { const x = -DH + gx * 10, z = -DH + gz * 10, k = gz * DN + gx; dm[k] = this.demAt(x, z); const c = this.forestClass(x, z); pav[k] = (O.level ? O.level.indexOf(c) >= 0 : c === C.PAVED) ? 1 : 0; }
     const blur = (src, R, passes) => { let a = src; for (let pass = 0; pass < passes; pass++) { const tmp = new Float32Array(n), out = new Float32Array(n);
       for (let j = 0; j < DN; j++) for (let i = 0; i < DN; i++) { let s2 = 0, c2 = 0; for (let d = -R; d <= R; d++) { const ii = i + d; if (ii < 0 || ii >= DN) continue; s2 += a[j * DN + ii]; c2++; } tmp[j * DN + i] = s2 / c2; }
       for (let j = 0; j < DN; j++) for (let i = 0; i < DN; i++) { let s2 = 0, c2 = 0; for (let d = -R; d <= R; d++) { const jj = j + d; if (jj < 0 || jj >= DN) continue; s2 += tmp[jj * DN + i]; c2++; } out[j * DN + i] = s2 / c2; } a = out; } return a; };
@@ -62,12 +67,15 @@ window.EI = window.EI || {};
     this.stats.forest = { dem: [D.dem.near.n, D.dem.far.n], cover: [this.fcov.nx, this.fcov.nz] };
   };
 
+  // the planting module of this circuit (ENVDATA.<id>.forest.planter, default Spa's)
+  Ctx.prototype.forestPlanter = function () { const D = this.data.forest; return D && D.planter ? EI[D.planter] : EI.SpaForest; };
   // ground-cover class at (x, z): the 4 m raster over the lap, the 16 m one beyond, then pasture / forest by a smooth noise
   Ctx.prototype.forestClass = function (x, z) {
     for (const g of [this.fcov, this.fcovFar]) {
       if (!g) continue; const i = Math.floor((x - g.x0) / g.cell), j = Math.floor((z - g.z0) / g.cell);
       if (i >= 0 && j >= 0 && i < g.nx && j < g.nz) return g.cls[j * g.nx + i];
     }
+    if (this.fGround.fallback) return this.fGround.fallback(this, x, z);
     return U.fbm(x / 900 + 3.3, z / 900 + 1.7, 3) < 0.52 ? C.SPRUCE : C.PASTURE;
   };
   Ctx.prototype.isCanopy = function (x, z) { const c = this.forestClass(x, z); return c === C.SPRUCE || c === C.BEECH; };
@@ -153,18 +161,19 @@ window.EI = window.EI || {};
 
   // ground colour (sRGB bytes into out): the class colour with a crown mosaic on canopy, mown stripes in a narrow band behind the barriers
   Ctx.prototype.forestRGB = function (x, z, out, fpre) {
-    out = out || [0, 0, 0]; const f = this.fsAt(x, z);
+    out = out || [0, 0, 0]; if (this.fGround.rgb) return this.fGround.rgb(this, x, z, out, fpre); const f = this.fsAt(x, z);
     const n1 = this._coarse ? 0.5 : U.noise2(x / 47 + 3.3, z / 47 + 7.1);
-    if (f < 7 && f > -40) { const c = (Math.floor((this.dcAt(x, z) - this.t.halfWidth) / 7.5) & 1) ? MOW_A : MOW_B; const k = 0.94 + n1 * 0.1; out[0] = c[0] * k; out[1] = c[1] * k; out[2] = c[2] * k; return out; }
+    if (f < 7 && f > -40) { const c = (Math.floor((this.dcAt(x, z) - this.t.halfWidth) / 7.5) & 1) ? this.fMow[0] : this.fMow[1]; const k = 0.94 + n1 * 0.1; out[0] = c[0] * k; out[1] = c[1] * k; out[2] = c[2] * k; return out; }
     let cl = this.forestClass(x, z); if (cl === C.PAVED && f < 35 && f > 0) cl = C.ROUGH;   // (bare run-off fringes behind the barriers read as rough grass, not car parks)
-    const c = PAL[cl] || PAL[2]; let k = 0.9 + n1 * 0.2;
+    const c = this.fPal[cl] || this.fPal[2]; let k = 0.9 + n1 * 0.2;
     if (cl <= 1) { const ci = Math.floor(x / 5), cj = Math.floor(z / 5); k *= 0.72 + 0.5 * hash(ci, cj, cl + 3); }
     else if (cl === 2) k *= 0.94 + 0.12 * U.noise2(x / 140 + 1.1, z / 140 + 4.7);
     out[0] = c[0] * k; out[1] = c[1] * k; out[2] = c[2] * k; return out;
   };
   // paint the field map base from the cover rasters (pixel space ctx, before the venue overlays): far raster, then the 4 m one with a crown mosaic
   Ctx.prototype.forestBase = function (ctx, S, H) {
-    const ppm = S / (2 * H);
+    if (this.fGround.base) return this.fGround.base(this, ctx, S, H);
+    const ppm = S / (2 * H); const PAL = this.fPal;
     const draw = (g, crown) => {
       if (!g) return; const [c, cx] = Env.canvas(g.nx, g.nz); const im = cx.createImageData(g.nx, g.nz), d = im.data;
       for (let j = 0; j < g.nz; j++) for (let i = 0; i < g.nx; i++) {
@@ -193,6 +202,7 @@ window.EI = window.EI || {};
     if (e <= -1.2 && p.dist > wc + this.forestFlat - 0.3) { const a = this.forestGround(x - t.nx[i] * side * 0.8, z - t.nz[i] * side * 0.8), b = this.forestGround(x + t.nx[i] * side * 0.8, z + t.nz[i] * side * 0.8); if (Math.abs(a - b) > 0.5) return false; }
     const c = this.forestClass(x, z); if (c === F.C.PAVED || c === F.C.GRAVEL || c === F.C.WATER) return false;
     if (c <= 1 && beyond > 5) return Env.hash2(Math.round(x * 3), Math.round(z * 3), 61) < 0.2;
+    if (c === 4) return Env.hash2(Math.round(x * 3), Math.round(z * 3), 63) < 0.3;   // (bare caliche / limestone, COTA: a few tufts; no such class on Spa)
     return true;
   };
 })();
