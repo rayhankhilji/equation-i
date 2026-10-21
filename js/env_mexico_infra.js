@@ -46,7 +46,7 @@
     const who = ['lumi', 'intake', 'lumi2', 'intake2'];
     E.mxInfra.bridges = list.map((b, k) => Object.assign({ which: b.which || who[k % 4] }, b));
     for (const b of E.mxInfra.bridges) { const i = t.idxAtS(b.s); const q = Mx.at(t, b.s, 1, 0); b.u = {};
-      for (const sd of [1, -1]) { let d = (sd > 0 ? t.wallL[i] : t.wallR[i]) + 5.6; for (let k = 0; k < 24 && Mx.nearPit(E, q.x + t.nx[i] * sd * d, q.z + t.nz[i] * sd * d) < 9; k++) d += 2; b.u[sd] = d; reserve(E.rectPoly(q.x + t.nx[i] * sd * d, q.z + t.nz[i] * sd * d, t.nx[i], t.nz[i], 3.5, 3.5)); } }
+      for (const sd of [1, -1]) { let d = E.wallCap(i, sd) + 5.6; for (let k = 0; k < 24 && Mx.nearPit(E, q.x + t.nx[i] * sd * d, q.z + t.nz[i] * sd * d) < 9; k++) d += 2; b.u[sd] = d; reserve(E.rectPoly(q.x + t.nx[i] * sd * d, q.z + t.nz[i] * sd * d, t.nx[i], t.nz[i], 3.5, 3.5)); } }
     // the landmarks with their own footprints
     for (const k of ['palacioDeportes', 'velodrome']) if (lm[k] && lm[k].p) reserve(lm[k].p);
   };

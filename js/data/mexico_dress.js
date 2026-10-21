@@ -39,7 +39,7 @@ window.EI = window.EI || {};
     [6, 3, '#43201d', '#43201d'],
     [12, 3, '#162b49', '#162b49'],
   ];
-  T.pitColor = 0x6c6b69;   // pit lane asphalt: the plain map under the default tint reads near white in the altitude sun
+  T.pitColor = 0xffffff;   // pit lane asphalt: the plain map under the default tint reads near white in the altitude sun
 
   // ---- marshal posts: the outsides of the corners (the stadium S-pair gets one), then a post every ~220-300 m along the straights, sides alternating
   const posts = [];
