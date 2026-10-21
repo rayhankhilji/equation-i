@@ -61,20 +61,26 @@ window.EI = window.EI || {};
   // Spa (SPA-GEN, swarm/spa/gen/sweep.sh): solo clean to 1.15, wide from 1.2; 3-lap 22-car races at 1.12 / 1.15 (2 seeds) both 0 bot wall hits -> 1.12
   // COTA (COTA-GEN, swarm/cota/gen/sweep.sh): solo clean to 1.15, wide from 1.2; ultra 22-car 3-lap races at 1.12: 0 bot wall hits -> 1.12.
   // LIMIT_LAP 87.88 (qsim ultra, mediums); TYRE_DELTA soft -0.48 % / hard +0.42 % (whole field); Official on softs 95.98-96.00 vs the 2026 estimate 96.033
-  const C_LIMIT = { silverstone: 1.1, monaco: 1.25, abudhabi: 1.16, monza: 1.12, spa: 1.12, cota: 1.12 }, C_LIMIT_DEFAULT = 1.1;
+  // Mexico (MEX-GEN, swarm/mexico/gen/sweep.sh + lapct.sh): solo clean to 1.25, ultra 22-car 3-lap races clean at 1.0 / 1.06 / 1.12 (0 bot wall hits). ALTITUDE (2,240 m,
+  // air density ~0.78 of sea level): the real cars lose ~22 % aero load at equal wing and win part of it back with max-downforce wings, while
+  // car.js (shared, frozen) has one sea-level grip model -> the limit car's corner grip is capped lower here: 1.0 = the usual 1.12 x ~0.89.
+  // Straights need no constant: with Straight Mode + full ERS the game car already reaches 356 km/h at the end of the pit straight (real 2025
+  // traps 355-363) and bots never pace on straights (speedFactor 1). LIMIT_LAP 70.49 (qsim ultra, mediums); TYRE_DELTA soft -0.51 % / hard +0.45 %;
+  // GAP_STRETCH 1.175: the bots realise only ~86 % of the profile's lap ratio on this straight-heavy lap; Official on softs 78.46 vs the 2026 estimate 78.464
+  const C_LIMIT = { silverstone: 1.1, monaco: 1.25, abudhabi: 1.16, monza: 1.12, spa: 1.12, cota: 1.12, mexico: 1.0 }, C_LIMIT_DEFAULT = 1.1;
   // lap time a late braker gains over an early one on top of the profile (trail-braking carry, later lift: update()), per unit of
   // the braking trait, measured in the headless sim. The corner grip is solved against it so braking style never changes the pace.
   // Monza: braking trait 0 -> 1 = -0.067 s on a 76.2 s solo lap (grip 1.16) -> 0.001
   const K_BRAKE = { silverstone: 0.001, monaco: 0.002, abudhabi: 0.001, monza: 0.001 }, K_BRAKE_DEFAULT = 0.0015;
   // the bots realise ~92-97% of the lap-time difference the profile predicts between two corner-grip scales (fit per circuit over
   // 7 skills x 22 drivers, residual ~0.1%), so the lap ratio is asked for that much larger to come out right on the stopwatch
-  const GAP_STRETCH = { silverstone: 1.09, monaco: 1.09, abudhabi: 1.07, monza: 1.04, spa: 1.12, cota: 1.075 }, GAP_STRETCH_DEFAULT = 1.075;   // spa: matrix.js ultra spread 5.81 % vs 5.77 % real, rho 0.999
+  const GAP_STRETCH = { silverstone: 1.09, monaco: 1.09, abudhabi: 1.07, monza: 1.04, spa: 1.12, cota: 1.075, mexico: 1.175 }, GAP_STRETCH_DEFAULT = 1.075;   // spa: matrix.js ultra spread 5.81 % vs 5.77 % real, rho 0.999
 
   // lap time of the season's fastest car + driver at skill 100 (no form), headless sim on the circuit (qsim.js, solo flying laps):
   // the anchor that turns a real lap time into the game's scale. Re-measure with C_LIMIT.
-  const LIMIT_LAP = { silverstone: 80.75, monaco: 64.24, abudhabi: 79.26, monza: 76.65, spa: 94.24, cota: 87.88 }, OFFICIAL_LOSS_DEFAULT = 0.08;
+  const LIMIT_LAP = { silverstone: 80.75, monaco: 64.24, abudhabi: 79.26, monza: 76.65, spa: 94.24, cota: 87.88, mexico: 70.49 }, OFFICIAL_LOSS_DEFAULT = 0.08;
   // real 2026 pole lap of a circuit (s): EI.RACEPACE (real lap data) > EI.SEASON.tracks > the season's real grids (pole time)
-  const GRID_NAME = { silverstone: /british/i, monaco: /monaco/i, abudhabi: /abu dhabi/i, monza: /italian/i, spa: /belgian/i, cota: /united states/i };
+  const GRID_NAME = { silverstone: /british/i, monaco: /monaco/i, abudhabi: /abu dhabi/i, monza: /italian/i, spa: /belgian/i, cota: /united states/i, mexico: /mexic/i };
   const parseLap = t => { if (typeof t === 'number') return t; const m = /^(?:(\d+):)?(\d+(?:\.\d+)?)$/.exec(String(t || '').trim()); return m ? (+(m[1] || 0)) * 60 + (+m[2]) : 0; };
   function realPole(tid) {
     const RP = EI.RACEPACE && EI.RACEPACE[tid]; if (RP) { if (RP.pole && RP.pole.s) return +RP.pole.s; if (RP.q) { const v = Object.values(RP.q).map(parseLap).filter(x => x > 0); if (v.length) return Math.min(...v); } }
@@ -91,6 +97,7 @@ window.EI = window.EI || {};
   const TYRE_DELTA = {
     silverstone: { soft: -0.0057, hard: 0.0046 }, monaco: { soft: -0.0052, hard: 0.005 }, abudhabi: { soft: -0.0054, hard: 0.0042 },
     monza: { soft: -0.0041, hard: 0.0035 }, spa: { soft: -0.0042, hard: 0.0041 }, cota: { soft: -0.0048, hard: 0.0042 },
+    mexico: { soft: -0.0051, hard: 0.0045 },
   }, TYRE_DELTA_DEFAULT = { soft: -0.005, hard: 0.0042 };
   const tyreDelta = (tid, key) => { const t = TYRE_DELTA[tid] || TYRE_DELTA_DEFAULT; return key === 'soft' || key === 'hard' ? t[key] : 0; };
   // Official F1 = the real 2026 qualifying pole ON SOFTS (real qualifying runs on softs): the lap loss is measured against the soft

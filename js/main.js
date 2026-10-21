@@ -85,7 +85,13 @@ window.EI = window.EI || {};
       // not lemon, and exposure ~10 % down so sunlit whites hold. All constants / sky-pixel maths: no calls, tris or programs.
       cota: { elev: 30, azim: 308, turb: 2.0, ray: 2.4, mie: 0.0015, mieG: 0.93, horizon: 0xbfd0e2, sky: [0.22, 2.2], fog: [700, 3200], fogLow: [800, 1800],
         hemi: [0x9fbfe8, 0x7a6440, 0.62], sun: [0xffe2bc, 2.65], envSat: 0.45, exp: 0.9, grade: { sat: 1.25, con: 1.2, warm: [1.04, 1.0, 0.96] },
-        haze: [0.7, 0.12], clouds: [0.75, 0.4, 0xeef0f0] } };
+        haze: [0.7, 0.12], clouds: [0.75, 0.4, 0xeef0f0] },
+      // Autodromo Hermanos Rodriguez (MEX-GEN stub; MEX-BEAUTY owns it): race afternoon in Mexico City, 1 Nov 2026 14:00 CST - the sun 48 deg up in the
+      // south-south-west (game azim 325 = compass ~215), 2,240 m up: a bright, hard sun and a deep blue zenith over a warm grey-brown city haze rim
+      // (milky horizon, high turbidity / mie); Low's fog end stays at the default far plane (no cost change). Constants only: no calls, tris or programs.
+      mexico: { elev: 48, azim: 325, turb: 4.5, ray: 1.6, mie: 0.006, mieG: 0.82, horizon: 0xcac6ba, sky: [0.36, 1.6], fog: [600, 2800], fogLow: [380, 1500],
+        hemi: [0xb6c6d8, 0x6c6650, 0.5], sun: [0xfff2de, 2.6], envSat: 0.45, exp: 0.95, grade: { sat: 1.25, con: 1.14, warm: [1.03, 1.0, 0.97] },
+        haze: [0.8, 0.16] } };
     const LK = Object.assign({ elev: 38, azim: 212, turb: 2.5, ray: 2.0, mie: 0.004, horizon: 0xa9c4e4, sky: [0.42, 1.0], fog: [600, 2600], fogLow: [350, 1500], hemi: [0x9fc4ee, 0x3f5a2e, 0.35], sun: [0xfff1dd, 2.4] }, LOOKS[trackId] || {}); EI.look = LK;
     // look tuning (art direction): ?look={json} merges over the circuit's LOOKS entry, e.g. ?look={"elev":34,"grade":{"sat":1.4,"con":1.1}}
     { const m = /[?&]look=([^&]+)/.exec(location.search); if (m) { try { Object.assign(LK, JSON.parse(decodeURIComponent(m[1]))); } catch (e) { console.warn('bad ?look', e); } } }
