@@ -239,7 +239,7 @@ window.EI = window.EI || {};
       const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2)); g.setIndex(idx); g.computeVertexNormals();
       const nr = g.attributes.normal; for (let i = 0; i < nr.count; i++) nr.setXYZ(i, 0, 1, 0);
       const tex = U.grainTexture(256, 0x55565b, 0.07, 1, 14, 0.02); tex.repeat.set(1, 1);
-      const m = new THREE.Mesh(g, new THREE.MeshStandardMaterial({ map: tex, roughness: 0.92, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -4 })); m.receiveShadow = true; grp.add(m);
+      const m = new THREE.Mesh(g, new THREE.MeshStandardMaterial({ map: tex, roughness: 0.92, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -4, ...(track.data.pitColor != null ? { color: track.data.pitColor } : {}) })); m.receiveShadow = true; grp.add(m);   // data.pitColor (COTA): tints the lane's grain texture down to the racing surface's tone under a strong sun
       V.laneExt = ext;
     }
     // ---- markings (vertex coloured, flat on the lane)

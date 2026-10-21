@@ -274,7 +274,7 @@
       for (let k = 0; k + 1 < run.blocks.length && perm; k++) {
         const a = run.blocks[k], b = run.blocks[k + 1]; const fa = St.flip(a) ? -1 : 1, fb = St.flip(b) ? -1 : 1;
         const pa = (y, z) => Env.xf(a.ct.m, fa * (a.len / 2 + 0.1), y, z), pb = (y, z) => Env.xf(b.ct.m, -fb * (b.len / 2 + 0.1), y, z);
-        const zB = a.ct.zBack, yT = a.ct.yTop; K.dq(B, pa(Y0, Z0), pb(Y0, Z0), pb(yT, zB), pa(yT, zB), C(a.seat).multiplyScalar(0.8)); K.dq(B, pa(0, zB + 0.14), pb(0, zB + 0.14), pb(yT + 1.25, zB + 0.14), pa(yT + 1.25, zB + 0.14), conc);
+        const zB = a.ct.zBack, yT = a.ct.yTop; K.dq(B, pa(Y0, 0.15), pb(Y0, 0.15), pb(yT, zB), pa(yT, zB), C(a.seat).multiplyScalar(0.8)); K.dq(B, pa(-0.3, 0.15), pb(-0.3, 0.15), pb(Y0, 0.15), pa(Y0, 0.15), conc); K.dq(B, pa(0, zB + 0.14), pb(0, zB + 0.14), pb(yT + 1.25, zB + 0.14), pa(yT + 1.25, zB + 0.14), conc);
       }
     }
     if (E.ctMain) St.mainRoof(E, BK, E.ctMain);

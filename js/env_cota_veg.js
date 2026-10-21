@@ -20,7 +20,7 @@ window.EI = window.EI || {};
   // sRGB albedo, muted like env.js PAL (main.js grades with a saturation boost)
   const PAL = { 0: [26, 37, 29], 1: [36, 46, 26], 2: [124, 106, 64], 3: [104, 92, 58], 4: [152, 145, 124], 5: [116, 114, 108], 6: [122, 107, 75], 7: [40, 54, 56] };
   const PRAIRIE = [[140, 110, 68], [122, 97, 66], [112, 100, 64]];   // straw gold, tan-brown, olive straw (October: dormant warm-season grass)
-  const MOWN = [[106, 100, 62], [112, 104, 65]];                       // the mown circuit grass, stripes 7.5 m
+  const MOWN = [[122, 108, 66], [128, 113, 69]];                       // the mown circuit grass, stripes 7.5 m (COTA-BEAUTY: warmer / +12 % so the verges read sun-cured gold at eye height)
   const BRUSHC = [58, 60, 38], CROWN_EVER = [24, 35, 28], CROWN_WOOD = [34, 44, 24];
   // sector table keyed by turn number (SPEC 4.8): [from turn, ds, to turn, ds, tree density factor] - applied near the lap only (the cover
   // raster decides beyond), relative to 0.35
