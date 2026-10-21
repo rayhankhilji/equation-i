@@ -20,10 +20,10 @@ window.EI = window.EI || {};
   const C = { CANOPY: 0, TREES: 1, LAWN: 2, DRY: 3, BARE: 4, PAVED: 5, ASPH: 6, WATER: 7 };
   MV.C = C;
   // sRGB albedo, muted like env.js PAL (main.js grades with a saturation boost) - MEX-PLAN SPEC 4.7 starting values; colour constants are MEX-BEAUTY's
-  const PAL = { 0: [30, 48, 38], 1: [48, 62, 36], 2: [88, 102, 56], 3: [104, 100, 64], 4: [134, 120, 96], 5: [108, 106, 100], 6: [74, 74, 72], 7: [48, 66, 76] };
-  const LAWN = [[82, 96, 54], [90, 102, 58]];        // sports fields / lawns: olive-green, two tones in broad patches
-  const DRY = [[108, 102, 66], [120, 110, 72]];       // unwatered grass: olive straw
-  const MOWN = [[86, 97, 58], [92, 102, 62]];        // the mown circuit grass behind the barriers, stripes 7.5 m (a touch below SPEC 4.7's values: they read lime under the stub grade)
+  const PAL = { 0: [30, 48, 38], 1: [48, 62, 36], 2: [66, 92, 52], 3: [98, 100, 62], 4: [134, 120, 96], 5: [108, 106, 100], 6: [74, 74, 72], 7: [48, 66, 76] };
+  const LAWN = [[64, 90, 50], [72, 98, 55]];        // sports fields / lawns: cool park green (MEX-BEAUTY, race photos), two tones in broad patches
+  const DRY = [[98, 100, 62], [110, 106, 66]];       // unwatered grass: olive straw, greener after the rains (MEX-BEAUTY)
+  const MOWN = [[66, 92, 52], [72, 98, 56]];        // the mown circuit grass behind the barriers, stripes 7.5 m (a touch below SPEC 4.7's values: they read lime under the stub grade)
   const CROWN_A = [28, 44, 34], CROWN_B = [44, 56, 36];   // casuarina-dark / eucalyptus grey-green crowns from above
   // the city from above (roofs: flat concrete slabs, terracotta, cream render, grey; water tanks read as specks), streets dark
   const ROOFS = [[150, 98, 76], [156, 150, 138], [176, 168, 150], [120, 118, 112], [136, 116, 100], [164, 140, 122], [100, 100, 98], [144, 136, 120]];

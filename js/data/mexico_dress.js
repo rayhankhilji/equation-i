@@ -110,7 +110,6 @@ window.EI = window.EI || {};
       [ST0 + 10, ST1 - 10, 1, 'mg,flag'],
       [ST0 + 10, ST1 - 10, -1, 'pp,flag'],
       [3080, 3440, 1, 'flag'],
-      [mod(tin(1) - 780), mod(tin(1) - 200), -1, 'mg'],
     ],
     panels: [[mod(tin(1) - 640), 1], [880, -1], [tin(4) + 90, 'out'], [tin(12) - 60, 'out'], [ST0 + 120, 'out'], [ST1 - 50, 'out']],
   };

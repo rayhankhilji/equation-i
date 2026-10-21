@@ -24,7 +24,9 @@
         const i = t.idxAtS(s); const w = E.wallCap(i, side); const p = Mx.at(t, s, side, w + off + hd); const ax = p.tx, az = p.tz;
         const corners = [[-1, -1], [1, -1], [1, 1], [-1, 1]].map(([u, v]) => [p.x + ax * u * hl + p.nx * v * hd, p.z + az * u * hl + p.nz * v * hd]);
         if (corners.some(q => E.fsAt(q[0], q[1]) < 6 || Mx.nearPit(E, q[0], q[1]) < 10)) continue;
-        if (E.rectFree(p.x, p.z, ax, az, hl + 1, hd + 1, OCC.BUILT | OCC.WATER) < 0.95) continue;
+        // (the generic venue paddock reservation covers the annex: only water and this file's own footprints block here)
+        if (E.rectFree(p.x, p.z, ax, az, hl + 1, hd + 1, OCC.WATER) < 0.95 || corners.concat([[p.x, p.z]]).some(q => E.mxOwnPolys.some(P => U.pointInPoly(q[0], q[1], P)))) continue;
+        { let hit = false; for (const P of E.mxOwnPolys) for (const q of P) { const dx = q[0] - p.x, dz = q[1] - p.z; if (Math.abs(dx * ax + dz * az) < hl && Math.abs(dx * p.nx + dz * p.nz) < hd) hit = true; } if (hit) continue; }
         // the front of the item faces the track: frame x along the lap, z away from it
         return { cx: p.x, cz: p.z, ax, az, nx: p.nx, nz: p.nz, hl, hd, s, y: 0, gmax: 0 };
       }
@@ -36,9 +38,9 @@
       const s13 = Mx.cs(t, 13), s12 = Mx.cs(t, 12);
       const side = -1;                                   // the right of travel on the T12-T13 run = the annex side (s12 kept for the log)
       E.mxInfra.s12 = s12;
-      const pod = spotAt(s13 - 95, s13 - 40, side, [8, 10, 12, 14], 10, 7.5);
+      const pod = spotAt(s13 - 74, s13 - 40, side, [8, 10, 12, 14], 10, 7.5) || spotAt(s13 - 95, s13 - 40, side, [8, 10, 12, 14], 10, 7.5);
       if (pod) { fit(pod); reserve(box(pod, 2)); E.mxInfra.podium = pod;
-        const pc = [spotAt(pod.s - 50, pod.s - 30, side, [5, 7, 9, 12], 18, 6.5), spotAt(pod.s + 30, pod.s + 56, side, [5, 7, 9, 12, 16], 18, 6.5)];
+        const pc = [spotAt(pod.s - 44, pod.s - 26, side, [5, 7, 9, 12], 14, 6.5) || spotAt(pod.s - 40, pod.s - 22, side, [5, 7, 9, 12], 10, 6.5), spotAt(pod.s + 26, pod.s + 70, side, [5, 7, 9, 12, 16], 14, 6.5) || spotAt(pod.s + 22, pod.s + 70, side, [5, 7, 9, 12, 16], 10, 6.5)];
         E.mxInfra.clubs = pc.filter(Boolean); for (const c of E.mxInfra.clubs) { fit(c); reserve(box(c, 1.5)); } }
     }
     // footbridges: GEN's OSM bridge lines (the deck crosses where the line crosses the lap), unless the track data lists its own

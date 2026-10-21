@@ -756,7 +756,7 @@ window.EI = window.EI || {};
       disc(-0.52, 1.18, 0.1, 5, PINK, 0.06); disc(0.52, 1.18, 0.1, 5, PINK, 0.06); disc(0, 2.0, 0.1, 5, MG[3], 0.06);   // cheek flowers, a marigold on the brow
       for (const u of [-1.2, 1.2]) disc(u, 0.4, 0.14, 5, MG[1], 0.04);   // marigold border
       for (const u of [-1.2, 1.2]) disc(u, 2.0, 0.14, 5, PLUM, 0.04);
-      panels++;
+      panels++; (cx.stats.fiestaPanelAt = cx.stats.fiestaPanelAt || []).push([Math.round(p.s), side]);
     }
     if (!pos.length) return;
     const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); geo.setAttribute('normal', new THREE.Float32BufferAttribute(nrm, 3)); geo.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));

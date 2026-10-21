@@ -26,15 +26,38 @@ window.EI = window.EI || {};
   const CarGLB = { ready: false, preload, build, composeLivery, FLAP_CLOSED, FLAP_OPEN, cache };
 
   // ---------------------------------------------------------------- loading
+  // Network-robust fetch of one model file. A single dropped or refused request used to put the whole session on the procedural
+  // car (flat colours, no livery: the user's "quality looks shit" report on the live build). raw.githack.com answers every
+  // .glb / .png / .bin with a 301 to raw.githubusercontent.com, which drops or rate-limits (429) requests under load, so: retry
+  // with back-off, and when the page is served from githack try the same commit on jsDelivr too. The body is checked
+  // (magic bytes), so an error page served with 200 counts as a failure. Resolves to an ArrayBuffer, or null after the last try.
+  const MAGIC = { glb: 'glTF', png: '\x89PNG', bin: 'EI' };
+  function mirrorBase() {
+    try { const m = /(^|\.)githack\.com$/.test(location.hostname) && /^\/([^/]+)\/([^/]+)\/([^/]+)\/(.*\/)?[^/]*$/.exec(location.pathname); return m ? 'https://cdn.jsdelivr.net/gh/' + m[1] + '/' + m[2] + '@' + m[3] + '/' + (m[4] || '') + BASE : null; } catch (e) { return null; }
+  }
+  function fetchModelFile(url, tries) {
+    const ext = (/\.(\w+)$/.exec(url) || [])[1], magic = MAGIC[ext] || '';
+    const mb = /^(https?:)?\/\//.test(url) ? null : mirrorBase(), srcs = [url, url, mb && mb + url.slice(BASE.length), url, mb && mb + url.slice(BASE.length)].filter(Boolean).slice(0, tries || 5);
+    const wait = [0, 800, 1500, 3000, 5000];
+    const attempt = (k) => new Promise((r) => setTimeout(r, wait[k] || 0)).then(() => fetch(srcs[k], { cache: k ? 'no-cache' : 'default' }))
+      .then((r) => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.arrayBuffer(); })
+      .then((b) => { const u = new Uint8Array(b, 0, Math.min(4, b.byteLength)); for (let i = 0; i < magic.length; i++) if (u[i] !== magic.charCodeAt(i)) throw new Error('not a ' + ext + ' file'); return b; })
+      .catch((e) => { console.warn('EI.CarGLB: ' + srcs[k] + ' failed (' + (e && e.message ? e.message : e) + ')' + (k + 1 < srcs.length ? ', retrying' : '')); return k + 1 < srcs.length ? attempt(k + 1) : null; });
+    return attempt(0);
+  }
+  CarGLB.fetchModelFile = fetchModelFile;
+  let retries = 0;
   function preload() {
     if (loading) return loading;
     loading = new Promise((resolve, reject) => {
       if (!THREE.GLTFLoader) return reject(new Error('GLTFLoader not available'));
       const loader = new THREE.GLTFLoader();
-      const glb = (f) => new Promise((res, rej) => loader.load(BASE + f, res, undefined, rej));
-      const img = (f) => new Promise((res, rej) => { const im = new Image(); im.crossOrigin = 'anonymous'; im.onload = () => res(im); im.onerror = () => rej(new Error('failed to load ' + f)); im.src = BASE + f; });
+      const need = (f) => fetchModelFile(BASE + f).then((b) => b || Promise.reject(new Error('failed to load ' + f)));
+      const glb = (f) => need(f).then((b) => new Promise((res, rej) => loader.parse(b, '', res, rej)));
+      // the atlases come in as bytes too (a blob URL: same origin, so the canvases they are drawn into stay readable)
+      const img = (f) => need(f).then((b) => new Promise((res, rej) => { const u = URL.createObjectURL(new Blob([b], { type: 'image/png' })); const im = new Image(); im.onload = () => { URL.revokeObjectURL(u); res(im); }; im.onerror = () => { URL.revokeObjectURL(u); rej(new Error('failed to decode ' + f)); }; im.src = u; }));
       // the mid / far / vfar LOD index lists (ei-car-lods.bin, see lodSubset): optional, the vertex-clustered LODs stand in without it
-      const bin = (f) => fetch(BASE + f).then((r) => r.ok ? r.arrayBuffer() : null).catch(() => null);
+      const bin = (f) => fetchModelFile(BASE + f, 3);
       const lods = CarGLB.lodsUrl ? fetch(CarGLB.lodsUrl).then((r) => r.ok ? r.arrayBuffer() : null).catch(() => null) : bin('ei-car-lods.bin');
       // the lo car is rebuilt from the hi GLB (ei-car-lohi.bin, see loFromHi); ei-car-lo.glb is only fetched when that is not possible
       Promise.all([glb('ei-car-hi.glb'), CarGLB.noLoHi ? null : bin('ei-car-lohi.bin'), img('ei-car-id.png'), img('ei-car-ao.png'), lods]).then(([hi, loHiBuf, idImg, aoImg, lodBuf]) => {
@@ -45,7 +68,11 @@ window.EI = window.EI || {};
         cache.meta = hi.scene.userData && hi.scene.userData.anchors ? hi.scene.userData : (lo.scene.userData || {});
         for (const s of [cache.hi, cache.lo]) prepare(s);
         CarGLB.ready = true; resolve(CarGLB);
-      }).catch((e) => { console.warn('EI.CarGLB: GLB car unavailable, using the procedural car.', e && e.message ? e.message : e); reject(e); });
+      }).catch((e) => {
+        console.warn('EI.CarGLB: GLB car unavailable, using the procedural car.', e && e.message ? e.message : e); reject(e);
+        // keep trying in the background (the menu is up by now): once it loads, the next race is built with the real car
+        if (retries++ < 4) setTimeout(() => { loading = null; preload().catch(() => { }); }, 10000 * retries);
+      });
     });
     return loading;
   }

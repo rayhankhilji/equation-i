@@ -198,6 +198,7 @@
     for (const r of runs) { const R = { name: 'mainGS' + E.mxRibbons.length, kind: 'main', st: r, depth, y: 0 }; St.reserve(E, R, depth + 6); St.fitRibbon(E, R); E.mxRibbons.push(R); }
   };
 
+  const HH = { rows: 28, r0: 30 };
   // ================================================================ Estadio Alfredo Harp Helu (the Diablos Rojos' park): the shell
   // one deck in an arc round home plate facing the field; home plate on the footprint's side towards the main straight
   St.layoutHarp = function (E) {
@@ -206,11 +207,11 @@
     // home plate: the point 62 m inside the footprint edge nearest the main straight / T1 corner, field towards the centroid
     let fx = 0, fz = 0; { const t = E.t; const p = Mx.at(t, Mx.cs(t, 1) - 120, 1, 0); fx = p.x - c[0]; fz = p.z - c[1]; const l = Math.hypot(fx, fz) || 1; fx /= l; fz /= l; }
     let dEdge = 0; for (let d = 0; d < 300; d += 1) { if (!U.pointInPoly(c[0] + fx * d, c[1] + fz * d, P)) break; dEdge = d; }
-    const hp = [c[0] + fx * Math.max(10, dEdge - 64), c[1] + fz * Math.max(10, dEdge - 64)];
-    const r0 = 24, half = 1.75, ang = Math.atan2(fz, fx); const pts = [];
-    for (let k = 0; k <= 20; k++) { const a = ang - half + 2 * half * k / 20; pts.push([hp[0] + Math.cos(a) * r0, hp[1] + Math.sin(a) * r0]); }
+    const hp = [c[0] + fx * Math.max(10, dEdge - HH.r0 - HH.rows * 0.82 - 14), c[1] + fz * Math.max(10, dEdge - HH.r0 - HH.rows * 0.82 - 14)];
+    const r0 = HH.r0, half = 1.85, ang = Math.atan2(fz, fx); const pts = [];
+    for (let k = 0; k <= 26; k++) { const a = ang - half + 2 * half * k / 26; pts.push([hp[0] + Math.cos(a) * r0, hp[1] + Math.sin(a) * r0]); }
     const st = pts.map(p => { let nx = p[0] - hp[0], nz = p[1] - hp[1]; const l = Math.hypot(nx, nz) || 1; return { x: p[0], z: p[1], nx: nx / l, nz: nz / l, m: 1 }; });
-    const depth = 0.35 + 24 * 0.82 + 3.0;
+    const depth = 0.35 + HH.rows * 0.82 + 3.0;
     const runs = St.trim(E, st, depth, 3.0, 9);
     for (const r of runs) { if (r.length < 6) continue; const R = { name: 'harp' + E.mxRibbons.length, kind: 'harp', st: r, depth, y: 0, hp, r0 }; St.reserve(E, R, depth + 2); St.fitRibbon(E, R); E.mxRibbons.push(R); best = R; }
     if (best) { const poly = []; for (let k = 0; k < 16; k++) { const a = k / 16 * Math.PI * 2; poly.push([hp[0] + Math.cos(a) * 18, hp[1] + Math.sin(a) * 18]); } E.markPoly(P, Env.OCC.KEEP, 0); }
@@ -229,12 +230,12 @@
     const out = [];
     if (R.kind === 'foroSol') {
       const L = FS.low; for (let r = 0; r < L.rows; r++) out.push({ z: L.z0 + r * L.tread, y: L.y0 + (r + 1) * L.rise, tr: L.tread, fill: 0.86, sh: 0.96, pitch: 0.62 });
-      const up = FS.up, yU = FS.low.y0 + FS.low.rows * FS.low.rise + FS.aisleRise; const zr = R.upZ0 + R.upRows * up.tread * 0.3;
+      const up = FS.up, yU = FS.low.y0 + FS.low.rows * FS.low.rise + FS.aisleRise; const zr = R.upZ0 + R.upRows * up.tread * 0.14;
       for (let r = 0; r < R.upRows; r++) { const z = R.upZ0 + r * up.tread; out.push({ z, y: yU + (r + 1) * up.rise, tr: up.tread, fill: 0.72, sh: z > zr ? 0.72 : 0.95, pitch: 0.68 }); }
     } else if (R.kind === 'main') {
       for (let r = 0; r < MG.rows; r++) out.push({ z: MG.z0 + r * MG.tread, y: MG.wallH + (r + 1) * MG.rise, tr: MG.tread, fill: 0.62, sh: r < 2 ? 0.9 : 0.72, pitch: 0.66 });
     } else if (R.kind === 'harp') {
-      for (let r = 0; r < 24; r++) out.push({ z: 0.35 + r * 0.82, y: 1.8 + (r + 1) * 0.44, tr: 0.82, fill: 0.42, sh: r > 11 ? 0.76 : 0.96, pitch: 0.66 });
+      for (let r = 0; r < HH.rows; r++) out.push({ z: 0.35 + r * 0.82, y: 1.8 + (r + 1) * 0.44, tr: 0.82, fill: 0.4, sh: r > HH.rows * 0.45 ? 0.76 : 0.96, pitch: 0.68 });
     }
     return out;
   };
@@ -270,8 +271,9 @@
     const res = out.stands = {};
     St.buildTemp(E, BK, res);
     const tiles = St.tilesFor(BK.A);
-    for (const R of E.mxRibbons || []) { try { if (R.kind === 'foroSol') St.buildForoSol(E, BK, R, tiles); else if (R.kind === 'main') St.buildMain(E, BK, R, tiles); else if (R.kind === 'harp') St.buildHarp(E, BK, R); res[R.name] = { st: R.st.length, people: R.people, y: +R.y.toFixed(2) }; } catch (e) { console.error('EnvMexico ribbon ' + R.name, e); } }
-    try { St.buildTowers(E, BK, res); } catch (e) { console.error('EnvMexico towers', e); }
+    const tcount = () => Math.round((BK.B.count + BK.S.count + BK.G.count) / 3), fcount = () => Math.round((BK.F.count + BK.H.count) / 3), acount = () => Math.round(BK.A.geo.p.length / 9);
+    for (const R of E.mxRibbons || []) { const m0 = tcount(), f0 = fcount(), a0 = acount(); try { if (R.kind === 'foroSol') St.buildForoSol(E, BK, R, tiles); else if (R.kind === 'main') St.buildMain(E, BK, R, tiles); else if (R.kind === 'harp') St.buildHarp(E, BK, R); res[R.name] = { st: R.st.length, people: R.people, y: +R.y.toFixed(2), main: tcount() - m0, fine: fcount() - f0, sign: acount() - a0 }; } catch (e) { console.error('EnvMexico ribbon ' + R.name, e); } }
+    { const m0 = tcount(), f0 = fcount(); try { St.buildTowers(E, BK, res); } catch (e) { console.error('EnvMexico towers', e); } res.towerTris = [tcount() - m0, fcount() - f0]; }
     res.seatRecs = (E.mxSeatRecs || []).length;
   };
   St.tilesFor = function (A) { const out = []; for (let k = 0; k < 8; k++) out.push(A.region('mxTile' + k, 320, 64, (x2, w, h) => Mz.paintAd(x2, w, h, k, 5))); return out; };
@@ -308,7 +310,7 @@
     const L = FS.low, up = FS.up; const yL = L.y0 + L.rows * L.rise, zL = R.lowEnd;          // the lower block's top / back = the cross-aisle
     const zU0 = R.upZ0, yU0 = yL + FS.aisleRise, yUT = yU0 + R.upRows * up.rise, zUB = zU0 + R.upRows * up.tread;
     const yPar = yUT + 1.1, zBk = zUB + 0.6, yFac = yPar + 0.6;
-    const zF = zU0 + R.upRows * up.tread * 0.3, zRb = zBk + 1.4;                               // canopy: front edge over the upper block's first third, back over the facade
+    const zF = zU0 + R.upRows * up.tread * 0.14, zRb = zBk + 1.4;                               // canopy: front edge over the upper block's first third, back over the facade
     // per-station canopy heights: the front edge rises 7.5 m over the facade top, less (dipping) over the last 2.5 stations of each end
     const dip = st.map((s, i) => U.clamp(Math.min(i, NS - 1 - i) / 2.5, 0, 1)); const yFr = dip.map(e => yFac + 3.6 + 3.9 * e), yBk = dip.map(e => yFac + 1.6 + 0.6 * e);
     const CP = (i, z, y) => SP(R, st[i], z, y);
@@ -443,7 +445,7 @@
   St.buildHarp = function (E, BK, R) {
     const { B, S, F: Fd, H } = BK; const st = R.st, NS = st.length;
     const conc = C(0xb6b2a8), concD = C(0x9b978e), seat = [C(0x9e2a2b), C(0x8c2526)], canvas = C(0xd4d6d6), canvasU = C(0xb9bcbd), steel = C(0x9aa1a8), facade = C(0xb9b4a8);
-    const rows = 24, rise = 0.44, tread = 0.82, wallH = 1.8; const yT = wallH + rows * rise, zT = 0.35 + rows * tread, zB = R.depth; const yF = yT + 1.4;
+    const rows = HH.rows, rise = 0.44, tread = 0.82, wallH = 1.8; const yT = wallH + rows * rise, zT = 0.35 + rows * tread, zB = R.depth; const yF = yT + 1.4;
     for (let i = 0; i + 1 < NS; i++) {
       const N = nrmOf(R, i), F = [-N[0], 0, -N[2]], UP = [0, 1, 0], DN = [0, -1, 0]; const ga = Math.min(R.g[i][0], R.g[i + 1][0]) - 0.4, gb = Math.min(R.g[i][1], R.g[i + 1][1]) - 0.4;
       loftQ(B, R, i, 0, ga, 0, wallH, concD, F); loftQ(B, R, i, 0, wallH, 0.35, wallH, conc, UP);
@@ -461,7 +463,7 @@
     for (const k of [0, 1]) { const s = k === 0 ? st[0] : st[NS - 1]; const gy = Math.min(R.g[k === 0 ? 0 : NS - 1][0], R.g[k === 0 ? 0 : NS - 1][1]) - 0.4; endWall(B, R, s, prof, gy, concD, endWant(R, k)); }
     // light towers round the field: four lattice masts on the outfield side
     const T = E.mxTowers = E.mxTowers || []; const hp = R.hp; const mid = st[Math.floor(NS / 2)]; const fa = Math.atan2(-mid.nz, -mid.nx);
-    for (const da of [-1.1, -0.45, 0.45, 1.1]) { const a = fa + da, rr = 118; const x = hp[0] + Math.cos(a) * rr, z = hp[1] + Math.sin(a) * rr; if (!U.pointInPoly(x, z, E.data.landmarks.harpHelu.p) || E.fsAt(x, z) < 8) continue; T.push({ x, z, h: 38, fx: hp[0] - x, fz: hp[1] - z, kind: 'harp' }); }
+    for (const da of [-1.1, -0.45, 0.45, 1.1]) { const a = fa + da, rr = 125; const x = hp[0] + Math.cos(a) * rr, z = hp[1] + Math.sin(a) * rr; if (!U.pointInPoly(x, z, E.data.landmarks.harpHelu.p) || E.fsAt(x, z) < 8) continue; T.push({ x, z, h: 38, fx: hp[0] - x, fz: hp[1] - z, kind: 'harp' }); }
   };
 
   // ---------------------------------------------------------------- light towers (Foro Sol: behind the facades; the Harp Helu outfield)
