@@ -116,7 +116,7 @@ window.EI = window.EI || {};
           'vec3 wvN = abs(normalize(vWvNrm)); wvN = pow(wvN, vec3(4.0)); wvN /= (wvN.x + wvN.y + wvN.z);',
           'vec3 wvP = vWvPos * weaveScale;',
           'wvSample = texture2D(weaveMap, wvP.zy).rgb * wvN.x + texture2D(weaveMap, wvP.xz).rgb * wvN.y + texture2D(weaveMap, wvP.xy).rgb * wvN.z;',
-          'wvCk = ckMask * (1.0 - smoothstep(0.24, 0.31, abs(vWvPos.z))) * smoothstep(-0.06, 0.06, vWvPos.x) * (1.0 - smoothstep(0.92, 0.97, vWvPos.x)) * smoothstep(0.36, 0.46, vWvPos.y);',
+          'wvCk = ckMask * (1.0 - smoothstep(0.24, 0.31, abs(vWvPos.z))) * smoothstep(-0.06, 0.06, vWvPos.x) * (1.0 - smoothstep(0.93, 0.955, vWvPos.x)) * smoothstep(0.36, 0.46, vWvPos.y);',
           'diffuseColor.rgb *= mix(weaveDark, weaveLight, mix(wvSample.r * wvSample.r, 0.35 + 0.3 * wvSample.r, wvCk)) * (1.0 - 0.45 * wvCk);'].join('\n'))
         .replace('#include <roughnessmap_fragment>', '#include <roughnessmap_fragment>\nroughnessFactor = mix(clamp(roughnessFactor * (1.25 - 0.6 * wvSample.g), 0.24, 1.0), 0.78, wvCk);')
         .replace('#include <lights_physical_fragment>', '#include <lights_physical_fragment>\n#ifdef CLEARCOAT\nmaterial.clearcoat *= 1.0 - 0.85 * wvCk;\n#endif');
@@ -180,7 +180,7 @@ window.EI = window.EI || {};
         '  float ffw = length(fwidth(fp)); normal = normalize(normal + fh * 0.07 * (1.0 - smoothstep(0.3, 1.1, ffw))); }'].join('\n'))
         // inside the cockpit opening the paint/carbon split follows mesh faces (a saw-tooth edge): fade any paint there to the
         // same dark satin as the cockpit carbon so the opening reads as one dark padded surround
-        .replace('#include <map_fragment>', '#include <map_fragment>\nfloat pCk = (1.0 - smoothstep(0.215, 0.25, abs(vFlkPos.z))) * smoothstep(-0.06, 0.06, vFlkPos.x) * (1.0 - smoothstep(0.92, 0.97, vFlkPos.x)) * smoothstep(0.4, 0.5, vFlkPos.y);\ndiffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.012, 0.012, 0.014), pCk);')
+        .replace('#include <map_fragment>', '#include <map_fragment>\nfloat pCk = (1.0 - smoothstep(0.215, 0.25, abs(vFlkPos.z))) * smoothstep(-0.06, 0.06, vFlkPos.x) * (1.0 - smoothstep(0.93, 0.955, vFlkPos.x)) * smoothstep(0.4, 0.5, vFlkPos.y);\ndiffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.012, 0.012, 0.014), pCk);')
         .replace('#include <roughnessmap_fragment>', '#include <roughnessmap_fragment>\nroughnessFactor = mix(roughnessFactor, 0.8, pCk);')
         .replace('#include <lights_physical_fragment>', '#include <lights_physical_fragment>\nmaterial.clearcoat *= 1.0 - 0.85 * pCk;')
         // dark paint: the sky reflection (env + clear coat) is held down so plum / cocoa / anthracite stay dark at grazing angles
