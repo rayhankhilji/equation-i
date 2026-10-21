@@ -31,7 +31,7 @@
   // runs OSM does not map: anchor = turn number, ds0 / ds1 metres from its turn-in, side 'out' / 'in' / +1 / -1
   const EXTRA = [
     { anchor: 13, ds0: 24, ds1: 92, side: 'in', gap: 5, rows: 12, style: 'temp', seat: 0x2356a6, label: 'TURN 13' },
-    { anchor: 18, ds0: -10, ds1: 52, side: 'out', gap: 5, rows: 12, style: 'temp', seat: 0x3d5f8f, label: 'TURN 18' },
+    { anchor: 18, ds0: -10, ds1: 52, side: 'out', gaps: [5, 12, 20, 28], rows: 12, style: 'temp', seat: 0x3d5f8f, label: 'TURN 18' },
   ];
   // spectator banks (GA hills): [anchor, ds0, ds1, side, depth (m of bank), fill]
   const BANKS = [
@@ -61,7 +61,7 @@
       const plan = POLY_PLAN.find(p => Math.hypot(p.at[0] - cx, p.at[1] - cz) < 30); if (!plan) { why['nomatch' + Math.round(cx) + ',' + Math.round(cz)] = 1; continue; }
       St.polyRun(E, g.p, plan);
     }
-    for (const x of EXTRA) { const c = Ct.cs(t, x.anchor); const s0 = c + x.ds0, s1 = c + x.ds1; St.run(E, Object.assign({}, x, { name: x.label, s0, s1, side: sideOf(t, x.side, s0, s1) })); }
+    for (const x of EXTRA) { const c = Ct.cs(t, x.anchor); const s0 = c + x.ds0, s1 = c + x.ds1; for (const gap of x.gaps || [x.gap]) { const run = St.run(E, Object.assign({}, x, { gap, name: x.label, s0, s1, side: sideOf(t, x.side, s0, s1) })); if (run.blocks.length) break; } }
     St.layoutAmph(E);
     St.layoutBanks(E);
     E.stats.cotaStands = { runs: E.ctRuns.length, blocks: E.ctRuns.reduce((n, r) => n + r.blocks.length, 0), bankPeople: (E.ctBankRecs || []).length };
@@ -87,13 +87,20 @@
       const im = t.idxAtS((s + sb) / 2); let nx = -az, nz = ax; if (nx * t.nx[im] * side + nz * t.nz[im] * side < 0) { nx = -nx; nz = -nz; }
       const cx = (A.x + Bq.x) / 2, cz = (A.z + Bq.z) / 2, hl = len / 2 - 0.15;
       const W = (x, z) => [cx + ax * x + nx * z, cz + az * x + nz * z];
-      if ([W(-hl, 0), W(hl, 0)].some(P => E.fsAt(P[0], P[1]) < 1) || [W(-hl, depth), W(hl, depth), W(0, depth)].some(P => E.dcAt(P[0], P[1]) < t.halfWidth + t.kerbWidth + 4)) { why[R.label + ':clear'] = (why[R.label + ':clear'] || 0) + 1; s = sb; continue; }
+      if (!St.clear(E, W, hl, depth)) { why[R.label + ':clear'] = (why[R.label + ':clear'] || 0) + 1; s = sb; continue; }
       if (R.style !== 'main' && E.rectFree(cx + nx * depth / 2, cz + nz * depth / 2, ax, az, hl, depth / 2, OCC.BUILT | OCC.WATER | OCC.ROAD) < 0.85) { why[R.label + ':occ'] = (why[R.label + ':occ'] || 0) + 1; s = sb; continue; }
       const blk = { cx, cz, ax, az, nx, nz, len: hl * 2, rows, roof: false, seat: R.seat, y: 0, s: (s + sb) / 2, first: false, last: false, name: R.label || R.name, ct: { R, run } };
       addBlock(E, R, run, blk, depth); s = sb;
     }
     if (run.blocks.length) { if (!PERM[R.style]) run.blocks[run.blocks.length - 1].last = true; E.ctRuns.push(run); }
     return run;
+  };
+  // a chord (local W(x, z): x along, z into the stand) is clear when its front corners are >= 1 m and every other sample (back corners,
+  // middles, the scaffold stair towers at the ends) >= 2 m beyond the rendered barrier of whatever stretch of the lap is nearest
+  St.clear = function (E, W, hl, depth) {
+    const t = E.t; const pts = [[-hl, 0, 1], [hl, 0, 1], [0, 0, 1], [-hl, depth, 2], [hl, depth, 2], [0, depth, 2], [-hl, depth / 2, 2], [hl, depth / 2, 2], [-hl - 3.6, depth - 2, 2], [hl + 3.6, depth - 2, 2]];
+    for (const [x, z, need] of pts) { const P = W(x, z); if (E.fsAt(P[0], P[1]) < need) return false; if (z > 0 && E.dcAt(P[0], P[1]) < t.halfWidth + t.kerbWidth + 4) return false; }
+    return true;
   };
   // an OSM footprint -> its oriented box (longest edge = the front axis), the front = the long side nearer the track (or the landmark it
   // faces), chords of <= 26 m along it; rows from the footprint depth; slid out of the barriers if a corner reaches them
@@ -119,7 +126,7 @@
     for (let k = 0; k < nch; k++) {
       const u = -len / 2 + (k + 0.5) * cl; const bxc = fx + ax * u, bzc = fz + az * u; const hl = cl / 2 - 0.1;
       const W = (x, z) => [bxc + ax * x + nx * z, bzc + az * x + nz * z];
-      if ([W(-hl, 0), W(hl, 0)].some(P => E.fsAt(P[0], P[1]) < 1) || [W(-hl, depth), W(hl, depth), W(0, depth)].some(P => E.dcAt(P[0], P[1]) < t.halfWidth + t.kerbWidth + 4)) { why[plan.label + ':pclear'] = (why[plan.label + ':pclear'] || 0) + 1; continue; }
+      if (!St.clear(E, W, hl, depth)) { why[plan.label + ':pclear'] = (why[plan.label + ':pclear'] || 0) + 1; continue; }
       t.project(bxc, bzc, null, pr);
       const blk = { cx: bxc, cz: bzc, ax, az, nx, nz, len: hl * 2, rows, roof: false, seat: plan.seat, y: 0, s: pr.s, first: false, last: false, name: plan.label, ct: { R, run } };
       addBlock(E, R, run, blk, depth);
@@ -232,6 +239,11 @@
         for (let k = 0; k + 1 < xs.length; k++) { const ga = gl(xs[k], zBack), gb = gl(xs[k + 1], zBack); if (Math.min(ga, gb) < -0.05) { Ct.face(B, P(xs[k], Math.min(0, ga - 0.3), zBack + 0.16), P(xs[k + 1], Math.min(0, gb - 0.3), zBack + 0.16), P(xs[k + 1], 0.02, zBack + 0.16), P(xs[k], 0.02, zBack + 0.16), sk, bwd); skirts++; } }
         for (const sx of [-hl - 0.08, hl + 0.08]) { const zz = [0, zBack / 2, zBack + 0.16]; const want = Ct.dir(P(0, 0, 0), P(Math.sign(sx), 0, 0));
           for (let k = 0; k + 1 < zz.length; k++) { const ga = gl(sx, zz[k]), gb = gl(sx, zz[k + 1]); if (Math.min(ga, gb) < -0.05) Ct.face(B, P(sx, Math.min(0, ga - 0.3), zz[k]), P(sx, Math.min(0, gb - 0.3), zz[k + 1]), P(sx, 0.02, zz[k + 1]), P(sx, 0.02, zz[k]), sk, want); } }
+        if (!perm) {
+          // the venue's scaffold stair towers stand on the floor level: where the ground is lower there, a dark skirt box carries them down
+          for (const [flag, sx] of [[b.first, -hl - 1.9], [b.last, hl + 1.9]]) { if (!flag) continue; let g = Infinity; for (const [dx, dz] of [[-1.7, -2], [1.7, -2], [1.7, 2], [-1.7, 2]]) g = Math.min(g, gl(sx + dx, zBack - 2 + dz)); if (g < -0.05) { B.box(m, 3.5, -g + 0.3, 4.1, sx, g - 0.3, zBack - 2.0, skirtT); skirts++; } }
+        }
+        { const bi = E.blocks.indexOf(b) + 1; if (!b.first && !b.last && b.rows >= 10 && bi % 3 === 0 && b.len > 12) { let g = Infinity; for (const [dx, dz] of [[-1.6, 0.5], [1.6, 0.5], [1.6, 3.5], [-1.6, 3.5]]) g = Math.min(g, gl(dx, zBack + dz)); if (g < -0.05) { B.box(m, 3.4, -g + 0.3, 3.2, 0, g - 0.3, zBack + 2.0, perm ? concD : skirtT); skirts++; } } }
         if (!perm) continue;
         const core = inCore(E, b);
         // ---- permanent stands: back wall from the drawn ground (concrete with a dark window band and pilasters), end walls, stair doors
@@ -293,9 +305,9 @@
       for (let k = 2; k < V.length; k++) St.tri(B, V[1], V[k], k + 1 < V.length ? V[k + 1] : V[0], conc, want);
       const gF = Math.min(gl(sx, 0), gl(sx, zL), 0) - 0.3; Ct.face(B, P(sx, gF, -0.08), P(sx, gF, zL + 0.14), P(sx, yL + 1.25, zL + 0.14), P(sx, Y0 + 0.2, -0.08), concD, want); }
     // the board band along the upper parapet (partner tiles in the atlas)
-    if (!St._tiles) St._tiles = []; const tiles = St.tilesFor(A);
+    const tiles = St.tilesFor(A);
     const th = 0.75, tw = th * 5; const nt = Math.floor((b.len - 0.4) / tw); const x0 = -nt * tw / 2;
-    for (let k = 0; k < nt; k++) { const xa = x0 + k * tw; const r = tiles[(k + Math.round(b.s)) % 8]; Ct.faceA(A, r, P(xa + tw, UP.y0 + 0.08, zL + 0.06), P(xa, UP.y0 + 0.08, zL + 0.06), P(xa, UP.y0 + 0.08 + th, zL + 0.06), P(xa + tw, UP.y0 + 0.08 + th, zL + 0.06), fwd); }
+    for (let k = 0; k < nt; k++) { const xa = x0 + k * tw; const r = tiles[U.mod(k + Math.round(b.s), 8)]; Ct.faceA(A, r, P(xa + tw, UP.y0 + 0.08, zL + 0.06), P(xa, UP.y0 + 0.08, zL + 0.06), P(xa, UP.y0 + 0.08 + th, zL + 0.06), P(xa + tw, UP.y0 + 0.08 + th, zL + 0.06), fwd); }
   };
   St.tri = function (Bd, a, b, c, col, want) { const ux = b[0] - a[0], uy = b[1] - a[1], uz = b[2] - a[2], vx = c[0] - a[0], vy = c[1] - a[1], vz = c[2] - a[2]; const nx = uy * vz - uz * vy, ny = uz * vx - ux * vz, nz = ux * vy - uy * vx; if (nx * want[0] + ny * want[1] + nz * want[2] >= 0) Bd.tri(a, b, c, col); else Bd.tri(a, c, b, col); };
   St.tilesFor = function (A) { const out = []; for (let k = 0; k < 8; k++) out.push(A.region('ctTile' + k, 320, 64, (x2, w, h) => Mz.paintAd(x2, w, h, k, 5))); return out; };
