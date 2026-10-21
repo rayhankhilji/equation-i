@@ -91,7 +91,7 @@ window.EI = window.EI || {};
 
   // ---- the catch fence: dark charcoal welded mesh on dark posts, 3.6 m (kept on Low: it is in every photo); the debris fence along the pit wall is low
   T.fence = Object.assign({}, T.fence || {}, {
-    h: 3.6, op: 0.62, mesh: 'rgba(30,32,36,1)', postColor: 0x2a2d31, posts: 6, low: true, ground: true,
+    h: 3.6, op: 0.62, mesh: 'rgba(30,32,36,1)', postColor: 0x2a2d31, posts: 8, low: true, ground: true,
     runs: [
       [4790, 450, 1, 2.4],      // pit wall (pit side = +1): low debris fence along the pit lane, entry (T19 exit) to exit (T1 inside)
     ],

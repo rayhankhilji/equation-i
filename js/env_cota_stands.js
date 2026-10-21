@@ -149,6 +149,18 @@
     for (const f of E.ctBankFlags || []) f[1] = sc.height(f[0], f[2]);
     St.fitAmph(E);
     St.mainSeats(E);
+    St.amphSeats(E);
+  };
+  // a thin race-day audience on the amphitheatre tiers (they look across at T16-T18 over the stage): seat records in the shared crowd
+  St.amphSeats = function (E) {
+    const Am = E.ctAmph; if (!Am) return; const rng = U.rng(4242); const recs = E.ctSeatRecs = E.ctSeatRecs || [];
+    const cols = ['#d8d8d4', '#1a1a1a', '#3b404a', '#1b2a4a', '#2a4a78', '#8a1c22', '#f2f2f2', '#c9b28a', '#ff6a00', '#c8102e'].map(h => { const c = C(h); return [c.r, c.g, c.b]; });
+    const SEATED = [0, 0, 1, 2, 3, 4, 8, 8, 9]; let n = 0;
+    for (let r = 0; r < Am.rows; r++) { const y = Am.y + Y0 + (r + 1) * RISE, rr = Am.r0 + Z0 + r * TREAD + 0.5; const n0 = Math.floor(2 * Am.half * rr / 0.55);
+      for (let k = 0; k < n0; k++) { if (rng() > 0.22 * (0.4 + 1.2 * U.noise2(k * 0.13 + 7, r * 0.3))) continue; const a = Am.ang - Am.half + (k + 0.5) / n0 * 2 * Am.half;
+        const x = Am.cx + Math.cos(a) * rr, z = Am.cz + Math.sin(a) * rr; const yaw = Math.atan2(-Math.cos(a), -Math.sin(a)); const sh = cols[Math.floor(rng() * cols.length)], ac = cols[Math.floor(rng() * cols.length)];
+        recs.push([[x, y, z, yaw + (rng() - 0.5) * 0.3], [SEATED[Math.floor(rng() * SEATED.length)], 0.93 + rng() * 0.13, rng(), 0], [sh[0], sh[1], sh[2], 0.999], [ac[0], ac[1], ac[2], 0]]); n++; } }
+    E.stats.cotaAmphPeople = n;
   };
 
   // ================================================================ the Germania Insurance Amphitheater: polar tiers facing the stage
@@ -160,7 +172,7 @@
     for (const q of am.p) { sx += q[0] - tw.x; sz += q[1] - tw.z; } ang = Math.atan2(sz, sx);
     const st = { cx: tw.x + Math.cos(ang) * 6, cz: tw.z + Math.sin(ang) * 6 };    // the stage front centre (the audience's focus)
     for (const q of am.p) { const dx = q[0] - st.cx, dz = q[1] - st.cz; const r = Math.hypot(dx, dz); rmin = Math.min(rmin, r); rmax = Math.max(rmax, r); const a = U.wrapAngle(Math.atan2(dz, dx) - ang); amin = Math.min(amin, a); amax = Math.max(amax, a); }
-    const half = U.clamp(Math.max(-amin, amax) + 0.18, 0.5, 1.0);
+    const half = U.clamp(Math.max(-amin, amax) + 0.3, 0.6, 1.0);
     const A = { ang, half, cx: st.cx, cz: st.cz, r0: 22, rows: 24, band: [Math.max(40, rmin - 2), Math.min(rmax, rmin + 18)], tower: tw, y: 0 };
     A.r1 = A.r0 + Z0 + A.rows * TREAD;
     // reserve the bowl + pavilion (trees / boards / generic boxes off)

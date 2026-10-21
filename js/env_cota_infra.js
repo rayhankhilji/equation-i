@@ -85,10 +85,10 @@
     for (let k = 0; k < 16; k++) { const a0 = k / 16 * Math.PI * 2, a1 = (k + 1) / 16 * Math.PI * 2; Ct.face(B, W(3.6, a0, -0.6), W(3.6, a1, -0.6), W(3.6, a1, yD), W(3.6, a0, yD), k % 2 ? core : coreD, [Math.cos(T.ang + (a0 + a1) / 2), 0, Math.sin(T.ang + (a0 + a1) / 2)]); }
     { const mm = Env.frame(T.x, T.g, T.z, Math.cos(T.ang), Math.sin(T.ang), -Math.sin(T.ang), Math.cos(T.ang)); B.box(mm, 9, 4.2, 9, -1.5, -0.4, 0, coreD, { top: C(0x8f9397) }); Ct.face(G, Env.xf(mm, 3.02, 0.2, -2), Env.xf(mm, 3.02, 0.2, 2), Env.xf(mm, 3.02, 3.4, 2), Env.xf(mm, 3.02, 3.4, -2), glass, [Math.cos(T.ang), 0, Math.sin(T.ang)]); }
     // the double-helix stair: two thin bands (outer stringer face + the underside) climbing at r 4.0 .. 4.9
-    for (const ph of [0, Math.PI]) { const N = 84, turns = 3.5; for (let k = 0; k < N; k++) { const f0 = k / N, f1 = (k + 1) / N; const a0 = ph + f0 * turns * Math.PI * 2, a1 = ph + f1 * turns * Math.PI * 2; const y0 = 4.5 + f0 * (yD - 6), y1 = 4.5 + f1 * (yD - 6);
+    for (const ph of [0, Math.PI]) { const N = 64, turns = 3.5; for (let k = 0; k < N; k++) { const f0 = k / N, f1 = (k + 1) / N; const a0 = ph + f0 * turns * Math.PI * 2, a1 = ph + f1 * turns * Math.PI * 2; const y0 = 4.5 + f0 * (yD - 6), y1 = 4.5 + f1 * (yD - 6);
       const am = (a0 + a1) / 2; const out = [Math.cos(T.ang + am), 0, Math.sin(T.ang + am)];
-      Ct.face(S, W(4.95, a0, y0 - 0.15), W(4.95, a1, y1 - 0.15), W(4.95, a1, y1 + 1.0), W(4.95, a0, y0 + 1.0), k % 2 ? steel : C(0x9aa0a6), out);
-      Ct.face(S, W(3.6, a0, y0 - 0.15), W(3.6, a1, y1 - 0.15), W(4.95, a1, y1 - 0.15), W(4.95, a0, y0 - 0.15), C(0x7d838a), [0, -1, 0]); } }
+      Ct.face(S, W(4.7, a0, y0 - 0.1), W(4.7, a1, y1 - 0.1), W(4.7, a1, y1 + 0.55), W(4.7, a0, y0 + 0.55), k % 2 ? C(0xa9aeb3) : C(0x9aa0a6), out);
+      Ct.face(S, W(3.6, a0, y0 - 0.1), W(3.6, a1, y1 - 0.1), W(4.7, a1, y1 - 0.1), W(4.7, a0, y0 - 0.1), C(0x7d838a), [0, -1, 0]); } }
     // the observation deck: floor slab, the glass rail band, the glazed room, roof with a red rim
     const seg = 24; for (let k = 0; k < seg; k++) { const a0 = k / seg * Math.PI * 2, a1 = (k + 1) / seg * Math.PI * 2; const out = [Math.cos(T.ang + (a0 + a1) / 2), 0, Math.sin(T.ang + (a0 + a1) / 2)];
       Ct.face(B, W(3.6, a0, yD), W(3.6, a1, yD), W(9.5, a1, yD), W(9.5, a0, yD), C(0x8d9297), [0, -1, 0]);
@@ -122,11 +122,11 @@
     const P = (x, y, z) => Env.xf(m, x, y, z); let g = Infinity, gmax = -Infinity; for (const [x, z] of [[-14, -7], [14, -7], [14, 7], [-14, 7], [0, 0]]) { const p = P(x, 0, z); const h = sc.height(p[0], p[2]); g = Math.min(g, h); gmax = Math.max(gmax, h); }
     const m2 = Env.frame(T.x + ca * 13, g, T.z + sa * 13, -sa, ca, ca, sa); const Q = (x, y, z) => Env.xf(m2, x, y, z); const top = gmax - g + 1.6;
     B.box(m2, 28, top + 0.3, 14, 0, -0.3, 0, black, { top: deck });
-    B.box(m2, 28, 12 + top, 0.6, 0, -0.3, -7.2, black);                         // back wall (towards the tower)
+    B.box(m2, 28, 8 + top, 0.6, 0, -0.3, -7.2, C(0x3a3d42));                    // back wall (towards the tower)
     for (const sx of [-15.5, 15.5]) B.box(m2, 3, 9 + top, 3, sx, -0.3, 4, black);   // PA towers
-    for (const z of [-4, 2, 6.5]) Fd.beam(I4(), Q(-14, top + 10, z), Q(14, top + 10, z), 0.35, truss);
-    for (const sx of [-14, 14]) for (const z of [-4, 6.5]) Fd.beam(I4(), Q(sx, top, z), Q(sx, top + 10, z), 0.3, truss);
-    Ct.face(B, Q(-9, top + 2.5, -6.85), Q(9, top + 2.5, -6.85), Q(9, top + 9.5, -6.85), Q(-9, top + 9.5, -6.85), C(0x22262c), [ca, 0, sa]);
+    for (const z of [-4, 2, 6.5]) Fd.beam(I4(), Q(-14, top + 9, z), Q(14, top + 9, z), 0.35, truss);
+    for (const sx of [-14, 14]) for (const z of [-4, 6.5]) Fd.beam(I4(), Q(sx, top, z), Q(sx, top + 9, z), 0.3, truss);
+    Ct.face(B, Q(-8, top + 1.5, -6.85), Q(8, top + 1.5, -6.85), Q(8, top + 6.8, -6.85), Q(-8, top + 6.8, -6.85), C(0x15171a), [ca, 0, sa]);
     return 1;
   }
 
@@ -135,18 +135,22 @@
     const { B, S, F: Fd, A } = BK; const t = E.t, sc = E.sc; const F = t.data.furniture || {};
     const s = t.sf + (F.startGantry != null ? F.startGantry : 6) + 3.4; const i = t.idxAtS(s);
     const PF = Ct.pitFrame(E); const pside = PF ? PF.side : -1;
-    const dP = (pside < 0 ? t.wallL[i] : t.wallR[i]) + 1.6, dO = (pside < 0 ? t.wallR[i] : t.wallL[i]) + 1.4;   // the pit-side leg on the pit-wall strip behind the barrier
+    // a cantilever: the truss springs from a twin lattice column beyond the grandstand-side barrier and ends over the pit wall (nothing stands
+    // on the pit side: the strip between the pit wall and the lane, and the lane itself, stay clear)
+    const dP = (pside < 0 ? t.wallL[i] : t.wallR[i]) - 0.3, dO = (pside < 0 ? t.wallR[i] : t.wallL[i]) + 1.4;
     const A0 = Ct.at(t, s, pside, dP), A1 = Ct.at(t, s, -pside, dO); const ty = A0.y;
     const ux = A1.x - A0.x, uz = A1.z - A0.z, span = Math.hypot(ux, uz), ax = ux / span, az = uz / span; const tx = A0.tx, tz = A0.tz;
     const W = (u, y, v) => [A0.x + ax * u + tx * v, ty + y, A0.z + az * u + tz * v];
     const white = C(0xd9dcdd), grey = C(0x8c9399), navy = C(0x1d2640), I = I4(); const yD = 8.9, dep = 2.2, hw = 0.8;
-    for (const [u] of [[-0.45], [span + 0.6]]) {
-      const g = sc.height(W(u, 0, 0)[0], W(u, 0, 0)[2]) - ty - 0.3;
-      for (const v of [-hw, hw]) for (const du of [-0.35, 0.35]) S.beam(I, W(u + du, g, v), W(u + du, yD + dep, v), 0.16, grey);
-      for (let y = g + 1.0; y < yD; y += 1.2) for (const v of [-hw, hw]) Fd.beam(I, W(u - 0.35, y, v), W(u + 0.35, y + 1.2, v), 0.06, grey);
-      B.box(Env.frame(...W(u, 0, 0).map((q, k) => k === 1 ? q + g : q), ax, az, tx, tz), 1.0, 0.6, 2.2, 0, 0, 0, C(0xa9adb0));
-    }
-    const ua = -1.0, ub = span + 1.2;
+    { const u = span + 0.9; const hv = 1.6; let g = Infinity; for (const v of [-hv, hv]) for (const du of [-0.5, 0.5]) { const p = W(u + du, 0, v); g = Math.min(g, sc.height(p[0], p[2]) - ty - 0.3); }
+      for (const v of [-hv, hv]) for (const du of [-0.5, 0.5]) S.beam(I, W(u + du, g, v), W(u + du, yD + dep, v), 0.2, grey);
+      for (let y = g + 1.0; y < yD; y += 1.2) for (const v of [-hv, hv]) Fd.beam(I, W(u - 0.5, y, v), W(u + 0.5, y + 1.2, v), 0.07, grey);
+      for (let y = g + 1.0; y < yD; y += 2.4) for (const du of [-0.5, 0.5]) Fd.beam(I, W(u + du, y, -hv), W(u + du, y + 2.4, hv), 0.07, grey);
+      // the back stay: a raked strut from the column head down to a footing behind it (it carries the cantilever)
+      const ub2 = u + 6.5; const pb = W(ub2, 0, 0); const gb = sc.height(pb[0], pb[2]) - ty - 0.3; for (const v of [-hv, hv]) S.beam(I, W(u + 0.5, yD + dep, v), W(ub2, gb + 0.3, v * 0.6), 0.18, grey);
+      B.box(Env.frame(...W(u, 0, 0).map((q, k) => k === 1 ? q + g : q), ax, az, tx, tz), 1.6, 0.6, 4.0, 0, 0, 0, C(0xa9adb0));
+      B.box(Env.frame(...W(ub2, 0, 0).map((q, k) => k === 1 ? q + gb : q), ax, az, tx, tz), 1.2, 0.6, 2.6, 0, 0, 0, C(0xa9adb0)); }
+    const ua = -0.2, ub = span + 1.4;
     for (const y of [yD, yD + dep]) for (const v of [-hw, hw]) S.beam(I, W(ua, y, v), W(ub, y, v), 0.2, white);
     const nb = Math.max(4, Math.round((ub - ua) / 2.2)), bl = (ub - ua) / nb;
     for (const v of [-hw, hw]) for (let k = 0; k < nb; k++) { const u = ua + k * bl; Fd.beam(I, W(u, yD, v), W(u, yD + dep, v), 0.1, white); Fd.beam(I, W(u, yD, v), W(u + bl, yD + dep, v), 0.08, white); }
