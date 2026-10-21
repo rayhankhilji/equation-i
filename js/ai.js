@@ -59,20 +59,22 @@ window.EI = window.EI || {};
   // Monza (monza-GEN, swarm/monza/gen/sweep.sh): solo clean to 1.2, wide from 1.25; at 1.16 race traffic still put bots wide at the
   // Lesmo 1 exit / Parabolica (3-lap 22-car sims, 4 seeds), at 1.12 not -> 1.12
   // Spa (SPA-GEN, swarm/spa/gen/sweep.sh): solo clean to 1.15, wide from 1.2; 3-lap 22-car races at 1.12 / 1.15 (2 seeds) both 0 bot wall hits -> 1.12
-  const C_LIMIT = { silverstone: 1.1, monaco: 1.25, abudhabi: 1.16, monza: 1.12, spa: 1.12 }, C_LIMIT_DEFAULT = 1.1;
+  // COTA (COTA-GEN, swarm/cota/gen/sweep.sh): solo clean to 1.15, wide from 1.2; ultra 22-car 3-lap races at 1.12: 0 bot wall hits -> 1.12.
+  // LIMIT_LAP 87.88 (qsim ultra, mediums); TYRE_DELTA soft -0.48 % / hard +0.42 % (whole field); Official on softs 95.98-96.00 vs the 2026 estimate 96.033
+  const C_LIMIT = { silverstone: 1.1, monaco: 1.25, abudhabi: 1.16, monza: 1.12, spa: 1.12, cota: 1.12 }, C_LIMIT_DEFAULT = 1.1;
   // lap time a late braker gains over an early one on top of the profile (trail-braking carry, later lift: update()), per unit of
   // the braking trait, measured in the headless sim. The corner grip is solved against it so braking style never changes the pace.
   // Monza: braking trait 0 -> 1 = -0.067 s on a 76.2 s solo lap (grip 1.16) -> 0.001
   const K_BRAKE = { silverstone: 0.001, monaco: 0.002, abudhabi: 0.001, monza: 0.001 }, K_BRAKE_DEFAULT = 0.0015;
   // the bots realise ~92-97% of the lap-time difference the profile predicts between two corner-grip scales (fit per circuit over
   // 7 skills x 22 drivers, residual ~0.1%), so the lap ratio is asked for that much larger to come out right on the stopwatch
-  const GAP_STRETCH = { silverstone: 1.09, monaco: 1.09, abudhabi: 1.07, monza: 1.04, spa: 1.12 }, GAP_STRETCH_DEFAULT = 1.075;   // spa: matrix.js ultra spread 5.81 % vs 5.77 % real, rho 0.999
+  const GAP_STRETCH = { silverstone: 1.09, monaco: 1.09, abudhabi: 1.07, monza: 1.04, spa: 1.12, cota: 1.075 }, GAP_STRETCH_DEFAULT = 1.075;   // spa: matrix.js ultra spread 5.81 % vs 5.77 % real, rho 0.999
 
   // lap time of the season's fastest car + driver at skill 100 (no form), headless sim on the circuit (qsim.js, solo flying laps):
   // the anchor that turns a real lap time into the game's scale. Re-measure with C_LIMIT.
-  const LIMIT_LAP = { silverstone: 80.75, monaco: 64.24, abudhabi: 79.26, monza: 76.65, spa: 94.24 }, OFFICIAL_LOSS_DEFAULT = 0.08;
+  const LIMIT_LAP = { silverstone: 80.75, monaco: 64.24, abudhabi: 79.26, monza: 76.65, spa: 94.24, cota: 87.88 }, OFFICIAL_LOSS_DEFAULT = 0.08;
   // real 2026 pole lap of a circuit (s): EI.RACEPACE (real lap data) > EI.SEASON.tracks > the season's real grids (pole time)
-  const GRID_NAME = { silverstone: /british/i, monaco: /monaco/i, abudhabi: /abu dhabi/i, monza: /italian/i, spa: /belgian/i };
+  const GRID_NAME = { silverstone: /british/i, monaco: /monaco/i, abudhabi: /abu dhabi/i, monza: /italian/i, spa: /belgian/i, cota: /united states/i };
   const parseLap = t => { if (typeof t === 'number') return t; const m = /^(?:(\d+):)?(\d+(?:\.\d+)?)$/.exec(String(t || '').trim()); return m ? (+(m[1] || 0)) * 60 + (+m[2]) : 0; };
   function realPole(tid) {
     const RP = EI.RACEPACE && EI.RACEPACE[tid]; if (RP) { if (RP.pole && RP.pole.s) return +RP.pole.s; if (RP.q) { const v = Object.values(RP.q).map(parseLap).filter(x => x > 0); if (v.length) return Math.min(...v); } }
@@ -88,7 +90,7 @@ window.EI = window.EI || {};
   // on every compound, so the tyre effect is counted once - by the tyre.
   const TYRE_DELTA = {
     silverstone: { soft: -0.0057, hard: 0.0046 }, monaco: { soft: -0.0052, hard: 0.005 }, abudhabi: { soft: -0.0054, hard: 0.0042 },
-    monza: { soft: -0.0041, hard: 0.0035 }, spa: { soft: -0.0042, hard: 0.0041 },
+    monza: { soft: -0.0041, hard: 0.0035 }, spa: { soft: -0.0042, hard: 0.0041 }, cota: { soft: -0.0048, hard: 0.0042 },
   }, TYRE_DELTA_DEFAULT = { soft: -0.005, hard: 0.0042 };
   const tyreDelta = (tid, key) => { const t = TYRE_DELTA[tid] || TYRE_DELTA_DEFAULT; return key === 'soft' || key === 'hard' ? t[key] : 0; };
   // Official F1 = the real 2026 qualifying pole ON SOFTS (real qualifying runs on softs): the lap loss is measured against the soft
@@ -478,7 +480,7 @@ window.EI = window.EI || {};
       if (!race.started) { inp.throttle = 0; inp.brake = 1; inp.steer = 0; return; }
       if (EI.Pit && EI.Pit.driveBot(this, dt, race, cars)) { this.cleanT = 0; return; }
       const av = Math.abs(car.v);
-      if (car.finished) { this.coolDown(); return; }
+      if (car.finished) { this.coolDown(cars); return; }
       if (race.time < U.clamp(this.reaction, 0.15, 0.3)) { inp.throttle = 0; inp.brake = 1; return; }   // a real F1 reaction at every level (the starts trait picks where in 0.15-0.30 s)
       // --- recovery when stuck against a wall or spun
       const th = t.heading[car.trk.i];
@@ -743,12 +745,16 @@ window.EI = window.EI || {};
     }
 
     // after the flag: a gentle lap on the racing line at three quarters of the profile
-    coolDown() {
+    coolDown(cars) {
       const car = this.car, t = this.track, inp = car.input, av = Math.abs(car.v);
       inp.drs = false; inp.ers = false; inp.reverse = false; this.latLo = -Infinity; this.latHi = Infinity;
       let target = Infinity; const look = Math.round((10 + av * 0.2) / t.ds);
       for (let j = 0; j <= look; j += 2) target = Math.min(target, t.aiSpeed[(car.trk.i + j) % t.n]);
-      target *= 0.72; const vErr = target - av;
+      target *= 0.72;
+      // keep a gap to the car ahead in the same lane: the whole field cools down on one line, and without this the cars stacked up into the
+      // first corner after the flag (COTA ultra: ~1100 contacts on the cool-down lap, Turn 1 is 360 m past the line; Monza ~30-70). COTA-GEN
+      if (cars) { const TL = t.length; let gap = 1e9, vo = 0; for (const o of cars) { if (o === car) continue; let d = o.trk.s - car.trk.s; if (d < 0) d += TL; if (d < gap && d < 50 && Math.abs(o.trk.lat - car.trk.lat) < 2.8) { gap = d; vo = Math.abs(o.v); } } if (gap < 50) target = Math.min(target, Math.max(0, vo + (gap - 15) * 0.4)); }
+      const vErr = target - av;
       if (vErr > 0.5) { inp.throttle = 0.35; inp.brake = 0; } else if (vErr < -1) { inp.throttle = 0; inp.brake = U.clamp(-vErr / 6, 0.15, 1); } else { inp.throttle = 0.2; inp.brake = 0; }
       this.steerToLine(5.5 + av * 0.36);
     }

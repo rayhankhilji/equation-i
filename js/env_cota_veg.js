@@ -121,7 +121,7 @@ window.EI = window.EI || {};
     // live oak: short thick trunk, heavy limbs reaching out sideways, a broad low dome much wider than tall that hangs down at the sides
     const liveOak = (ox, oy, seed) => {
       const r = U.rng(seed); trunk(ox, oy, 256, 512, 380, 40, 26, bark); trunk(ox, oy, 264, 512, 400, 12, 7, barkL);
-      for (let b = 0; b < 8; b++) { const dir = b % 2 ? 1 : -1; branch(ox, oy, 256 + dir * 6, 400 - b * 6, 256 + dir * (120 + r() * 120), 330 - r() * 110, 13 - b, bark); }
+      for (let b = 0; b < 8; b++) { const dir = b % 2 ? 1 : -1; branch(ox, oy, 256 + dir * 6, 400 - b * 6, 256 + dir * (70 + r() * 90), 320 - r() * 70, 13 - b, bark); }   // (limbs end inside the crown: no bare sticks past its edge)
       const lobes = []; for (let i = 0; i < 26; i++) { const a = r() * 6.283, d = Math.pow(r(), 0.55) * 0.86; let x = Math.cos(a) * d * 236, y = Math.sin(a) * d * 128; if (y > 0) y *= 0.8 + 0.35 * Math.abs(x) / 236; lobes.push({ x: 256 + x, y: 250 + y, rx: 46 + r() * 36, ry: 36 + r() * 24 }); }
       lobes.sort((a, b) => a.y - b.y); const global = (y) => 1.1 - U.clamp((y - 110) / 300, 0, 1) * 0.66;
       for (const L of lobes) lobe(r, ox, oy, L, APAL.liveoak, global);
@@ -139,7 +139,7 @@ window.EI = window.EI || {};
     // mesquite: two or three crooked dark stems forking low, an open feathery pale-green crown, wide and flat-topped, lots of sky through it
     const mesquite = (ox, oy, seed) => {
       const r = U.rng(seed); const pal = APAL.mesquite;
-      for (let k = 0; k < 3; k++) { const x1 = 256 + (k - 1) * (60 + r() * 50), y1 = 300 - r() * 40; branch(ox, oy, 252 + (k - 1) * 8, 512, x1, y1, 15 - k * 3, bark); branch(ox, oy, x1, y1, x1 + (r() - 0.5) * 180, 190 - r() * 60, 7, bark); }
+      for (let k = 0; k < 3; k++) { const x1 = 256 + (k - 1) * (60 + r() * 50), y1 = 300 - r() * 40; branch(ox, oy, 252 + (k - 1) * 8, 512, x1, y1, 15 - k * 3, bark); branch(ox, oy, x1, y1, x1 + (r() - 0.5) * 100, 215 - r() * 40, 7, bark); }
       const lobes = []; for (let i = 0; i < 24; i++) { const a = r() * 6.283, d = Math.sqrt(r()); lobes.push({ x: 256 + Math.cos(a) * d * 210, y: 200 + Math.sin(a) * d * 70 + Math.abs(Math.cos(a)) * d * 18, rx: 40 + r() * 34, ry: 24 + r() * 16 }); }
       lobes.sort((a, b) => a.y - b.y); const global = (y) => 1.08 - U.clamp((y - 120) / 190, 0, 1) * 0.5;
       for (const L of lobes) lobe(r, ox, oy, L, pal, global);
