@@ -615,7 +615,9 @@ window.EI = window.EI || {};
       cs.dip += (U.clamp(-car.aLong * 0.0008, -0.016, 0.028) - cs.dip) * kSway;          // forward under braking, back under power
       const vibA = (0.00025 + car.rpm * 0.0007) * (car.throttle > 0.3 ? 1 : 0.55); const vib = vibA * (Math.sin(tN * 6.283 * (24 + car.rpm * 11)) * 0.7 + Math.sin(tN * 6.283 * (37 + car.rpm * 17) + 1.1) * 0.3);
       const g = car.gradeNow || 0;
-      _tgt.set(cx + fx * (eyeX + cs.dip) + lx * cs.sway, cy + eyeY - Math.abs(cs.dip) * 0.25 + vib, cz + fz * (eyeX + cs.dip) + lz * cs.sway);
+      // the eye sits in the CAR's frame (the body is pitched by the grade): a world-up offset slid it ~10 cm back / forward in the tub on a 12 % slope and the halo / wheel framing changed with the gradient
+      const gn = 1 / Math.sqrt(1 + g * g), ex = eyeX + cs.dip, ey = eyeY - Math.abs(cs.dip) * 0.25 + vib;
+      _tgt.set(cx + (fx * ex - fx * g * ey) * gn + lx * cs.sway, cy + (g * ex + ey) * gn, cz + (fz * ex - fz * g * ey) * gn + lz * cs.sway);
       cam.position.copy(_tgt);
       const apexT = U.clamp(car.steer * 0.2 + (car.yaw || 0) * 0.02, -0.14, 0.14);       // look towards the apex, up to ~8 degrees
       cs.apex = (cs.apex || 0) + (apexT - (cs.apex || 0)) * (snap ? 1 : 1 - Math.exp(-dt * 3.5)); const ap = cs.apex;
@@ -638,7 +640,7 @@ window.EI = window.EI || {};
       // a little roll with the car (it is bolted to the chassis, no head physics).
       if (snap) { cs.roll = 0; cs.fov = 64; }
       const vib = (0.0002 + car.rpm * 0.0005) * Math.sin(tN * 6.283 * (29 + car.rpm * 13)); const g = car.gradeNow || 0;
-      const TC = EI.debug.tcam || TCAM; _tgt.set(cx + fx * TC.x, cy + TC.y + vib + jy * 0.01, cz + fz * TC.x); cam.position.copy(_tgt);   // the lens: over the front of the T-cam housing (x -0.125..0.025, top y 1.135)
+      const TC = EI.debug.tcam || TCAM; { const gn = 1 / Math.sqrt(1 + g * g), ty = TC.y + vib + jy * 0.01; _tgt.set(cx + (fx * TC.x - fx * g * ty) * gn, cy + (g * TC.x + ty) * gn, cz + (fz * TC.x - fz * g * ty) * gn); } cam.position.copy(_tgt);   // in the car's (pitched) frame   // the lens: over the front of the T-cam housing (x -0.125..0.025, top y 1.135)
       const pitch = (cameras.length > 1 && cam.aspect > 1.6 ? TC.p + 0.045 : TC.p) + g + jy * 0.01;
       _look.set(_tgt.x + fx * 30 + lx * jx * 0.15, _tgt.y + pitch * 30, _tgt.z + fz * 30 + lz * jx * 0.15); cam.up.set(0, 1, 0); cam.lookAt(_look);
       cs.roll += (U.clamp(-car.aLat * 0.0005, -0.012, 0.012) - cs.roll) * (snap ? 1 : 1 - Math.exp(-dt * 4)); cam.rotateZ(cs.roll);
