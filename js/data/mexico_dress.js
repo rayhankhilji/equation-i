@@ -6,11 +6,12 @@
 // (data.pitSide), the Main Grandstand, the outside of T1 and the property fence on +1. 'out' / 'in' = outside / inside of the bend at that s.
 // The STADIUM section (Foro Sol) is the stretch of the lap inside the OSM outline of 'Estadio GNP Seguros' (+30 m): s 3534 .. 3903 (T12 exit .. T16).
 // Sources: [V] FACTS.md v1.1 (PIRELLI: "the penultimate right-hander (T16) ... the wall so close, arguably easiest to crash on"; Foro Sol surrounded on three sides
-// by grandstands; event title "Formula 1 Gran Premio de la Ciudad de Mexico", 2025 presented by Heineken [F1 race programme]); everything about kerb / barrier
-// / fence looks is [K] (best knowledge, no photos): red / white kerbs, asphalt run-off, tyre walls and TecPro, a dark catch fence in front of the stands.
+// by grandstands; event title "Formula 1 Gran Premio de la Ciudad de Mexico", 2025 presented by Heineken [F1 race programme]); [P] the F1 photo set (PHOTOS-A, swarm/staging/mexico_refs/photos): red / white
+// ridged kerbs with a thin blue edge band, blue and green PAINTED aprons (white Heineken lettering), pale concrete walls under a tall dark catch fence, crimson '#MexicoGP' / Lenovo / LVMH / MSC / Heineken boards;
+// still [K] (best knowledge): which corner carries which paint colour (the photos have no turn numbers), tyre wall / TecPro placement, marshal / camera / screen positions.
 // Gravel: none (the sources and GEN's OSM show asphalt aprons and grass, no gravel beds). Nothing here moves a wall or the drivable surface.
 // Consumers: js/infra.js (marshals, cameraTowers, scaffolds, screens, billboards, gantries, hoardZones, tec / tyre corners, sponsor walls, fiesta),
-// js/track.js (kerbStyle 'cota', runoffSchemes, runoffGreen, sausages, brakeStops / brakeBoards, fence, logoSpots, pitColor), js/ads.js (VENUES.mexico).
+// js/track.js (kerbStyle 'mexico', runoffSchemes, runoffGreen, sausages, brakeStops / brakeBoards, fence, logoSpots, pitColor), js/ads.js (VENUES.mexico).
 window.EI = window.EI || {};
 (function () {
   const T = EI.TRACKS && EI.TRACKS.mexico; if (!T) return;
@@ -35,7 +36,7 @@ window.EI = window.EI || {};
   T.runoffTint = [0.78, 0.77, 0.75];
   T.runoffSchemes = [
     [1, 0, '#1a3a82', '#1e438e'], [3, 0, '#1a3a82', '#1e438e'], [4, 0, '#1a3a82', '#1e438e'], [6, 0, '#1a3a82', '#1e438e'],
-    [12, 0, '#1e5e38', '#236840'], [13, 0, '#1e5e38', '#236840'], [14, 0, '#1e5e38', '#236840'], [15, 0, '#1e5e38', '#236840'], [16, 0, '#1e5e38', '#236840'], [17, 0, '#1e5e38', '#236840'],
+    [12, 0, '#1e5e38', '#236840'], [13, 0, '#1e5e38', '#a02a26'], [14, 0, '#1e5e38', '#236840'], [15, 0, '#1e5e38', '#a02a26'], [16, 0, '#1e5e38', '#236840'], [17, 0, '#1e5e38', '#236840'],   // T13 / T15: green band + white line + red field = the tricolour apron of the stadium photos (MEX-BEAUTY: red ~0xb8322a under the grade)
   ];
   T.pitColor = 0x6c6b69;   // pit lane asphalt: the plain map under the default tint reads near white in the altitude sun
 

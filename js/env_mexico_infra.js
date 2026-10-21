@@ -64,9 +64,19 @@
 
   In.build = function (E, BK, out) {
     const st = out.infra = {};
-    for (const [k, fn] of [['podium', podium], ['clubs', clubs], ['gantry', startGantry], ['footbridges', footbridges], ['palacio', palacio], ['velodrome', velodrome]]) { try { st[k] = fn(E, BK); } catch (e) { console.error('EnvMexico infra ' + k, e); } }
+    for (const [k, fn] of [['lampMasts', lampMasts], ['podium', podium], ['clubs', clubs], ['gantry', startGantry], ['footbridges', footbridges], ['palacio', palacio], ['velodrome', velodrome]]) { try { st[k] = fn(E, BK); } catch (e) { console.error('EnvMexico infra ' + k, e); } }
   };
 
+  // ---------------------------------------------------------------- tall lamp masts with a curved arm along the run to Turn 1 (photo
+  // mex_start_pack_smoke_trees_barrier), on the grandstand side, 5 m beyond the barrier, every 45 m; the poles are the main layer, the arms clutter
+  function lampMasts(E, BK) {
+    const t = E.t, sc = E.sc, { S, F: Fd, B } = BK; const PF = Mx.pitFrame(E); const side = PF ? -PF.side : 1; let n = 0; const grey = C(0x8f969c);
+    for (let s = 260; s <= Mx.cs(t, 1) - 60; s += 45) { const i = t.idxAtS(s); const d = E.wallCap(i, side) + 5.0; const p = Mx.at(t, s, side, d); if (E.fsAt(p.x, p.z) < 3 || (E.occAt(p.x, p.z) & Env.OCC.BUILT) || Mx.nearPit(E, p.x, p.z) < 10) continue;
+      const g = sc.height(p.x, p.z) - 0.3, H = 16; S.beam(I4(), [p.x, g, p.z], [p.x, g + H, p.z], 0.28, grey);
+      const ax = -p.nx, az = -p.nz; let prev = [p.x, g + H, p.z]; for (let k = 1; k <= 3; k++) { const f = k / 3; const q = [p.x + ax * 2.6 * f, g + H + 1.1 * Math.sin(f * Math.PI * 0.6), p.z + az * 2.6 * f]; Fd.beam(I4(), prev, q, 0.14, grey); prev = q; }
+      B.box(Env.frame(prev[0], prev[1] - 0.35, prev[2], ax, az, -az, ax), 0.9, 0.3, 0.45, 0, 0, 0, C(0x3a3d42)); n++; }
+    return n;
+  }
   // an item frame: x along the lap, z away from the track (+z = back), y from the item's lowest ground
   const frameOf = (o) => Env.frame(o.cx, o.y, o.cz, o.ax, o.az, o.nx, o.nz);
 
@@ -148,7 +158,7 @@
       Mx.face(G, P(-hl + 0.6, lift + 0.4, -hd - 0.03), P(hl - 0.6, lift + 0.4, -hd - 0.03), P(hl - 0.6, y1 - 0.4, -hd - 0.03), P(-hl + 0.6, y1 - 0.4, -hd - 0.03), glassL, F);
       B.box(m, L, y2 - y1, 0.4, 0, y1, hd - 0.2, white); for (const sx of [-1, 1]) B.box(m, 0.4, y2 - y1, D, sx * (hl - 0.2), y1, 0, white);
       Mx.face(G, P(-hl + 0.6, y1 + 1.2, hd - 0.42), P(hl - 0.6, y1 + 1.2, hd - 0.42), P(hl - 0.6, y2 - 0.6, hd - 0.42), P(-hl + 0.6, y2 - 0.6, hd - 0.42), glass, F);
-      B.box(m, L + 1.0, 0.5, D + 1.6, 0, y2, -0.6, white, { bottom: true });
+      B.box(m, L + 1.0, 0.5, D + 1.6, 0, y2, -0.6, white, { bottom: true, top: C(0xb9bcbe) });
       for (let x = -hl + 4; x < hl - 2; x += 6) S.beam(Mx.I4(), P(x, y1, -hd + 0.4), P(x, y2, -hd + 0.4), 0.3, frame);
       // the terrace rail (glass) with the black mid band below it; the deep black fascia on the roof edge (signs in the atlas)
       Mx.face(G, P(-hl, y1 + 0.02, -hd - 0.05), P(hl, y1 + 0.02, -hd - 0.05), P(hl, yB + 0.1, -hd - 0.05), P(-hl, yB + 0.1, -hd - 0.05), C(0x8aa7b2), F);
@@ -187,7 +197,7 @@
     for (const v of [-hw, hw]) for (let k = 0; k < nb; k++) { const u = ua + k * bl; Fd.beam(I, W(u, yD, v), W(u, yD + dep, v), 0.1, white); Fd.beam(I, W(u, yD, v), W(u + bl, yD + dep, v), 0.08, white); }
     K.dq(B, W(ua, yD - 0.05, -hw), W(ub, yD - 0.05, -hw), W(ub, yD - 0.05, hw), W(ua, yD - 0.05, hw), C(0xc9cccf));
     const r = A.region('mxGantryBanner', 1024, 80, (x2, w, h) => { if (EI.Ads && EI.Ads.paintBanner) EI.Ads.paintBanner(x2, w, h, (ub - ua - 1) / (dep - 0.5)); else Mx.paintBand(x2, w, h, 'GRAN PREMIO DE LA CIUDAD DE MÉXICO'); });
-    for (const v of [-hw - 0.05, hw + 0.05]) { const a = W(ua + 0.5, yD + 0.25, v), b = W(ub - 0.5, yD + 0.25, v), c = W(ub - 0.5, yD + dep - 0.25, v), d = W(ua + 0.5, yD + dep - 0.25, v); Mx.faceA(A, r, a, b, c, d, [tx * Math.sign(v), 0, tz * Math.sign(v)]); }
+    for (const v of [-hw - 0.05, hw + 0.05]) { const want = [tx * Math.sign(v), 0, tz * Math.sign(v)]; const [l, rr] = Mx.lr(want, W(ua + 0.5, yD + 0.25, v), W(ub - 0.5, yD + 0.25, v)); Mx.faceA(A, r, l, rr, [rr[0], ty + yD + dep - 0.25, rr[2]], [l[0], ty + yD + dep - 0.25, l[2]], want); }
     // timing tower beside the outer edge, before the line: grey lattice, black screen facing the cars on the approach
     { const u = span + 3.4, v = -6; const p = W(u, 0, v); const g = sc.height(p[0], p[2]) - ty - 0.3; const yT = 10.5;
       for (const [du, dv] of [[-0.5, -0.5], [0.5, -0.5], [0.5, 0.5], [-0.5, 0.5]]) S.beam(I, W(u + du, g, v + dv), W(u + du, yT, v + dv), 0.12, grey);
@@ -219,7 +229,7 @@
     const span = ub - ua, nb = Math.max(4, Math.round(span / 3.2)), bl = span / nb;
     for (const v of [-hw, hw]) { S.beam(I, W(ua, yD, v), W(ub, yD, v), 0.3, main); S.beam(I, W(ua, yD + dep, v), W(ub, yD + dep, v), 0.3, main); for (let k = 0; k <= nb; k++) Fd.beam(I, W(ua + k * bl, yD, v), W(ua + k * bl, yD + dep, v), 0.14, mainD); for (let k = 0; k < nb; k++) Fd.beam(I, W(ua + k * bl, yD, v), W(ua + (k + 1) * bl, yD + dep, v), 0.1, mainD); }
     const r = br.turn === 16 ? A.region('mxBridgeMX', 640, 60, (x2, w, h) => { x2.fillStyle = '#b8232b'; x2.fillRect(0, 0, w, h); x2.fillStyle = '#f2efe9'; x2.font = 'italic 800 ' + Math.round(h * 0.62) + 'px Arial'; x2.textAlign = 'center'; x2.textBaseline = 'middle'; x2.fillText('MEXICO CITY', w * 0.42, h * 0.52); x2.font = '700 ' + Math.round(h * 0.3) + 'px Arial'; x2.fillText('#MexicoGP', w * 0.84, h * 0.55); }) : A.region('mxBridge_' + br.which, 640, 60, (x2, w, h) => { if (EI.Ads && EI.Ads.paintBridge) { x2.fillStyle = '#ffffff'; x2.fillRect(0, 0, w, h); EI.Ads.paintBridge(x2, br.which, w, h, (span - 1) / (dep - 0.6)); } else Mz.paintText(x2, w, h, 'trylumi.co', { bg: '#1b1530', fg: '#ffffff' }); });
-    for (const v of [-hw - 0.04, hw + 0.04]) Mx.faceA(A, r, W(ua + 0.5, yD + 0.35, v), W(ub - 0.5, yD + 0.35, v), W(ub - 0.5, yD + dep - 0.35, v), W(ua + 0.5, yD + dep - 0.35, v), [q.tx * Math.sign(v), 0, q.tz * Math.sign(v)]);
+    for (const v of [-hw - 0.04, hw + 0.04]) { const want = [q.tx * Math.sign(v), 0, q.tz * Math.sign(v)]; const [l, rr] = Mx.lr(want, W(ua + 0.5, yD + 0.35, v), W(ub - 0.5, yD + 0.35, v)); Mx.faceA(A, r, l, rr, [rr[0], y0 + yD + dep - 0.35, rr[2]], [l[0], y0 + yD + dep - 0.35, l[2]], want); }
     return true;
   }
 
@@ -229,7 +239,7 @@
     const c = Mx.centroid(lm.p); const ds = lm.p.map(q => Math.hypot(q[0] - c[0], q[1] - c[1])).sort((a, b) => a - b); const R = ds[Math.floor(ds.length * 0.35)];
     let g = Infinity; for (let k = 0; k < 16; k++) { const a = k / 16 * Math.PI * 2; g = Math.min(g, sc.height(c[0] + Math.cos(a) * R, c[1] + Math.sin(a) * R)); } g -= 0.4;
     const Hd = Math.max(26, lm.h || 35), yW = 7.5; const NSEG = 40, NR = 7;
-    const cu = [C(0xb27a45), C(0xa36e3d), C(0x9a6639), C(0xb8834f)], ring = C(0xa9a59b), ringD = C(0x8e8a81), glass = C(0x2a3540);
+    const cu = [C(0xa8643e), C(0x9c5c39), C(0x935636), C(0xae6c45)], ring = C(0xa9a59b), ringD = C(0x8e8a81), glass = C(0x2a3540);
     const Q = (a, r, y) => [c[0] + Math.cos(a) * r, g + y, c[1] + Math.sin(a) * r];
     // the ring wall (concrete with a glazed band), a slight batter
     for (let k = 0; k < NSEG; k++) { const a0 = k / NSEG * Math.PI * 2, a1 = (k + 1) / NSEG * Math.PI * 2, am = (a0 + a1) / 2; const out = [Math.cos(am), 0, Math.sin(am)];
@@ -245,7 +255,10 @@
     for (let k = 0; k < 12; k++) { const a = k / 12 * Math.PI * 2; for (let j = 0; j < NR; j++) { const [r0, y0] = ringR(j), [r1, y1] = ringR(j + 1); Fd.beam(I4(), Q(a, r0 + 0.1, y0 + 0.15), Q(a, r1 + 0.1, y1 + 0.15), 0.35, C(0x6f5032)); } }
     // the entrance buttresses at the footprint's spurs (the points well beyond the ring)
     let nb = 0; for (const q of lm.p) { const d = Math.hypot(q[0] - c[0], q[1] - c[1]); if (d < R + 14) continue; const a = Math.atan2(q[1] - c[1], q[0] - c[0]); const gq = sc.height(q[0], q[1]) - 0.3; const p0 = Q(a, R + 0.5, yW + 2), p1 = [q[0], gq + 0.0, q[1]];
-      const m = Env.frame(p1[0], gq, p1[2], -Math.sin(a), Math.cos(a), Math.cos(a), Math.sin(a)); B.box(m, 4.0, 1.4, 4.0, 0, 0, 0, ringD); S.beam(I4(), [p1[0], gq + 1.2, p1[2]], p0, 2.2, ring); nb++; if (nb >= 8) break; }
+      // an entrance ramp / buttress: a sloped wedge from the ground at the spur up to the ring wall's top, two side faces
+      const ca = Math.cos(a), sa = Math.sin(a), px = -sa * 2.4, pz = ca * 2.4; const top = [c[0] + ca * (R + 0.6), g + yW, c[1] + sa * (R + 0.6)];
+      const A0 = [p1[0] + px, gq, p1[2] + pz], A1 = [p1[0] - px, gq, p1[2] - pz], T0 = [top[0] + px, top[1], top[2] + pz], T1 = [top[0] - px, top[1], top[2] - pz], F0 = [top[0] + px, g, top[2] + pz], F1 = [top[0] - px, g, top[2] - pz];
+      Mx.face(B, A0, A1, T1, T0, ring, [ca, 1, sa]); Mx.tri(B, A0, F0, T0, ringD, [-sa, 0, ca]); Mx.tri(B, A1, F1, T1, ringD, [sa, 0, -ca]); nb++; if (nb >= 8) break; }
     E.stats.mexico.palacio = { x: Math.round(c[0]), z: Math.round(c[1]), R: +R.toFixed(1), H: Hd };
     return 1;
   }

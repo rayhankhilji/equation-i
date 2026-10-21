@@ -229,11 +229,11 @@
   St.rowsOf = function (R) {
     const out = [];
     if (R.kind === 'foroSol') {
-      const L = FS.low; for (let r = 0; r < L.rows; r++) out.push({ z: L.z0 + r * L.tread, y: L.y0 + (r + 1) * L.rise, tr: L.tread, fill: 0.86, sh: 0.96, pitch: 0.62 });
+      const L = FS.low; for (let r = 0; r < L.rows; r++) out.push({ z: L.z0 + r * L.tread, y: L.y0 + (r + 1) * L.rise, tr: L.tread, fill: 0.8, sh: 0.96, pitch: 0.66 });
       const up = FS.up, yU = FS.low.y0 + FS.low.rows * FS.low.rise + FS.aisleRise; const zr = R.upZ0 + R.upRows * up.tread * 0.14;
-      for (let r = 0; r < R.upRows; r++) { const z = R.upZ0 + r * up.tread; out.push({ z, y: yU + (r + 1) * up.rise, tr: up.tread, fill: 0.72, sh: z > zr ? 0.72 : 0.95, pitch: 0.68 }); }
+      for (let r = 0; r < R.upRows; r++) { const z = R.upZ0 + r * up.tread; out.push({ z, y: yU + (r + 1) * up.rise, tr: up.tread, fill: 0.6, sh: z > zr ? 0.72 : 0.95, pitch: 0.72 }); }
     } else if (R.kind === 'main') {
-      for (let r = 0; r < MG.rows; r++) out.push({ z: MG.z0 + r * MG.tread, y: MG.wallH + (r + 1) * MG.rise, tr: MG.tread, fill: 0.62, sh: r < 2 ? 0.9 : 0.72, pitch: 0.66 });
+      for (let r = 0; r < MG.rows; r++) out.push({ z: MG.z0 + r * MG.tread, y: MG.wallH + (r + 1) * MG.rise, tr: MG.tread, fill: 0.5, sh: r < 2 ? 0.9 : 0.72, pitch: 0.7 });
     } else if (R.kind === 'harp') {
       for (let r = 0; r < HH.rows; r++) out.push({ z: 0.35 + r * 0.82, y: 1.8 + (r + 1) * 0.44, tr: 0.82, fill: 0.4, sh: r > HH.rows * 0.45 ? 0.76 : 0.96, pitch: 0.68 });
     }
@@ -394,12 +394,12 @@
   };
   // the outer facade bay (atlas): pale concrete, two rows of arched openings onto the concourses, a pilaster at the bay edge
   St.facadeR = function (A, i) {
+    // three concourse levels: deep openings between pilasters, a band at each floor, the section colour stripe on the middle band
     return A.region('mxFacade' + (i % 2), 64, 192, (x2, w, h) => {
-      x2.fillStyle = '#c4bfb2'; x2.fillRect(0, 0, w, h); x2.fillStyle = 'rgba(0,0,0,0.06)'; for (let y = 0; y < h; y += 16) x2.fillRect(0, y, w, 1);
-      x2.fillStyle = '#a9a497'; x2.fillRect(0, 0, 7, h); x2.fillRect(w - 7, 0, 7, h); x2.fillRect(0, h * 0.06, w, 6); x2.fillRect(0, h * 0.52, w, 8);
-      const arch = (y0, y1) => { x2.fillStyle = '#3a3c40'; const ax = 20, aw = w - 40; x2.beginPath(); x2.moveTo(ax, y1); x2.lineTo(ax, y0 + aw / 2); x2.arc(ax + aw / 2, y0 + aw / 2, aw / 2, Math.PI, 0); x2.lineTo(ax + aw, y1); x2.closePath(); x2.fill(); x2.fillStyle = 'rgba(255,255,255,0.08)'; x2.fillRect(ax, y1 - 4, aw, 4); };
-      arch(h * 0.62, h * 0.94); arch(h * 0.2, h * 0.46);
-      if (i % 2) { x2.fillStyle = '#2f7a4a'; x2.fillRect(14, h * 0.52 + 8, w - 28, 6); } else { x2.fillStyle = '#d9772b'; x2.fillRect(14, h * 0.52 + 8, w - 28, 6); }
+      x2.fillStyle = '#c4bfb2'; x2.fillRect(0, 0, w, h); x2.fillStyle = 'rgba(0,0,0,0.05)'; for (let y = 0; y < h; y += 12) x2.fillRect(0, y, w, 1);
+      for (const [y0, y1] of [[0.08, 0.27], [0.4, 0.58], [0.7, 0.9]]) { x2.fillStyle = '#34363a'; x2.fillRect(9, h * y0, w - 18, h * (y1 - y0)); x2.fillStyle = '#4a4c50'; x2.fillRect(9, h * y1 - 3, w - 18, 3); x2.fillStyle = 'rgba(160,160,150,0.5)'; x2.fillRect(w / 2 - 1, h * y0, 2, h * (y1 - y0)); }
+      x2.fillStyle = '#aaa597'; x2.fillRect(0, 0, 7, h); x2.fillRect(w - 7, 0, 7, h); x2.fillRect(0, h * 0.3, w, 5); x2.fillRect(0, h * 0.62, w, 5); x2.fillRect(0, h * 0.93, w, h * 0.07);
+      x2.fillStyle = i % 2 ? '#2f7a4a' : '#d9772b'; x2.fillRect(0, h * 0.34, w, 4);
     });
   };
   // an aisle at station i: a light strip over every tread of the ribbon's decks, a centre handrail (clutter)
@@ -414,14 +414,14 @@
   // ---------------------------------------------------------------- the Main Grandstand ribbon
   St.buildMain = function (E, BK, R, tiles) {
     const { B, S, G, F: Fd, H, A } = BK; const st = R.st, NS = st.length;
-    const conc = C(0xb3b5b1), concD = C(0x989b9c), concL = C(0xc2c4c1), seat = [C(0x2a4a7a), C(0x24426e)], glass = C(0x2a3846), clad = C(0xa9adb0), steel = C(0x9aa1a8), roofT = C(0xc9ccce), roofU = [C(0xb8bcbe), C(0xaeb2b5)];
+    const conc = C(0xb3b5b1), concD = C(0x989b9c), concL = C(0xc2c4c1), seat = [C(0x2a4a7a), C(0x24426e)], glass = C(0x2a3846), clad = C(0xa9adb0), steel = C(0x9aa1a8), roofT = C(0xb9bcbe), roofU = [C(0xb8bcbe), C(0xaeb2b5)];
     const yT = MG.wallH + MG.rows * MG.rise, zT = MG.z0 + MG.rows * MG.tread; const zS = zT + 0.4, ySt = yT + 1.1, ySu = yT + 4.6, zW = zT + 6.0;   // suites box
     const yRf = ySu + 3.6, yRb = ySu + 2.4, zRf = -2.0, zRb = zW + 0.8;
     for (let i = 0; i + 1 < NS; i++) {
       const N = nrmOf(R, i), F = [-N[0], 0, -N[2]], UP = [0, 1, 0], DN = [0, -1, 0];
       const ga = Math.min(R.g[i][0], R.g[i + 1][0]) - 0.4, gb = Math.min(R.g[i][1], R.g[i + 1][1]) - 0.4;
       loftQ(B, R, i, 0, ga, 0, MG.wallH, concD, F); loftQ(B, R, i, 0, MG.wallH, MG.z0, MG.wallH, concL, UP);
-      { const a = st[i], b = st[i + 1]; const pa = SP(R, a, -0.03, 0), pb = SP(R, b, -0.03, 0); const len = Math.hypot(pb[0] - pa[0], pb[2] - pa[2]); const w = Math.min(len - 0.4, 5.0); if (w > 2) { const f0 = 0.5 - w / len / 2, f1 = 0.5 + w / len / 2; const P0 = [pa[0] + (pb[0] - pa[0]) * f0, 0, pa[2] + (pb[2] - pa[2]) * f0], P1 = [pa[0] + (pb[0] - pa[0]) * f1, 0, pa[2] + (pb[2] - pa[2]) * f1]; const y0 = R.y + 0.3, y1 = R.y + 1.3; Mx.faceA(A, tiles[(i + 2) % 8], [P1[0], y0, P1[2]], [P0[0], y0, P0[2]], [P0[0], y1, P0[2]], [P1[0], y1, P1[2]], F); } }
+      St.stripQ(A, R, i, -0.03, 0.3, 1.3, tiles[(i + 2) % 8], F, 5.0);
       for (let r = 0; r < MG.rows; r++) { const z = MG.z0 + r * MG.tread, y = MG.wallH + r * MG.rise; loftQ(B, R, i, z, y, z, y + MG.rise, conc, F); loftQ(B, R, i, z, y + MG.rise, z + MG.tread, y + MG.rise, seat[r % 2], UP); }
       // the suites box behind the top row: a glazed front, its slab, the back wall to the ground (cladding + a glass band)
       loftQ(B, R, i, zT, yT, zT, ySt, concD, F); loftQ(G, R, i, zS, ySt, zS, ySu, glass, F); loftQ(B, R, i, zT, ySt, zS, ySt, concL, UP); loftQ(B, R, i, zS - 0.4, ySu, zW, ySu + 0.4, clad, F); loftQ(B, R, i, zS - 0.4, ySu + 0.4, zW, ySu + 0.4, C(0x8d9297), UP);
@@ -429,7 +429,7 @@
       loftQ(B, R, i, MG.z0, MG.wallH, zW, ySt * 0.45, C(0x7d8186), DN);
       // the roof: a flat light-grey deck from over the front row to behind the back wall, a deep fascia with partner tiles, a silver underside
       loftQ(B, R, i, zRf, yRf, zRb, yRb, roofT, UP); loftQ(B, R, i, zRf, yRf - 0.2, zRb, yRb - 0.2, roofU[i % 2], DN); loftQ(B, R, i, zRf, yRf - 1.3, zRf, yRf, C(0x3a3f45), F); loftQ(B, R, i, zRb, yRb - 0.6, zRb, yRb, clad, N);
-      { const a = st[i], b = st[i + 1]; const pa = SP(R, a, zRf - 0.04, 0), pb = SP(R, b, zRf - 0.04, 0); const len = Math.hypot(pb[0] - pa[0], pb[2] - pa[2]); const w = Math.min(len - 0.6, 5.5); if (w > 2) { const f0 = 0.5 - w / len / 2, f1 = 0.5 + w / len / 2; const P0 = [pa[0] + (pb[0] - pa[0]) * f0, 0, pa[2] + (pb[2] - pa[2]) * f0], P1 = [pa[0] + (pb[0] - pa[0]) * f1, 0, pa[2] + (pb[2] - pa[2]) * f1]; const y0 = R.y + yRf - 1.2, y1 = R.y + yRf - 0.1; Mx.faceA(A, tiles[(i * 5 + 3) % 8], [P1[0], y0, P1[2]], [P0[0], y0, P0[2]], [P0[0], y1, P0[2]], [P1[0], y1, P1[2]], F); } }
+      St.stripQ(A, R, i, zRf - 0.04, yRf - 1.2, yRf - 0.1, tiles[(i * 5 + 3) % 8], F, 5.5);
       if (i % 2 === 0 && i > 0) St.aisle(BK, R, i, 1.1);
     }
     // masts behind the back wall at every second station, raked over the roof, stays to the front edge; a steel rib under the deck
