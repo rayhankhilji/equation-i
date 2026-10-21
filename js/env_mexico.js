@@ -214,10 +214,27 @@ window.EI = window.EI || {};
     for (const T of E.mxUnits || []) { let gmin = Infinity, gmax = -Infinity; for (const [u, v] of [[-1, -1], [1, -1], [1, 1], [-1, 1], [0, 0]]) { const g = E.sc.height(T.cx + T.ax * u * T.L / 2 - T.az * v * T.D / 2, T.cz + T.az * u * T.L / 2 + T.ax * v * T.D / 2); gmin = Math.min(gmin, g); gmax = Math.max(gmax, g); } T.y = gmin; T.gmax = gmax; }
   };
 
+  // ================================================================ the sign atlas: EnvMonza's 2048 x 1024 canvas with a shelf packer (several shelves stay
+  // open, each region goes to the lowest shelf it fits), so the tall regions (facade bays, screens) do not waste a whole row each
+  class MxAtlas extends Mz.Atlas {
+    constructor() { super(); this.shelves = []; this.yTop = 0; this.full = 0; }
+    region(name, w, h, paint) {
+      if (this.R[name]) return this.R[name];
+      let best = null; for (const s of this.shelves) if (s.h >= h && s.x + w <= 2048 && (!best || s.h < best.h)) best = s;
+      if (best && best.h > h * 1.7 && this.yTop + h <= 1024) best = null;
+      if (!best) { if (this.yTop + h > 1024) { this.full++; console.warn('EnvMexico atlas full', name); best = { y: 0, h, x: 0 }; } else { best = { y: this.yTop, h, x: 0 }; this.shelves.push(best); this.yTop += h + 2; } }
+      const r = { x: best.x, y: best.y, w, h }; best.x += w + 2;
+      this.cx.save(); this.cx.translate(r.x, r.y); this.cx.beginPath(); this.cx.rect(0, 0, w, h); this.cx.clip(); try { paint(this.cx, w, h); } catch (e) { console.error('EnvMexico atlas paint ' + name, e); } this.cx.restore();
+      r.uv = (u, v) => [(r.x + 0.5 + u * (r.w - 1)) / 2048, 1 - (r.y + 0.5 + (1 - v) * (r.h - 1)) / 1024];
+      return (this.R[name] = r);
+    }
+  }
+  Mx.Atlas = MxAtlas;
+
   // ================================================================ build (after the venue)
   Mx.build = function (E) {
     const T0 = performance.now(); const out = E.stats.mexico = {}; const sc = E.sc, ST = sc.statics;
-    const A = new Mz.Atlas();
+    const A = new MxAtlas();
     const BK = { B: new Env.Builder(), S: new Env.Builder(), G: new Env.Builder(), F: new Env.Builder(), H: new Env.Builder(), A };
     const tc = () => (BK.B.count + BK.S.count + BK.G.count + BK.F.count + BK.H.count) / 3 + A.geo.p.length / 9; out.tc = {};
     const step = (k, fn) => { const t0 = performance.now(), c0 = tc(); try { fn(); } catch (e) { console.error('EnvMexico ' + k, e); } out['ms_' + k] = Math.round(performance.now() - t0); out.tc[k] = Math.round(tc() - c0); };
@@ -228,7 +245,7 @@ window.EI = window.EI || {};
     ST.add(BK.B.geometry(), 0.82, 0.03, 'main'); ST.add(BK.S.geometry(), 0.42, 0.55, 'main'); ST.add(BK.G.geometry(), 0.08, 0.55, 'main'); ST.add(BK.F.geometry(), 0.5, 0.35, 'clutter');
     out.tris = { main: BK.B.count / 3, steel: BK.S.count / 3, glass: BK.G.count / 3, fine: BK.F.count / 3, high: BK.H.count / 3 };
     if (BK.H.count) { const st = new Env.Statics(); st.add(BK.H.geometry(), 0.45, 0.4, 'clutter'); const g = new THREE.Group(); g.name = 'mexHigh'; st.build(g); g.children.forEach(c => { c.name = 'mexHi'; c.userData.clutter = true; }); g.visible = EI.quality === 'high'; sc.group.add(g); }
-    const am = A.mesh('mexicoSigns'); if (am) { sc.group.add(am); out.signTris = am.geometry.attributes.position.count / 3; } out.atlasUsed = A.y + A.rowH;
+    const am = A.mesh('mexicoSigns'); if (am) { sc.group.add(am); out.signTris = am.geometry.attributes.position.count / 3; } out.atlasUsed = A.yTop; out.atlasFull = A.full; out.atlasShelves = A.shelves.map(s => s.h + ':' + s.x).join(' ');
     out.ms = Math.round(performance.now() - T0);
   };
 

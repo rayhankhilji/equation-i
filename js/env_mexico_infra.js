@@ -87,7 +87,7 @@
     // the backdrop wall (atlas), its steel frame
     const bw = 13, bh = 6.4, zB = zF + 5.4;
     const bR = A.region('mxPodWall', 512, 256, (x2, w, h) => {
-      const g = x2.createLinearGradient(0, 0, 0, h); g.addColorStop(0, '#1b1530'); g.addColorStop(1, '#2a1f45'); x2.fillStyle = g; x2.fillRect(0, 0, w, h);
+      const g = x2.createLinearGradient(0, 0, 0, h); g.addColorStop(0, '#123f27'); g.addColorStop(1, '#1f7a4a'); x2.fillStyle = g; x2.fillRect(0, 0, w, h);
       // papel picado along the top, a marigold border along the foot
       const pc = ['#e8820c', '#c2326e', '#2a8fd6', '#ffd23f', '#3fae5a', '#e04848', '#9a4fd0', '#f2f2f2']; for (let k = 0; k < 14; k++) { x2.fillStyle = pc[k % 8]; const x = k * w / 14; x2.beginPath(); x2.moveTo(x + 2, 6); x2.lineTo(x + w / 14 - 2, 6); x2.lineTo(x + w / 14 - 2, 40); x2.lineTo(x + w / 28, 48); x2.lineTo(x + 2, 40); x2.fill(); x2.fillStyle = 'rgba(27,21,48,0.6)'; x2.beginPath(); x2.arc(x + w / 28, 24, 6, 0, 7); x2.fill(); }
       x2.fillStyle = '#e8820c'; for (let k = 0; k < 40; k++) { x2.beginPath(); x2.arc((k + 0.5) * w / 40, h - 12, 9, 0, 7); x2.fill(); }
@@ -157,7 +157,6 @@
         Mx.faceA(A, k === hb ? heiR : fasR, [l[0], y0, l[2]], [r[0], y0, r[2]], [r[0], yt, r[2]], [l[0], yt, l[2]], F);
         const [l2, r2] = Mx.lr(F, P(xa, 0, -hd - 0.08), P(xb, 0, -hd - 0.08)); Mx.faceA(A, midR, [l2[0], o.y + y1 - 0.62, l2[2]], [r2[0], o.y + y1 - 0.62, r2[2]], [r2[0], o.y + y1 - 0.08, r2[2]], [l2[0], o.y + y1 - 0.08, l2[2]], F);
         if (k === hb) { B.box(m, xb - xa, y2 - y1 - 0.2, 0.3, (xa + xb) / 2, y1, hd - 0.6, green); for (const x of [xa, xb]) B.box(m, 0.5, y2 - lift + 0.3, 0.5, x, -0.3, -hd + 0.2, green); } }
-      Fd.beam(m, [-hl, y2 + 1.2, hd], [hl, y2 + 1.2, hd], 0.06, frame);
       n++;
     }
     return n;
@@ -185,7 +184,7 @@
     const nb = Math.max(4, Math.round((ub - ua) / 2.2)), bl = (ub - ua) / nb;
     for (const v of [-hw, hw]) for (let k = 0; k < nb; k++) { const u = ua + k * bl; Fd.beam(I, W(u, yD, v), W(u, yD + dep, v), 0.1, white); Fd.beam(I, W(u, yD, v), W(u + bl, yD + dep, v), 0.08, white); }
     K.dq(B, W(ua, yD - 0.05, -hw), W(ub, yD - 0.05, -hw), W(ub, yD - 0.05, hw), W(ua, yD - 0.05, hw), C(0xc9cccf));
-    const r = A.region('mxGantryBanner', 1024, 96, (x2, w, h) => { if (EI.Ads && EI.Ads.paintBanner) EI.Ads.paintBanner(x2, w, h, (ub - ua - 1) / (dep - 0.5)); else Mx.paintBand(x2, w, h, 'GRAN PREMIO DE LA CIUDAD DE MÉXICO'); });
+    const r = A.region('mxGantryBanner', 1024, 80, (x2, w, h) => { if (EI.Ads && EI.Ads.paintBanner) EI.Ads.paintBanner(x2, w, h, (ub - ua - 1) / (dep - 0.5)); else Mx.paintBand(x2, w, h, 'GRAN PREMIO DE LA CIUDAD DE MÉXICO'); });
     for (const v of [-hw - 0.05, hw + 0.05]) { const a = W(ua + 0.5, yD + 0.25, v), b = W(ub - 0.5, yD + 0.25, v), c = W(ub - 0.5, yD + dep - 0.25, v), d = W(ua + 0.5, yD + dep - 0.25, v); Mx.faceA(A, r, a, b, c, d, [tx * Math.sign(v), 0, tz * Math.sign(v)]); }
     // timing tower beside the outer edge, before the line: grey lattice, black screen facing the cars on the approach
     { const u = span + 3.4, v = -6; const p = W(u, 0, v); const g = sc.height(p[0], p[2]) - ty - 0.3; const yT = 10.5;
@@ -206,7 +205,7 @@
     const W0 = (u, v) => [q.x + t.nx[i] * u + q.tx * v, q.z + t.nz[i] * u + q.tz * v];
     let yRoad = q.y; for (let u = -wr; u <= wl; u += 2) { const p = W0(u, 0); yRoad = Math.max(yRoad, sc.height(p[0], p[1])); }
     const y0 = yRoad; const W = (u, y, v) => [q.x + t.nx[i] * u + q.tx * v, y0 + y, q.z + t.nz[i] * u + q.tz * v];
-    const yD = 7.6, dep = 2.6, hw = 1.4; const ua = -wr, ub = wl; const main = C(0x8a9097), mainD = C(0x6f757c), cl = C(0x9ea4a9), clD = C(0x7b8187), accent = br.turn === 16 ? C(0x2f7a4a) : C(0xd9772b);
+    const yD = 7.6, dep = 2.6, hw = 1.4; const ua = -wr, ub = wl; const main = br.turn === 16 ? C(0xa8262d) : C(0xa9a8a3), mainD = br.turn === 16 ? C(0x7e1d22) : C(0x8d8c87), cl = C(0xb0aea8), clD = C(0x9a9891), accent = br.turn === 16 ? C(0xb8232b) : C(0x9aa0a6);
     for (const uc of [ua - 2.6, ub + 2.6]) {
       let gm = Infinity; for (const [du, dv] of [[-2.5, -2.5], [2.5, -2.5], [2.5, 2.5], [-2.5, 2.5], [0, 0]]) { const p = W(uc + du, 0, dv); gm = Math.min(gm, sc.height(p[0], p[2]) - y0); }
       if (yD - gm > 30) return false;
@@ -217,7 +216,7 @@
     K.dq(B, W(ua, yD, -hw), W(ub, yD, -hw), W(ub, yD, hw), W(ua, yD, hw), C(0x2b2f35)); K.dq(B, W(ua, yD + dep, -hw), W(ub, yD + dep, -hw), W(ub, yD + dep, hw), W(ua, yD + dep, hw), main);
     const span = ub - ua, nb = Math.max(4, Math.round(span / 3.2)), bl = span / nb;
     for (const v of [-hw, hw]) { S.beam(I, W(ua, yD, v), W(ub, yD, v), 0.3, main); S.beam(I, W(ua, yD + dep, v), W(ub, yD + dep, v), 0.3, main); for (let k = 0; k <= nb; k++) Fd.beam(I, W(ua + k * bl, yD, v), W(ua + k * bl, yD + dep, v), 0.14, mainD); for (let k = 0; k < nb; k++) Fd.beam(I, W(ua + k * bl, yD, v), W(ua + (k + 1) * bl, yD + dep, v), 0.1, mainD); }
-    const r = A.region('mxBridge_' + br.which, 768, 72, (x2, w, h) => { if (EI.Ads && EI.Ads.paintBridge) { x2.fillStyle = '#ffffff'; x2.fillRect(0, 0, w, h); EI.Ads.paintBridge(x2, br.which, w, h, (span - 1) / (dep - 0.6)); } else Mz.paintText(x2, w, h, 'trylumi.co', { bg: '#1b1530', fg: '#ffffff' }); });
+    const r = br.turn === 16 ? A.region('mxBridgeMX', 640, 60, (x2, w, h) => { x2.fillStyle = '#b8232b'; x2.fillRect(0, 0, w, h); x2.fillStyle = '#f2efe9'; x2.font = 'italic 800 ' + Math.round(h * 0.62) + 'px Arial'; x2.textAlign = 'center'; x2.textBaseline = 'middle'; x2.fillText('MEXICO CITY', w * 0.42, h * 0.52); x2.font = '700 ' + Math.round(h * 0.3) + 'px Arial'; x2.fillText('#MexicoGP', w * 0.84, h * 0.55); }) : A.region('mxBridge_' + br.which, 640, 60, (x2, w, h) => { if (EI.Ads && EI.Ads.paintBridge) { x2.fillStyle = '#ffffff'; x2.fillRect(0, 0, w, h); EI.Ads.paintBridge(x2, br.which, w, h, (span - 1) / (dep - 0.6)); } else Mz.paintText(x2, w, h, 'trylumi.co', { bg: '#1b1530', fg: '#ffffff' }); });
     for (const v of [-hw - 0.04, hw + 0.04]) Mx.faceA(A, r, W(ua + 0.5, yD + 0.35, v), W(ub - 0.5, yD + 0.35, v), W(ub - 0.5, yD + dep - 0.35, v), W(ua + 0.5, yD + dep - 0.35, v), [q.tx * Math.sign(v), 0, q.tz * Math.sign(v)]);
     return true;
   }

@@ -382,7 +382,7 @@
   // LED strips (dark navy, white partner logos): the F1 partners seen on the stadium (MSC, Salesforce, Heineken, LVMH) + Lumi / Intake
   St.ledRegions = function (A) {
     const ids = ['msccruises', 'salesforce', 'heineken', 'msccruises', 'lvmh', 'L', 'salesforce', 'I'];
-    return ids.map((id, k) => A.region('mxLED' + k, 448, 48, (x2, w, h) => {
+    return ids.map((id, k) => A.region('mxLED' + k, 384, 40, (x2, w, h) => {
       const asp = 7.0; x2.save(); x2.scale(w / (h * asp), 1);
       if ((id === 'L' || id === 'I') && EI.Ads && EI.Ads.paintBrandTile) EI.Ads.paintBrandTile(x2, id === 'L' ? 1 : 7, 0, 0, h * asp, h, asp);
       else if (EI.Ads && EI.Ads.partnerBoard) EI.Ads.partnerBoard(x2, id, h * asp, h, { dark: true });
