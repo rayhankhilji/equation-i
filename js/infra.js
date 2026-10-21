@@ -70,6 +70,8 @@ window.EI = window.EI || {};
     reserve(s, side, half) { this.reserved.push([s, side, half]); }
     isReserved(s, side) { const L = this.t.length; for (const r of this.reserved) { if (r[1] !== side) continue; let d = Math.abs(s - r[0]); d = Math.min(d, L - d); if (d < r[2]) return true; } return false; }
     // interpolated point at distance s, lateral wall+off on `side` (y follows the track; the verge ribbon is at track level out to wall+40)
+    // ground under a box footprint (axis ax, az; half-length hl, half-width hw): forest ground (Spa) = its lowest corner (no wheel in the air), else the centre as before
+    footY(x, z, ax, az, hl, hw) { const h = (a, b) => this.sc.height(x + ax * a - az * b, z + az * a + ax * b); if (!(this.sc.env && this.sc.env.forestOn)) return h(0, 0); return Math.min(h(0, 0), h(hl, hw), h(hl, -hw), h(-hl, hw), h(-hl, -hw)); }
     // forest ground (Spa): the lowest drawn ground within +-2.4 m along the lap (board legs, tower feet; not across: the verge shelf ends in a bank)
     forestY(x, z, tx, tz, nx, nz) { const h = (a, b) => this.sc.height(x + tx * a + nx * b, z + tz * a + nz * b); const h0 = h(0, 0); return Math.max(h0 - 0.25, Math.min(h0, h(2.4, 0), h(-2.4, 0))); }
     at(s, side, off) {
@@ -89,7 +91,7 @@ window.EI = window.EI || {};
         if (maxSlide != null && Math.abs(ds) > maxSlide) break;
         const p = this.at(s + ds, side, off); let ok = !this.inPit(s + ds, side) && !this.isReserved(s + ds, side);
         for (const [a, b] of [[-half, 0], [half, 0], [-half, depth], [half, depth], [0, depth / 2]]) { const x = p.x + p.tx * a + p.nx * b, z = p.z + p.tz * a + p.nz * b; if (this.inObstacle(x, z) || this.inCorridor(x, z)) { ok = false; break; } }
-        if (ok) { p.s = s + ds; return p; }
+        if (ok) { p.s = s + ds; if (this.sc && this.sc.env && this.sc.env.forestOn) for (const [a, b] of [[-half, 0], [half, 0], [-half, depth], [half, depth]]) p.y = Math.min(p.y, this.sc.height(p.x + p.tx * a + p.nx * b, p.z + p.tz * a + p.nz * b)); return p; }   // (forest: the footprint's lowest ground, no corner in the air)
       }
       return null;
     }
@@ -606,12 +608,12 @@ window.EI = window.EI || {};
     for (const [zo, flip] of rows) for (let al = -L / 2 + 8; al < L / 2 - 8; al += 4.6) {
       const [x, z] = place(al, zo); if (!okSpot(x, z)) continue;
       // truck +x (nose) points along n, away from the garages, for the first row; the second row faces it across an aisle
-      _q.setFromAxisAngle(_y, Math.atan2(-nz, nx) + flip + (rng() - 0.5) * 0.04); _p.set(x, sc.height(x, z) - 0.04, z); _s.set(1, 1, 1); _m.compose(_p, _q, _s);
+      _q.setFromAxisAngle(_y, Math.atan2(-nz, nx) + flip + (rng() - 0.5) * 0.04); _p.set(x, cx.footY(x, z, nx, nz, 5, 1.2) - 0.04, z); _s.set(1, 1, 1); _m.compose(_p, _q, _s);
       truck(geos, _m, teams[trucks % teams.length]); trucks++;
     }
     for (let al = -L / 2 + 10; al < L / 2 - 10; al += 19) {
       const [x, z] = place(al, 82); if (!okSpot(x, z)) continue;
-      _q.setFromAxisAngle(_y, Math.atan2(-dz, dx)); _p.set(x, sc.height(x, z) - 0.05, z); _s.set(1, 1, 1); _m.compose(_p, _q, _s);
+      _q.setFromAxisAngle(_y, Math.atan2(-dz, dx)); _p.set(x, cx.footY(x, z, dx, dz, 6, 1.3) - 0.05, z); _s.set(1, 1, 1); _m.compose(_p, _q, _s);
       motorhome(geos, _m, teams[homes % teams.length]); homes++;
     }
     cx.static(geos, 0.5, 0.1, 'main', 'paddock');

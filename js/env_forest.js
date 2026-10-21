@@ -183,6 +183,7 @@ window.EI = window.EI || {};
   const Env = EI.Env, Ctx = Env.Ctx, F = EI.EnvForest;
   // grass tufts (env_veg buildGrass): beyond the barrier not on paved / gravel / water ground and only a few under the canopy away from its edge
   Ctx.prototype.forestGrassOk = function (x, z, beyond) {
+    if (this.occAt(x, z) & Env.OCC.ROAD) return false;   // (roads / service roads drawn over the ground, also inside the wide run-offs)
     const t = this.t; const p = t.project(x, z, null, this._fgo || (this._fgo = {})); const side = p.lat < 0 ? -1 : 1, i = p.i;
     if (beyond <= 0) return Math.abs(t.kFold ? t.kFold[i] : 0) < 0.02;   // inside the barriers the track's own strips decide; none in hairpins (folded ribbons)
     // not on the outer edge of the draped verge (the ribbon's last step and the terrain mesh differ by up to its 0.25 m lift)
