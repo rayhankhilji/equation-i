@@ -30,8 +30,9 @@
   const MAIN = { style: 'main', label: 'MAIN GRANDSTAND', seat: 0x2d3e63, rows: 20, gap: 6, fill: 0.92, core: 150 };
   // runs OSM does not map: anchor = turn number, ds0 / ds1 metres from its turn-in, side 'out' / 'in' / +1 / -1
   const EXTRA = [
-    { anchor: 13, ds0: 24, ds1: 92, side: 'in', gap: 5, rows: 12, style: 'temp', seat: 0x2356a6, label: 'TURN 13' },
-    { anchor: 18, ds0: -10, ds1: 52, side: 'out', gaps: [5, 12, 20, 28], rows: 12, style: 'temp', seat: 0x3d5f8f, label: 'TURN 18' },
+    // the T13 stand: on the inside between T13 and T14, close to the T14 apex (OSM has no footprint); the outside of T17 / T18 is the
+    // paved service area (OSM roads over the whole run-off band), so no T18 bleachers there
+    { anchor: 14, ds0: -24, ds1: 46, side: 'in', gaps: [4, 8, 12], rows: 10, style: 'temp', seat: 0x2356a6, label: 'TURN 13' },
   ];
   // spectator banks (GA hills): [anchor, ds0, ds1, side, depth (m of bank), fill]
   const BANKS = [
