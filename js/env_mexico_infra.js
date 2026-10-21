@@ -158,7 +158,7 @@
       Mx.face(G, P(-hl + 0.6, lift + 0.4, -hd - 0.03), P(hl - 0.6, lift + 0.4, -hd - 0.03), P(hl - 0.6, y1 - 0.4, -hd - 0.03), P(-hl + 0.6, y1 - 0.4, -hd - 0.03), glassL, F);
       B.box(m, L, y2 - y1, 0.4, 0, y1, hd - 0.2, white); for (const sx of [-1, 1]) B.box(m, 0.4, y2 - y1, D, sx * (hl - 0.2), y1, 0, white);
       Mx.face(G, P(-hl + 0.6, y1 + 1.2, hd - 0.42), P(hl - 0.6, y1 + 1.2, hd - 0.42), P(hl - 0.6, y2 - 0.6, hd - 0.42), P(-hl + 0.6, y2 - 0.6, hd - 0.42), glass, F);
-      B.box(m, L + 1.0, 0.5, D + 1.6, 0, y2, -0.6, white, { bottom: true, top: C(0xb9bcbe) });
+      B.box(m, L + 1.0, 0.5, D + 1.6, 0, y2, -0.6, white, { bottom: true, top: C(0xa6aaad) });
       for (let x = -hl + 4; x < hl - 2; x += 6) S.beam(Mx.I4(), P(x, y1, -hd + 0.4), P(x, y2, -hd + 0.4), 0.3, frame);
       // the terrace rail (glass) with the black mid band below it; the deep black fascia on the roof edge (signs in the atlas)
       Mx.face(G, P(-hl, y1 + 0.02, -hd - 0.05), P(hl, y1 + 0.02, -hd - 0.05), P(hl, yB + 0.1, -hd - 0.05), P(-hl, yB + 0.1, -hd - 0.05), C(0x8aa7b2), F);
@@ -239,7 +239,7 @@
     const c = Mx.centroid(lm.p); const ds = lm.p.map(q => Math.hypot(q[0] - c[0], q[1] - c[1])).sort((a, b) => a - b); const R = ds[Math.floor(ds.length * 0.35)];
     let g = Infinity; for (let k = 0; k < 16; k++) { const a = k / 16 * Math.PI * 2; g = Math.min(g, sc.height(c[0] + Math.cos(a) * R, c[1] + Math.sin(a) * R)); } g -= 0.4;
     const Hd = Math.max(26, lm.h || 35), yW = 7.5; const NSEG = 40, NR = 7;
-    const cu = [C(0xa8643e), C(0x9c5c39), C(0x935636), C(0xae6c45)], ring = C(0xa9a59b), ringD = C(0x8e8a81), glass = C(0x2a3540);
+    const cu = [C(0x8c5233), C(0x824c30), C(0x7a472d), C(0x93593a)], ring = C(0xa9a59b), ringD = C(0x8e8a81), glass = C(0x2a3540);
     const Q = (a, r, y) => [c[0] + Math.cos(a) * r, g + y, c[1] + Math.sin(a) * r];
     // the ring wall (concrete with a glazed band), a slight batter
     for (let k = 0; k < NSEG; k++) { const a0 = k / NSEG * Math.PI * 2, a1 = (k + 1) / NSEG * Math.PI * 2, am = (a0 + a1) / 2; const out = [Math.cos(am), 0, Math.sin(am)];

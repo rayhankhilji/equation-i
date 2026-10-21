@@ -1207,23 +1207,24 @@ window.EI = window.EI || {};
     }
     // street circuit (Monaco): sun visibility of the road surface, baked once at load (MONACO-UPGRADE). Low has no shadow map, so the
     // whole lap was in full sun; real Monaco is a canyon of sun and deep shade. Each road texel (16 across, one per track sample along)
-    // marches towards the sun (EI.look elev / azim) against the city's building prisms (env_city.js shadowPrisms) and the terrain.
+    // marches towards the sun (EI.look elev / azim) against the city's building prisms (env_city.js shadowPrisms); the sun stands over the sea,
+    // so the terrain (north of the road) never shades it and is not tested.
     // A small luminance texture read by the street asphalt shader (no new program, no draw call); the tunnel stays lit (tunnelLight dims it).
-    streetShade() {
+    streetShade() { try { return this._streetShade(); } catch (e) { console.warn('streetShade', e); return null; } }
+    _streetShade() {
       const sc = this.scenery, PR = sc && sc.shadowPrisms; if (!PR || !PR.length || typeof document === 'undefined') return null;
       const T0 = performance.now(); const n = this.n, NL = 16, hw = this.halfWidth, LK = EI.look || { elev: 52, azim: 338 }, D2R = Math.PI / 180;
       const ph = (90 - LK.elev) * D2R, th = LK.azim * D2R; const sx = Math.sin(ph) * Math.sin(th), sy = Math.cos(ph), sz = Math.sin(ph) * Math.cos(th); const hl = Math.hypot(sx, sz) || 1;
       const dx = sx / hl, dz = sz / hl, tanE = sy / hl; const CS = 16; const grid = new Map(); let top = -1e9;
       PR.forEach((q, k) => { let x0 = 1e9, x1 = -1e9, z0 = 1e9, z1 = -1e9; for (const v of q[0]) { x0 = Math.min(x0, v[0]); x1 = Math.max(x1, v[0]); z0 = Math.min(z0, v[1]); z1 = Math.max(z1, v[1]); } top = Math.max(top, q[2]);
         for (let gx = Math.floor(x0 / CS); gx <= Math.floor(x1 / CS); gx++) for (let gz = Math.floor(z0 / CS); gz <= Math.floor(z1 / CS); gz++) { const key = gx * 100003 + gz; let c = grid.get(key); if (!c) grid.set(key, c = []); c.push(k); } });
-      const TD = this.data.tunnel; const raw = new Float32Array(n * NL); const hgt = sc.height ? (x, z) => sc.height(x, z) : () => -1e9;
+      const TD = this.data.tunnel; const raw = new Float32Array(n * NL);
       for (let i = 0; i < n; i++) {
         const s = this.s[i]; const inT = TD && s > TD.s0 - 4 && s < TD.s1 + 4;
         for (let l = 0; l < NL; l++) {
           if (inT) { raw[l * n + i] = 1; continue; }
           const lat = ((l + 0.5) / NL * 2 - 1) / 0.94 * hw; const x = this.x[i] + this.nx[i] * lat, z = this.z[i] + this.nz[i] * lat, y = this.y[i] + 0.25; let lit = 1;
-          for (let d = 0.8; d < 150; d += 1.6) { const py = y + d * tanE; if (py > top && py > y + 60) break; const px = x + dx * d, pz = z + dz * d;
-            if (d > 6 && hgt(px, pz) > py) { lit = 0; break; }
+          for (let d = 0.8; d < 110; d += 1.6) { const py = y + d * tanE; if (py > top) break; const px = x + dx * d, pz = z + dz * d;
             const c = grid.get(Math.floor(px / CS) * 100003 + Math.floor(pz / CS)); if (!c) continue;
             for (const k of c) { const q = PR[k]; if (py < q[1] || py > q[2]) continue; if (U.pointInPoly(px, pz, q[0])) { lit = 0; break; } } if (!lit) break; }
           raw[l * n + i] = lit;
@@ -1401,7 +1402,7 @@ window.EI = window.EI || {};
         let lb = null, cnt = 0;
         for (let s = 0; s < L; s += 0.25) {
           const i = Math.floor(s / ds) % n; if (!z.tec[i] || z.gap[i]) { lb = null; continue; } const a = Ps(s, 0.42, 0); if (lb && Math.hypot(a[0] - lb[0], a[2] - lb[2]) < 1.5) continue; lb = a;
-          const m = EI.Env.frame(a[0], a[1], a[2], this.tx[i], this.tz[i], this.nx[i] * side, this.nz[i] * side); const ci = cnt++ % 3, col = ci === 1 ? white : ci === 2 ? tecBlue : red;   // red / white / blue modules (Monaco photos) const P2 = (x, y, zz) => EI.Env.xf(m, x, y, zz);
+          const m = EI.Env.frame(a[0], a[1], a[2], this.tx[i], this.tz[i], this.nx[i] * side, this.nz[i] * side); const ci = cnt++ % 3, col = ci === 1 ? white : ci === 2 ? tecBlue : red; const P2 = (x, y, zz) => EI.Env.xf(m, x, y, zz);   // red / white / blue modules (Monaco photos)
           // body: front face textured (logo band and straps), chamfered top edge towards the road, sides and back plain
           Rd.set(tec, 0.62, 0.0); Rd.quad(P2(-0.72, 0.02, -0.38), P2(-0.72, 0.86, -0.38), P2(0.72, 0.86, -0.38), P2(0.72, 0.02, -0.38), col, [0, 0, 0, 0.88, 1, 0.88, 1, 0]);
           Rd.set('white', 0.62, 0.0); Rd.quad(P2(-0.72, 0.86, -0.38), P2(-0.72, 0.98, -0.26), P2(0.72, 0.98, -0.26), P2(0.72, 0.86, -0.38), col); Rd.quad(P2(-0.72, 0.98, -0.26), P2(-0.72, 0.98, 0.38), P2(0.72, 0.98, 0.38), P2(0.72, 0.98, -0.26), col);
