@@ -40,7 +40,7 @@ window.EI = window.EI || {};
     this.dem = { near: decD(D.dem.near), far: decD(D.dem.far) }; this.demZ0 = 0;   // heights are already relative to the start line
     this.fcov = F.decodeCover(D.cover); this.fcovFar = D.coverFar ? F.decodeCover(D.coverFar) : null;
     if (PL && PL.openWindows) PL.openWindows(this);   // (open pasture windows cut into the cover before anything samples it)
-    this.terrainGS = O.gs || D.gs || 16; this.terrainKin = O.kin || D.kin || 88; this.terrainRing = O.ring || D.ring || 24; this.terrainQuads = true;   // 16 m grid inside +-1.4 km (the lap is +-0.65 x +-1.05 km; the DEM is 20 m), a ring out to ~3.4 km, 8 tiles: Low budget <= 6 draws / 90 k tris in view
+    this.terrainGS = O.gs || D.gs || 16; this.terrainKin = O.kin || D.kin || 88; this.terrainRing = O.ring || D.ring || 24; this.terrainQuads = true; this.terrainRingHalves = !!O.ringHalves;   // 16 m grid inside +-1.4 km (the lap is +-0.65 x +-1.05 km; the DEM is 20 m), a ring out to ~3.4 km, 8 tiles: Low budget <= 6 draws / 90 k tris in view
     this.forestFlat = O.flat || 2.5;   // the verge stays level for 2.5 m behind the barrier (debris fence, boards, Armco posts), then drapes   // 12 m grid inside +-1.4 km (the lap is +-0.65 x +-1.05 km): fewer terrain triangles than Monaco's +-1.8 km
     // distance-field grids (10 m): the nearest sample's road level, and the road-minus-DEM offset (smoothed along the lap, fading out by 250 m, blurred)
     const DN = Math.round(Math.sqrt(this.dC.length)); const n = DN * DN; this._DN = DN;

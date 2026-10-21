@@ -18,16 +18,16 @@ window.EI = window.EI || {};
   const C = { EVER: 0, WOOD: 1, GRASS: 2, BRUSH: 3, CALICHE: 4, PAVED: 5, LOT: 6, WATER: 7 };
   CV.C = C;
   // sRGB albedo, muted like env.js PAL (main.js grades with a saturation boost)
-  const PAL = { 0: [26, 37, 29], 1: [36, 46, 26], 2: [124, 106, 64], 3: [104, 92, 58], 4: [152, 145, 124], 5: [116, 114, 108], 6: [128, 117, 90], 7: [40, 54, 56] };
-  const PRAIRIE = [[134, 114, 66], [116, 97, 60], [104, 99, 60]];   // straw gold, tan-brown, olive straw (October: dormant warm-season grass)
-  const MOWN = [[96, 98, 57], [104, 103, 60]];                       // the mown circuit grass, stripes 7.5 m
+  const PAL = { 0: [26, 37, 29], 1: [36, 46, 26], 2: [124, 106, 64], 3: [104, 92, 58], 4: [152, 145, 124], 5: [116, 114, 108], 6: [116, 106, 74], 7: [40, 54, 56] };
+  const PRAIRIE = [[138, 112, 68], [120, 98, 66], [110, 102, 64]];   // straw gold, tan-brown, olive straw (October: dormant warm-season grass)
+  const MOWN = [[104, 100, 62], [110, 104, 64]];                       // the mown circuit grass, stripes 7.5 m
   const BRUSHC = [58, 60, 38], CROWN_EVER = [24, 35, 28], CROWN_WOOD = [34, 44, 24];
   // sector table keyed by turn number (SPEC 4.8): [from turn, ds, to turn, ds, tree density factor] - applied near the lap only (the cover
   // raster decides beyond), relative to 0.35
   const SECTORS = [[20, -300, 1, 0, 0.05], [1, 0, 2, 150, 0.2], [2, 150, 9, 0, 0.35], [9, 0, 11, 0, 0.15], [11, 0, 12, -300, 0.1], [12, 0, 15, 0, 0.3], [15, 0, 19, 0, 0.5], [19, 0, 20, 100, 0.2]];
   CV.SECTORS = SECTORS;
   // per-instance colour multipliers (Veg.instance record [8])
-  const OAK_C = [0.86, 0.94, 0.82], ELM_C = [0.98, 1.0, 0.86], JUN_C = [0.8, 0.9, 0.92], MESQ_C = [1.0, 1.02, 0.9], BRUSH_C = [0.95, 0.95, 0.86];
+  const OAK_C = [0.74, 0.82, 0.72], ELM_C = [0.86, 0.9, 0.76], JUN_C = [0.74, 0.84, 0.86], MESQ_C = [0.92, 0.96, 0.84], BRUSH_C = [0.9, 0.9, 0.8];
   const hash = (i, j, s) => Env.hash2(i, j, s);
   const mix3 = (a, b, t, out) => { out[0] = a[0] + (b[0] - a[0]) * t; out[1] = a[1] + (b[1] - a[1]) * t; out[2] = a[2] + (b[2] - a[2]) * t; return out; };
   const _pc = [0, 0, 0], _pm = [0, 0, 0];
@@ -41,7 +41,7 @@ window.EI = window.EI || {};
   // class colour (sRGB) with a per-cell variation v (0..1, hash) and the crown / brush mosaic
   function classRGB(E, cl, x, z, fs, v, crown, out) {
     if (cl === C.GRASS || cl === C.BRUSH) {
-      prairie(x, z, fs, out); let k = 0.92 + 0.14 * v;
+      prairie(x, z, fs, out); let k = 0.96 + 0.07 * v;
       if (cl === C.BRUSH && crown && v < 0.42) { const c = BRUSHC; out[0] = c[0]; out[1] = c[1]; out[2] = c[2]; k = 0.75 + 0.5 * v; }   // shrub / mesquite crowns in the brush
       else if (cl === C.BRUSH) k *= 0.86;
       out[0] *= k; out[1] *= k; out[2] *= k; return out;
@@ -53,7 +53,7 @@ window.EI = window.EI || {};
   }
   CV.ground = {
     pal: PAL, mow: MOWN,
-    gs: 16, kin: 76, ring: 24,          // 16 m grid inside +-1.2 km (the lap is +-0.91 x +-0.52 km), 8 tiles (Low: <= 6 draws / 90 k tris in view)
+    gs: 16, kin: 76, ring: 24, ringHalves: true,          // 16 m grid inside +-1.2 km (the lap is +-0.91 x +-0.52 km), 6 tiles (2 x 2 fine + the ring in 2 halves: <= 6 draws / 80 k tris)
     level: [C.PAVED, C.LOT],            // paddock, plaza and every car park (gravel / grass lots) levelled
     // beyond the 16 m raster (+-2.6 km): prairie with wooded draws
     fallback: (E, x, z) => U.fbm(x / 700 + 3.3, z / 700 + 1.7, 3) < 0.36 ? C.WOOD : C.GRASS,
@@ -86,7 +86,7 @@ window.EI = window.EI || {};
 
   // ---------------------------------------------------------------- the 'texas' tree atlas (env_veg.js paintAtlas variant; same 512 px cells)
   const APAL = {
-    liveoak: { dark: [15, 21, 13], mid: [36, 46, 25], light: [68, 80, 43], glow: [102, 110, 64], leaf: 4.4, density: 0.09, holes: 3 },
+    liveoak: { dark: [14, 20, 12], mid: [33, 43, 23], light: [60, 72, 39], glow: [90, 98, 57], leaf: 4.4, density: 0.09, holes: 3 },
     elm: { dark: [24, 29, 17], mid: [56, 63, 34], light: [98, 102, 58], glow: [140, 138, 88], leaf: 4.4, density: 0.065, holes: 9 },
     juniper: { dark: [11, 19, 16], mid: [28, 40, 31], light: [52, 66, 48], glow: [80, 94, 70], leaf: 3.8, density: 0.13 },
     juniper2: { dark: [13, 20, 15], mid: [33, 44, 31], light: [60, 72, 50], glow: [90, 100, 72], leaf: 3.8, density: 0.13 },
@@ -109,7 +109,7 @@ window.EI = window.EI || {};
       const r = U.rng(seed); trunk(ox, oy, 248, 512, 440, 12, 8, bark); trunk(ox, oy, 266, 512, 448, 10, 6, bark);
       const global = (y) => 1.02 - U.clamp((y - 30) / 450, 0, 1) * 0.5;
       for (let k = 0; k < 24; k++) {
-        const y = 34 + k * 17.5 + r() * 6; const u = U.clamp((y - 24) / 440, 0, 1); const hwid = 28 + 196 * Math.pow(u, 0.65) * (0.8 + r() * 0.2) * (u > 0.9 ? 0.92 : 1);
+        const y = 40 + k * 17.2 + r() * 6; const u = U.clamp((y - 30) / 430, 0, 1); const hwid = 52 + 176 * Math.pow(u, 0.55) * (0.8 + r() * 0.2) * (u > 0.9 ? 0.92 : 1);   // (rounded, bushy top - not a spruce spire)
         lobe(r, ox, oy, { x: 256 + (r() - 0.5) * hwid * 0.5, y, rx: hwid * (0.7 + r() * 0.25), ry: 18 + u * 14 }, pal, global);
         if (u > 0.2 && r() < 0.6) { const sd = r() < 0.5 ? -1 : 1; lobe(r, ox, oy, { x: 256 + sd * hwid * 0.55, y: y + 8, rx: hwid * 0.42, ry: 16 + u * 10 }, pal, global); }
       }

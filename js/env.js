@@ -629,16 +629,19 @@ window.EI = window.EI || {};
     if (this.terrainQuads) {
       // forest ground (Spa): the fine grid in 2 x 2 quadrants round the lap's centre and the coarse ring in 4 strips (8 draws instead of 17; PERF budget)
       for (const [i0, i1] of [[c[1], K], [K, c[4]]]) for (const [j0, j1] of [[c[1], K], [K, c[4]]]) blocks.push([i0, i1, j0, j1]);
-      blocks.push([c[0], c[5], c[0], c[1]], [c[0], c[5], c[4], c[5]], [c[0], c[1], c[1], c[4]], [c[4], c[5], c[1], c[4]]);
+      if (this.terrainRingHalves) blocks.push([[c[0], c[5], c[0], c[1]], [c[0], c[1], c[1], K], [c[4], c[5], c[1], K]], [[c[0], c[5], c[4], c[5]], [c[0], c[1], K, c[4]], [c[4], c[5], K, c[4]]]);   // (COTA: the ring in 2 halves, north / south: <= 6 draws)
+      else blocks.push([c[0], c[5], c[0], c[1]], [c[0], c[5], c[4], c[5]], [c[0], c[1], c[1], c[4]], [c[4], c[5], c[1], c[4]]);
     } else {
     for (let bj = 1; bj <= 3; bj++) for (let bi = 1; bi <= 3; bi++) blocks.push([c[bi], c[bi + 1], c[bj], c[bj + 1]]);
     for (const [bi, bj] of [[0, 0], [4, 0], [0, 4], [4, 4]]) blocks.push([c[bi], c[bi + 1], c[bj], c[bj + 1]]);
     blocks.push([c[0], c[1], c[1], c[4]], [c[4], c[5], c[1], c[4]], [c[1], c[4], c[0], c[1]], [c[1], c[4], c[4], c[5]]);
     }
-    for (const [i0, i1, j0, j1] of blocks) {
+    for (const blk of blocks) {
       const ti = []; const mn = new THREE.Vector3(Infinity, Infinity, Infinity), mx = new THREE.Vector3(-Infinity, -Infinity, -Infinity);
-      for (let j = j0; j < j1; j++) for (let i = i0; i < i1; i++) { const a = j * W + i, b = a + 1, c = a + W, d = c + 1; ti.push(a, c, b, b, c, d); }
-      for (let j = j0; j <= j1; j++) for (let i = i0; i <= i1; i++) { const k = (j * W + i) * 3; mn.min(new THREE.Vector3(pos[k], pos[k + 1], pos[k + 2])); mx.max(new THREE.Vector3(pos[k], pos[k + 1], pos[k + 2])); }
+      for (const [a0, a1, b0, b1] of (Array.isArray(blk[0]) ? blk : [blk])) {   // (a block is one rectangle, or a list of them drawn as one tile)
+      for (let j = b0; j < b1; j++) for (let i = a0; i < a1; i++) { const a = j * W + i, b = a + 1, c = a + W, d = c + 1; ti.push(a, c, b, b, c, d); }
+      for (let j = b0; j <= b1; j++) for (let i = a0; i <= a1; i++) { const k = (j * W + i) * 3; mn.min(new THREE.Vector3(pos[k], pos[k + 1], pos[k + 2])); mx.max(new THREE.Vector3(pos[k], pos[k + 1], pos[k + 2])); }
+      }
       const g = new THREE.BufferGeometry(); for (const nm of ['position', 'normal', 'color', 'uv']) g.setAttribute(nm, geo.attributes[nm]);
       g.setIndex(new THREE.BufferAttribute(W * W > 65535 ? new Uint32Array(ti) : new Uint16Array(ti), 1)); g.boundingBox = new THREE.Box3(mn, mx); g.boundingSphere = g.boundingBox.getBoundingSphere(new THREE.Sphere());
       const m = new THREE.Mesh(g, mat); m.receiveShadow = true; m.name = 'terrainMesh'; m.matrixAutoUpdate = false; sc.group.add(m); tiles.push(m); tris += ti.length / 3;
