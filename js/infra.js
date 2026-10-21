@@ -687,6 +687,83 @@ window.EI = window.EI || {};
     return { name: inst.name, far, near, count: n };
   }
 
+  // ---------------------------------------------------------------- 1c. Dia de Muertos dressing (opt-in: data.furniture.fiesta, Mexico City; MEX-DRESS)
+  // poles behind the board band with papel picado strings (8 pennant colours), marigold garlands and tricolour flags between / on them, plus calavera panels
+  // (marigold frame, skull). One vertex-coloured geometry on the statics 'clutter' layer (no texture, no new program); everything stands on the drawn ground, at least
+  // 3 m behind the wall, skips stands / reserved spots / the corridor, and never crosses the lap. Pennants face the track (single-sided).
+  function buildFiesta(cx) {
+    const t = cx.t, FI = cx.F.fiesta; if (!FI) return;
+    const pos = [], nrm = [], col = [];
+    const _a = new THREE.Vector3(), _b = new THREE.Vector3(), _n = new THREE.Vector3();
+    // a quad (4 world points, any order of a convex fan) facing `face` (x, z): the winding is flipped so the normal points that way
+    function quad(p0, p1, p2, p3, color, fx, fz) {
+      _a.set(p1[0] - p0[0], p1[1] - p0[1], p1[2] - p0[2]); _b.set(p2[0] - p0[0], p2[1] - p0[1], p2[2] - p0[2]); _n.crossVectors(_a, _b).normalize();
+      const flip = _n.x * fx + _n.z * fz < 0; const tri = flip ? [[p0, p2, p1], [p0, p3, p2]] : [[p0, p1, p2], [p0, p2, p3]]; if (flip) _n.negate();
+      for (const [a, b, c] of tri) for (const p of [a, b, c]) { pos.push(p[0], p[1], p[2]); nrm.push(_n.x, _n.y, _n.z); col.push(color.r, color.g, color.b); }
+    }
+    const tri3 = (p0, p1, p2, color, fx, fz) => { _a.set(p1[0] - p0[0], p1[1] - p0[1], p1[2] - p0[2]); _b.set(p2[0] - p0[0], p2[1] - p0[1], p2[2] - p0[2]); _n.crossVectors(_a, _b).normalize(); const flip = _n.x * fx + _n.z * fz < 0; if (flip) _n.negate(); for (const p of flip ? [p0, p2, p1] : [p0, p1, p2]) { pos.push(p[0], p[1], p[2]); nrm.push(_n.x, _n.y, _n.z); col.push(color.r, color.g, color.b); } };
+    const PP = [0xb83a68, 0xd97a1c, 0x6a3f93, 0x2f8a52, 0xe0b82a, 0x2a9aa0, 0xb8262f, 0x2f5fa8].map(C);
+    const MG = [0xdc7a14, 0xe9a31c, 0xcf6a10, 0xefb92a].map(C);
+    const GREEN = C(0x0b6b47), WHITE = C(0xd2d4d1), RED = C(0xc0202f), POLE = C(0x5a5e63), CREAM = C(0xd8d0bb), INDIGO = C(0x232d5b), PLUM = C(0x4a2a5e), DARK = C(0x1a1a20), PINK = C(0xb83a68);
+    // a vertical prism pole (4 sides) from y0 to y1
+    function pole(x, z, y0, y1, th) { const h = th / 2; const c = [[x - h, z - h], [x + h, z - h], [x + h, z + h], [x - h, z + h]]; for (let k = 0; k < 4; k++) { const a = c[k], b = c[(k + 1) % 4]; quad([a[0], y0, a[1]], [b[0], y0, b[1]], [b[0], y1, b[1]], [a[0], y1, a[1]], POLE, (a[0] + b[0]) / 2 - x, (a[1] + b[1]) / 2 - z); } }
+    let spans = 0, flags = 0, panels = 0; const step = FI.step || 18; const HP = 5.6;
+    const near = (s) => { for (const b of FI.avoid || []) { let d = Math.abs(U.mod(s - b, t.length)); d = Math.min(d, t.length - d); if (d < (FI.avoidHalf || 12)) return true; } return false; };   // keep clear of the footbridge legs
+    for (const [s0, s1, side, kinds] of FI.runs || []) {
+      const want = kinds.split(','); const span = U.mod(s1 - s0, t.length); const pts = [];
+      for (let u = 0, k = 0; u <= span; u += step, k++) {
+        const s = U.mod(s0 + u, t.length), i = t.idxAtS(s); const p = cx.at(s, side, 3.4);
+        const ok = !near(s) && !cx.inObstacle(p.x, p.z) && !cx.inObstacle(p.x - p.nx * 4, p.z - p.nz * 4) && !cx.isReserved(s, side) && !cx.inCorridor(p.x, p.z) && !(cx.inPit(s, side));
+        if (!ok) { pts.push(null); continue; }
+        const g = cx.ground(p.x, p.z); pts.push({ x: p.x, z: p.z, g, nx: -p.nx, nz: -p.nz, tx: p.tx, tz: p.tz, k });
+      }
+      pts.forEach((q, j) => {
+        if (!q) return;
+        const tall = want.indexOf('flag') >= 0 && q.k % 3 === 0;
+        pole(q.x, q.z, q.g - 0.05, q.g + (tall ? 7.4 : HP + 0.3), 0.14);
+        if (tall) { flags++;   // a tricolour flag along the lap direction at the top of the pole, facing the track
+          const y1 = q.g + 7.4, y0 = y1 - 1.35, w = 2.2, e = 0.14; const X = (a) => q.x + q.tx * (e + a), Zc = (a) => q.z + q.tz * (e + a);
+          [GREEN, WHITE, RED].forEach((c, m) => quad([X(m * w / 3), y0, Zc(m * w / 3)], [X((m + 1) * w / 3), y0, Zc((m + 1) * w / 3)], [X((m + 1) * w / 3), y1, Zc((m + 1) * w / 3)], [X(m * w / 3), y1, Zc(m * w / 3)], c, q.nx, q.nz)); }
+        const r = pts[j + 1]; if (!r) return;
+        // never chord across the lap (a pole on the far side of a tight bend): the chord must stay behind the wall line
+        const mid = [(q.x + r.x) / 2, (q.z + r.z) / 2]; if (cx.inCorridor(mid[0], mid[1]) || cx.inObstacle(mid[0], mid[1])) return;
+        const L0 = Math.hypot(r.x - q.x, r.z - q.z); if (L0 > step * 1.6) return;
+        const yA = q.g + HP, yB = r.g + HP; spans++;
+        const at = (u) => [q.x + (r.x - q.x) * u, yA + (yB - yA) * u - (want.indexOf('mg') >= 0 && want.indexOf('pp') < 0 ? 1.15 : 0.7) * 4 * u * (1 - u), q.z + (r.z - q.z) * u];
+        if (want.indexOf('pp') >= 0) { const n = Math.max(5, Math.round(L0 / 1.45)); for (let m = 0; m < n; m++) { const a = at(m / n + 0.004), b = at((m + 1) / n - 0.004), hh = 0.62 + 0.16 * ((m * 7 + q.k * 3) % 3) / 2; const c = PP[(m + q.k * 3) % PP.length];
+          quad([a[0], a[1], a[2]], [b[0], b[1], b[2]], [b[0], b[1] - hh, b[2]], [a[0], a[1] - hh, a[2]], c, q.nx, q.nz); } }
+        else if (want.indexOf('mg') >= 0) { const n = Math.max(7, Math.round(L0 / 1.2)); for (let m = 0; m < n; m++) { const a = at(m / n), b = at((m + 1) / n); const c = MG[(m + q.k) % MG.length], hh = 0.3 + 0.08 * (m % 2);
+          quad([a[0], a[1] + 0.05, a[2]], [b[0], b[1] + 0.05, b[2]], [b[0], b[1] - hh, b[2]], [a[0], a[1] - hh, a[2]], c, q.nx, q.nz); } }
+      });
+    }
+    // calavera panels: a marigold frame round an indigo board with a cream skull (2.4 x 3.6 m board on two poles, 1.1 m off the ground)
+    for (const [s0, w] of FI.panels || []) {
+      const side = w === 'out' ? cx.outsideSide(t.idxAtS(s0 + 20)) : w; const p = cx.freeSpot(s0, side, 3.6, 2.2, 1.2, 45); if (!p || near(p.s)) continue;
+      const gy = Math.min(cx.ground(p.x, p.z), cx.ground(p.x + p.tx * 1.9, p.z + p.tz * 1.9), cx.ground(p.x - p.tx * 1.9, p.z - p.tz * 1.9));
+      const fx = -p.nx, fz = -p.nz; const P = (u, v, d) => [p.x + p.tx * u + fx * (d || 0), gy + 1.1 + v, p.z + p.tz * u + fz * (d || 0)];   // u along the lap, v up from the board's bottom edge
+      const W2 = 1.8, H = 2.4; cx.reserve(p.s, side, 4);
+      pole(p.x + p.tx * 1.2, p.z + p.tz * 1.2, gy - 0.05, gy + 1.2, 0.12); pole(p.x - p.tx * 1.2, p.z - p.tz * 1.2, gy - 0.05, gy + 1.2, 0.12);
+      quad(P(-W2, 0, 0), P(W2, 0, 0), P(W2, H, 0), P(-W2, H, 0), INDIGO, fx, fz); quad(P(-W2, 0, -0.04), P(W2, 0, -0.04), P(W2, H, -0.04), P(-W2, H, -0.04), INDIGO, -fx, -fz);
+      const d1 = 0.02, fr = 0.16;   // marigold frame
+      quad(P(-W2, 0, d1), P(W2, 0, d1), P(W2, fr, d1), P(-W2, fr, d1), MG[0], fx, fz); quad(P(-W2, H - fr, d1), P(W2, H - fr, d1), P(W2, H, d1), P(-W2, H, d1), MG[0], fx, fz);
+      quad(P(-W2, 0, d1), P(-W2 + fr, 0, d1), P(-W2 + fr, H, d1), P(-W2, H, d1), MG[0], fx, fz); quad(P(W2 - fr, 0, d1), P(W2, 0, d1), P(W2, H, d1), P(W2 - fr, H, d1), MG[0], fx, fz);
+      const disc = (cu, cv, r, n, c, d) => { for (let k = 0; k < n; k++) { const a0 = k / n * 6.2832, a1 = (k + 1) / n * 6.2832; tri3(P(cu, cv, d), P(cu + Math.cos(a0) * r * 0.85, cv + Math.sin(a0) * r, d), P(cu + Math.cos(a1) * r * 0.85, cv + Math.sin(a1) * r, d), c, fx, fz); } };
+      disc(0, 1.45, 0.78, 10, CREAM, 0.04);                                     // skull
+      quad(P(-0.42, 0.52, 0.04), P(0.42, 0.52, 0.04), P(0.42, 0.95, 0.04), P(-0.42, 0.95, 0.04), CREAM, fx, fz);   // jaw
+      disc(-0.3, 1.55, 0.2, 6, DARK, 0.06); disc(0.3, 1.55, 0.2, 6, DARK, 0.06);       // eye sockets
+      tri3(P(-0.09, 1.28, 0.06), P(0.09, 1.28, 0.06), P(0, 1.45, 0.06), DARK, fx, fz);   // nose
+      for (let k = -1; k <= 1; k++) quad(P(k * 0.2 - 0.014, 0.58, 0.06), P(k * 0.2 + 0.014, 0.58, 0.06), P(k * 0.2 + 0.014, 0.84, 0.06), P(k * 0.2 - 0.014, 0.84, 0.06), DARK, fx, fz);   // teeth
+      disc(-0.52, 1.18, 0.1, 5, PINK, 0.06); disc(0.52, 1.18, 0.1, 5, PINK, 0.06); disc(0, 2.0, 0.1, 5, MG[3], 0.06);   // cheek flowers, a marigold on the brow
+      for (const u of [-1.2, 1.2]) disc(u, 0.4, 0.14, 5, MG[1], 0.04);   // marigold border
+      for (const u of [-1.2, 1.2]) disc(u, 2.0, 0.14, 5, PLUM, 0.04);
+      panels++;
+    }
+    if (!pos.length) return;
+    const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); geo.setAttribute('normal', new THREE.Float32BufferAttribute(nrm, 3)); geo.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+    if (cx.sc.statics) cx.sc.statics.add(geo, 0.85, 0.0, 'clutter'); else { const m = new THREE.Mesh(geo, stdMat({ roughness: 0.85, metalness: 0 })); m.castShadow = true; m.receiveShadow = true; cx.add(m, 'fiesta'); }
+    Object.assign(cx.stats, { fiestaTris: pos.length / 9, fiestaSpans: spans, fiestaFlags: flags, fiestaPanels: panels });
+  }
+
   // ---------------------------------------------------------------- build
   // trackside spots the environment keeps free of grandstands: [s, side (0 = both), half-length]
   Infra.SPOTS = [[3040, 0, 18], [4990, 0, 18], [2190, 0, 18], [350, 0, 18], [3160, 0, 8], [3900, 0, 8], [5075, 0, 8], [5705, 0, 8], [2010, 0, 8], [965, 0, 8], [460, 0, 8]];
@@ -704,6 +781,7 @@ window.EI = window.EI || {};
     if (!street && !(track.data.fence && track.data.fence.posts)) buildFencePosts(cx);   // Monza: track.js already plants the catch-fence posts (data.fence.posts)
     if (!street) buildDirtBands(cx);
     buildPaddock(cx);
+    if (cx.F.fiesta) buildFiesta(cx);   // opt-in (Mexico City: Dia de Muertos dressing); no other track sets data.furniture.fiesta
     // the lap-long instanced families are cut into ~600 m tiles with fitted bounds, so the camera and (above all) the shadow
     // camera only draw the tiles they can see instead of every board / post / tyre of the lap
     // lap-long instanced families: one mesh draws everything beyond ~100 m of the eye (no shadows, dropped beyond the tier's

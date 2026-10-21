@@ -44,10 +44,10 @@ window.EI = window.EI || {};
   // ---- marshal posts: the outsides of the corners (the stadium S-pair gets one), then a post every ~220-300 m along the straights, sides alternating
   const posts = [];
   for (const t of [1, 3, 4, 6, 7, 9, 11, 12, 13, 16, 17]) posts.push([apx(t) - 30, 'out']);
-  posts.push([tin(5) + 20, 'in'], [tin(8) + 10, 'in'], [tin(14) + 10, 'in']);
-  posts.push([tin(17) + 150, 1], [mod(tin(1) - 220), 1], [mod(tin(1) - 520), -1],      // pit straight (grandstand side; the pit side after the pit exit)
-    [1500, -1], [1700, 1],                                                              // the T3-T4 diagonal
-    [3120, -1], [3300, 1], [3420, -1]);                                                 // back straight
+  posts.push([tin(14) + 10, 'in']);
+  posts.push([mod(tin(1) - 220), 1], [mod(tin(1) - 520), -1],                          // pit straight (grandstand side; the pit side after the pit exit)
+    [1600, -1],                                                                         // the T3-T4 diagonal
+    [3150, -1], [3380, 1]);                                                             // back straight
   F.marshals = posts.map(([s, w]) => [Math.round(mod(s)), w]).sort((a, b) => a[0] - b[0]);
   // ---- TV: camera towers [s, which] (+1 = inside of the bend / pit side of a straight, -1 = outside), scaffolds, screens (12 m), billboards (10 x 3.5 m, rare)
   F.cameraTowers = [[apx(1) - 40, -1], [apx(4) + 10, -1], [apx(6), 1], [apx(9) + 20, -1], [apx(11) - 30, -1], [tin(12) - 100, -1], [apx(13) + 20, 1], [apx(16), -1], [apx(17) + 40, -1]].map(([s, w]) => [Math.round(mod(s)), w]);
@@ -114,6 +114,6 @@ window.EI = window.EI || {};
       [3080, 3440, 1, 'flag'],
       [mod(tin(1) - 780), mod(tin(1) - 200), -1, 'mg'],
     ],
-    panels: [[mod(tin(1) - 640), 1], [880, -1], [tin(4) + 90, 'out'], [tin(9) + 60, 'out'], [tin(12) - 60, 'out'], [ST0 + 120, 'out'], [ST1 - 50, 'out']],
+    panels: [[mod(tin(1) - 640), 1], [880, -1], [tin(4) + 90, 'out'], [tin(12) - 60, 'out'], [ST0 + 120, 'out'], [ST1 - 50, 'out']],
   };
 })();
