@@ -21,7 +21,7 @@
     [/Silver 1/, { style: 'temp', label: 'SILVER 1', seat: 0x2b5ba8, rows: 18 }],
     [/Endurance/, { style: 'covered', roofC: 0x9ea3a8, fascia: 0xdfe2e3, label: 'ENDURANCE', seat: 0x2e7d3a, rows: 24, gap: 6 }],
     [/Tribune RX/, { style: 'temp', label: 'RX', seat: 0x3d5f8f, rows: 16, gap: 30, roof: true }],
-    [/Raidillon/, { style: 'covered', roofC: 0xf3f4f2, fascia: 0xf6f6f4, label: 'RAIDILLON', seat: 0x1f5bc4, rows: 10, gap: 3, parts: [[0, 0.46], [0.56, 1]], low: true }],
+    [/Raidillon/, { style: 'covered', roofC: 0xdcdfe0, fascia: 0xdcdfe0, label: 'RAIDILLON', seat: 0x1f5bc4, rows: 10, gap: 3, parts: [[0, 0.46], [0.56, 1]], low: true }],
   ];
   // runs OSM does not map: anchor = turn number (or 'line'), ds0 / ds1 metres from its turn-in, side 'out' / 'in' / +1 / -1
   const EXTRA = [
@@ -33,7 +33,7 @@
     { anchor: 5, ds0: -16, ds1: 36, side: 1, gap: 5, rows: 14, style: 'covered', roofC: 0xa9aeb2, fascia: 0xe9ebec, seat: 0x2356a6, label: 'COMBES C3' },
     { anchor: 7, ds0: 40, ds1: 100, side: 1, gap: 5, rows: 10, style: 'temp', seat: 0x3d5f8f, label: 'COMBES C4' },
     { anchor: 18, ds0: -95, ds1: 15, side: 1, gap: 5, rows: 12, style: 'temp', seat: 0x1f4fa8, label: 'GOLD 6' },
-    { anchor: 19, ds0: 60, ds1: 118, side: 1, gap: 5, rows: 8, style: 'covered', roofC: 0xf3f4f2, fascia: 0xf6f6f4, seat: 0x1b1d22, label: 'GOLD 11', vip: true },
+    { anchor: 19, ds0: 60, ds1: 118, side: 1, gap: 5, rows: 8, style: 'covered', roofC: 0xdcdfe0, fascia: 0xdcdfe0, seat: 0x1b1d22, label: 'GOLD 11', vip: true },
   ];
   // spectator banks: [anchor, ds0, ds1, side, depth (m of bank), fill]
   const BANKS = [
@@ -224,7 +224,7 @@
   // columns behind the wall, slim front posts every ~12 m (the photos show them at the front of the low Raidillon stands)
   St.flatRoof = function (E, BK, b, R, tiles, rng) {
     const { B, S, F: Fd, A } = BK; const m = b.sp.m, hl = b.len / 2; const P = (x, y, z) => Env.xf(m, x, y, z); const sc = E.sc;
-    const roofC = C(R.roofC || 0xf3f4f2), fasc = C(R.fascia || 0xf6f6f4), soffit = R.low ? C(0xd9dbdc) : C(0x5a5c5e), postC = R.low ? C(0xe9ebec) : C(0x8d939a);
+    const roofC = C(R.roofC || 0xdcdfe0), fasc = C(R.fascia || 0xdcdfe0), soffit = R.low ? C(0xd9dbdc) : C(0x5a5c5e), postC = R.low ? C(0xe9ebec) : C(0x8d939a);
     const yR = b.sp.yTop + (R.low ? 2.7 : 3.2), zF = R.low ? -0.8 : -1.6, zR = b.sp.zBack + 0.6; const gl = (x, z) => { const p = P(x, 0, z); return sc.height(p[0], p[2]) - b.y; };
     B.box(m, b.len + 0.1, 0.28, zR - zF, 0, yR, (zF + zR) / 2, soffit, { top: roofC, bottom: true });
     const fw = (() => { const o = P(0, 0, 0), f = P(0, 0, -1); return [f[0] - o[0], 0, f[2] - o[2]]; })();

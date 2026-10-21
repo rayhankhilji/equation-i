@@ -14,7 +14,7 @@ window.EI = window.EI || {};
     [8, 0, 10, -70, 0.75], [10, -70, 12, -200, 0.7], [12, -200, 16, -300, 0.25], [16, -300, 18, -250, 0.6]];
   SF.SECTORS = SECTORS;
   // per-instance colour multipliers (Veg.instance record [8]): Norway spruce cool blue-green, beech a deep green, the understory between
-  const SPRUCE_C = [0.78, 0.93, 1.02], BEECH_C = [0.86, 0.95, 0.8], SHRUB_C = [0.9, 0.97, 0.9];
+  const SPRUCE_C = [0.78, 0.93, 1.02], BEECH_C = [0.78, 0.86, 0.73], SHRUB_C = [0.9, 0.97, 0.9];
 
   // the lap's open breather (SPEC 4.8 / BEAUTY): Stavelot - Paul Frere on the OUTSIDE of the bends, 75 m of pasture behind the barrier with a few lone
   // trees (canopy cells of the 4 m cover there become pasture, so the field map and the planting agree)

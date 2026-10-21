@@ -16,11 +16,11 @@
 
   // ---- painted run-off (the 2022+ state, photos): bright green strip behind every kerb (the strip at Eau Rouge / Bus Stop), yellow with dark red bands on the
   // Raidillon apron (La Source stays plain tarmac: its yellow/red photo is of an unverified spot), teal with an orange-red edge band at Blanchimont, green paint at the Bus Stop. [corner name, pattern, colour A, colour B]
-  T.runoffGreen = '#2a8a3a';
+  T.runoffGreen = '#2a6a36';
   T.runoffSchemes = [
     ['Raidillon', 2, '#d2a626', '#8c231b'],
-    ['Blanchimont', 0, '#1b8f89', '#c24a1c'],
-    ['Bus Stop', 3, '#2a8a3a', '#2a8a3a'],
+    ['Blanchimont', 0, '#227a72', '#8e3f24'],
+    ['Bus Stop', 3, '#2a6a36', '#2a6a36'],
   ];
   T.gravelTint = [1.6, 1.5, 1.32];   // pale grey-beige Spa gravel
 
@@ -69,7 +69,7 @@
 
   // ---- the catch fence: dark-green welded mesh on dark-green posts, 3.6 m (kept on Low: it is in every photo); the debris fence along the pit wall is low
   T.fence = Object.assign({}, T.fence || {}, {
-    h: 3.6, op: 0.92, mesh: 'rgba(3,22,10,1)', postColor: 0x16281d, posts: 6, low: true,
+    h: 3.6, op: 0.72, mesh: 'rgba(3,22,10,1)', postColor: 0x16281d, posts: 6, low: true,
     runs: [
       [6577, 445, -1, 2.4],      // pit wall: low debris fence along the pit lane
     ],

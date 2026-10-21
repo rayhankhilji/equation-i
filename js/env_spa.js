@@ -322,7 +322,7 @@ window.EI = window.EI || {};
   }
   // ---- paddock marquees (pit_straight_from_eau_rouge_white_tent_vodafone_boards: white gabled tents 6-8 m high, white trucks)
   function buildTents(E, BK) {
-    const { B, F: Fd } = BK; const white = C(0xf3f4f2), whiteS = C(0xdfe2e3), frame = C(0xb9bec2); let n = 0;
+    const { B, F: Fd } = BK; const white = C(0xdcdfe0), whiteS = C(0xdfe2e3), frame = C(0xb9bec2); let n = 0;
     for (const T of E.spTents || []) {
       const m = Env.frame(T.cx, T.y, T.cz, T.ax, T.az, -T.az, T.ax); const hl = T.L / 2, hd = T.D / 2, wh = 3.2 + (T.gmax - T.y), rh = wh + T.D * 0.28;
       const P = (x, y, z) => Env.xf(m, x, y, z);
