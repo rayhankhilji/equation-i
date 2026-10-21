@@ -170,7 +170,11 @@ window.EI = window.EI || {};
     inst.count = spots.length; posts.count = spots.length;
     spots.forEach((sp, k) => {
       const p = cx.at(sp[0], sp[1], 1.9);
-      frame(_m, p.x, p.y, p.z, sp[1], p.tx, p.tz); posts.setMatrixAt(k, _m);
+      if (cx.sc.env && cx.sc.env.forestOn) {   // forest ground (Spa): the board follows the grade, each leg on the drawn ground
+        const sd = sp[1], hA = cx.sc.height(p.x + sd * p.tx * 2.3, p.z + sd * p.tz * 2.3), hB = cx.sc.height(p.x - sd * p.tx * 2.3, p.z - sd * p.tz * 2.3);
+        frame(_m, p.x, (hA + hB) / 2 - 0.03, p.z, sd, p.tx, p.tz); _m.multiply(new THREE.Matrix4().makeRotationZ(Math.atan2(hA - hB, 4.6)));
+      } else frame(_m, p.x, p.y, p.z, sp[1], p.tx, p.tz);
+      posts.setMatrixAt(k, _m);
       _m.multiply(new THREE.Matrix4().makeTranslation(0, 1.5, 0)); inst.setMatrixAt(k, _m);
       // brands come in runs of 3-6 identical boards, like real sponsor blocks
       if (run-- <= 0) { brand = Math.floor(rng() * NBRANDS); run = 1 + Math.floor(rng() * 4); }
@@ -454,6 +458,9 @@ window.EI = window.EI || {};
     for (const [p, side] of spots) {
       frame(_m, p.x, p.y, p.z, side, p.tx, p.tz); const m = _m.clone(); num++;
       // raised post: concrete plinth, low wall in front, hut on top with an orange band, dark window strip and a roof slab
+      // forest ground (Spa): a concrete skirt down to the lowest ground under the plinth, so a post on a falling bank never hangs in the air
+      if (cx.sc && cx.sc.env && cx.sc.env.forestOn) { let lo = 0; for (const [lx, lz] of [[-1.6, -1.6], [1.6, -1.6], [-1.6, 1.6], [1.6, 1.6], [0, 1.6], [0, -1.6]]) { const w = new THREE.Vector3(lx, 0, lz).applyMatrix4(m); lo = Math.min(lo, cx.sc.height(w.x, w.z) - p.y); }
+        if (lo < -0.05) box(geos, 3.1, -lo + 0.2, 3.1, 0, lo / 2 - 0.05, 0, C(0xa9a9a4), m); }
       box(geos, 3.2, 1.0, 3.2, 0, 0.5, 0, C(0xb9b9b4), m); box(geos, 3.4, 0.9, 0.3, 0, 1.45, 1.5, grey, m); box(geos, 0.3, 0.9, 3.2, -1.55, 1.45, 0, grey, m);
       box(geos, 2.4, 2.1, 2.0, 0, 2.05, -0.2, white, m); box(geos, 2.44, 0.34, 2.04, 0, 3.1, -0.2, orange, m); box(geos, 2.1, 0.55, 0.1, 0, 2.55, 0.82, dark, m); box(geos, 0.08, 0.55, 2.0, 1.2, 2.55, -0.2, dark, m);
       box(geos, 2.9, 0.12, 2.5, 0, 3.33, -0.2, grey, m); box(geos, 2.6, 0.12, 0.3, 0, 3.1, -1.3, orange, m);
@@ -608,12 +615,12 @@ window.EI = window.EI || {};
     for (const [zo, flip] of rows) for (let al = -L / 2 + 8; al < L / 2 - 8; al += 4.6) {
       const [x, z] = place(al, zo); if (!okSpot(x, z)) continue;
       // truck +x (nose) points along n, away from the garages, for the first row; the second row faces it across an aisle
-      _q.setFromAxisAngle(_y, Math.atan2(-nz, nx) + flip + (rng() - 0.5) * 0.04); _p.set(x, cx.footY(x, z, nx, nz, 5, 1.2) - 0.04, z); _s.set(1, 1, 1); _m.compose(_p, _q, _s);
+      _q.setFromAxisAngle(_y, Math.atan2(-nz, nx) + flip + (rng() - 0.5) * 0.04); _p.set(x, cx.footY(x, z, nx, nz, 8, 1.25) - 0.04, z); _s.set(1, 1, 1); _m.compose(_p, _q, _s);
       truck(geos, _m, teams[trucks % teams.length]); trucks++;
     }
     for (let al = -L / 2 + 10; al < L / 2 - 10; al += 19) {
       const [x, z] = place(al, 82); if (!okSpot(x, z)) continue;
-      _q.setFromAxisAngle(_y, Math.atan2(-dz, dx)); _p.set(x, cx.footY(x, z, dx, dz, 6, 1.3) - 0.05, z); _s.set(1, 1, 1); _m.compose(_p, _q, _s);
+      _q.setFromAxisAngle(_y, Math.atan2(-dz, dx)); _p.set(x, cx.footY(x, z, dx, dz, 7.5, 7) - 0.05, z); _s.set(1, 1, 1); _m.compose(_p, _q, _s);
       motorhome(geos, _m, teams[homes % teams.length]); homes++;
     }
     cx.static(geos, 0.5, 0.1, 'main', 'paddock');

@@ -144,8 +144,8 @@ window.EI = window.EI || {};
   // it. Before the terrain exists (layout time) the road level between the barriers stands in for the ribbon.
   Ctx.prototype.forestGround = function (x, z) {
     const sc = this.sc, t = this.t; const g = sc.gridHeight(x, z);
+    if (sc.heights) return Math.max(g, this.vergeAt(x, z));   // (no distance shortcut: a wide run-off of another stretch can reach further than the nearest one's barrier)
     if (this.fsAt(x, z) > 20) return g;
-    if (sc.heights) return Math.max(g, this.vergeAt(x, z));
     const p = t.project(x, z, null, this._fgp || (this._fgp = {})); const side = p.lat < 0 ? -1 : 1;
     return p.dist <= this.wallCap(p.i, side) + 0.5 ? Math.max(g, t.y[p.i] - 0.03) : g;
   };

@@ -15,11 +15,10 @@
   T.sausageCorners = ['La Source', 'Les Combes', 'Fagnes', 'Bus Stop'];
 
   // ---- painted run-off (the 2022+ state, photos): bright green strip behind every kerb (the strip at Eau Rouge / Bus Stop), yellow with dark red bands on the
-  // Raidillon apron, teal with an orange-red edge band at Blanchimont, green paint at the Bus Stop. [corner name, pattern, colour A, colour B]
+  // Raidillon apron (La Source stays plain tarmac: its yellow/red photo is of an unverified spot), teal with an orange-red edge band at Blanchimont, green paint at the Bus Stop. [corner name, pattern, colour A, colour B]
   T.runoffGreen = '#2a8a3a';
   T.runoffSchemes = [
-    ['La Source', 2, '#dfae1c', '#9e2219'],
-    ['Raidillon', 2, '#dfae1c', '#9e2219'],
+    ['Raidillon', 2, '#d2a626', '#8c231b'],
     ['Blanchimont', 0, '#1b8f89', '#c24a1c'],
     ['Bus Stop', 3, '#2a8a3a', '#2a8a3a'],
   ];
@@ -55,7 +54,7 @@
   // none in the Eau Rouge dip, the Kemmel boards on the left fence only
   F.hoardZones = [
     [6690, 330, 1, 5.35], [450, 840, -1, 10.7], [1150, 1240, 0, 22], [1300, 2160, 1, 48], [2190, 2440, 0, 16], [2560, 2830, 1, 27], [2860, 3000, 0, 16],
-    [3150, 3330, 0, 27], [3560, 4000, 0, 16], [4300, 4560, 0, 21], [4780, 4900, 0, 21], [5100, 5560, 1, 43], [5660, 6100, 0, 16], [6500, 6700, 0, 10.7],
+    [3150, 3330, 0, 27], [3560, 4000, 0, 16], [4300, 4560, 0, 21], [4780, 4900, 0, 21], [5100, 5560, 1, 43], [5660, 6100, 0, 16],
   ];
 
   // ---- braking zone boards: white 300 / 200 / 150 / 100 / 50 at La Source, 300 / 200 / 100 at the other heavy stops
@@ -70,7 +69,7 @@
 
   // ---- the catch fence: dark-green welded mesh on dark-green posts, 3.6 m (kept on Low: it is in every photo); the debris fence along the pit wall is low
   T.fence = Object.assign({}, T.fence || {}, {
-    h: 3.6, op: 0.92, mesh: 'rgba(24,66,38,0.95)', postColor: 0x2c4a36, low: true,
+    h: 3.6, op: 0.92, mesh: 'rgba(3,22,10,1)', postColor: 0x16281d, low: true,
     runs: [
       [6577, 445, -1, 2.4],      // pit wall: low debris fence along the pit lane
     ],

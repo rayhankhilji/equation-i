@@ -70,7 +70,7 @@ window.EI = window.EI || {};
 
   // lap time of the season's fastest car + driver at skill 100 (no form), headless sim on the circuit (qsim.js, solo flying laps):
   // the anchor that turns a real lap time into the game's scale. Re-measure with C_LIMIT.
-  const LIMIT_LAP = { silverstone: 80.7, monaco: 64.0, abudhabi: 79.23, monza: 76.5, spa: 94.21 }, OFFICIAL_LOSS_DEFAULT = 0.08;
+  const LIMIT_LAP = { silverstone: 80.75, monaco: 64.24, abudhabi: 79.26, monza: 76.65, spa: 94.24 }, OFFICIAL_LOSS_DEFAULT = 0.08;
   // real 2026 pole lap of a circuit (s): EI.RACEPACE (real lap data) > EI.SEASON.tracks > the season's real grids (pole time)
   const GRID_NAME = { silverstone: /british/i, monaco: /monaco/i, abudhabi: /abu dhabi/i, monza: /italian/i, spa: /belgian/i };
   const parseLap = t => { if (typeof t === 'number') return t; const m = /^(?:(\d+):)?(\d+(?:\.\d+)?)$/.exec(String(t || '').trim()); return m ? (+(m[1] || 0)) * 60 + (+m[2]) : 0; };
@@ -83,9 +83,19 @@ window.EI = window.EI || {};
   }
   // lap time the fastest car + driver gives away to the game car's limit at skill 80: real pole / limit lap - 1
   const officialCache = {};
+  // compounds: LIMIT_LAP is measured on mediums; the tyre itself (car.js grip + update()'s sqrt(grip) target) makes a soft lap
+  // faster and a hard lap slower by these fractions (headless sim, whole field at skill 100, every circuit). The profile is the same
+  // on every compound, so the tyre effect is counted once - by the tyre.
+  const TYRE_DELTA = {
+    silverstone: { soft: -0.0057, hard: 0.0046 }, monaco: { soft: -0.0052, hard: 0.005 }, abudhabi: { soft: -0.0054, hard: 0.0042 },
+    monza: { soft: -0.0041, hard: 0.0035 }, spa: { soft: -0.0042, hard: 0.0041 },
+  }, TYRE_DELTA_DEFAULT = { soft: -0.005, hard: 0.0042 };
+  const tyreDelta = (tid, key) => { const t = TYRE_DELTA[tid] || TYRE_DELTA_DEFAULT; return key === 'soft' || key === 'hard' ? t[key] : 0; };
+  // Official F1 = the real 2026 qualifying pole ON SOFTS (real qualifying runs on softs): the lap loss is measured against the soft
+  // limit lap. On the race compounds the same bots are as much slower as the tyre makes them (medium +0.4-0.6 %, hard +0.8-1.1 %).
   function officialLoss(tid) {
     if (officialCache[tid] != null) return officialCache[tid];
-    const p = realPole(tid), lim = LIMIT_LAP[tid];
+    const p = realPole(tid), lim = LIMIT_LAP[tid] * (1 + tyreDelta(tid, 'soft'));
     return (officialCache[tid] = p > 0 && lim > 0 ? Math.max(0, p / lim - 1) : OFFICIAL_LOSS_DEFAULT);
   }
 
@@ -334,11 +344,13 @@ window.EI = window.EI || {};
     params: skillParams, fromSlider: skillParams,
     lapLoss: (v, t) => lapLossAt(normSkill(v), tidOf(t)),
     // seconds the fastest bot laps at this skill on this circuit (0 if unknown)
-    expectedPole(t, v) {
-      const tid = tidOf(t), s = normSkill(v), lim = LIMIT_LAP[tid];
-      if (lim > 0) return lim * (1 + lapLossAt(s, tid));
-      const p = realPole(tid); return p > 0 ? p * (1 + lapLossAt(s, tid)) / (1 + officialLoss(tid)) : 0;
+    // tyre: 'soft' (default: qualifying), 'medium' or 'hard'
+    expectedPole(t, v, tyre) {
+      const tid = tidOf(t), s = normSkill(v), lim = LIMIT_LAP[tid], ty = 1 + tyreDelta(tid, tyre || 'soft');
+      if (lim > 0) return lim * ty * (1 + lapLossAt(s, tid));
+      const p = realPole(tid); return p > 0 ? p * (1 + lapLossAt(s, tid)) / (1 + officialLoss(tid)) * ty / (1 + tyreDelta(tid, 'soft')) : 0;
     },
+    tyreDelta: (t, key) => tyreDelta(tidOf(t), key),
     realPole: t => realPole(tidOf(t)),
     ownTeam,
   };

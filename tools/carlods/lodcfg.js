@@ -9,6 +9,6 @@ module.exports = { lods: [
     groups: [['^(wing_rear|drsflap)', 1100], ['^helmet', 330]] },
   { name: 'far', tris: 6500, wn: 0.4, wuv: 1.0, drop: HIDDEN + '|^proxy_vfar|' + WHEELS + '|' + SMALL, raw: '^proxy_far', flags: ['Regularize'],
     groups: [['^(wing_rear|drsflap)', 520], ['^helmet', 160], ['^wing_front_main', 650]] },
-  { name: 'vfar', tris: 1500, wn: 0.2, wuv: 0.5, drop: HIDDEN + '|^proxy_far|' + WHEELS + '|' + SMALL + '|^(misc_|drsflap_sides|body_intake|floor_rearflaps|wing_front_pylons)', raw: '^proxy_vfar', flags: ['Prune', 'Regularize'],
+  { name: 'vfar', tris: 1500, wn: 0.2, wuv: 0.5, drop: HIDDEN + '|^proxy_far|' + WHEELS + '|' + SMALL + '|^(misc_|drsflap_sides|body_intake|floor_rearflaps|wing_front_pylons)', raw: '^proxy_vfar', flags: ['Prune', 'Permissive', 'Regularize'],
     groups: [['^(wing_rear|drsflap)', 240], ['^helmet', 60, ['Regularize', 'Permissive']], ['^wing_front', 170, ['Prune', 'Permissive']]] },
 ] };

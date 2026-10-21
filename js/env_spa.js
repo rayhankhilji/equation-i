@@ -49,7 +49,7 @@ window.EI = window.EI || {};
     const oLayout = V.layout;
     V.layout = function (E) {
       if (!isSpa(E.t)) return oLayout.call(this, E);
-      const S = E.t.data.scenery; E._spGs = S.grandstands; S.grandstands = []; const runs = E.data.standRuns; E.data.standRuns = [];
+      const S = E.t.data.scenery; E._spGs = S.grandstands; S.grandstands = []; const runs = E.data.standRuns; E.spStandRuns = runs; E.data.standRuns = [];
       try { return oLayout.call(this, E); } finally { E.data.standRuns = runs; }
     };
     const oLS = V.layoutStands;
@@ -136,23 +136,30 @@ window.EI = window.EI || {};
     const L = t.length; let a0 = Infinity, a1 = -Infinity; const lm = E.data.landmarks && E.data.landmarks.pitBuilding;
     if (lm && lm.p) for (const p of lm.p) { t.project(p[0], p[1], null, pr); const x = U.mod(pr.s - t.sf + L / 2, L) - L / 2; a0 = Math.min(a0, x); a1 = Math.max(a1, x); }
     const NB = Math.max(10, (EI.TEAMS || []).length || 11), half = NB * 9;
-    const x0 = Math.max(-176, Math.min(-half - 30, Number.isFinite(a0) ? a0 : -176)), x1 = Math.min(176, Math.max(half + 20, Number.isFinite(a1) ? a1 : 140));
+    const x0 = -176, x1 = Math.min(176, Math.max(half + 20, Number.isFinite(a1) ? a1 : 140));
     // podium ~s 6830 (PARENT, SPEC v2 Q1), in front of the race-control block; both inside the building
     const xPod = U.clamp(U.mod(6830 - t.sf + L / 2, L) - L / 2, x0 + 16, x1 - 16);
     const rc0 = Math.max(x0, xPod - 17), rc1 = Math.min(x1, xPod + 17);
     const ZB = zGB + 12;                                                                    // the paddock-side wall
-    return (E._spPF = { side, maxWall, latC, zG, zGB, ZB, x0, x1, half, xPod, rc0, rc1, yA, P, W, G, a0, a1 });
+    // dv: the lap direction (+1 / -1 in x) of 'left to right' for someone on the track looking at the building (+lat is the LEFT of travel)
+    const dv = side < 0 ? -1 : 1;
+    return (E._spPF = { side, dv, maxWall, latC, zG, zGB, ZB, x0, x1, half, xPod, rc0, rc1, yA, P, W, G, a0, a1 });
   };
   Sp.layoutPit = function (E) {
     const F = Sp.pitFrame(E); if (!F) return; const OCC = Env.OCC;
     const poly = []; for (let x = F.x0 - 3; x <= F.x1 + 3.01; x += 12) poly.push(F.W(x, F.zG - 2)); for (let x = F.x1 + 3; x >= F.x0 - 3.01; x -= 12) poly.push(F.W(x, F.ZB + 3));
     E.markPoly(poly, OCC.BUILT, 2); E.standPolys = E.standPolys || []; E.standPolys.push(poly); E.spOwnPolys = (E.spOwnPolys || []).concat([poly]); E.spPitPoly = poly;
+    // the OSM 'Stand F1' footprint (the whole paddock, marked BUILT by the venue for the generic box that is no longer built): free it for the
+    // marquees, keep the trees off it (KEEP)
+    { const lm = E.data.landmarks && E.data.landmarks.pitBuilding; if (lm && lm.p && E.occ) { let ax0 = Infinity, ax1 = -Infinity, az0 = Infinity, az1 = -Infinity; for (const p of lm.p) { ax0 = Math.min(ax0, p[0]); ax1 = Math.max(ax1, p[0]); az0 = Math.min(az0, p[1]); az1 = Math.max(az1, p[1]); }
+      for (let x = ax0; x <= ax1; x += 1) for (let z = az0; z <= az1; z += 1) { if (!U.pointInPoly(x, z, lm.p)) continue; const k = E.oi(x, z); if (k >= 0) E.occ[k] = (E.occ[k] & ~OCC.BUILT) | OCC.KEEP; }
+      E.markPoly(poly, OCC.BUILT, 2); } }
     // paddock marquees behind the building (white gabled tents, 6-8 m high): on even ground, clear of everything
     const rng = U.rng(812); E.spTents = [];
     for (let k = 0; k < 40 && E.spTents.length < 8; k++) {
       const x = F.x0 + 20 + rng() * (F.x1 - F.x0 - 40), z = F.ZB + 16 + rng() * 40, L = 22 + rng() * 10, D = 12 + (rng() < 0.5 ? 0 : 4);
       const c = F.W(x, z), c2 = F.W(x + 1, z); let ax = c2[0] - c[0], az = c2[1] - c[1]; const l = Math.hypot(ax, az) || 1; ax /= l; az /= l;
-      if (E.rectFree(c[0], c[1], ax, az, L / 2 + 3, D / 2 + 3, OCC.BUILT | OCC.ROAD | OCC.WATER | OCC.KEEP) < 0.98 || E.fsAt(c[0], c[1]) < 14) continue;
+      if (E.rectFree(c[0], c[1], ax, az, L / 2 + 3, D / 2 + 3, OCC.BUILT | OCC.WATER) < 0.95 || E.fsAt(c[0], c[1]) < 14) continue;
       let gmin = Infinity, gmax = -Infinity; for (const [u, v] of [[-1, -1], [1, -1], [1, 1], [-1, 1], [0, 0]]) { const g = E.sc.height(c[0] + ax * u * L / 2 - az * v * D / 2, c[1] + az * u * L / 2 + ax * v * D / 2); gmin = Math.min(gmin, g); gmax = Math.max(gmax, g); }
       if (gmax - gmin > 1.6) continue;
       const tp = E.markRect(c[0], c[1], ax, az, L / 2 + 2, D / 2 + 2, OCC.BUILT); E.standPolys.push(tp); E.spOwnPolys.push(tp);
@@ -216,9 +223,9 @@ window.EI = window.EI || {};
           // white number board with black numerals over the shutter
           const n = String(gno++).padStart(2, '0'); const xm = (sa + sb) / 2, dw = 0.42, yb = yH0 + 0.2, dh = 0.7, zd = zG - 0.03;
           Sp.face(B, P(xm - 1.0, yb - 0.05, zd + 0.01), P(xm + 1.0, yb - 0.05, zd + 0.01), P(xm + 1.0, yb + dh + 0.05, zd + 0.01), P(xm - 1.0, yb + dh + 0.05, zd + 0.01), white, LN);
-          for (let j = 0; j < 2; j++) { const d = +n[j]; const u0 = d / 10 + 0.004, u1 = (d + 1) / 10 - 0.004; const xl = xm - dw + j * dw;
-            // u runs left -> right as seen from the lane: the lane viewer's left is the lap's backwards direction on one side, forwards on the other
-            const lft = F.side < 0 ? xl : xl + dw, rgt = F.side < 0 ? xl + dw : xl; Sp.faceA(A, digR, P(lft, yb, zd - 0.01), P(rgt, yb, zd - 0.01), P(rgt, yb + dh, zd - 0.01), P(lft, yb + dh, zd - 0.01), LN, u0, u1, 0, 1); }
+          for (let j = 0; j < 2; j++) { const d = +n[j]; const u0 = d / 10 + 0.004, u1 = (d + 1) / 10 - 0.004;
+            // u runs left -> right as seen from the lane (F.dv = the lap direction of the viewer's left -> right)
+            const lft = xm - F.dv * dw + j * F.dv * dw, rgt = lft + F.dv * dw; Sp.faceA(A, digR, P(lft, yb, zd - 0.01), P(rgt, yb, zd - 0.01), P(rgt, yb + dh, zd - 0.01), P(lft, yb + dh, zd - 0.01), LN, u0, u1, 0, 1); }
         }
       }
       // ---- header band (the team signs of pit.js stand just in front of it over the team boxes)
@@ -273,7 +280,7 @@ window.EI = window.EI || {};
       const xm = (xa + xb) / 2 + 6;
       { const p0 = P(xm, y2, (za + zb) / 2), p1 = P(xm, y2 + 9, (za + zb) / 2); S.beam(Env.frame(0, 0, 0, 1, 0, 0, 1), p0, p1, 0.16, C(0xd9dde0)); for (let k = 0; k < 3; k++) Fd.box(Env.frame(p1[0], p1[1] - 2 - k * 1.6, p1[2], 1, 0, 0, 1), 0.8, 0.5, 0.12, 0, 0, 0, C(0xdfe2e4)); } }
     // ---- the circuit's name on the ribbed spandrel over the closed garages at the La Source end
-    { const xn1 = Math.min(x1 - 6, Math.max(half + 6, x1 - 60)), xn0 = Math.max(half + 4, xn1 - 44); if (xn1 - xn0 > 20) { const LN = lane((xn0 + xn1) / 2); const zz = zBal - 0.04; const lft = F.side < 0 ? xn0 : xn1, rgt = F.side < 0 ? xn1 : xn0; Sp.faceA(A, nameR, P(lft, yL2 + 0.12, zz), P(rgt, yL2 + 0.12, zz), P(rgt, yS1 - 0.12, zz), P(lft, yS1 - 0.12, zz), LN); } }
+    { const xn1 = Math.min(x1 - 6, Math.max(half + 6, x1 - 60)), xn0 = Math.max(half + 4, xn1 - 44); if (xn1 - xn0 > 20) { const LN = lane((xn0 + xn1) / 2); const zz = zBal - 0.04; const lft = F.dv > 0 ? xn0 : xn1, rgt = F.dv > 0 ? xn1 : xn0; Sp.faceA(A, nameR, P(lft, yL2 + 0.12, zz), P(rgt, yL2 + 0.12, zz), P(rgt, yS1 - 0.12, zz), P(lft, yS1 - 0.12, zz), LN); } }
     out.pit = { x0: Math.round(x0), x1: Math.round(x1), latC: +F.latC.toFixed(1), zG: +zG.toFixed(1), xPod: Math.round(F.xPod), shutters, osm: [Math.round(F.a0), Math.round(F.a1)] };
   }
   // ---- the podium (podium_2009_checkered_backdrop_spa_francorchamps, pit_building_podium_elms_4h_spa_a-f): a balcony platform (~14 x 3.6 m)
@@ -287,7 +294,7 @@ window.EI = window.EI || {};
     Sp.hex(B, [P(xc - hw, yU, zTip), P(xc + hw, yU, zTip), P(xc + hw, yU, zIn + 1.5), P(xc - hw, yU, zIn + 1.5), P(xc - hw, yD, zTip), P(xc + hw, yD, zTip), P(xc + hw, yD, zIn + 1.5), P(xc - hw, yD, zIn + 1.5)], grey, C(0x7d838a), false);
     // fascia banner: SPA FRANCORCHAMPS, black on white
     const fR = A.region('spPodFascia', 768, 64, (x2, w, h) => Mz.paintText(x2, w, h, 'SPA FRANCORCHAMPS', { bg: '#ffffff', fg: '#111111', size: 0.72, font: '800 ' }));
-    { const lft = F.side < 0 ? xc - hw : xc + hw, rgt = F.side < 0 ? xc + hw : xc - hw; Sp.faceA(A, fR, P(lft, yU - 0.6, zTip - 0.05), P(rgt, yU - 0.6, zTip - 0.05), P(rgt, yD + 0.02, zTip - 0.05), P(lft, yD + 0.02, zTip - 0.05), LN); }
+    { const lft = xc - F.dv * hw, rgt = xc + F.dv * hw; Sp.faceA(A, fR, P(lft, yU - 0.6, zTip - 0.05), P(rgt, yU - 0.6, zTip - 0.05), P(rgt, yD + 0.02, zTip - 0.05), P(lft, yD + 0.02, zTip - 0.05), LN); }
     for (const sx of [-1, 1]) S.beam(Env.frame(0, 0, 0, 1, 0, 0, 1), P(xc + sx * (hw - 0.6), yU - 0.6, zTip + 0.2), P(xc + sx * (hw - 0.6), yU - 0.1, zIn + 2.0), 0.35, steel);
     // railing (glass) and the flower planter along the lip
     Sp.face(G, P(xc - hw, yD, zTip + 0.15), P(xc + hw, yD, zTip + 0.15), P(xc + hw, yD + 1.05, zTip + 0.15), P(xc - hw, yD + 1.05, zTip + 0.15), C(0x9ec0c8), LN);
@@ -295,14 +302,14 @@ window.EI = window.EI || {};
     Sp.hex(B, [P(xc - hw + 0.3, yD, zTip + 0.3), P(xc + hw - 0.3, yD, zTip + 0.3), P(xc + hw - 0.3, yD, zTip + 0.75), P(xc - hw + 0.3, yD, zTip + 0.75), P(xc - hw + 0.3, yD + 0.45, zTip + 0.3), P(xc + hw - 0.3, yD + 0.45, zTip + 0.3), P(xc + hw - 0.3, yD + 0.45, zTip + 0.75), P(xc - hw + 0.3, yD + 0.45, zTip + 0.75)], C(0x2f5a2a), null, true);
     const fl = [C(0xd8202a), C(0xf2f2f2), C(0xf2c218)]; for (let x = xc - hw + 0.5, k = 0; x < xc + hw - 0.5; x += 0.55, k++) { const p = P(x, yD + 0.47, zTip + 0.52); Fd.box(Env.frame(p[0], p[1], p[2], 1, 0, 0, 1), 0.34, 0.22, 0.34, 0, 0, 0, fl[k % 3]); }
     // rostrum 2 - 1 - 3 (grey steps)
-    for (const [dx, h] of [[-2.3, 0.45], [0, 0.8], [2.3, 0.3]]) { const xm = xc + (F.side < 0 ? dx : -dx); Sp.hex(B, [P(xm - 1.1, yD, zIn - 1.9), P(xm + 1.1, yD, zIn - 1.9), P(xm + 1.1, yD, zIn - 0.2), P(xm - 1.1, yD, zIn - 0.2), P(xm - 1.1, yD + h, zIn - 1.9), P(xm + 1.1, yD + h, zIn - 1.9), P(xm + 1.1, yD + h, zIn - 0.2), P(xm - 1.1, yD + h, zIn - 0.2)], C(0xc5c9cd), C(0xdfe2e4), true); }
+    for (const [dx, h] of [[-2.3, 0.45], [0, 0.8], [2.3, 0.3]]) { const xm = xc + F.dv * dx; Sp.hex(B, [P(xm - 1.1, yD, zIn - 1.9), P(xm + 1.1, yD, zIn - 1.9), P(xm + 1.1, yD, zIn - 0.2), P(xm - 1.1, yD, zIn - 0.2), P(xm - 1.1, yD + h, zIn - 1.9), P(xm + 1.1, yD + h, zIn - 1.9), P(xm + 1.1, yD + h, zIn - 0.2), P(xm - 1.1, yD + h, zIn - 0.2)], C(0xc5c9cd), C(0xdfe2e4), true); }
     // the chequered backdrop (5 m x 12 m) against the gallery, F1 mark + partner tiles on it
     const bR = A.region('spPodWall', 480, 200, (x2, w, h) => {
       const n = 12, m = 5; for (let i = 0; i < n; i++) for (let j = 0; j < m; j++) { x2.fillStyle = (i + j) % 2 ? '#1d4fb8' : '#ffffff'; x2.fillRect(i * w / n, j * h / m, w / n + 1, h / m + 1); }
       x2.fillStyle = '#ffffff'; x2.fillRect(w * 0.3, h * 0.08, w * 0.4, h * 0.34); if (EI.Ads && EI.Ads.drawF1) EI.Ads.drawF1(x2, w * 0.5, h * 0.25, w * 0.34, h * 0.26); else Mz.paintText(x2, w * 0.4, h * 0.34, 'F1', { bg: '#ffffff', fg: '#e10600' });
       if (EI.Ads && EI.Ads.paintTile) for (let k = 0; k < 4; k++) { const tw = w * 0.2, th = tw / 5; x2.save(); EI.Ads.paintTile(x2, k, w * 0.08 + k * w * 0.215, h * 0.62, tw, th, 5); x2.restore(); }
     });
-    { const zb = zIn + 0.1, y0 = yD + 0.05, y1 = yD + 5.05, bw = 6.2; const lft = F.side < 0 ? xc - bw : xc + bw, rgt = F.side < 0 ? xc + bw : xc - bw; Sp.faceA(A, bR, P(lft, y0, zb), P(rgt, y0, zb), P(rgt, y1, zb), P(lft, y1, zb), LN);
+    { const zb = zIn + 0.1, y0 = yD + 0.05, y1 = yD + 5.05, bw = 6.2; const lft = xc - F.dv * bw, rgt = xc + F.dv * bw; Sp.faceA(A, bR, P(lft, y0, zb), P(rgt, y0, zb), P(rgt, y1, zb), P(lft, y1, zb), LN);
       Sp.hex(S, [P(xc - bw - 0.2, y0, zb + 0.05), P(xc + bw + 0.2, y0, zb + 0.05), P(xc + bw + 0.2, y0, zb + 0.4), P(xc - bw - 0.2, y0, zb + 0.4), P(xc - bw - 0.2, y1 + 0.2, zb + 0.05), P(xc + bw + 0.2, y1 + 0.2, zb + 0.05), P(xc + bw + 0.2, y1 + 0.2, zb + 0.4), P(xc - bw - 0.2, y1 + 0.2, zb + 0.4)], C(0x1b1d22), null, true);
       // flags on top: Belgium + three nations (static, rippled, both faces, in the atlas)
       const flags = [A.region('spFlagBE', 96, 64, Sp.paintFlagBE), A.region('spFlagNL', 96, 64, Sp.paintFlagNL), A.region('spFlagIt', 96, 64, (x2, w, h) => Mz.paintTricolore(x2, w, h)), A.region('spFlagGB', 96, 64, (x2, w, h) => { x2.fillStyle = '#012169'; x2.fillRect(0, 0, w, h); x2.strokeStyle = '#ffffff'; x2.lineWidth = 12; x2.beginPath(); x2.moveTo(0, 0); x2.lineTo(w, h); x2.moveTo(w, 0); x2.lineTo(0, h); x2.stroke(); x2.strokeStyle = '#c8102e'; x2.lineWidth = 5; x2.stroke(); x2.fillStyle = '#ffffff'; x2.fillRect(w * 0.42, 0, w * 0.16, h); x2.fillRect(0, h * 0.38, w, h * 0.24); x2.fillStyle = '#c8102e'; x2.fillRect(w * 0.46, 0, w * 0.08, h); x2.fillRect(0, h * 0.44, w, h * 0.12); })];

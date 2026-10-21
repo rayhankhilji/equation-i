@@ -34,8 +34,13 @@ window.EI = window.EI || {};
       const glb = (f) => new Promise((res, rej) => loader.load(BASE + f, res, undefined, rej));
       const img = (f) => new Promise((res, rej) => { const im = new Image(); im.crossOrigin = 'anonymous'; im.onload = () => res(im); im.onerror = () => rej(new Error('failed to load ' + f)); im.src = BASE + f; });
       // the mid / far / vfar LOD index lists (ei-car-lods.bin, see lodSubset): optional, the vertex-clustered LODs stand in without it
-      const lods = fetch(CarGLB.lodsUrl || BASE + 'ei-car-lods.bin').then((r) => r.ok ? r.arrayBuffer() : null).catch(() => null);
-      Promise.all([glb('ei-car-hi.glb'), glb('ei-car-lo.glb'), img('ei-car-id.png'), img('ei-car-ao.png'), lods]).then(([hi, lo, idImg, aoImg, lodBuf]) => {
+      const bin = (f) => fetch(BASE + f).then((r) => r.ok ? r.arrayBuffer() : null).catch(() => null);
+      const lods = CarGLB.lodsUrl ? fetch(CarGLB.lodsUrl).then((r) => r.ok ? r.arrayBuffer() : null).catch(() => null) : bin('ei-car-lods.bin');
+      // the lo car is rebuilt from the hi GLB (ei-car-lohi.bin, see loFromHi); ei-car-lo.glb is only fetched when that is not possible
+      Promise.all([glb('ei-car-hi.glb'), CarGLB.noLoHi ? null : bin('ei-car-lohi.bin'), img('ei-car-id.png'), img('ei-car-ao.png'), lods]).then(([hi, loHiBuf, idImg, aoImg, lodBuf]) => {
+        const lo = loHiBuf && loFromHi(hi.scene, loHiBuf);
+        return lo ? [hi, { scene: lo }, idImg, aoImg, lodBuf] : glb('ei-car-lo.glb').then((l) => [hi, l, idImg, aoImg, lodBuf]);
+      }).then(([hi, lo, idImg, aoImg, lodBuf]) => {
         cache.hi = hi.scene; cache.lo = lo.scene; cache.idImg = idImg; cache.aoImg = aoImg; cache.lods = lodBuf;
         cache.meta = hi.scene.userData && hi.scene.userData.anchors ? hi.scene.userData : (lo.scene.userData || {});
         for (const s of [cache.hi, cache.lo]) prepare(s);
@@ -44,6 +49,32 @@ window.EI = window.EI || {};
     });
     return loading;
   }
+
+  // The lo car (bots near the camera, the player's own car on Low, the mirrors) = the hi GLB's meshes, each simplified offline by edge
+  // collapse with UV seams kept and UVs weighted (tools/carlods/genlo.js -> ei-car-lohi.bin: per hi mesh an index list into its
+  // vertices), so the livery atlas, laid out on the hi car, maps onto the lo car without the torn / saw-toothed edges the separately
+  // decimated ei-car-lo.glb showed on its nose and wings. Same meshes, names, materials and triangle counts as ei-car-lo.glb (~44k).
+  // Returns a copy of the hi scene with compacted lo geometry, or null if the file does not match the hi GLB (ei-car-lo.glb then).
+  function loChecksum(meshes) { let s = 0, k = 0; for (const o of meshes) { const P = o.geometry.attributes.position.array; for (let i = 0; i < P.length; i += 3) { s += (P[i] + P[i + 1] * 3 + P[i + 2] * 7) * ((k % 13) + 1); k++; } } return s; }
+  function loFromHi(hi, buf) {
+    if (!buf || buf.byteLength < 16) return null; const dv = new DataView(buf);
+    if (String.fromCharCode(dv.getUint8(0), dv.getUint8(1), dv.getUint8(2), dv.getUint8(3)) !== 'EIH1') return null;
+    const hm = []; hi.traverse((o) => { if (o.isMesh) hm.push(o); });
+    const sum = dv.getFloat64(8, true);
+    if (dv.getUint32(4, true) !== hm.length || Math.abs(loChecksum(hm) - sum) > 1e-6 * Math.abs(sum) + 1e-3) { console.warn('EI.CarGLB: ei-car-lohi.bin does not match the hi car, using ei-car-lo.glb'); return null; }
+    const lo = hi.clone(), lm = []; lo.traverse((o) => { if (o.isMesh) lm.push(o); });
+    let o = 16;
+    for (const m of lm) {
+      const n = dv.getUint32(o, true); o += 4; const ix = new Uint16Array(buf, o, n); o += Math.ceil(n * 2 / 4) * 4;
+      const src = m.geometry, nv = src.attributes.position.count, map = new Int32Array(nv).fill(-1); let k = 0;
+      const idx = new Uint16Array(n); for (let i = 0; i < n; i++) { const v = ix[i]; if (map[v] < 0) map[v] = k++; idx[i] = map[v]; }
+      const g = new THREE.BufferGeometry();
+      for (const name of Object.keys(src.attributes)) { const a = src.attributes[name], s = a.itemSize, arr = new Float32Array(k * s), get = [a.getX, a.getY, a.getZ, a.getW]; for (let v = 0; v < nv; v++) { const r = map[v]; if (r >= 0) for (let q = 0; q < s; q++) arr[r * s + q] = get[q].call(a, v); } g.setAttribute(name, new THREE.BufferAttribute(arr, s)); }
+      g.setIndex(new THREE.BufferAttribute(idx, 1)); g.computeBoundingSphere(); g.computeBoundingBox(); m.geometry = g;
+    }
+    return lo;
+  }
+  CarGLB.loFromHi = loFromHi; CarGLB.loChecksum = loChecksum;
 
   // ---------------------------------------------------------------- procedural material textures
   // 2x2 twill carbon weave, 256 px tile = 16 tows. R: albedo (0..1 across the dark->light carbon range), G: sheen layer
