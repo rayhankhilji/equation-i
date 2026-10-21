@@ -478,7 +478,7 @@
   // ones seen at Austin (Crypto.com, Heineken 0.0, AWS, Lenovo, American Express); Lumi / Intake 2 of the 8 hoarding tiles, 1 wall panel in 5
   VENUES.cota = { title: 'msccruises', event: 'United States Grand Prix', dark: false,
     tiles: ['msccruises', 'aramco', 'L0', 'cryptocom', 'heineken', 'pirelli', 'I4', 'aws'],
-    barrier: ['aramco', 'L', 'dhl', 'cryptocom', 'lenovo'], billboard: ['msccruises', 'L2', 'heineken', 'I3'],
+    barrier: ['aramco', 'L', 'dhl', 'cryptocom', 'aws'], billboard: ['msccruises', 'L2', 'heineken', 'I3'],
     runoff: ['pirelli', 'L', 'aramco', 'I'], bridge: { lumi: 'L', intake: 'I', lumi2: 'tagheuer', intake2: 'msccruises' } };
   const venue = Ads.venue = () => VENUES[EI.trackId] || VENUES.silverstone;
   // the track's width (m): the start gantry banner ((width + 2.6) x 0.9 m) and the bridge fascias ((width + 6.8) x 2.1 m) span it

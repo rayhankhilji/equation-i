@@ -27,14 +27,15 @@ window.EI = window.EI || {};
   // ---- painted run-off. COTA's aprons are big pale-asphalt areas; the paint is a strip behind every kerb (runoffGreen, a dark muted green) and
   // diagonal / banded stripes at the big stops (T1, T11, T12, T15, T20). Colours stay dark and desaturated (the grade adds saturation).
   // [turn number, pattern (0 band, 1 diagonal stripes, 2 transverse bands, 3 one band at the apron), colour A, colour B]
-  T.runoffGreen = '#2a5a36';
+  T.runoffGreen = '#1d3f29';
+  T.runoffTint = [0.8, 0.78, 0.75];   // the apron: a mid warm grey, a little lighter than the track
   T.runoffSchemes = [
-    [1, 1, '#7a2e28', '#8a8884'],
-    [2, 3, '#7a2e28', '#7a2e28'],
-    [11, 1, '#243f6a', '#8a8884'],
-    [12, 3, '#243f6a', '#243f6a'],
-    [15, 2, '#7a2e28', '#8a8884'],
-    [20, 3, '#243f6a', '#243f6a'],
+    [1, 1, '#4e2623', '#6a6864'],
+    [2, 3, '#4e2623', '#4e2623'],
+    [11, 1, '#1d3354', '#6a6864'],
+    [12, 3, '#1d3354', '#1d3354'],
+    [15, 2, '#4e2623', '#6a6864'],
+    [20, 3, '#1d3354', '#1d3354'],
   ];
   T.gravelTint = [1.5, 1.42, 1.2];   // pale limestone / caliche gravel
 
