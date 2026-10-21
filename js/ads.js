@@ -221,6 +221,10 @@
     vodafone: { n: 'vodafone', board: { bg: '#e60000', tone: 'white' }, word: W_(SANS, 700, { col: '#ffffff', ls: -0.01 }) },
     rolex: { n: 'ROLEX', board: { bg: '#006039', tone: 'white' }, word: W_('Georgia, "Times New Roman", serif', 700, { up: 1, col: '#ffffff', ls: 0.08 }) },
   });
+  // COTA (COTA-UPGRADE, photo cota_mclaren_stands_flag): the event's black '#USGP' wall boards that line the stadium-section walls
+  Object.assign(PARTNERS, {
+    usgp: { n: '#USGP', board: { bg: '#121418', tone: 'white' }, word: W_(SANS, 900, { col: '#ffffff', ls: -0.02 }) },
+  });
   // Mexico City (MEX-DRESS): the event's own hashtag board, the crimson '#MexicoGP' band that runs along the stadium walls and the stand fronts (F1 photo set, PHOTOS-A: mex_stadium_bowl_*, mex_podium_*)
   Object.assign(PARTNERS, {
     mexicogp: { n: '#MexicoGP', board: { bg: '#7a1a30', tone: 'white' }, word: W_(SANS, 900, { col: '#ffffff', ls: -0.02 }) },
@@ -487,10 +491,13 @@
     runoff: ['pirelli', 'L', 'aramco', 'I'], bridge: { lumi: 'L', intake: 'I', lumi2: 'tagheuer', intake2: 'msccruises' } };
   // Circuit of the Americas (COTA-DRESS): "Formula 1 MSC Cruises United States Grand Prix" (the 2025 title); the F1 global partners plus the US-market
   // ones seen at Austin (Crypto.com, Heineken 0.0, AWS, Lenovo, American Express); Lumi / Intake 2 of the 8 hoarding tiles, 1 wall panel in 5
+  // COTA-UPGRADE (22 F1 photos, staging/cota_refs/photos): the boards actually seen at Austin are MSC Cruises (navy, the start gantry, the
+  // main-straight wall, the T1 stands), DHL (yellow, the Main Grandstand wall), Qatar Airways (maroon, the walls by the tower), Pirelli (yellow, T1
+  // area), Heineken (green, run-off + fences), American Express (blue, the T3 footbridge) and the black #USGP band; Lumi / Intake keep 2 of 8 tiles
   VENUES.cota = { title: 'msccruises', event: 'United States Grand Prix', dark: false,
-    tiles: ['msccruises', 'aramco', 'L0', 'cryptocom', 'heineken', 'pirelli', 'I4', 'aws'],
-    barrier: ['aramco', 'L', 'dhl', 'cryptocom', 'aws'], billboard: ['msccruises', 'L2', 'heineken', 'I3'],
-    runoff: ['pirelli', 'L', 'aramco', 'I'], bridge: { lumi: 'L', intake: 'I', lumi2: 'tagheuer', intake2: 'msccruises' } };
+    tiles: ['msccruises', 'dhl', 'L0', 'qatarairways', 'usgp', 'pirelli', 'I4', 'heineken'],
+    barrier: ['msccruises', 'L', 'usgp', 'qatarairways', 'I'], billboard: ['msccruises', 'L2', 'americanexpress', 'I3'],
+    runoff: ['heineken', 'L', 'qatarairways', 'I'], bridge: { lumi: 'L', intake: 'I', lumi2: 'tagheuer', intake2: 'msccruises' } };
   // Autodromo Hermanos Rodriguez (MEX-DRESS): "Formula 1 Gran Premio de la Ciudad de Mexico" (the brief's title partner MSC Cruises; the 2025 programme names Heineken as the presenting partner).
   // Boards seen in the F1 photo set: MSC Cruises + LVMH on the stadium decks, Heineken (green) and the crimson #MexicoGP band on the walls, Lenovo along the grandstand fronts; no other Mexico-market
   // brand has a source at this GP. Lumi / Intake 2 of the 8 hoarding tiles and 2 of the 5 wall panels

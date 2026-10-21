@@ -1068,6 +1068,8 @@ window.EI = window.EI || {};
     const { yG, yb, yR, yTop, ob, parH } = L; const tint = D.tint; const proxy = mode === 'proxy', near = mode === 'near';
     G.acc = D.acc; G.at(cx, cz, proxy ? 'P' : 'D', 0);
     const nfMain = D.nf - L.nsb; const t = E.t; const pr = E._bpr || (E._bpr = {});
+    // the sun-shade bake of the road (js/track.js streetShade) needs every building near the circuit as a prism (MONACO-UPGRADE)
+    if (proxy && E.sc && E.dcAt(cx, cz) < 170) (E.sc.shadowPrisms || (E.sc.shadowPrisms = [])).push([ring, yb, yTop + parH + (D.roof === 'flat' ? 0 : 1.5)]);
     // faces: bays, the long axis, which faces look onto a street close by (shops, canopies)
     let u = D.seed % 41; const seg = [];
     for (let i = 0; i < ring.length; i++) {

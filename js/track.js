@@ -109,6 +109,12 @@ window.EI = window.EI || {};
     eWhite = mix(eWhite, vec3(0.42, 0.39, 0.34), eDirtA * 0.45);
     ePaint *= 1.0 - clamp(eWear, 0.0, 0.7);
     eCol = mix(eCol, eWhite, ePaint);
+#ifdef EI_STREET
+    // baked sun shade of the buildings on the road (streetShade): the whole lap on Low (no shadow map there), beyond the shadow box on
+    // Medium / High (eiShdK 2: faded in past ~75 m, where the live shadow map stops)
+    { float sk = eiShdK > 1.5 ? smoothstep(68.0, 90.0, length(vViewPosition)) : eiShdK;
+      if (sk > 0.0) { float sh = texture2D(eiShd, vec2(eS * eiShdL, clamp(eLat / eiHW, -1.0, 1.0) * 0.47 + 0.5)).r; eCol *= mix(1.0, 0.36 + 0.64 * sh, sk); } }
+#endif
     diffuseColor.rgb = eCol;
   `;
   const ASPHALT_ROUGH = `
@@ -674,7 +680,11 @@ window.EI = window.EI || {};
         },
       });
       const street = !!this.data.street; const SDEF = street ? '#define EI_STREET\n' : '';
-      const aMat = shaderMat({ map: T.asphalt.map, normalMap: T.asphalt.normalMap, normalScale: new THREE.Vector2(0.9, 0.9), roughnessMap: T.asphalt.roughnessMap, roughness: 1, metalness: 0 }, street ? 'asphalt-street' : 'asphalt', common, VARY4, SDEF + ASPHALT_FRAG, ASPHALT_ROUGH, FLATTEN);
+      const shd = street ? this.streetShade() : null; const aU = shd ? Object.assign({}, common, { eiShd: { value: shd }, eiShdK: { value: 1 }, eiShdL: { value: 1 / L } }) : common;
+      const aV = street ? Object.assign({}, VARY4, { f: VARY4.f + ' uniform sampler2D eiShd; uniform float eiShdK; uniform float eiShdL;' }) : VARY4;
+      if (street && !shd) { aU.eiShd = { value: Track._white || (Track._white = (() => { const t = new THREE.DataTexture(new Uint8Array([255, 255, 255, 255]), 1, 1, THREE.RGBAFormat); t.needsUpdate = true; return t; })()) }; aU.eiShdK = { value: 0 }; aU.eiShdL = { value: 1 / L }; }
+      const aMat = shaderMat({ map: T.asphalt.map, normalMap: T.asphalt.normalMap, normalScale: new THREE.Vector2(0.9, 0.9), roughnessMap: T.asphalt.roughnessMap, roughness: 1, metalness: 0 }, street ? 'asphalt-street' : 'asphalt', aU, aV, SDEF + ASPHALT_FRAG, ASPHALT_ROUGH, FLATTEN);
+      if (street) this._shdU = aU;
       const aMesh = new THREE.Mesh(aGeo, aMat); aMesh.receiveShadow = true; aMesh.name = 'asphalt'; g.add(aMesh);
 
       // ------------------------------------------------ kerbs: bevelled profile (rise, top, fall), sawtooth red/white tiled by arc length
@@ -1186,6 +1196,37 @@ window.EI = window.EI || {};
       for (const side of [-1, 1]) { const z = Z[side]; const raw = new Float32Array(n); for (let i = 0; i < n; i++) raw[i] = z.tec[i] ? 0.85 : z.tyre[i] ? 0.72 : 0; const dil = new Float32Array(n); for (let i = 0; i < n; i++) { let m = 0; for (let j = -3; j <= 3; j++) m = Math.max(m, raw[(i + j + n) % n]); dil[i] = m; } z.back = this.smooth(dil, 2); }
       this._sz = Z; return Z;
     }
+    // street circuit (Monaco): sun visibility of the road surface, baked once at load (MONACO-UPGRADE). Low has no shadow map, so the
+    // whole lap was in full sun; real Monaco is a canyon of sun and deep shade. Each road texel (16 across, one per track sample along)
+    // marches towards the sun (EI.look elev / azim) against the city's building prisms (env_city.js shadowPrisms) and the terrain.
+    // A small luminance texture read by the street asphalt shader (no new program, no draw call); the tunnel stays lit (tunnelLight dims it).
+    streetShade() {
+      const sc = this.scenery, PR = sc && sc.shadowPrisms; if (!PR || !PR.length || typeof document === 'undefined') return null;
+      const T0 = performance.now(); const n = this.n, NL = 16, hw = this.halfWidth, LK = EI.look || { elev: 52, azim: 338 }, D2R = Math.PI / 180;
+      const ph = (90 - LK.elev) * D2R, th = LK.azim * D2R; const sx = Math.sin(ph) * Math.sin(th), sy = Math.cos(ph), sz = Math.sin(ph) * Math.cos(th); const hl = Math.hypot(sx, sz) || 1;
+      const dx = sx / hl, dz = sz / hl, tanE = sy / hl; const CS = 16; const grid = new Map(); let top = -1e9;
+      PR.forEach((q, k) => { let x0 = 1e9, x1 = -1e9, z0 = 1e9, z1 = -1e9; for (const v of q[0]) { x0 = Math.min(x0, v[0]); x1 = Math.max(x1, v[0]); z0 = Math.min(z0, v[1]); z1 = Math.max(z1, v[1]); } top = Math.max(top, q[2]);
+        for (let gx = Math.floor(x0 / CS); gx <= Math.floor(x1 / CS); gx++) for (let gz = Math.floor(z0 / CS); gz <= Math.floor(z1 / CS); gz++) { const key = gx * 100003 + gz; let c = grid.get(key); if (!c) grid.set(key, c = []); c.push(k); } });
+      const TD = this.data.tunnel; const raw = new Float32Array(n * NL); const hgt = sc.height ? (x, z) => sc.height(x, z) : () => -1e9;
+      for (let i = 0; i < n; i++) {
+        const s = this.s[i]; const inT = TD && s > TD.s0 - 4 && s < TD.s1 + 4;
+        for (let l = 0; l < NL; l++) {
+          if (inT) { raw[l * n + i] = 1; continue; }
+          const lat = ((l + 0.5) / NL * 2 - 1) / 0.94 * hw; const x = this.x[i] + this.nx[i] * lat, z = this.z[i] + this.nz[i] * lat, y = this.y[i] + 0.25; let lit = 1;
+          for (let d = 0.8; d < 150; d += 1.6) { const py = y + d * tanE; if (py > top && py > y + 60) break; const px = x + dx * d, pz = z + dz * d;
+            if (d > 6 && hgt(px, pz) > py) { lit = 0; break; }
+            const c = grid.get(Math.floor(px / CS) * 100003 + Math.floor(pz / CS)); if (!c) continue;
+            for (const k of c) { const q = PR[k]; if (py < q[1] || py > q[2]) continue; if (U.pointInPoly(px, pz, q[0])) { lit = 0; break; } } if (!lit) break; }
+          raw[l * n + i] = lit;
+        }
+      }
+      // soften: a 3-sample blur along the lap (the penumbra of a 20 m building is ~0.2 m per metre of height; texels are ~1 m x 0.7 m)
+      const data = new Uint8Array(n * NL * 4); let litN = 0;
+      for (let l = 0; l < NL; l++) for (let i = 0; i < n; i++) { const v = (raw[l * n + (i + n - 1) % n] + 2 * raw[l * n + i] + raw[l * n + (i + 1) % n]) / 4; litN += raw[l * n + i]; const o = (l * n + i) * 4; data[o] = data[o + 1] = data[o + 2] = Math.round(v * 255); data[o + 3] = 255; }
+      const tex = new THREE.DataTexture(data, n, NL, THREE.RGBAFormat); tex.magFilter = THREE.LinearFilter; tex.minFilter = THREE.LinearFilter; tex.generateMipmaps = false; tex.wrapS = tex.wrapT = THREE.ClampToEdgeWrapping; tex.needsUpdate = true;
+      this.shadeStats = { ms: Math.round(performance.now() - T0), lit: Math.round(litN / (n * NL) * 100), prisms: PR.length };
+      return tex;
+    }
     streetTextures() {
       if (Track._stex) return Track._stex;
       const X = {}; const cv = (w, h) => { const c = document.createElement('canvas'); c.width = w; c.height = h; return [c, c.getContext('2d')]; }; const r = U.rng(606);
@@ -1565,6 +1606,7 @@ window.EI = window.EI || {};
     // stops furniture casting shadows and lowers texture anisotropy; physics arrays are never touched
     setQuality(q) {
       this.quality = q; const low = q === 'low';
+      if (this._shdU && this._shdU.eiShdK.value !== 0) this._shdU.eiShdK.value = low ? 1 : 2;   // street shade bake: whole lap on Low, beyond the shadow box above
       for (const m of this.batches || []) {
         const d = m.userData; m.geometry.setDrawRange(0, low ? d.coreCount : Infinity); m.visible = !(low && d.coreCount === 0);
         if (m.name === 'fence') m.visible = !low || !!(this.data.fence && this.data.fence.low);   // Monza: the catch fence is in every photo, also on Low

@@ -52,9 +52,20 @@
       const vp = spot(cands, 30, 10, 2.0, 40); if (vp) { reserve(E.rectPoly(vp.cx, vp.cz, vp.ax, vp.az, 32, 12)); E.ctInfra.plaza = vp; } } }
     // footbridges: GEN's OSM bridge lines (the deck crosses where the line crosses the lap), unless the track data lists its own
     const F = t.data.furniture || {}; let list = F.footbridges ? F.footbridges.map(([s, which]) => ({ s, which })) : (F.bridges && F.bridges.length ? [] : (lm.bridges || []).map(b => ({ s: b.s, turn: b.turn, pts: b.pts })));
-    const col = { 3: 0xa8322b, 16: 0x2a5aa8 }; const who = ['lumi', 'intake', 'lumi2', 'intake2'];
-    E.ctInfra.bridges = list.map((b, k) => Object.assign({ col: col[b.turn] || 0xc9cdd1, which: b.which || who[k % 4] }, b));
+    // (COTA-UPGRADE, photo cota_aerial_tower_grandstand: the footbridge after Turn 2 / at T3 is the blue American Express bridge, not red)
+    const col = { 3: 0x2a64b4, 16: 0x2a5aa8 }; const who = ['lumi', 'intake', 'lumi2', 'intake2']; const whoT = { 3: 'americanexpress', 10: 'intake', 16: 'lumi' };
+    E.ctInfra.bridges = list.map((b, k) => Object.assign({ col: col[b.turn] || 0xc9cdd1, which: b.which || whoT[b.turn] || who[k % 4] }, b));
     for (const b of E.ctInfra.bridges) { const i = t.idxAtS(b.s); const q = Ct.at(t, b.s, 1, 0); const wl = t.wallL[i] + 3.0, wr = t.wallR[i] + 3.0; for (const u of [-wl - 2.6, wr + 2.6]) reserve(E.rectPoly(q.x + t.nx[i] * u, q.z + t.nz[i] * u, t.nx[i], t.nz[i], 3.5, 3.5)); }
+    // (COTA-UPGRADE) the giant flags and the BIG RED pylon (photos grandstand_pack_kerb_flag, flag_stands_mclaren, grid_start_grandstand,
+    // tower_aerial_track): the US flag on a ~45 m pole above the Turn 1 run-off, the red 'BIG RED' pylon beside it, the Texas flag in front of
+    // the tower; each on the first free ground beyond the barrier (not on roads, stands or water)
+    E.ctInfra.giants = [];
+    const giant = (s, side, d0, kind) => { s = U.mod(s, t.length); const i = t.idxAtS(s); const wc = E.wallCap(i, side);
+      for (let d = d0; d < d0 + 80; d += 3) { const p = Ct.at(t, s, side, wc + d); if (E.fsAt(p.x, p.z) < Math.min(d0, 10)) continue; if (E.rectFree(p.x, p.z, p.tx, p.tz, 3.5, 3.5, OCC.BUILT | OCC.ROAD | OCC.WATER) < 1) continue;
+        reserve(circle(p.x, p.z, 3.5, 8)); E.ctInfra.giants.push({ x: p.x, z: p.z, kind, nx: p.nx, nz: p.nz, tx: p.tx, tz: p.tz }); return true; }
+      return false; };
+    { const s1 = Ct.cs(t, 1); const o1 = Ct.outside(t, s1 + 40); giant(s1 + 30, o1, 16, 'us'); giant(s1 - 20, o1, 8, 'bigred'); }
+    if (lm.tower) { const pr = {}; t.project(lm.tower.x, lm.tower.z, null, pr); const sT = pr.i * t.ds; const sd = Math.sign((lm.tower.x - t.x[pr.i]) * t.nx[pr.i] + (lm.tower.z - t.z[pr.i]) * t.nz[pr.i]) || -1; giant(sT + 40, sd, 8, 'tx'); }
   };
   In.refit = function (E) {
     const I = E.ctInfra; if (!I) return; const sc = E.sc;
@@ -63,7 +74,7 @@
 
   In.build = function (E, BK, out) {
     const st = out.infra = {};
-    for (const [k, fn] of [['tower', tower], ['stage', stage], ['gantry', startGantry], ['footbridges', footbridges], ['cotaland', cotaland], ['superStage', superStage], ['plazas', plazas]]) { try { st[k] = fn(E, BK); } catch (e) { console.error('EnvCota infra ' + k, e); } }
+    for (const [k, fn] of [['tower', tower], ['stage', stage], ['gantry', startGantry], ['footbridges', footbridges], ['cotaland', cotaland], ['superStage', superStage], ['plazas', plazas], ['giants', giants]]) { try { st[k] = fn(E, BK); } catch (e) { console.error('EnvCota infra ' + k, e); } }
   };
 
   // ---------------------------------------------------------------- the Observation Tower
@@ -250,6 +261,43 @@
         Ct.face(B, P(x - 5, 5.5 + lift, -5), P(x + 5, 4.2 + lift, -5), P(x + 5, 5.5 + lift, 5), P(x - 5, 4.2 + lift, 5), sc0, [0, 1, 0]); Ct.face(B, P(x - 5, 5.5 + lift, -5), P(x + 5, 4.2 + lift, -5), P(x + 5, 5.5 + lift, 5), P(x - 5, 4.2 + lift, 5), sc0, [0, -1, 0]);
         B.box(m, 4, 2.6 + lift, 2.5, x, -0.3, (k % 2 ? 1 : -1) * 2, C(0xcfd2d4), { top: C(0x8f9397) }); }
       n++; }
+    return n;
+  }
+
+  // ---------------------------------------------------------------- (COTA-UPGRADE) giant flags on tall poles, the BIG RED pylon
+  // a flag flying along the lap tangent (so its face is seen from the track): 8 columns with a wind ripple and droop, both faces in the atlas
+  function bigFlag(A, r, top, dir, nrm, wd, ht) {
+    const N = 8; for (let k = 0; k < N; k++) {
+      const u0 = k / N, u1 = (k + 1) / N; const w0 = Math.sin(u0 * 7.0 + 0.4) * 0.07 * wd * u0, w1 = Math.sin(u1 * 7.0 + 0.4) * 0.07 * wd * u1; const g0 = u0 * u0 * 0.12 * ht, g1 = u1 * u1 * 0.12 * ht;
+      const p = (u, w, g, y) => [top[0] + dir[0] * u * wd + nrm[0] * w, top[1] + y - g, top[2] + dir[1] * u * wd + nrm[1] * w];
+      const a = p(u0, w0, g0, -ht), b = p(u1, w1, g1, -ht), c = p(u1, w1, g1, 0), d = p(u0, w0, g0, 0);
+      A.quad(r, a, b, c, d, u0, u1, 0, 1); A.quad(r, b, a, d, c, u1, u0, 0, 1);
+    }
+  }
+  function giants(E, BK) {
+    const I = E.ctInfra; if (!I || !I.giants || !I.giants.length) return 0; const { B, S, A } = BK; const sc = E.sc; const I0 = I4(); let n = 0;
+    // (the shared sign atlas is nearly full: regions stay <= 88 px tall so they fit its last row; the pylon's name is painted lengthwise)
+    const R = { us: A.region('ctFlagUSXL', 168, 88, Ct.paintFlagUS), tx: A.region('ctFlagTXXL', 132, 88, Ct.paintFlagTX) };
+    const pyl = A.region('ctBigRed', 320, 44, (x2, w, h) => { x2.fillStyle = '#c41a24'; x2.fillRect(0, 0, w, h); x2.fillStyle = '#ece9e1'; x2.font = '900 ' + Math.round(h * 0.78) + 'px Arial'; x2.textAlign = 'center'; x2.textBaseline = 'middle'; x2.fillText('B I G   R E D', w / 2, h * 0.54); });
+    for (const g of I.giants) {
+      let y = Infinity; for (let k = 0; k < 6; k++) { const a = k / 6 * Math.PI * 2; y = Math.min(y, sc.height(g.x + Math.cos(a) * 1.5, g.z + Math.sin(a) * 1.5)); } y = Math.min(y, sc.height(g.x, g.z));
+      if (g.kind === 'bigred') {
+        // a 2.4 x 1.2 m red pylon, 16 m, the name down both broad faces (towards the grid and towards T1)
+        const m = Env.frame(g.x, y, g.z, g.nx, g.nz, g.tx, g.tz); const Hp = 16;
+        B.box(m, 2.4, Hp + 0.5, 1.2, 0, -0.5, 0, C(0xb01c22), { top: C(0x8e171c) });
+        // text reads top to bottom: u runs down the pylon (a top -> b bottom), v across it
+        for (const sz of [-1, 1]) { const P = (x, yy) => Env.xf(m, x, yy, sz * 0.62); Ct.faceA(A, pyl, P(-1.0, Hp - 0.5), P(-1.0, 0.8), P(1.0, 0.8), P(1.0, Hp - 0.5), [g.tx * sz, 0, g.tz * sz]); }
+        n++; continue;
+      }
+      // pole: a white tapered mast with a gold finial, a concrete footing
+      const Hp = g.kind === 'us' ? 46 : 40, wd = g.kind === 'us' ? 21 : 17, ht = wd * (g.kind === 'us' ? 0.53 : 0.62);
+      S.beam(I0, [g.x, y - 0.5, g.z], [g.x, y + Hp * 0.55, g.z], 0.75, C(0xcfd2d3)); S.beam(I0, [g.x, y + Hp * 0.55, g.z], [g.x, y + Hp, g.z], 0.5, C(0xcfd2d3));
+      S.beam(I0, [g.x, y + Hp, g.z], [g.x, y + Hp + 0.8, g.z], 0.7, C(0xb8962e));
+      B.box(Env.frame(g.x, y, g.z, g.tx, g.tz, g.nx, g.nz), 2.4, 0.9, 2.4, 0, -0.5, 0, C(0xa9adb0));
+      // the flag streams along the lap (away from the approach) so its face is seen from the track
+      bigFlag(A, R[g.kind], [g.x, y + Hp - 0.6, g.z], [g.tx, g.tz], [g.nx, g.nz], wd, ht); n++;
+    }
+    E.stats.cota.giants = I.giants.map(g => g.kind + '@' + Math.round(g.x) + ',' + Math.round(g.z)); E.stats.cota.atlasY = A.y + A.rowH;
     return n;
   }
 

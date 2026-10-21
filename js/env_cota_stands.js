@@ -36,14 +36,18 @@
   ];
   // spectator banks (GA hills): [anchor, ds0, ds1, side, depth (m of bank), fill]
   const BANKS = [
-    { anchor: 1, ds0: -150, ds1: -25, side: 'out', depth: 26, fill: 0.55, label: 'Turn 1 hill' },
+    // (COTA-UPGRADE, photos grandstand_pack_kerb_flag / grid_start_grandstand / flag_stands_mclaren: the whole hill beside the last ~230 m of the
+    // climb is packed solid, row on row, up to the crest; step / row = the spacing along / across in m)
+    // (side 'opp': on the straight 'out' resolved to the pit side, so the old bank stood on the pit building's roof line; the hill is the
+    // outside of the Turn 1 left-hander = the Main Grandstand side)
+    { anchor: 1, ds0: -235, ds1: -18, side: 'opp', depth: 36, fill: 0.98, step: 0.95, row: 1.0, even: true, label: 'Turn 1 hill' },
     { anchor: 2, ds0: -40, ds1: 60, side: 'in', depth: 20, fill: 0.45, label: 'Turn 2' },
     { anchor: 5, ds0: -60, ds1: 90, side: 'in', depth: 24, fill: 0.45, label: 'Esses GA' },
     { anchor: 9, ds0: -30, ds1: 120, side: 'out', depth: 22, fill: 0.45, label: 'Turn 9' },
     { anchor: 11, ds0: -70, ds1: 50, side: 'in', depth: 26, fill: 0.5, label: 'Turn 11 field' },
     { anchor: 19, ds0: -110, ds1: -10, side: 'in', depth: 20, fill: 0.45, label: 'Turn 19' },
   ];
-  const sideOf = (t, sd, s0, s1) => { if (sd === 'out' || sd === 'in') { const o = Ct.outside(t, (s0 + s1) / 2); return sd === 'out' ? o : -o; } return sd; };
+  const sideOf = (t, sd, s0, s1) => { if (sd === 'pit' || sd === 'opp') return (sd === 'pit' ? 1 : -1) * (t.data.pitSide || 1); if (sd === 'out' || sd === 'in') { const o = Ct.outside(t, (s0 + s1) / 2); return sd === 'out' ? o : -o; } return sd; };
 
   // ================================================================ layout (inside EnvVenue.layoutStands: the venue builds tiers + crowd)
   St.layout = function (E) {
@@ -209,22 +213,25 @@
   // ================================================================ spectator banks (GA hills): standing / sitting fans on the drawn ground
   St.layoutBanks = function (E) {
     const t = E.t, OCC = Env.OCC, sc = E.sc; const rng = U.rng(1836); const recs = E.ctBankRecs = []; const offs = E.ctBankOff = []; E.ctBankFlags = [];
-    const shirts = ['#d8d8d4', '#1a1a1a', '#2a2b2e', '#3b404a', '#6c717a', '#1b2a4a', '#2a4a78', '#7d8ea4', '#8a1c22', '#3c5a3a', '#b39a4a', '#f2f2f2', '#c9b28a'].map(h => { const c = C(h); return [c.r, c.g, c.b]; });
+    // race-day Austin crowd (photos crowd_aerial_track_curve, crowd_blur_ferrari, mclaren_stands_flag): papaya / Dutch orange first, then white,
+    // black, Ferrari red, navy and team blues, white and tan cowboy hats (the accent colour)
+    const shirts = ['#f47b20', '#ff6a13', '#f26b1d', '#e8e8e4', '#f2f2f2', '#1a1a1a', '#2a2b2e', '#c8102e', '#b8141c', '#1b2a4a', '#2f6db5', '#00a19c', '#6c717a', '#c9b28a', '#1f6e4a', '#e8c21c'].map(h => { const c = C(h); return [c.r, c.g, c.b]; });
     const STAND = [10, 11, 12, 13, 14, 15], SIT = [0, 1, 2, 3, 4, 8]; const by = E.stats.cotaBanks = {};
     for (const Bk of BANKS) {
       const c = Ct.cs(t, Bk.anchor); const side = sideOf(t, Bk.side, c + Bk.ds0, c + Bk.ds1); const n0 = recs.length;
-      for (let s = c + Bk.ds0; s < c + Bk.ds1; s += 1.25) {
+      const stp = Bk.step || 1.25, row = Bk.row || 1.3;
+      for (let s = c + Bk.ds0; s < c + Bk.ds1; s += stp) {
         const i = t.idxAtS(s); const w = E.wallCap(i, side); const ty = t.y[i];
-        for (let d = w + 5 + rng() * 0.6; d < w + 5 + Bk.depth; d += 1.3 + rng() * 0.4) {
+        for (let d = w + 5 + rng() * 0.6; d < w + 5 + Bk.depth; d += row + rng() * 0.4) {
           const p = Ct.at(t, s + (rng() - 0.5) * 0.8, side, d); if (E.fsAt(p.x, p.z) < 3.5 || (E.occAt(p.x, p.z) & (OCC.BUILT | OCC.ROAD | OCC.WATER))) continue;
           const g = sc.height(p.x, p.z); if (g < ty - 2.0) continue;
           const g2 = sc.height(p.x + p.nx * 1.5, p.z + p.nz * 1.5); if (Math.abs(g2 - g) > 1.2) continue;
-          const dens = Bk.fill * (0.5 + 0.9 * U.noise2(p.x / 9 + 11, p.z / 9 - 3)); if (rng() > dens) continue;
+          const dens = Bk.fill * (Bk.even ? 0.9 + 0.2 * U.noise2(p.x / 9 + 11, p.z / 9 - 3) : 0.5 + 0.9 * U.noise2(p.x / 9 + 11, p.z / 9 - 3)); if (rng() > dens) continue;
           const sit = rng() < 0.35; const pose = sit ? SIT[Math.floor(rng() * SIT.length)] : STAND[Math.floor(rng() * STAND.length)];
           const sh = shirts[Math.floor(rng() * shirts.length)], ac = shirts[Math.floor(rng() * shirts.length)]; const yaw = Math.atan2(-p.nx, -p.nz) + (rng() - 0.5) * 0.6;
           offs.push(sit ? 0.42 : 0.02); recs.push([[p.x, g - (sit ? 0.42 : 0.02), p.z, yaw], [pose, 0.92 + rng() * 0.14, rng(), pose >= 11 && rng() < 0.4 ? 2 : 0], [sh[0], sh[1], sh[2], 0.999], [ac[0], ac[1], ac[2], 0]]);
         }
-        if (rng() < 1.25 / 24) { const p = Ct.at(t, s, side, w + 5 + Bk.depth * (0.3 + rng() * 0.6)); if (E.fsAt(p.x, p.z) > 3.5 && !(E.occAt(p.x, p.z) & (OCC.BUILT | OCC.ROAD))) E.ctBankFlags.push([p.x, sc.height(p.x, p.z), p.z, Math.atan2(p.tx, p.tz), Math.floor(rng() * 4)]); }
+        if (rng() < stp / 24) { const p = Ct.at(t, s, side, w + 5 + Bk.depth * (0.3 + rng() * 0.6)); if (E.fsAt(p.x, p.z) > 3.5 && !(E.occAt(p.x, p.z) & (OCC.BUILT | OCC.ROAD))) E.ctBankFlags.push([p.x, sc.height(p.x, p.z), p.z, Math.atan2(p.tx, p.tz), Math.floor(rng() * 4)]); }
       }
       const line = []; for (let s = c + Bk.ds0; s <= c + Bk.ds1; s += 6) { const i = t.idxAtS(s); const p = Ct.at(t, s, side, E.wallCap(i, side) + 5 + Bk.depth / 2); line.push([p.x, p.z]); }
       if (recs.length > n0 && line.length > 1) E.markLine(line, Bk.depth / 2 + 3, OCC.KEEP);
@@ -363,6 +370,14 @@
     // High only: seam cables under the membrane along each bay's ridge line, a lamp row under the front edge
     for (let k = 0; k < nb; k++) { const xa = -hl + k * bw; for (let j = 0; j < NV; j++) H.beam(Env.frame(0, 0, 0, 1, 0, 0, 1), P(xa + bw / 2, hgt(0.5, j / NV) - 0.12, zF + (zR - zF) * j / NV), P(xa + bw / 2, hgt(0.5, (j + 1) / NV) - 0.12, zF + (zR - zF) * (j + 1) / NV), 0.06, cable);
       for (const u of [0.25, 0.75]) H.box(m, 0.6, 0.18, 0.35, xa + u * bw, hgt(u, 0.12) - 0.45, zF + (zR - zF) * 0.12, C(0xfff4dc)); }
+    // (COTA-UPGRADE, photo cota_grid_start_grandstand) the row of small cream shade sails over the front rows: hypar sails, 2 per bay, low
+    // corners 4.7 m / high 5.9 m over the frame base, 1.8 m in front of the tiers to 3.2 m over them (the 4th row's heads stay ~0.7 m below),
+    // the front corners on raked posts to the ground, the back corners tied down to the tiers
+    { const sail = C(0xd2c8b0), sailU = C(0xbdb197), post = C(0xa9aeb3); const zA = -1.8, zB = 3.2, yLo = 4.7, yHi = 5.9; const ns = nb * 2, sw = len / ns;
+      for (let k = 0; k < ns; k++) { const x0 = -hl + k * sw + 0.35, x1 = x0 + sw - 0.7; const a = P(x0, yLo, zA), b = P(x1, yHi, zA), c = P(x1, yLo, zB), d = P(x0, yHi, zB);
+        Ct.face(B, a, b, c, d, sail, [0, 1, 0]); Ct.face(B, a, b, c, d, sailU, [0, -1, 0]);
+        for (const [x, y] of [[x0, yLo], [x1, yHi]]) { const g = (() => { const p = P(x, 0, zA - 0.6); return sc.height(p[0], p[2]) - yB; })(); S.beam(Env.frame(0, 0, 0, 1, 0, 0, 1), P(x, g - 0.3, zA - 0.6), P(x, y, zA), 0.14, post); }
+        for (const x of [x0, x1]) Fd.beam(Env.frame(0, 0, 0, 1, 0, 0, 1), P(x, 2.6, zB), P(x, x === x0 ? yHi : yLo, zB), 0.06, post); } }
     E.stats.cota.mainRoof = { bays: nb, len: +len.toFixed(1) };
   };
   // ---- the amphitheatre: polar tiers (riser + tread per segment), a back wall + skirt to the ground, the radial end walls, two aisles; the

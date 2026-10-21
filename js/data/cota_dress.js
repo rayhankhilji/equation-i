@@ -89,9 +89,10 @@ window.EI = window.EI || {};
   T.tecProCorners = [2, 3, 6, 9, 12, 15, 17, 19];
   T.tyreCorners = [1, 2, 3, 6, 7, 9, 11, 12, 13, 15, 16, 17, 18, 19, 20];
 
-  // ---- the catch fence: dark charcoal welded mesh on dark posts, 3.6 m (kept on Low: it is in every photo); the debris fence along the pit wall is low
+  // ---- the catch fence, 3.6 m (kept on Low: it is in every photo); the debris fence along the pit wall is low. COTA-UPGRADE: galvanised grey
+  // posts and a light grey mesh (photos tower_aerial_track, pack_turn_grandstand, crowd_aerial_track_curve), not the dark charcoal guess
   T.fence = Object.assign({}, T.fence || {}, {
-    h: 3.6, op: 0.62, mesh: 'rgba(30,32,36,1)', postColor: 0x2a2d31, posts: 8, low: true, ground: true,
+    h: 3.6, op: 0.55, mesh: 'rgba(118,122,126,1)', postColor: 0x878c91, posts: 8, low: true, ground: true,
     runs: [
       [4790, 450, 1, 2.4],      // pit wall (pit side = +1): low debris fence along the pit lane, entry (T19 exit) to exit (T1 inside)
     ],

@@ -18,9 +18,11 @@ window.EI = window.EI || {};
   const C = { EVER: 0, WOOD: 1, GRASS: 2, BRUSH: 3, CALICHE: 4, PAVED: 5, LOT: 6, WATER: 7 };
   CV.C = C;
   // sRGB albedo, muted like env.js PAL (main.js grades with a saturation boost)
-  const PAL = { 0: [26, 37, 29], 1: [36, 46, 26], 2: [124, 106, 64], 3: [104, 92, 58], 4: [152, 145, 124], 5: [116, 114, 108], 6: [122, 107, 75], 7: [40, 54, 56] };
-  const PRAIRIE = [[140, 110, 68], [122, 97, 66], [112, 100, 64]];   // straw gold, tan-brown, olive straw (October: dormant warm-season grass)
-  const MOWN = [[122, 108, 66], [128, 113, 69]];                       // the mown circuit grass, stripes 7.5 m (COTA-BEAUTY: warmer / +12 % so the verges read sun-cured gold at eye height)
+  const PAL = { 0: [26, 37, 29], 1: [36, 46, 26], 2: [118, 98, 68], 3: [100, 86, 60], 4: [152, 145, 124], 5: [116, 114, 108], 6: [122, 107, 75], 7: [40, 54, 56] };
+  // (COTA-UPGRADE: the photos' sunlit verges and infield read a duller, browner straw (~163,127,81 / 125,96,64 on screen) than the game's
+  // ochre (206,176,86): ~8 % less value, a touch more red than green, more blue - i.e. less saturated)
+  const PRAIRIE = [[134, 104, 72], [118, 93, 69], [108, 96, 68]];   // straw gold, tan-brown, olive straw (October: dormant warm-season grass)
+  const MOWN = [[116, 99, 70], [121, 103, 73]];                     // the mown circuit grass, stripes 7.5 m (COTA-BEAUTY: warmer / +12 % so the verges read sun-cured gold at eye height)
   const BRUSHC = [58, 60, 38], CROWN_EVER = [24, 35, 28], CROWN_WOOD = [34, 44, 24];
   // sector table keyed by turn number (SPEC 4.8): [from turn, ds, to turn, ds, tree density factor] - applied near the lap only (the cover
   // raster decides beyond), relative to 0.35
