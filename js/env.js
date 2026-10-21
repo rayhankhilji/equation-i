@@ -594,7 +594,7 @@ window.EI = window.EI || {};
   };
   Ctx.prototype.buildTerrain = function () {
     // street circuits with a terrain model use a 12 m grid inside +-1.8 km (roads, quays and slopes meet more tightly), 24 m otherwise
-    const fine = !!this.dem; const KIN = fine ? (this.terrainKin || 150) : KIN0, GS = fine ? 12 : GS0, KTOT = fine ? KIN + 33 : KTOT0;
+    const fine = !!this.dem; const KIN = fine ? (this.terrainKin || 150) : KIN0, GS = fine ? (this.terrainGS || 12) : GS0, KTOT = fine ? KIN + 33 : KTOT0;
     const sc = this.sc; const K = KTOT, W = K * 2 + 1;
     const pos = new Float32Array(W * W * 3), col = new Float32Array(W * W * 3), uv = new Float32Array(W * W * 2);
     const heights = new Float32Array((KIN * 2 + 1) * (KIN * 2 + 1)); const HW = KIN * 2 + 1;
@@ -626,9 +626,15 @@ window.EI = window.EI || {};
     // camera: the fine grid in 3 x 3 blocks, the coarse outer ring in its four sides and four corners
     const cuts = [0, K - KIN, K - KIN + Math.round(2 * KIN / 3), K + KIN - Math.round(2 * KIN / 3), K + KIN, W - 1]; const tiles = []; let tris = 0;
     const blocks = []; const c = cuts;
+    if (this.terrainQuads) {
+      // forest ground (Spa): the fine grid in 2 x 2 quadrants round the lap's centre and the coarse ring in 4 strips (8 draws instead of 17; PERF budget)
+      for (const [i0, i1] of [[c[1], K], [K, c[4]]]) for (const [j0, j1] of [[c[1], K], [K, c[4]]]) blocks.push([i0, i1, j0, j1]);
+      blocks.push([c[0], c[5], c[0], c[1]], [c[0], c[5], c[4], c[5]], [c[0], c[1], c[1], c[4]], [c[4], c[5], c[1], c[4]]);
+    } else {
     for (let bj = 1; bj <= 3; bj++) for (let bi = 1; bi <= 3; bi++) blocks.push([c[bi], c[bi + 1], c[bj], c[bj + 1]]);
     for (const [bi, bj] of [[0, 0], [4, 0], [0, 4], [4, 4]]) blocks.push([c[bi], c[bi + 1], c[bj], c[bj + 1]]);
     blocks.push([c[0], c[1], c[1], c[4]], [c[4], c[5], c[1], c[4]], [c[1], c[4], c[0], c[1]], [c[1], c[4], c[4], c[5]]);
+    }
     for (const [i0, i1, j0, j1] of blocks) {
       const ti = []; const mn = new THREE.Vector3(Infinity, Infinity, Infinity), mx = new THREE.Vector3(-Infinity, -Infinity, -Infinity);
       for (let j = j0; j < j1; j++) for (let i = i0; i < i1; i++) { const a = j * W + i, b = a + 1, c = a + W, d = c + 1; ti.push(a, c, b, b, c, d); }

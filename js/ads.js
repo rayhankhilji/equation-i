@@ -214,6 +214,13 @@
     ifs: { n: 'IFS', word: W_(SANS, 900, { up: 1 }) }, corescientific: { n: 'Core Scientific' }, claro: { n: 'Claro' }, tenneco: { n: 'Tenneco' }, twgai: { n: 'TWG AI', word: W_(SANS, 800, { up: 1, ls: 0.04 }) },
     mercedes: { n: 'Mercedes-Benz' }, tgremblem: { n: 'TGR', word: W_(F1W, 900, { up: 1, it: 1, col: '#eb0a1e' }) }, moneygram: { n: 'MoneyGram', word: W_(SANS, 800, { col: '#da291c', ls: -0.02 }) }, mobil: { n: 'Mobil' }, ferrari: { n: 'Ferrari' }, pepsico: { n: 'PepsiCo' }, kitkat: { n: 'KitKat' }, paramountplus: { n: 'Paramount+' }, standardchartered: { n: 'Standard Chartered' }, qualcomm: { n: 'Qualcomm' },
   };
+  // Spa's venue partners (boards seen at the circuit): wordmarks set in code on the partners' board colours
+  Object.assign(PARTNERS, {
+    ing: { n: 'ING', board: { bg: '#ffffff', tone: 'color' }, word: W_(SANS, 900, { col: '#ff6200', ls: -0.02 }) },
+    allianz: { n: 'Allianz', board: { bg: '#ffffff', tone: 'color' }, word: W_(SANS, 800, { col: '#003781', ls: -0.02 }) },
+    vodafone: { n: 'vodafone', board: { bg: '#e60000', tone: 'white' }, word: W_(SANS, 700, { col: '#ffffff', ls: -0.01 }) },
+    rolex: { n: 'ROLEX', board: { bg: '#006039', tone: 'white' }, word: W_('Georgia, "Times New Roman", serif', 700, { up: 1, col: '#ffffff', ls: 0.08 }) },
+  });
   // id lookup by any spelling of the name ('Google (Gemini)', 'Mobil 1', 'TAG Heuer', 'MSC Cruises' ...)
   const ALIAS = { gemini: 'googlegemini', google: 'googlegemini', msc: 'msccruises', etihad: 'etihadairways', qatar: 'qatarairways', amex: 'americanexpress', moet: 'moetchandon', mobil: 'mobil1',
     toyotagazooracing: 'tgr', tgrhaas: 'tgr', haas: 'haasautomation', moser: 'hmosercie', hmoser: 'hmosercie', ceva: 'cevalogistics', pmi: 'philipmorrisinternational', lv: 'louisvuitton',
@@ -462,6 +469,11 @@
     tiles: ['pirelli', 'aramco', 'L0', 'heineken', 'dhl', 'msccruises', 'I4', 'qatarairways'],
     barrier: ['pirelli', 'L', 'aramco', 'dhl', 'I'], billboard: ['pirelli', 'L2', 'heineken', 'I3'],
     runoff: ['pirelli', 'L', 'aramco', 'I'], bridge: { lumi: 'L', intake: 'pirelli', lumi2: 'tagheuer', intake2: 'I' } };   // lumi2 = the green sign bridge after the Rettifilo (Rolex until 2024 -> TAG Heuer, F1's timekeeper since 2025)
+  // Spa: "Formula 1 MSC Cruises Belgian Grand Prix"; the venue boards of the circuit (ING, Allianz, Vodafone, Rolex) beside the F1 partners; Lumi / Intake about 1 board in 4
+  VENUES.spa = { title: 'msccruises', event: 'Belgian Grand Prix', dark: false,
+    tiles: ['msccruises', 'aramco', 'L0', 'ing', 'heineken', 'vodafone', 'I4', 'allianz'],
+    barrier: ['ing', 'allianz', 'L', 'rolex', 'dhl'], billboard: ['msccruises', 'L2', 'allianz', 'heineken'],
+    runoff: ['pirelli', 'L', 'aramco', 'I'], bridge: { lumi: 'L', intake: 'I', lumi2: 'tagheuer', intake2: 'msccruises' } };
   const venue = Ads.venue = () => VENUES[EI.trackId] || VENUES.silverstone;
   // the track's width (m): the start gantry banner ((width + 2.6) x 0.9 m) and the bridge fascias ((width + 6.8) x 2.1 m) span it
   const trackW = () => (EI.TRACKS && EI.TRACKS[EI.trackId] && EI.TRACKS[EI.trackId].width) || 15;

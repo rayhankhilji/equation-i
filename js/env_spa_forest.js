@@ -10,11 +10,11 @@ window.EI = window.EI || {};
   const U = EI.U, Env = EI.Env;
   const SF = {}; EI.SpaForest = SF;
   // sectors (SPEC 4.14): [from turn, ds, to turn, ds, conifer share] - turn-in s from EI.TRACKS.spa.corners by turn number t
-  const SECTORS = [[18, -250, 1, -350, 0.5], [1, -350, 2, 100, 0.4], [2, 100, 4, 130, 0.55], [4, 130, 5, -50, 0.7], [5, -50, 8, 0, 0.45],
-    [8, 0, 10, -70, 0.65], [10, -70, 12, -200, 0.7], [12, -200, 16, -300, 0.25], [16, -300, 18, -250, 0.6]];
+  const SECTORS = [[18, -250, 1, -350, 0.5], [1, -350, 2, 100, 0.4], [2, 100, 4, 130, 0.75], [4, 130, 5, -50, 0.7], [5, -50, 8, 0, 0.45],
+    [8, 0, 10, -70, 0.75], [10, -70, 12, -200, 0.7], [12, -200, 16, -300, 0.25], [16, -300, 18, -250, 0.6]];
   SF.SECTORS = SECTORS;
   // per-instance colour multipliers (Veg.instance record [8]): Norway spruce cool blue-green, beech a deep green, the understory between
-  const SPRUCE_C = [0.8, 0.94, 1.02], BEECH_C = [0.95, 1.0, 0.86], SHRUB_C = [0.9, 0.97, 0.9];
+  const SPRUCE_C = [0.78, 0.93, 1.02], BEECH_C = [0.86, 0.95, 0.8], SHRUB_C = [0.9, 0.97, 0.9];
 
   SF.build = function (E, Veg) {
     const T0 = performance.now(); const t = E.t, sc = E.sc, SP = Veg.SP, OCC = Env.OCC, rng = U.rng(2026); const trees = [];
@@ -38,7 +38,7 @@ window.EI = window.EI || {};
     let nEdge = 0, nIn = 0, nShrub = 0, nOpen = 0;
     const plant = (x, z, conif, edge, fs) => {
       const [sp, w, h] = conif ? spruce(x, z, !edge) : beech(x, z); if (!free(x, z, w * 0.5)) return false;
-      trees.push([x, z, sp, w, h, rng() < 0.5 ? 0 : 1, conif ? -0.75 + rng() * 0.35 : -0.35 + rng() * 0.35, edge ? 0 : 1, conif ? SPRUCE_C : BEECH_C]); if (edge) nEdge++; else nIn++; return true;
+      trees.push([x, z, sp, w, h, rng() < 0.5 ? 0 : 1, conif ? -0.85 + rng() * 0.35 : -0.6 + rng() * 0.3, edge ? 0 : 1, conif ? SPRUCE_C : BEECH_C]); if (edge) nEdge++; else nIn++; return true;
     };
     // ---- 4 m raster: jittered 4.5 m lattice over the canopy
     const ST = 4.6; const x0 = G.x0, z0 = G.z0, X1 = G.x0 + nx * A, Z1 = G.z0 + nz * A;
@@ -49,7 +49,7 @@ window.EI = window.EI || {};
         const de = ed[k]; const near = fs < 260;
         const p = de <= 9 ? (near ? 1 : fs < 600 ? 0.55 : 0.3) : de <= 22 ? (near ? 0.55 : 0.15) : fs < 110 ? 0.3 : fs < 320 ? 0.1 : 0.035;
         if (rng() > p) continue;
-        t.project(px, pz, null, pr); const con = conAt(pr.s); const conif = c === 0 ? rng() < 0.6 + 0.4 * con : rng() < con * 0.45;
+        t.project(px, pz, null, pr); const con = conAt(pr.s); const conif = c === 0 ? rng() < 0.75 + 0.25 * con : rng() < con * 0.7;   // (SPEC v2 4.11: spruce-dominated)
         if (!plant(px, pz, conif, de <= 9, fs)) continue;
         // the walls along the circuit: a second, staggered tree (closed canopy, no sky between the crowns)
         if (de <= 9 && fs < 160 && rng() < 0.55) plant(px + (rng() - 0.5) * 4, pz + (rng() - 0.5) * 4, rng() < 0.5 ? conif : !conif, true, fs);

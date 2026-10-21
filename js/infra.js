@@ -135,7 +135,12 @@ window.EI = window.EI || {};
     const geo = new THREE.BoxGeometry(5.0, 1.0, 0.08); const uv = geo.attributes.uv;
     for (let i = 0; i < uv.count; i++) { if (i >= 16 && i < 20) uv.setXY(i, uv.getX(i), 0.08 + uv.getY(i) * 0.9); else uv.setXY(i, 0.5, 0.03); }
     const spots = [];
+    // data.furniture.hoardZones [[s0, s1, side (0 = both), spacing m], ...] (Spa): boards only on those stretches instead of on every metre of barrier
+    const HZ = cx.F.hoardZones;
     for (const side of [-1, 1]) {
+      if (HZ) { for (const [z0, z1, zs, step] of HZ) { if (zs && zs !== side) continue; const span = U.mod(z1 - z0, t.length);
+        for (let u = 0; u < span; u += Math.max(5.35, step)) { const s = U.mod(z0 + u, t.length) + 2.6, i = t.idxAtS(s);
+          if (cx.tyreZone(i, side) || cx.inPit(s, side) || cx.isReserved(s, side)) continue; spots.push([s, side]); } } continue; }
       for (let s = 0; s < t.length - 5; s += 5.35) {
         const i = t.idxAtS(s + 2.6);
         if (cx.tyreZone(i, side) || cx.inPit(s + 2.6, side) || cx.isReserved(s + 2.6, side)) continue;
@@ -205,7 +210,7 @@ window.EI = window.EI || {};
     const t = cx.t; const n = t.n;
     const postGeo = new THREE.CylinderGeometry(0.1, 0.1, 3.6, 4, 1, true); postGeo.rotateY(Math.PI / 4); postGeo.translate(0, 1.8, 0);
     const railGeo = new THREE.CylinderGeometry(0.05, 0.05, 1, 4, 1, true); railGeo.rotateZ(Math.PI / 2); railGeo.translate(0.5, 3.44, 0);
-    const mat = stdMat({ vertexColors: false, color: 0x4d5258, roughness: 0.5, metalness: 0.5 });
+    const mat = stdMat({ vertexColors: false, color: (t.data.fence && t.data.fence.postColor != null) ? t.data.fence.postColor : 0x4d5258, roughness: 0.5, metalness: 0.5 });   // data.fence.postColor (Spa: dark green)
     // posts follow the (clamped) debris-fence line at wall + 0.8; on the inside of hairpins that line collapses towards the
     // centre of curvature, so a post is only planted once it is at least 2.5 m from the previous one
     const pts = [];
@@ -533,7 +538,7 @@ window.EI = window.EI || {};
     for (const side of [-1, 1]) {
       let lp = null;
       for (let s = 0; s < t.length; s += 4.2) {
-        const i = t.idxAtS(s); if (!cx.tyreZone(i, side) || cx.inPit(s, side) || cx.isReserved(s, side)) { lp = null; continue; }
+        const i = t.idxAtS(s); if (!cx.tyreZone(i, side) || cx.inPit(s, side) || cx.isReserved(s, side) || (cx.F.sponsorWallCorners && cx.F.sponsorWallCorners.indexOf(cx.cornerAt(s)) < 0)) { lp = null; continue; }   // data.furniture.sponsorWallCorners (Spa): only at these corners
         const p = cx.at(s, side, 3.1); if (lp && Math.hypot(p.x - lp.x, p.z - lp.z) < 3.9) continue; if (cx.inObstacle(p.x, p.z)) { lp = null; continue; } lp = p;
         frame(_m, p.x, p.y, p.z, side, p.tx, p.tz); const m = _m.clone();
         box(geos, 4.0, 1.25, 0.35, 0, 0.625, 0, C(0xc9c9c4), m); box(geos, 4.0, 0.1, 0.45, 0, 1.27, 0, C(0xb0b0aa), m);

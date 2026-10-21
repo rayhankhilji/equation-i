@@ -283,8 +283,8 @@ window.EI = window.EI || {};
       ctx.fillStyle = 'rgba(150,205,225,0.55)'; ctx.fillRect(W * 0.965, 0, W * 0.035, H);   // the thin pale-blue outer line
     }
     else {
-    const slant = style === 'street' ? 0 : H * 0.07; const joint = (y0) => [[0, y0 - slant], [W, y0 + slant]];
-    ctx.fillStyle = style === 'street' ? '#b0242a' : '#c8141e';
+    const slant = style === 'street' ? 0 : H * (style === 'spa' ? 0.05 : 0.07); const joint = (y0) => [[0, y0 - slant], [W, y0 + slant]];
+    ctx.fillStyle = style === 'street' ? '#b0242a' : style === 'spa' ? '#be1620' : '#c8141e';   // 'spa': deep red / white blocks on the raised bevelled kerb
     for (const off of [-H, 0, H]) { const a = joint(off), b = joint(off + H / 2); ctx.beginPath(); ctx.moveTo(a[0][0], a[0][1]); ctx.lineTo(a[1][0], a[1][1]); ctx.lineTo(b[1][0], b[1][1]); ctx.lineTo(b[0][0], b[0][1]); ctx.closePath(); ctx.fill(); }
     ctx.strokeStyle = 'rgba(25,10,10,0.55)'; ctx.lineWidth = 3;
     for (const off of [-H, -H / 2, 0, H / 2, H]) { const a = joint(off); ctx.beginPath(); ctx.moveTo(a[0][0], a[0][1]); ctx.lineTo(a[1][0], a[1][1]); ctx.stroke(); }
@@ -668,7 +668,7 @@ window.EI = window.EI || {};
       const aMesh = new THREE.Mesh(aGeo, aMat); aMesh.receiveShadow = true; aMesh.name = 'asphalt'; g.add(aMesh);
 
       // ------------------------------------------------ kerbs: bevelled profile (rise, top, fall), sawtooth red/white tiled by arc length
-      const KS = this.data.kerbStyle; const kerbTex = kerbTexture(this.data.street ? 'street' : KS); const kerbTile = KS === 'yas' ? 7.2 : KS === 'monza' ? 12 : 2.4;
+      const KS = this.data.kerbStyle; const kerbTex = kerbTexture(this.data.street ? 'street' : KS); const kerbTile = KS === 'yas' ? 7.2 : KS === 'monza' ? 12 : KS === 'spa' ? 3.0 : 2.4;
       const kerbMat = new THREE.MeshStandardMaterial({ map: kerbTex, vertexColors: true, roughness: 0.48, metalness: 0, normalMap: T.runoff.normalMap, normalScale: new THREE.Vector2(0.25, 0.25) });
       const ramp = new Float32Array(n); { const a = new Float32Array(n), b = new Float32Array(n);
         for (let k = 0; k < 2 * n; k++) { const i = k % n, p = (i + n - 1) % n; a[i] = kerbMask(p) ? a[p] + 1 : 0; }
@@ -676,6 +676,9 @@ window.EI = window.EI || {};
         for (let i = 0; i < n; i++) ramp[i] = U.clamp(Math.min(a[i], b[i]) * ds / 3.0, 0, 1); }
       const prof = this.data.street || KS === 'yas' || KS === 'monza' ? [[0, 0.004], [0.1, 0.026], [kw - 0.1, 0.03], [kw, 0.006]] : [[0, 0.004], [0.3, 0.068], [kw - 0.32, 0.074], [kw, 0.0]];
       const kerbTone = new Float32Array(n); for (let i = 0; i < n; i++) kerbTone[i] = 0.82 + 0.18 * U.noise2(i * 0.11, 4.2);
+      // data.kerbAlt [[s0, s1, 'ry'], ...] (Spa: the Raidillon crest, Blanchimont): red / yellow kerbs = the red / white tile tinted per vertex (white -> yellow, red stays red)
+      const kerbAlt = new Uint8Array(n); for (const [a0, a1] of this.data.kerbAlt || []) for (let s = a0; s <= a1; s += this.ds) kerbAlt[this.idxAtS(s)] = 1;
+      const altCol = [1.0, 0.8, 0.1];
       for (const side of [-1, 1]) {
         // stripes advance with the arc length at the kerb's middle so they never stretch on the outside of a corner
         const arc = new Float32Array(n + 1); let acc = 0;
@@ -687,7 +690,7 @@ window.EI = window.EI || {};
             lat: (ii, c) => side * (hw + (c ? p1[0] : p0[0])),
             y: (ii, c) => (c ? p1[1] : p0[1]) * (0.15 + 0.85 * ramp[ii]),
             uv: (ii, c, l, i) => [(c ? p1[0] : p0[0]) / kw, (i === n ? arc[n] : arc[ii]) / kerbTile],
-            attrs: { color: [3, (ii, c) => { const t = kerbTone[ii] * (c === 0 && pIdx === 0 ? 0.9 : 1); return [t, t, t]; }] },
+            attrs: { color: [3, (ii, c) => { const t = kerbTone[ii] * (c === 0 && pIdx === 0 ? 0.9 : 1); return kerbAlt[ii] ? [t * altCol[0], t * altCol[1], t * altCol[2]] : [t, t, t]; }] },
           });
           const m = new THREE.Mesh(geo, kerbMat); m.receiveShadow = true; m.castShadow = pIdx === 1; m.name = 'kerb'; g.add(m);
         }
@@ -851,7 +854,7 @@ window.EI = window.EI || {};
       const prof = [[-0.3, 0], [-0.26, 0.07], [-0.17, 0.135], [-0.06, 0.16], [0.06, 0.16], [0.17, 0.135], [0.26, 0.07], [0.3, 0]];
       const pos = [], col = [], idx = []; const yel = new THREE.Color(0xf2b705).convertSRGBToLinear(), dirt = new THREE.Color(0x7a6a3a).convertSRGBToLinear(), blk = new THREE.Color(0x1a1a1a);
       const seen = {}; this.sausages = [];
-      const stripe = this.data.kerbStyle === 'monza';   // Monza's sausage kerbs are yellow with black diagonal bars (refs chicane_yellowblack_sausage)
+      const stripe = this.data.kerbStyle === 'monza' || this.data.kerbStyle === 'spa';   // Monza's sausage kerbs are yellow with black diagonal bars (refs chicane_yellowblack_sausage)
       this.data.corners.forEach((c, ci) => {
         if (corners.indexOf(c.name) < 0) return;
         const next = this.data.corners[ci + 1]; const sEnd = next ? Math.min(next.s, c.s + 200) : c.s + 200;
@@ -1066,9 +1069,10 @@ window.EI = window.EI || {};
         g.add(new THREE.Mesh(ag, barMat));
       }
       // debris fence
-      const fenceTex = (function () { const c = document.createElement('canvas'); c.width = 64; c.height = 64; const ctx = c.getContext('2d'); ctx.clearRect(0, 0, 64, 64); ctx.strokeStyle = 'rgba(30,30,30,0.85)'; ctx.lineWidth = 1.2;
-        for (let i = 0; i <= 64; i += 6) { ctx.beginPath(); ctx.moveTo(i, 0); ctx.lineTo(i, 64); ctx.stroke(); ctx.beginPath(); ctx.moveTo(0, i); ctx.lineTo(64, i); ctx.stroke(); } ctx.fillStyle = '#555'; ctx.fillRect(0, 0, 3, 64);
-        const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.anisotropy = 8; return t; })();
+      const fenceTex = (function (mesh) { const c = document.createElement('canvas'); c.width = 64; c.height = 64; const ctx = c.getContext('2d'); ctx.clearRect(0, 0, 64, 64); ctx.strokeStyle = mesh || 'rgba(30,30,30,0.85)';   // data.fence.mesh: the wire colour (Spa: dark green)
+        ctx.lineWidth = 1.2;
+        for (let i = 0; i <= 64; i += 6) { ctx.beginPath(); ctx.moveTo(i, 0); ctx.lineTo(i, 64); ctx.stroke(); ctx.beginPath(); ctx.moveTo(0, i); ctx.lineTo(64, i); ctx.stroke(); } ctx.fillStyle = mesh || '#555'; ctx.fillRect(0, 0, 3, 64);
+        const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.anisotropy = 8; return t; })((this.data.fence || {}).mesh);
       const FD = this.data.fence || {}; const TD0 = this.data.tunnel;   // data.fence { h, op }: catch-fence height and opacity (Monza: 4.5 m)
       const fenceMat = new THREE.MeshBasicMaterial({ map: fenceTex, transparent: true, side: THREE.DoubleSide, depthWrite: false, opacity: FD.op || 0.7, color: FD.color != null ? FD.color : 0xffffff });
       // data.fence.runs [[s0, s1, side (0 = both), height m]]: later runs override earlier ones, height 0 = no fence (Monza: tall catch fence by the stands, low along the pit wall)
@@ -1469,7 +1473,7 @@ window.EI = window.EI || {};
       const bridge = (s, text, beam) => {
         const i = this.idxAtS(s); const grp = new THREE.Group();
         // street circuits: the legs stand behind the barriers (a run-off widened there put them in the escape road, Ste Devote; FIT-AUDIT)
-        const po = this.data.street ? Math.max(hw + 3, Math.max(this.wallL[i], this.wallR[i]) + 0.8) : hw + 3;
+        const po = this.data.street || this.data.kerbStyle === 'spa' ? Math.max(hw + 3, Math.max(this.wallL[i], this.wallR[i]) + 0.8) : hw + 3;   // (Spa: the legs stand behind the barriers too, never in the run-off)
         for (const side of [-1, 1]) { const post = solid(new THREE.BoxGeometry(0.8, 8, 0.8), 'post'); post.position.set(0, 4, side * po); post.castShadow = true; grp.add(post); }
         const b = solid(new THREE.BoxGeometry(1.2, 2.2, po * 2 + 1), beam); b.position.y = 8.5; b.castShadow = true; grp.add(b);
         for (const dir of [-1, 1]) { const f = new THREE.Mesh(uvFace(new THREE.PlaneGeometry(po * 2 + 0.8, 2.1), 'bridge:' + text), mat); f.position.set(dir * 0.62, 8.5, 0); f.rotation.y = dir * Math.PI / 2; grp.add(f); }
