@@ -191,7 +191,7 @@
     cryptocom: { n: 'Crypto.com', board: { bg: '#0b1c40', tone: 'white' }, word: W_(SANS, 700, { col: '#0b1c40', ls: -0.01 }) },
     santander: { n: 'Santander', board: { bg: '#ec0000', tone: 'white' } },
     americanexpress: { n: 'American Express', board: { bg: '#006fcf', tone: 'color' } },
-    moetchandon: { n: 'Moët & Chandon', board: { bg: '#222428', tone: 'white' } },
+    moetchandon: { n: 'Moët & Chandon', board: { bg: '#b8142a', tone: 'white' }, word: W_('Georgia, "Times New Roman", serif', 600, { up: 1, col: '#ffffff', ls: 0.04 }) },   // trackside red with the white serif wordmark (Spa F1 photo spa_main_straight_moet_board_cars)
     liquimoly: { n: 'Liqui Moly', board: { bg: '#ffffff', tone: 'color' } },
     globant: { n: 'Globant', board: { bg: '#ffffff', tone: 'color' } },
     etihadairways: { n: 'Etihad Airways', board: { bg: '#f6f1e7', tone: 'color' } },
@@ -241,7 +241,7 @@
   // CASINO MONTE-CARLO sign boards on Casino Square, and the event's black MONACO banner boards at Mirabeau / Loews (red lettering)
   Object.assign(PARTNERS, {
     explorajourneys: { n: 'EXPLORA JOURNEYS', board: { bg: '#14284a', tone: 'white' }, word: W_('Georgia, "Times New Roman", serif', 400, { up: 1, col: '#ffffff', ls: 0.16 }) },
-    casinomontecarlo: { n: 'CASINO MONTE-CARLO', board: { bg: '#b3122e', tone: 'white' }, word: W_('Georgia, "Times New Roman", serif', 700, { up: 1, col: '#ffffff', ls: 0.06 }) },
+    casinomontecarlo: { n: 'CASINO', board: { bg: '#b3122e', tone: 'white' }, word: W_('Georgia, "Times New Roman", serif', 400, { up: 1, col: '#ffffff', ls: 0.1 }) },
     monacogp: { n: 'MONACO', board: { bg: '#121216', tone: 'color' }, word: W_(F1W, 900, { up: 1, col: '#e3242b', ls: 0.02 }) },
   });
   // id lookup by any spelling of the name ('Google (Gemini)', 'Mobil 1', 'TAG Heuer', 'MSC Cruises' ...)
@@ -490,10 +490,13 @@
       tiles: ['tagheuer', 'louisvuitton', 'L1', 'qatarairways', 'rolex', 'heineken', 'I5', 'aws'],
       barrier: ['tagheuer', 'L', 'louisvuitton', 'msccruises', 'I'], billboard: ['louisvuitton', 'L2', 'tagheuer', 'I3'],
       runoff: ['aramco', 'L', 'pirelli', 'I'], bridge: { lumi: 'L', intake: 'louisvuitton', lumi2: 'tagheuer', intake2: 'I' } },
+    // Yas Marina (ABUDHABI-UPGRADE, the 2016-2025 F1 photos): Etihad's black boards with white lettering dominate the walls, the stand fronts
+    // and the start gantry; MSC Cruises on the stand fascias, Pirelli, Rolex and DHL at the corners, CrowdStrike (2025); Lumi / Intake keep
+    // about one board in four. Heineken / AWS (not seen at Yas) dropped
     abudhabi: { title: 'etihadairways', event: 'Abu Dhabi Grand Prix', dark: true,
-      tiles: ['etihadairways', 'aramco', 'L1', 'dhl', 'heineken', 'aws', 'I7', 'pirelli'],
-      barrier: ['etihadairways', 'L', 'aramco', 'aws', 'I'], billboard: ['etihadairways', 'L2', 'aramco', 'I3'],
-      runoff: ['aramco', 'L', 'pirelli', 'I'], bridge: { lumi: 'L', intake: 'etihadairways', lumi2: 'aramco', intake2: 'I' } },
+      tiles: ['etihadairways', 'msccruises', 'L1', 'pirelli', 'etihadairways', 'crowdstrike', 'I7', 'rolex'],
+      barrier: ['etihadairways', 'L', 'msccruises', 'etihadairways', 'I'], billboard: ['etihadairways', 'L2', 'rolex', 'I3'],
+      runoff: ['etihadairways', 'L', 'pirelli', 'I'], bridge: { lumi: 'L', intake: 'etihadairways', lumi2: 'etihadairways', intake2: 'I' } },
   };
   // Monza: Pirelli is the Italian GP's title partner ("Formula 1 Pirelli Gran Premio d'Italia") and its boards/bridges dominate the venue
   // Monza's trackside partner boards are dark navy (2025 photos: crypto.com-style navy walls behind pale gravel) with white lettering
@@ -501,11 +504,13 @@
     tiles: ['pirelli', 'aramco', 'L0', 'heineken', 'dhl', 'msccruises', 'I4', 'qatarairways'],
     barrier: ['pirelli', 'L', 'aramco', 'dhl', 'I'], billboard: ['pirelli', 'L2', 'heineken', 'I3'],
     runoff: ['pirelli', 'L', 'aramco', 'I'], bridge: { lumi: 'L', intake: 'pirelli', lumi2: 'tagheuer', intake2: 'I' } };   // lumi2 = the green sign bridge after the Rettifilo (Rolex until 2024 -> TAG Heuer, F1's timekeeper since 2025)
-  // Spa: "Formula 1 MSC Cruises Belgian Grand Prix"; the venue boards of the circuit (ING, Allianz, Vodafone, Rolex) beside the F1 partners; Lumi / Intake about 1 board in 4
-  VENUES.spa = { title: 'msccruises', event: 'Belgian Grand Prix', dark: false,
-    tiles: ['msccruises', 'aramco', 'L0', 'ing', 'heineken', 'vodafone', 'I4', 'allianz'],
-    barrier: ['ing', 'allianz', 'L', 'rolex', 'dhl'], billboard: ['msccruises', 'L2', 'allianz', 'heineken'],
-    runoff: ['pirelli', 'L', 'aramco', 'I'], bridge: { lumi: 'L', intake: 'I', lumi2: 'tagheuer', intake2: 'msccruises' } };
+  // Spa (SPA-UPGRADE, the 35 F1 photos 2022-2025 in staging/spa_refs/photos): red Moet & Chandon walls and the start gantry on the pit straight (the event's
+  // title partner in the photos), Qatar Airways (La Source exit gantry, painted run-off, stand walls), Pirelli yellow walls, Globant at Eau Rouge, plus the
+  // F1 partners; Lumi / Intake keep about one board in four
+  VENUES.spa = { title: 'moetchandon', event: 'Belgian Grand Prix', dark: false,
+    tiles: ['moetchandon', 'qatarairways', 'L0', 'pirelli', 'heineken', 'aramco', 'I4', 'dhl'],
+    barrier: ['moetchandon', 'qatarairways', 'L', 'pirelli', 'globant', 'aramco', 'I', 'dhl'], billboard: ['moetchandon', 'L2', 'qatarairways', 'I3'],
+    runoff: ['qatarairways', 'L', 'pirelli', 'I'], bridge: { lumi: 'L', intake: 'I', lumi2: 'qatarairways', intake2: 'moetchandon' } };
   // Circuit of the Americas (COTA-DRESS): "Formula 1 MSC Cruises United States Grand Prix" (the 2025 title); the F1 global partners plus the US-market
   // ones seen at Austin (Crypto.com, Heineken 0.0, AWS, Lenovo, American Express); Lumi / Intake 2 of the 8 hoarding tiles, 1 wall panel in 5
   // COTA-UPGRADE (22 F1 photos, staging/cota_refs/photos): the boards actually seen at Austin are MSC Cruises (navy, the start gantry, the

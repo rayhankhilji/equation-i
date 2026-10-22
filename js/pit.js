@@ -291,7 +291,8 @@ window.EI = window.EI || {};
     const shell = new GB(), inner = new GB(), glow = new GB(), screens = new GB(true), signs = new GB(true);
     const concrete = col(0xd4d4d0), white = col(0xeceef1), dark = col(0x23262c), steel = col(0x9aa0a8), floorC = col(0xc9ccd2), glass = col(0x3e5a78), rubber = col(0x141416), black = col(0x0c0d10);
     // pit wall along the lane, from the limit line to past the exit line
-    for (let d = L.dA - 20; d < L.dB + 20; d += 4) { gb4(shell, frameAt(d + 2, STAND_O, 0), 4.02, 1.05, 0.35, concrete, 0.525); }
+    // (street circuit: grey concrete with a black partner board band on both faces, as the Monaco pit wall in the photos - MONACO-UPGRADE)
+    for (let d = L.dA - 20; d < L.dB + 20; d += 4) { const pf = frameAt(d + 2, STAND_O, 0); gb4(shell, pf, 4.02, 1.05, 0.35, street ? concrete.clone().multiplyScalar(0.62) : concrete, 0.525); if (street) gb4(shell, pf, 4.04, 0.62, 0.39, col(0x17181c), 0.56); }
     // street circuit: the entry and exit roads are walled off from the circuit along their track-side edge (concrete wall, white
     // and red chevron board where each road splits from the track)
     if (street) {

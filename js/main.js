@@ -69,8 +69,12 @@ window.EI = window.EI || {};
       // Yas Marina: the race starts at sunset - the sun low over the Gulf in the west-south-west, warm haze, long shadows
       // Yas Marina: a night race under floodlights (js/night.js: night sky, the light map, glows); the 'sun' is dim moonlight from
       // high up so the cars keep their contact shadows
-      abudhabi: { night: true, elev: 70, azim: 200, west: [-0.7, 0, 0.7], horizon: 0x1c150e, fog: [800, 3400], fogLow: [480, 1900], hemi: [0x2c3a5a, 0x221a12, 0.42], sun: [0xc8d2ff, 0.2], nightTrack: { core: 0.6, halo: 0.2 }, nightAir: [1.0, 0.84, 0.62, 0.05],
-        grade: { sat: 1.22, con: 1.12, warm: [1.02, 1.0, 0.985] } },
+      abudhabi: { night: true, elev: 70, azim: 200, west: [-0.7, 0, 0.7], horizon: 0x2a1f22, fog: [800, 3400], fogLow: [480, 1900], hemi: [0x3a4470, 0x2a1e14, 0.48], sun: [0xc8d2ff, 0.2], nightTrack: { core: 0.6, halo: 0.2 }, nightAir: [1.0, 0.84, 0.62, 0.05],
+        grade: { sat: 1.22, con: 1.12, warm: [1.02, 1.0, 0.985] },
+        // ABUDHABI-UPGRADE (the 2016-2025 race photos #023 / #028 / #032 / #040): the race starts at sunset - floodlit TWILIGHT, a burnt-orange
+        // band low in the west-south-west under a deep blue sky (js/env_abudhabi.js; true = its defaults, or an object of colour overrides), a
+        // dusk fog that melts the far island into the horizon, a violet-blue sky fill over a warm ground bounce
+        twilight: true },
       // Spa-Francorchamps (SPA-BEAUTY): race afternoon in the Ardennes, 19 Jul 2026 15:00 CEST - the sun ~57 deg up in the south-west
       // (52 here), veiled by a milky overcast: soft sun, a strong cool-grey sky fill (no shadow map on Low, so the fill carries the shape),
       // white-grey sky with pale blue gaps (veil) under heavy cumulus decks, a hazy rim and two layers of blue-grey wooded ridges
@@ -584,7 +588,10 @@ window.EI = window.EI || {};
     PIPE.mat.uniforms.uVig.value = (EI.look && EI.look.vignette != null) ? EI.look.vignette : 0.22; PIPE.mat.uniforms.uAsp.value = window.innerWidth / Math.max(1, window.innerHeight);
     PIPE.sc = st.sc; if (PIPE.rt && PIPE.w === w && PIPE.h === h && PIPE.msaa === st.msaa && PIPE.bloom === bloom) return;
     if (PIPE.rt) PIPE.rt.dispose();
-    const opts = { minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter, format: THREE.RGBAFormat, encoding: THREE.sRGBEncoding, depthBuffer: true, stencilBuffer: false };
+    // stencilBuffer: true is what buys a 24-bit depth buffer: three r128 gives a depth-only render target DEPTH_COMPONENT16, ~2 cm depth
+    // steps at 20 m and ~60 cm at 100 m with the 0.25 m near plane, so the far cars' panels / wheels / wings z-fought through each
+    // other ('broken, shattered' bots and replay shots); DEPTH24_STENCIL8 is 256x finer for +2 bytes a pixel
+    const opts = { minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter, format: THREE.RGBAFormat, encoding: THREE.sRGBEncoding, depthBuffer: true, stencilBuffer: true };
     PIPE.rt = st.msaa ? new THREE.WebGLMultisampleRenderTarget(w, h, opts) : new THREE.WebGLRenderTarget(w, h, opts);
     if (st.msaa) PIPE.rt.samples = PIPE.maxSamples;
     PIPE.rt.texture.encoding = THREE.sRGBEncoding; PIPE.rt.texture.generateMipmaps = bloom; if (bloom) PIPE.rt.texture.minFilter = THREE.LinearMipmapLinearFilter;

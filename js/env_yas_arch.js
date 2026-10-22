@@ -585,12 +585,14 @@ window.EI = window.EI || {};
   // ---------------------------------------------------------------- the white tube bridge over the pit straight (the start lights
   // hang from it), a glazed officials' pod on the pit side, the partners' panel facing the grid
   function bridge(E, B, R, Rr, out) {
-    // the start gantry (u4): a black box beam over the grid on black columns, a taller sign panel in the middle with our partners
-    // in white between chequered ends, a strip of LED downlights along its underside (the start lights hang below it, track.js)
+    // the start gantry (u4; ABUDHABI-UPGRADE after the 2024-25 photos #026 / #028: a WHITE portal frame - two legs and a top beam - round
+    // the black sign panels): the white box beam over the grid carrying the partners' sign, the taller black panel above it between the
+    // legs with the title partner in white between chequered ends, a strip of LED downlights along its underside (the start lights hang
+    // below it, track.js)
     const t = E.t; const f = lapFrame(t, t.sf + 6, 1); const night = isNight();
     const wl = t.wallL[f.i] + 2.5, wr = t.wallR[f.i] + 2.5; const y = f.y;
     const P = (lat, h, a) => [f.x + f.nx * lat + f.tx * (a || 0), y + h, f.z + f.nz * lat + f.tz * (a || 0)];
-    const black = C(0x15161a), trim = C(0x2c2f35);
+    const black = C(0x15161a), trim = C(0xb4b8be), frameW = C(0xeeeeeb);
     // an axis-aligned box in (lat, h, a): six faces wound outward (the world material is single sided)
     const boxL = (l0, l1, h0, h1, a0, a1, col, faces) => {
       const c = (l, h, a) => P(l, h, a); const mid = P((l0 + l1) / 2, (h0 + h1) / 2, (a0 + a1) / 2);
@@ -601,17 +603,19 @@ window.EI = window.EI || {};
         const nx = uy * vz - uz * vy, ny = uz * vx - ux * vz, nz = ux * vy - uy * vx; const ox = (A[0] + Cq[0]) / 2 - mid[0], oy = (A[1] + Cq[1]) / 2 - mid[1], oz = (A[2] + Cq[2]) / 2 - mid[2];
         if (nx * ox + ny * oy + nz * oz < 0) B.quad(A, D, Cq, Bq, col); else B.quad(A, Bq, Cq, D, col); }
     };
-    B.set('white', 0.55, 0.3); boxL(-wl - 0.6, wr + 0.6, 8.9, 10.9, -0.9, 0.9, black);
+    B.set('white', 0.5, 0.2); boxL(-wl - 0.6, wr + 0.6, 8.9, 10.9, -0.9, 0.9, frameW);
     // the sign on both faces of the beam (repeated) and of the raised panel
     const signQ = (l0, l1, h0, h1, a, rep, flip) => { const A = P(l0, h0, a), Bq = P(l1, h0, a), Cq = P(l1, h1, a), D = P(l0, h1, a); const uv = flip ? [rep, 0, 0, 0, 0, 1, rep, 1] : [0, 0, rep, 0, rep, 1, 0, 1];
       const ux = Bq[0] - A[0], uz = Bq[2] - A[2], vy = D[1] - A[1]; const nz = ux * vy, nx = -uz * vy; const fx = f.tx * a, fz = f.tz * a; if (nx * fx + nz * fz >= 0) B.quad(A, Bq, Cq, D, C(0xffffff), uv); else B.quad(A, D, Cq, Bq, C(0xffffff), [uv[0], uv[1], uv[6], uv[7], uv[4], uv[5], uv[2], uv[3]]); };
     B.set(Rr.sign, 0.5, 0.1, night ? 0.9 : 0.15); const span = wl + wr; const rep = Math.max(1, Math.round(span / 16));
     for (const a of [-0.92, 0.92]) signQ(-wl + 0.2, wr - 0.2, 9.15, 10.65, a, rep, a < 0);
     B.set('white', 0.55, 0.3); boxL(-9.5, 9.5, 10.9, 15.2, -0.55, 0.55, black, ['top', 'left', 'right', 'front', 'back']);
+    for (const [l0, l1] of [[-wl + 0.1, -9.5], [9.5, wr - 0.1]]) if (l1 - l0 > 0.5) boxL(l0, l1, 10.9, 15.2, -0.5, 0.5, black, ['front', 'back']);
+    B.set('white', 0.5, 0.2); boxL(-wl - 1.3, wr + 1.3, 15.2, 16.1, -0.75, 0.75, frameW);
     B.set(Rr.signP || Rr.sign, 0.5, 0.1, night ? 1.0 : 0.2); for (const a of [-0.57, 0.57]) signQ(-9.2, 9.2, 11.15, 14.95, a, 1, a < 0);
     // trim lines and columns
     B.set('white', 0.5, 0.4); for (const a of [-0.92, 0.92]) { boxL(-wl - 0.6, wr + 0.6, 10.9, 11.05, a - 0.04, a + 0.04, trim); boxL(-wl - 0.6, wr + 0.6, 8.75, 8.9, a - 0.04, a + 0.04, trim); }
-    for (const lat of [-wl - 0.6, wr + 0.6]) boxL(lat - 0.7, lat + 0.7, -0.5, 8.9, -0.7, 0.7, black, ['left', 'right', 'front', 'back']);
+    B.set('white', 0.5, 0.2); for (const lat of [-wl - 0.6, wr + 0.6]) boxL(lat - 0.7, lat + 0.7, -0.5, 15.2, -0.75, 0.75, frameW, ['left', 'right', 'front', 'back']);
     // LED downlights under the beam
     B.set('white', 0.3, 0, night ? 2.2 : 0.4); for (let lat = -wl + 1.5; lat < wr - 1; lat += 2.5) boxL(lat - 0.25, lat + 0.25, 8.8, 8.9, -0.2, 0.2, C(0xfff6e8), ['bot']);
     if (night) for (let lat = -wl + 3; lat < wr - 2; lat += 5) glow(P(lat, 8.6, 0), 1.4, [1, 0.96, 0.9]);

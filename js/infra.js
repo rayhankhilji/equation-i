@@ -278,7 +278,7 @@ window.EI = window.EI || {};
       }
     }
     const inst = new THREE.InstancedMesh(geo, stdMat({ roughness: 0.6, metalness: 0.0 }), spots.length);
-    const red = C(0xd0151c), white = C(0xeeeeea);
+    const TPC = t.data.tecProColors; const red = C(TPC ? TPC[0] : 0xd0151c), white = C(TPC ? TPC[1] : 0xeeeeea);   // data.tecProColors (Spa: red / yellow blocks, F1 photos)
     spots.forEach(([p, side, k], j) => { frame(_m, p.x, p.y + 0.01, p.z, side, p.tx, p.tz); inst.setMatrixAt(j, _m); inst.setColorAt(j, k % 2 ? white : red); });
     if (!spots.length) return; inst.instanceColor.needsUpdate = true; inst.castShadow = true; inst.receiveShadow = true;
     cx.add(inst, cx.tecZone ? 'tecPro' : 'tyreStacks'); cx.stats.tecPro = spots.length;

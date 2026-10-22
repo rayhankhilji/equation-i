@@ -138,7 +138,12 @@ window.EI = window.EI || {};
       // portal faces at both mouths: concrete frame, a dark band with the yellow-lit reveal
       if (k === 0 || k === nst) { const dir = k === 0 ? -1 : 1; const fx = t.tx[i] * dir * 0.05, fz = t.tz[i] * dir * 0.05; const m = EI.Env.frame(t.x[i] + fx, y, t.z[i] + fz, t.tx[i], t.tz[i], t.nx[i], t.nz[i]);
         SH.box(m, 0.6, Hc + 1.4, wl + 1.4 - (wl - 0.05), 0, 0, -(wl + 0.7), shellC); SH.box(m, 0.6, Hc + 1.4, 1.4, 0, 0, wr + 0.7, shellC); SH.box(m, 0.6, 1.4, wl + wr + 2.8, 0, Hc, (wr - wl) / 2, shellC);
-        SH.box(m, 0.62, 0.5, wl + wr, 0, Hc - 0.1, (wr - wl) / 2, C(0xd8a91c)); }
+        SH.box(m, 0.62, 0.5, wl + wr, 0, Hc - 0.1, (wr - wl) / 2, C(0xd8a91c));
+        // a partner board across the lintel's outer face (photo 034: the big board over the tunnel exit; MONACO-UPGRADE): tunnel board
+        // texture cell (row, half) = venue tile 7 (AWS) at the exit, 0 (TAG Heuer) at the entry, 6.9 x 0.92 m at the tile's 7.5:1 aspect, above the lit reveal band
+        { const tile = k === 0 ? 0 : 7, row = tile >> 1, half = tile & 1, Wb = 6.9, a = dir * 0.37, c0 = (wr - wl) / 2; const b0 = BP.length / 3;
+          for (const [zz, yy, uu, vv] of [[-Wb / 2, 0.42, 0, 0], [Wb / 2, 0.42, 1, 0], [Wb / 2, 1.34, 1, 1], [-Wb / 2, 1.34, 0, 1]]) { const l = c0 + zz * dir; BP.push(t.x[i] + t.tx[i] * a + t.nx[i] * l, y + Hc + yy, t.z[i] + t.tz[i] * a + t.nz[i] * l); BU.push(half * 0.5 + uu * 0.5, 1 - (row + 1 - vv) / 4); BC.push(1, 1, 1); }
+          BI.push(b0, b0 + 1, b0 + 2, b0, b0 + 2, b0 + 3); } }
     }
     const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(P, 3)); g.setAttribute('normal', new THREE.Float32BufferAttribute(N, 3)); g.setAttribute('color', new THREE.Float32BufferAttribute(Cc, 3)); g.setAttribute('uv', new THREE.Float32BufferAttribute(UV, 2)); g.setIndex(I); g.computeBoundingSphere();
     const vault = new THREE.Mesh(g, new THREE.MeshBasicMaterial({ map: tunnelTileTexture(), vertexColors: true, side: THREE.DoubleSide })); vault.name = 'tunnel'; sc.group.add(vault);

@@ -78,7 +78,10 @@ window.EI = window.EI || {};
 
   // lap time of the season's fastest car + driver at skill 100 (no form), headless sim on the circuit (qsim.js, solo flying laps):
   // the anchor that turns a real lap time into the game's scale. Re-measure with C_LIMIT.
-  const LIMIT_LAP = { silverstone: 80.75, monaco: 64.24, abudhabi: 79.26, monza: 76.65, spa: 94.24, cota: 87.88, mexico: 70.49 }, OFFICIAL_LOSS_DEFAULT = 0.08;
+  // (Silverstone / Monaco / Spa nudged by the Official-level fit against every driver's real quali lap, solo on softs, no form)
+  const LIMIT_LAP = { silverstone: 80.8, monaco: 64.17, abudhabi: 79.26, monza: 76.65, spa: 94.28, cota: 87.88, mexico: 70.49 }, OFFICIAL_LOSS_DEFAULT = 0.08;
+  // per-circuit slope of the realised driver gaps against the real quali gaps (same fit; 1 = no correction), applied at every level
+  const GAP_SLOPE = { silverstone: 0.971, monaco: 1.04, monza: 1.064, spa: 0.943 };
   // real 2026 pole lap of a circuit (s): EI.RACEPACE (real lap data) > EI.SEASON.tracks > the season's real grids (pole time)
   const GRID_NAME = { silverstone: /british/i, monaco: /monaco/i, abudhabi: /abu dhabi/i, monza: /italian/i, spa: /belgian/i, cota: /united states/i, mexico: /mexic/i };
   const parseLap = t => { if (typeof t === 'number') return t; const m = /^(?:(\d+):)?(\d+(?:\.\d+)?)$/.exec(String(t || '').trim()); return m ? (+(m[1] || 0)) * 60 + (+m[2]) : 0; };
@@ -225,9 +228,12 @@ window.EI = window.EI || {};
   // the car under this car's paint: an own team's car, or the real entry
   function ownCarGap(own, tid, kind) { return fastestCar(tid, kind) + pct(own.carQ) + pct(trackVal(own.track, tid)); }
   // one-lap gap (kind 'q') or driving pace (default: the mean of the one-lap and race-pace gaps, real data where it exists)
+  // RACE_BLEND = share of the race-pace gap in the driving pace (0 = every driver drives his real qualifying gap: the Official level
+  // then matches each driver's real best quali lap on softs; QA checks it driver by driver)
+  const RACE_BLEND = 0;
   function seasonGap(e, tid, own, kind) {
     const one = k => (own ? ownCarGap(own, tid, k) : carGap(e.rec.team, tid, k)) + driverDelta(e.rec, tid, k);
-    return kind === 'q' ? one('q') : 0.5 * (one('q') + one('r'));
+    return kind === 'q' || !RACE_BLEND ? one('q') : (1 - RACE_BLEND) * one('q') + RACE_BLEND * one('r');
   }
   // the season's fastest car + driver at this circuit runs on the limit at skill 100 and laps the real pole at 80
   const minGapCache = {};
@@ -447,7 +453,8 @@ window.EI = window.EI || {};
       // (both the same on every level: the level's earlier braking is in d.brake, so the style costs the same everywhere)
       P.brakeGain = L(7, 5, T.braking);                                       // late brakers stamp on the pedal, early ones squeeze it
       const kb = K_BRAKE[trackOf(this.track)]; const gs = GAP_STRETCH[trackOf(this.track)] || GAP_STRETCH_DEFAULT;
-      this.cornerScale = gripFor(this.track, (1 + gs * (this.lapRatio - 1)) * (1 + (kb != null ? kb : K_BRAKE_DEFAULT) * (T.braking - 0.5)) / (1 + calibration(this.track).chiSens * (this.chi || 0)), P.decel, DEC_REF);
+      const lr = (1 + d.lapLoss) * (1 + (GAP_SLOPE[trackOf(this.track)] || 1) * this.expGap);
+      this.cornerScale = gripFor(this.track, (1 + gs * (lr - 1)) * (1 + (kb != null ? kb : K_BRAKE_DEFAULT) * (T.braking - 0.5)) / (1 + calibration(this.track).chiSens * (this.chi || 0)), P.decel, DEC_REF);
       this.prof = profileFor(this.track, P.decel, this.cornerScale, this.chi);
       this.profDive = profileFor(this.track, Math.min(0.96, P.decel + L(0.0, 0.05, U.clamp((T.risk - 0.55) / 0.45, 0, 1))), this.cornerScale, this.chi);
       // consistency and composure: lap-to-lap drift (narrower on the higher levels), steering noise, mistake rate, pressure

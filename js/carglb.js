@@ -282,8 +282,8 @@ window.EI = window.EI || {};
     if (r > 150 && g > 40 && g < 140) return 'orange'; if (r > 150) return 'red'; return 'none';
   }
   // ---------------------------------------------------------------- projected decals
-  // The bodywork unwrap is uneven (the side islands are squashed 2.4x vertically, sheared, and fold over the sidepod and
-  // engine-cover tops), so drawing straight into UV space distorts lettering. Instead the decals are designed in orthographic
+  // The livery atlas (repacked by tools/carlods/uvpack.py: islands un-squashed, the bodywork at ~2 texels/cm at 1024, gutters role-
+  // filled; meta.roleAtlas) still folds over the sidepod and engine-cover tops, so drawing straight into UV space would distort lettering. Instead the decals are designed in orthographic
   // car views (side / top, in metres) and projected: a texel -> body-space position map is rasterised once per resolution from
   // the 'paint' meshes, and every painted texel samples the view canvas that faces it (with a mip chain, so the squashed side
   // islands do not alias). Car frame: x forward (front axle +1.75, rear -1.85), y up, z right.
@@ -296,7 +296,7 @@ window.EI = window.EI || {};
     cache.hi.updateMatrixWorld(true);
     cache.hi.traverse((o) => { if (PAINTED(o) && o.geometry && o.geometry.attributes.uv) meshes.push(o); });
     if (!meshes.length) return (posMaps[M] = null);
-    const pos = new Int16Array(M * M * 3), cls = new Uint8Array(M * M);
+    const pos = new Int16Array(M * M * 3), cls = new Uint8Array(M * M), alt = new Uint8Array(M * M), wal = new Uint8Array(M * M);
     const v = new THREE.Vector3(), nm = new THREE.Matrix3();
     for (const o of meshes) {
       const g = o.geometry, pa = g.attributes.position, na = g.attributes.normal, ua = g.attributes.uv, ix = g.index; const n = pa.count;
@@ -324,21 +324,28 @@ window.EI = window.EI || {};
           const az = Math.abs(nz), ay2 = Math.abs(ny), ax2 = Math.abs(nx);
           const pz = P[a * 3 + 2] * w0 + P[b * 3 + 2] * w1 + P[c * 3 + 2] * w2;
           cls[k] = (az >= ay2 * 0.9 && az >= ax2) ? (nz < 0 ? 1 : 2) : (ny > 0 && ay2 >= ax2) ? 3 : (pz < 0 ? 4 : 5);
+          // soft side / top split: near the class boundary (+-~17 degrees of normal tilt) the texel also takes the other view, weighted
+          // (wal / 255), so colour blocks that change between the side and the top design meet in a smooth blend, not a texel staircase
+          if (ny > 0) { const sv = Math.max(az / 0.9, ax2), tq = ay2 / (ay2 + sv + 1e-9), wt = Math.min(1, Math.max(0, (tq - 0.35) / 0.3)), wT = wt * wt * (3 - 2 * wt);
+            const side = az >= ax2 ? (nz < 0 ? 1 : 2) : (pz < 0 ? 4 : 5), wa = cls[k] === 3 ? 1 - wT : wT;
+            if (wa > 0.02) { alt[k] = cls[k] === 3 ? side : 3; wal[k] = Math.round(Math.min(0.5, wa) * 255); } else { alt[k] = 0; wal[k] = 0; } } else { alt[k] = 0; wal[k] = 0; }
         }
       }
     }
-    // dilate the map by two texels so island edges (where bilinear texture filtering reaches) carry positions too
-    for (let it = 0; it < 2; it++) {
+    // dilate the map so island edges carry positions too: bilinear filtering and the first mip levels reach a few texels past a seam,
+    // and with only the base colour there a decal crossing a seam (nose, engine cover) showed a thin line of it from mid range
+    // (the repacked atlas keeps >= 6 texels of gutter at 768, roles filled)
+    for (let it = 0, nIt = cache.meta && cache.meta.roleAtlas ? 4 : 2; it < nIt; it++) {
       const src = cls.slice();
       for (let y = 1; y < M - 1; y++) for (let x = 1; x < M - 1; x++) {
         const k = y * M + x; if (src[k]) continue;
         const nb = src[k - 1] ? k - 1 : src[k + 1] ? k + 1 : src[k - M] ? k - M : src[k + M] ? k + M : -1; if (nb < 0) continue;
-        cls[k] = src[nb]; pos[k * 3] = pos[nb * 3]; pos[k * 3 + 1] = pos[nb * 3 + 1]; pos[k * 3 + 2] = pos[nb * 3 + 2];
+        cls[k] = src[nb]; alt[k] = alt[nb]; wal[k] = wal[nb]; pos[k * 3] = pos[nb * 3]; pos[k * 3 + 1] = pos[nb * 3 + 1]; pos[k * 3 + 2] = pos[nb * 3 + 2];
       }
     }
     let n = 0; for (let k = 0; k < M * M; k++) if (cls[k]) n++;
     const idx = new Int32Array(n); n = 0; for (let k = 0; k < M * M; k++) if (cls[k]) idx[n++] = k;
-    return (posMaps[M] = { M, pos, cls, idx });
+    return (posMaps[M] = { M, pos, cls, alt, wal, idx });
   }
   // posMap cell index: the painted texels bucketed by body position (0.1 m cells), so a view whose content is small (a number, a
   // flag) only visits the texels near it. CSR arrays per map resolution, built on first use.
@@ -418,7 +425,7 @@ window.EI = window.EI || {};
       const fx = X - 0.5, fy = Y - 0.5; const ix = Math.floor(fx), iy = Math.floor(fy); const tx = fx - ix, ty = fy - iy; out[0] = out[1] = out[2] = out[3] = 0;
       for (let q = 0; q < 4; q++) { const xx = ix + (q & 1), yy = iy + (q >> 1); if (xx < 0 || yy < 0 || xx >= lv.w || yy >= lv.h) continue; const w = ((q & 1) ? tx : 1 - tx) * ((q >> 1) ? ty : 1 - ty); const o = (yy * lv.w + xx) * 4; const a = lv.d[o + 3] * w; if (!a) continue; out[0] += lv.d[o] * a; out[1] += lv.d[o + 1] * a; out[2] += lv.d[o + 2] * a; out[3] += a; }
     };
-    const quads = [[0, 0], [H2, 0], [0, H2]]; const imgs = [null, null, null], dirty = [false, false, false];
+    const quads = [[0, 0], [H2, 0], [0, H2], [H2, H2]]; const imgs = [null, null, null, null], dirty = [false, false, false, false];   // the repacked atlas (meta.roleAtlas) paints in all four quadrants
     const getQ = (q) => imgs[q] || (imgs[q] = ctx.getImageData(quads[q][0], quads[q][1], H2, H2));
     const R = Math.round(1 / sc);   // output texels per map texel (1, or 2 when composing 4096 from the 2048 map)
     const P3 = [0, 0, 0];
@@ -430,33 +437,43 @@ window.EI = window.EI || {};
           return; } }
       P3[0] = pos[k * 3] * inv; P3[1] = pos[k * 3 + 1] * inv; P3[2] = pos[k * 3 + 2] * inv;
     };
-    const idx = cand;
+    const idx = cand; const { alt, wal } = pm; const ACC = [0, 0, 0], ALT = [0, 0, 0];
+    // composite the views of one class over acc (premultiplied 'over', like the canvas): true when any of them painted
+    const over = (list, acc, x, y, z, r, kx, ky) => {
+      let hit = false;
+      for (const vw of list) {
+        if (!vw.bb || (vw.roles && !vw.roles[r]) || (vw.notRoles && vw.notRoles[r])) continue;
+        const XY = vw.map(x, y, z); const X = (XY[0] - vw.x0) * vw.ppm0, Y = (XY[1] - vw.y0) * vw.ppm0; if (X < vw.bb[0] || Y < vw.bb[1] || X > vw.bb[2] || Y > vw.bb[3]) continue;
+        const A = vw.map(pos[kx * 3] * inv, pos[kx * 3 + 1] * inv, pos[kx * 3 + 2] * inv), B = vw.map(pos[ky * 3] * inv, pos[ky * 3 + 1] * inv, pos[ky * 3 + 2] * inv);
+        const fp = Math.max(Math.abs(A[0] - XY[0]), Math.abs(A[1] - XY[1]), Math.abs(B[0] - XY[0]), Math.abs(B[1] - XY[1])) * vw.ppm0 * sc;
+        const L = fp > 1 ? Math.min(vw.lv.length - 1, Math.floor(Math.log2(fp) + 0.3)) : 0; const lv = vw.lv[L];
+        sample(lv, X * lv.w / vw.lv[0].w, Y * lv.h / vw.lv[0].h); const a = out[3] / 255; if (a <= 0.002) continue;
+        const ia = 1 - Math.min(1, a); acc[0] = out[0] / 255 + acc[0] * ia; acc[1] = out[1] / 255 + acc[1] * ia; acc[2] = out[2] / 255 + acc[2] * ia; hit = true;
+      }
+      return hit;
+    };
+    const inBox = (list, xc, yc, zc) => { for (const vw of list) { if (!vw.bb) continue; const XY = vw.map(xc, yc, zc); const X = (XY[0] - vw.x0) * vw.ppm0, Y = (XY[1] - vw.y0) * vw.ppm0; const m = 0.05 * vw.ppm0; if (X >= vw.bb[0] - m && X <= vw.bb[2] + m && Y >= vw.bb[1] - m && Y <= vw.bb[3] + m) return true; } return false; };
     for (let n = 0; n < idx.length; n++) {
       if ((n & 2047) === 2047) yield;
-      const k = idx[n]; const c = cls[k]; const vws = byCls[c]; if (!vws.length) continue;
+      const k = idx[n]; const c = cls[k]; const vws = byCls[c]; const wa = wal ? wal[k] / 255 : 0; const avs = wa > 0 ? byCls[alt[k]] : null;
+      if (!vws.length && !(avs && avs.length)) continue;
       const r = roleMap ? roleMap[k] : 1; if (roleMap && (r < 1 || r > PAINT_ROLES)) continue;
       const mi = k % M, mj = (k - mi) / M; if (mi < 1 || mj < 1 || mi >= M - 1 || mj >= M - 1) continue;
       // early reject against every view's content box using the texel centre
-      const xc = pos[k * 3] * inv, yc = pos[k * 3 + 1] * inv, zc = pos[k * 3 + 2] * inv; let any = false;
-      for (const vw of vws) { if (!vw.bb) continue; const XY = vw.map(xc, yc, zc); const X = (XY[0] - vw.x0) * vw.ppm0, Y = (XY[1] - vw.y0) * vw.ppm0; const m = 0.05 * vw.ppm0; if (X >= vw.bb[0] - m && X <= vw.bb[2] + m && Y >= vw.bb[1] - m && Y <= vw.bb[3] + m) { any = true; break; } }
-      if (!any) continue;
+      const xc = pos[k * 3] * inv, yc = pos[k * 3 + 1] * inv, zc = pos[k * 3 + 2] * inv;
+      if (!inBox(vws, xc, yc, zc) && !(avs && inBox(avs, xc, yc, zc))) continue;
       const kx = cls[k + 1] === c ? k + 1 : cls[k - 1] === c ? k - 1 : k, ky = cls[k + M] === c ? k + M : cls[k - M] === c ? k - M : k;
       for (let sy = 0; sy < R; sy++) for (let sx = 0; sx < R; sx++) {
-        const ox = mi * R + sx, oy = mj * R + sy; const q = oy < H2 ? (ox < H2 ? 0 : 1) : (ox < H2 ? 2 : -1); if (q < 0) continue;
+        const ox = mi * R + sx, oy = mj * R + sy; const q = oy < H2 ? (ox < H2 ? 0 : 1) : (ox < H2 ? 2 : 3);
         posAt((ox + 0.5) * sc - 0.5, (oy + 0.5) * sc - 0.5, c, k); const x = P3[0], y = P3[1], z = P3[2];
-        for (const vw of vws) {
-          if (!vw.bb || (vw.roles && !vw.roles[r]) || (vw.notRoles && vw.notRoles[r])) continue;
-          const XY = vw.map(x, y, z); const X = (XY[0] - vw.x0) * vw.ppm0, Y = (XY[1] - vw.y0) * vw.ppm0; if (X < vw.bb[0] || Y < vw.bb[1] || X > vw.bb[2] || Y > vw.bb[3]) continue;
-          const A = vw.map(pos[kx * 3] * inv, pos[kx * 3 + 1] * inv, pos[kx * 3 + 2] * inv), B = vw.map(pos[ky * 3] * inv, pos[ky * 3 + 1] * inv, pos[ky * 3 + 2] * inv);
-          const fp = Math.max(Math.abs(A[0] - XY[0]), Math.abs(A[1] - XY[1]), Math.abs(B[0] - XY[0]), Math.abs(B[1] - XY[1])) * vw.ppm0 * sc;
-          const L = fp > 1 ? Math.min(vw.lv.length - 1, Math.floor(Math.log2(fp) + 0.3)) : 0; const lv = vw.lv[L];
-          sample(lv, X * lv.w / vw.lv[0].w, Y * lv.h / vw.lv[0].h); const a = out[3] / 255; if (a <= 0.002) continue;
-          const img = getQ(q); const d = img.data; const o = ((oy - quads[q][1]) * H2 + (ox - quads[q][0])) * 4; const ia = 1 - Math.min(1, a);
-          d[o] = out[0] / 255 + d[o] * ia; d[o + 1] = out[1] / 255 + d[o + 1] * ia; d[o + 2] = out[2] / 255 + d[o + 2] * ia; dirty[q] = true;
-        }
+        const img = getQ(q); const d = img.data; const o = ((oy - quads[q][1]) * H2 + (ox - quads[q][0])) * 4;
+        ACC[0] = ALT[0] = d[o]; ACC[1] = ALT[1] = d[o + 1]; ACC[2] = ALT[2] = d[o + 2];
+        let hit = over(vws, ACC, x, y, z, r, kx, ky);
+        if (avs) { if (over(avs, ALT, x, y, z, r, kx, ky)) hit = true; for (let i = 0; i < 3; i++) ACC[i] += (ALT[i] - ACC[i]) * wa; }
+        if (hit) { d[o] = ACC[0]; d[o + 1] = ACC[1]; d[o + 2] = ACC[2]; dirty[q] = true; }
       }
     }
-    for (let q = 0; q < 3; q++) if (dirty[q]) { ctx.putImageData(imgs[q], quads[q][0], quads[q][1]); yield; }
+    for (let q = 0; q < 4; q++) if (dirty[q]) { ctx.putImageData(imgs[q], quads[q][0], quads[q][1]); yield; }
     for (const vw of views) vw.lv = null;
     return true;
   }
@@ -610,7 +627,9 @@ window.EI = window.EI || {};
     if (!roleMaps[base]) {
       const src = new Uint8ClampedArray(d); const rm = new Uint8Array(base * base);
       const fill = (x0, y0, w, h, table) => { for (let y = y0; y < y0 + h; y++) for (let x = x0; x < x0 + w; x++) { const i = y * base + x; const cls = classify(src[i * 4], src[i * 4 + 1], src[i * 4 + 2]); rm[i] = Math.max(0, ROLE_NAMES.indexOf((table && table[cls]) || 'none')); } };
-      for (const p of Object.keys(atlas)) { const [u0, v0, w, h] = atlas[p]; fill(Math.round(u0 * base), Math.round((1 - v0 - h) * base), Math.round(w * base), Math.round(h * base), PART_ROLES[p]); }
+      // role atlas (meta.roleAtlas, tools/carlods/uvpack.py): the red channel holds the role index (R >> 4), gutters included
+      if (meta.roleAtlas) { for (let i = 0, n = base * base; i < n; i++) { const r = src[i * 4]; rm[i] = r ? Math.min(ROLE_NAMES.length - 1, r >> 4) : 0; } }
+      else for (const p of Object.keys(atlas)) { const [u0, v0, w, h] = atlas[p]; fill(Math.round(u0 * base), Math.round((1 - v0 - h) * base), Math.round(w * base), Math.round(h * base), PART_ROLES[p]); }
       roleMaps[base] = rm;
     }
     const rm = roleMaps[base]; const pal = ROLE_NAMES.map(n => roles[n]);
@@ -1279,8 +1298,10 @@ window.EI = window.EI || {};
             'transformed = lodC + lodR * (transformed - lodC); if (lodB > 0.5) transformed = (uBody * vec4(transformed, 1.0)).xyz; transformed *= lodH;'].join('\n'));
       sh.fragmentShader = 'varying vec4 vLodk;\nvarying vec3 vHelmP;\nvarying vec2 vCov;\nuniform sampler2D uHelmet;\nuniform sampler2D uCover;\nuniform vec3 uAccent;\nuniform vec3 uTcam;\nuniform float uLed;\nuniform sampler2D uTyre;\n' + sh.fragmentShader
         .replace('#include <map_fragment>', [
-          'float lodS = vLodk.x; vec3 lodCol = vColor;',
-          'if (lodS > 0.5 && lodS < 1.5) lodCol = mapTexelToLinear(texture2D(map, vUv)).rgb;',
+          // the livery is fetched outside the branch: implicit derivatives (mip selection) are only defined in uniform control flow, and
+          // inside the branch the quads that straddle a part edge picked random mips (sparkling seams on the mid / far cars)
+          'float lodS = vLodk.x; vec3 lodCol = vColor; vec4 lodMap = texture2D(map, vUv);',
+          'if (lodS > 0.5 && lodS < 1.5) lodCol = mapTexelToLinear(lodMap).rgb;',
           'else if (lodS > 2.5 && lodS < 3.5) { vec2 hu = vec2(atan(vHelmP.z, vHelmP.x - 0.16) * 0.159155 + 0.5, clamp((vHelmP.y - 0.665) / 0.21, 0.0, 1.0)); lodCol = mapTexelToLinear(texture2D(uHelmet, hu)).rgb; }',
           'else if (lodS > 5.5) lodCol = mapTexelToLinear(texture2D(uCover, vCov)).rgb;',
           'else if (lodS > 4.5) lodCol = uTcam;',

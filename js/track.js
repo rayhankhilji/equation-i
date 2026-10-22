@@ -282,11 +282,12 @@ window.EI = window.EI || {};
   }
   function canvasTex(c, wrap) { const t = new THREE.CanvasTexture(c); if (wrap) t.wrapS = t.wrapT = THREE.RepeatWrapping; t.anisotropy = 8; return t; }
   // kerb: x = across (0 at the track edge), y = along; one tile = one red + one white block with slanted (sawtooth) joints
-  // style 'yas': Yas Marina's flat kerbs (a20-a23), a white band with inset orange-red blocks, one tile = one block + gap (7.2 m)
+  // style 'yas': Yas Marina's flat kerbs (F1 photos 2016-2025, #009 / #018 / #022 / #033): square-cut crimson / white blocks of equal
+  // length, one tile = one red + one white block (4 m)
   function kerbTexture(style) {
     const W = 256, H = 512; const c = document.createElement('canvas'); c.width = W; c.height = H; const ctx = c.getContext('2d');
     ctx.fillStyle = style === 'street' ? '#e4e0d8' : '#ece9e1'; ctx.fillRect(0, 0, W, H);
-    if (style === 'yas') { ctx.fillStyle = '#c8321f'; ctx.fillRect(W * 0.11, 0, W * 0.78, H * 0.62); }
+    if (style === 'yas') { ctx.fillStyle = '#bd1c26'; ctx.fillRect(0, 0, W, H / 2); ctx.fillStyle = 'rgba(70,10,12,0.28)'; ctx.fillRect(0, H / 2 - 3, W, 3); ctx.fillRect(0, H - 3, W, 3); }
     else if (style === 'monza') {   // 2024-25 Monza kerbs: flat painted blocks RED - WHITE - GREEN - WHITE, one tile = four ~3 m blocks (refs kerb_tricolore_2025)
       const slant = H * 0.02, B = H / 4; const blk = (k, col) => { const y0 = k * B; ctx.fillStyle = col; ctx.beginPath(); ctx.moveTo(0, y0 - slant); ctx.lineTo(W, y0 + slant); ctx.lineTo(W, y0 + B + slant); ctx.lineTo(0, y0 + B - slant); ctx.closePath(); ctx.fill(); };
       blk(-1, '#e6e4dc'); blk(0, '#c4202a'); blk(1, '#e6e4dc'); blk(2, '#13885a'); blk(3, '#e6e4dc'); blk(4, '#c4202a');
@@ -688,7 +689,7 @@ window.EI = window.EI || {};
       const aMesh = new THREE.Mesh(aGeo, aMat); aMesh.receiveShadow = true; aMesh.name = 'asphalt'; g.add(aMesh);
 
       // ------------------------------------------------ kerbs: bevelled profile (rise, top, fall), sawtooth red/white tiled by arc length
-      const KS = this.data.kerbStyle; const kerbTex = kerbTexture(this.data.street ? 'street' : KS); const kerbTile = KS === 'yas' ? 7.2 : KS === 'monza' ? 12 : KS === 'spa' || KS === 'cota' ? 3.0 : 2.4;
+      const KS = this.data.kerbStyle; const kerbTex = kerbTexture(this.data.street ? 'street' : KS); const kerbTile = KS === 'yas' ? 4.0 : KS === 'monza' ? 12 : KS === 'spa' || KS === 'cota' ? 3.0 : 2.4;
       const kerbMat = new THREE.MeshStandardMaterial({ map: kerbTex, vertexColors: true, roughness: 0.48, metalness: 0, normalMap: T.runoff.normalMap, normalScale: new THREE.Vector2(0.25, 0.25) });
       const ramp = new Float32Array(n); { const a = new Float32Array(n), b = new Float32Array(n);
         for (let k = 0; k < 2 * n; k++) { const i = k % n, p = (i + n - 1) % n; a[i] = kerbMask(p) ? a[p] + 1 : 0; }
@@ -761,10 +762,10 @@ window.EI = window.EI || {};
     // vTrk3.z distance from the edge where the turquoise strip by the wall starts): the apron between runs dark grey
     if (vTrk3.x > 0.001) {
       float rE = rAl - eiHW; vec3 rDark = rBase * 0.66;
-      // the corners' kerb pattern (kerbTexture 'yas'): white band, inset orange-red blocks 4.5 m long every 7.2 m
+      // the corners' kerb pattern (kerbTexture 'yas'): crimson / white blocks 2 m long
       float rwIn = smoothstep(0.15 - rAA, 0.15 + rAA, rE) * (1.0 - smoothstep(1.75 - rAA, 1.75 + rAA, rE));
-      float rRed = smoothstep(0.33 - rAA, 0.33 + rAA, rE) * (1.0 - smoothstep(1.57 - rAA, 1.57 + rAA, rE)) * step(fract(rS / 7.2), 0.62);
-      vec3 rRW = mix(vec3(0.74, 0.74, 0.72), vec3(0.58, 0.032, 0.014), rRed) * (0.88 + 0.2 * rM1.g);
+      float rRed = rwIn * step(fract(rS / 4.0), 0.5);
+      vec3 rRW = mix(vec3(0.74, 0.74, 0.72), vec3(0.5, 0.012, 0.02), rRed) * (0.88 + 0.2 * rM1.g);
       vec3 rSC = mix(rDark, rRW, rwIn);
       float brIn = smoothstep(2.15 - rAA, 2.15 + rAA, rE) * (1.0 - smoothstep(3.65 - rAA, 3.65 + rAA, rE)) * vTrk3.y;
       float rTx = texture2D(eiBrand, vec2(rS / 13.3 * vTrk3.w, clamp((rE - 2.15) / 1.5, 0.0, 1.0))).r * brIn;
@@ -776,6 +777,15 @@ window.EI = window.EI || {};
 ` : '';
       let runFrag = RC ? RUNOFF_FRAG.replace('vec3(0.13, 0.235, 0.105)', v3(lin(RC[2] || RC[0]))).replace('    rCol = mix(rCol, rCol * 0.45, rTyre', RC_STRIPES + '    rCol = mix(rCol, rCol * 0.45, rTyre') : RUNOFF_FRAG;
       if (this.data.runoffGreen && !RC) runFrag = runFrag.replace('vec3(0.13, 0.235, 0.105)', v3(lin(this.data.runoffGreen)));   // the painted green band behind the kerbs (Monza: bright grass green)
+      // data.runoffRY [band m, colour A, colour B, period m] (Spa 2022+, F1 photos spa_kerb_*): a flat A / B block band painted right behind the kerb, the rest of
+      // the strip keeps runoffGreen; data.runoffBands (Spa): run-off pattern 2 paints bands PARALLEL to the edge (A | white | B | white ...), not cross stripes
+      const RY = !RC && this.data.runoffRY; const RYK = RY ? '-ry' + RY.join('') + (this.data.runoffBands || '') : '';
+      if (RY) runFrag = runFrag.replace('    rCol = mix(rCol, rGreenC * (1.0 - 0.25 * rWear), rGreen);\n', `    rCol = mix(rCol, rGreenC * (1.0 - 0.25 * rWear), rGreen);
+    float ryIn = rGreen * (1.0 - smoothstep(eiHW + eiKW + ${RY[0].toFixed(2)} - rAA, eiHW + eiKW + ${RY[0].toFixed(2)} + rAA, rAl));
+    vec3 ryC = mix(${v3(lin(RY[1]))}, ${v3(lin(RY[2]))}, step(0.5, fract(rS / ${RY[3].toFixed(2)}))) * (0.88 + 0.2 * rM1.g);
+    rCol = mix(rCol, mix(ryC, rBase * 1.05, clamp(rWear * 0.5, 0.0, 0.6)), ryIn);
+`);
+      if (RY && this.data.runoffBands) runFrag = runFrag.replace('else { P = 12.0; q = rS / P; }', 'else { P = ' + (2 * this.data.runoffBands).toFixed(2) + '; q = (rAl - aw0) / P; }');
       // data.runoffFlag (COTA, photos kerb_stars_banner / mclaren_stands_flag / aerial_tower): two more run-off patterns, bands parallel to the
       // track edge with five-point stars: 4 = stars and stripes (white | B | white | B with white stars | white | A with B / white stars | white,
       // ~9.9 m, then plain asphalt), 5 = a solid A apron with a starred B band (Turn 1). One SDF per fragment, painted rows only.
@@ -803,7 +813,7 @@ window.EI = window.EI || {};
 `);
       const FLAGK = FLAG ? '-flag' + (this.data.runoffGreen || '') : '';
       const aw0 = hw + kw + 2.0;
-      const rMat = shaderMat({ map: T.runoff.map, normalMap: T.runoff.normalMap, normalScale: new THREE.Vector2(0.7, 0.7), roughnessMap: T.runoff.roughnessMap, roughness: 1, metalness: 0, polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 2, ...(this.data.runoffTint ? { color: new THREE.Color().fromArray(this.data.runoffTint) } : {}) }, 'runoff' + (RC ? '-' + RC.join('') + '-sp' : '') + FLAGK, RC ? Object.assign({}, common, { eiBrand: { value: brandStripTexture() } }) : common, RC ? VARY_RUN_RC : VARY_RUN, runFrag, RC ? RUNOFF_ROUGH + '    roughnessFactor = mix(roughnessFactor, 0.9, rTq);\n' : RUNOFF_ROUGH, FLATTEN);
+      const rMat = shaderMat({ map: T.runoff.map, normalMap: T.runoff.normalMap, normalScale: new THREE.Vector2(0.7, 0.7), roughnessMap: T.runoff.roughnessMap, roughness: 1, metalness: 0, polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 2, ...(this.data.runoffTint ? { color: new THREE.Color().fromArray(this.data.runoffTint) } : {}) }, 'runoff' + (RC ? '-' + RC.join('') + '-sp' : '') + FLAGK + RYK, RC ? Object.assign({}, common, { eiBrand: { value: brandStripTexture() } }) : common, RC ? VARY_RUN_RC : VARY_RUN, runFrag, RC ? RUNOFF_ROUGH + '    roughnessFactor = mix(roughnessFactor, 0.9, rTq);\n' : RUNOFF_ROUGH, FLATTEN);
       const gMat = shaderMat({ map: T.gravel.map, normalMap: T.gravel.normalMap, normalScale: new THREE.Vector2(1.25, 1.25), roughnessMap: T.gravel.roughnessMap, roughness: 1, metalness: 0, color: new THREE.Color(GT.x, GT.y, GT.z), polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 3 }, 'gravel', common, VARY4, GRAVEL_FRAG, GRAVEL_ROUGH, '', GRAVEL_NORMAL);
       this.surfMats = { runoff: rMat, gravel: gMat };
       for (const side of [-1, 1]) {
@@ -1294,7 +1304,7 @@ window.EI = window.EI || {};
       // data.street.sleeves (Monaco): the event's own sleeve designs, one per cover design index - 'id' (both halves) or 'idA/idB', 'L' / 'I' =
       // Lumi / Intake; partners on their real board colours (TAG Heuer, F1, Louis Vuitton, Qatar Airways, AWS, Heineken ... as in the photos)
       const SLD = this.data.street && this.data.street.sleeves;
-      if (SLD && BA && BA.length >= 5 && EI.Ads.partnerBoard) { const pnt = (id) => id === 'L' ? BA[1] : id === 'I' ? BA[4] : (x, w, h) => EI.Ads.partnerBoard(x, id, w, h, { lh: 0.6, repeat: 1 }); SLA = SLD.map((d) => { const [a, b] = d.split('/'); return [pnt(a), pnt(b || a)]; }); while (SLV.length < SLA.length) SLV.push(['#141416', '']); }
+      if (SLD && BA && BA.length >= 5 && EI.Ads.partnerBoard) { const BD = EI.Ads.barrierArt({ dark: true }) || BA; const pnt = (id) => id === 'L' ? BD[1] : id === 'I' ? BD[4] : (x, w, h) => EI.Ads.partnerBoard(x, id, w, h, { lh: 0.6, repeat: 1 }); SLA = SLD.map((d) => { const [a, b] = d.split('/'); return [pnt(a), pnt(b || a)]; }); while (SLV.length < SLA.length) SLV.push(['#141416', '']); }
       const sleeves = SLV.map(([bg, txt], k) => AT.region('armSleeve' + k, 512, 64, (x, w, h) => { x.fillStyle = bg; x.fillRect(0, 0, w, h);
         if (SLA) for (let j = 0; j < 2; j++) { x.save(); x.beginPath(); x.rect(j * w / 2, 0, w / 2, h); x.clip(); x.translate(j * w / 2, 0); const vw = h * 4.55; x.scale((w / 2) / vw, 1); SLA[k][j](x, vw, h); x.restore(); }
         x.fillStyle = 'rgba(255,255,255,0.10)'; x.fillRect(0, 2, w, 2); x.fillStyle = 'rgba(0,0,0,0.22)'; x.fillRect(0, h - 4, w, 4);
@@ -1535,13 +1545,13 @@ window.EI = window.EI || {};
       for (let c = 0; c < 5; c++) for (let rr = 0; rr < 2; rr++) { const hood = solid(new THREE.CylinderGeometry(0.34, 0.34, 0.12, 14), 'hood'); hood.rotation.z = Math.PI / 2; hood.position.set(-0.3, 6.55 - rr * 0.65, (c - 2) * 1.15); gantry.add(hood); }
       // the lamps change colour at the start: kept as separate meshes (not merged)
       this.startLights = []; const offMat = new THREE.MeshBasicMaterial({ color: 0x2a0b0b });
-      if (this.data.street) {
-        // street circuit: the ten lamps are one instanced draw (per-lamp colour)
-        const im = new THREE.InstancedMesh(new THREE.SphereGeometry(0.28, 10, 8), new THREE.MeshBasicMaterial({ color: 0xffffff }), 10); im.name = 'startLamp'; const mm = new THREE.Matrix4(), cc = new THREE.Color(0x2a0b0b);
+      // every circuit: the ten lamps are one instanced draw (per-lamp colour; PERF-2: was 10 draws off the street circuits)
+      {
+        const lg = new THREE.SphereGeometry(0.28, 10, 8); lg.boundingSphere = new THREE.Sphere(new THREE.Vector3(-0.25, 6.2, 0), 3.0);   // covers all ten lamps (culling)
+        const im = new THREE.InstancedMesh(lg, new THREE.MeshBasicMaterial({ color: 0xffffff }), 10); im.name = 'startLamp'; const mm = new THREE.Matrix4(), cc = new THREE.Color(0x2a0b0b);
         for (let c = 0; c < 5; c++) for (let rr = 0; rr < 2; rr++) { mm.makeTranslation(-0.25, 6.55 - rr * 0.65, (c - 2) * 1.15); im.setMatrixAt(c * 2 + rr, mm); im.setColorAt(c * 2 + rr, cc); }
         gantry.add(im); this.startInst = im;
-      } else
-      for (let c = 0; c < 5; c++) { const col = []; for (let rr = 0; rr < 2; rr++) { const lamp = new THREE.Mesh(new THREE.SphereGeometry(0.28, 10, 8), offMat.clone()); lamp.position.set(-0.25, 6.55 - rr * 0.65, (c - 2) * 1.15); lamp.name = 'startLamp'; gantry.add(lamp); col.push(lamp); } this.startLights.push(col); }
+      }
       gantry.position.set(this.x[i0], this.y[i0], this.z[i0]); gantry.rotation.y = -this.heading[i0]; gantry.name = 'startGantry'; g.add(gantry);
       // boards face oncoming cars (toed 15 degrees towards the track); dist = lateral distance of the board centre
       const addBoard = (s, side, key, w, h, y, dist) => {

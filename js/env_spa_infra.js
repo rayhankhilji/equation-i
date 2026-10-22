@@ -36,7 +36,7 @@
     const A0 = Sp.at(t, s, pside, dP), A1 = Sp.at(t, s, -pside, dO); const ty = A0.y;
     const ux = A1.x - A0.x, uz = A1.z - A0.z, span = Math.hypot(ux, uz), ax = ux / span, az = uz / span; const tx = A0.tx, tz = A0.tz;
     const W = (u, y, v) => [A0.x + ax * u + tx * v, ty + y, A0.z + az * u + tz * v];
-    const white = C(0xf2f3f3), grey = C(0x8c9399), I = I4(); const yD = 8.9, dep = 2.2, hw = 0.8;
+    const white = C(0x5b6066), grey = C(0x8c9399), I = I4();   // (SPA-UPGRADE: graphite truss - the 2022+ gantry is a red title-partner box, spa_main_straight_moet_board_cars) const yD = 8.9, dep = 2.2, hw = 0.8;
     // legs: twin lattice columns per side down to the drawn ground
     for (const [u, sg] of [[-0.45, -1], [span + 0.6, 1]]) {
       const g = sc.height(...[W(u, 0, 0)[0], W(u, 0, 0)[2]]) - ty - 0.3;
@@ -51,7 +51,8 @@
     for (const v of [-hw, hw]) for (let k = 0; k < nb; k++) { const u = ua + k * bl; Fd.beam(I, W(u, yD, v), W(u, yD + dep, v), 0.1, white); Fd.beam(I, W(u, yD, v), W(u + bl, yD + dep, v), 0.08, white); }
     K.dq(B, W(ua, yD - 0.05, -hw), W(ub, yD - 0.05, -hw), W(ub, yD - 0.05, hw), W(ua, yD - 0.05, hw), C(0xd9dcde));
     // partner panels on both faces (EI.Ads start banner)
-    const r = A.region('spGantryBanner', 1024, 96, (x2, w, h) => { if (EI.Ads && EI.Ads.paintBanner) EI.Ads.paintBanner(x2, w, h, (ub - ua - 1) / (dep - 0.5)); else Mz.paintText(x2, w, h, 'SPA-FRANCORCHAMPS', { bg: '#ffffff', fg: '#111' }); });
+    // the faces carry the event title partner's board (VENUES.spa.bridge.intake2 = Moet & Chandon: red, white serif wordmark), as in the photos
+    const r = A.region('spGantryBanner', 1024, 96, (x2, w, h) => { if (EI.Ads && EI.Ads.paintBridge) EI.Ads.paintBridge(x2, 'intake2', w, h, (ub - ua - 1) / (dep - 0.5)); else if (EI.Ads && EI.Ads.paintBanner) EI.Ads.paintBanner(x2, w, h, (ub - ua - 1) / (dep - 0.5)); else Mz.paintText(x2, w, h, 'SPA-FRANCORCHAMPS', { bg: '#ffffff', fg: '#111' }); });
     for (const v of [-hw - 0.05, hw + 0.05]) { const a = W(ua + 0.5, yD + 0.25, v), b = W(ub - 0.5, yD + 0.25, v), c = W(ub - 0.5, yD + dep - 0.25, v), d = W(ua + 0.5, yD + dep - 0.25, v); const want = [tx * Math.sign(v), 0, tz * Math.sign(v)];
       // read left -> right from the side it faces
       Sp.faceA(A, r, a, b, c, d, want); }

@@ -9,17 +9,25 @@
   const T = EI.TRACKS && EI.TRACKS.spa; if (!T) return;
   const F = T.furniture = Object.assign({}, T.furniture || {});
 
-  // ---- kerbs: red / white everywhere, red / yellow on the Raidillon crest and exit and through Blanchimont (photos raidillon_*, blanchimont_*)
-  T.kerbAlt = [[1040, 1255, 'ry'], [5640, 6130, 'ry']];
+  // ---- kerbs: RED / YELLOW all round the lap since the 2022 rebuild (SPA-UPGRADE: the 35 F1 photos 2022-2025, staging/spa_refs/photos/spa_kerb_*,
+  // spa_aerial_*, spa_eau_rouge_aerial_*: every kerb is red / yellow; the red / white kerbs of the older refs are pre-2022)
+  T.kerbAlt = [[0, 6990, 'ry']];
   // sausage kerbs (yellow / black): La Source apex, Les Combes exit, the Fagnes chicane, the Bus Stop
   T.sausageCorners = ['La Source', 'Les Combes', 'Fagnes', 'Bus Stop'];
 
   // ---- painted run-off (the 2022+ state, photos): bright green strip behind every kerb (the strip at Eau Rouge / Bus Stop), yellow with dark red bands on the
   // Raidillon apron (La Source stays plain tarmac: its yellow/red photo is of an unverified spot), teal with an orange-red edge band at Blanchimont, green paint at the Bus Stop. [corner name, pattern, colour A, colour B]
   T.runoffGreen = '#2a6a36';
+  // 2022+ (F1 photos spa_kerb_car_grass_runoff / spa_kerb_aerial_crowd / spa_valley_hillside_view): a flat red / yellow block band ~1 m wide right behind
+  // every kerb [band m, red, yellow, period m] (track.js data.runoffRY), and the big asphalt aprons at Eau Rouge / Raidillon painted in wide red and yellow
+  // bands PARALLEL to the edge with white borders (data.runoffBands = band width m; spa_aerial_valley_grandstand, spa_eau_rouge_aerial_crowd_trees);
+  // Blanchimont green then red (spa_kerb_green_redrunoff), the Bus Stop green
+  T.runoffRY = [1.0, '#c4161e', '#f0c010', 3.0];
+  T.runoffBands = 3.2;
   T.runoffSchemes = [
-    ['Raidillon', 2, '#d2a626', '#8c231b'],
-    ['Blanchimont', 0, '#227a72', '#8e3f24'],
+    ['Eau Rouge', 2, '#c41c24', '#e9b818'],
+    ['Raidillon', 2, '#c41c24', '#e9b818'],
+    ['Blanchimont', 0, '#2f7a3a', '#b42228'],
     ['Bus Stop', 3, '#2a6a36', '#2a6a36'],
   ];
   T.gravelTint = [1.6, 1.5, 1.32];   // pale grey-beige Spa gravel
@@ -64,12 +72,16 @@
   T.logoSpots = [['La Source', 0, 34], ['Bus Stop', 1, 30]];
 
   // ---- barriers: red / white cushion blocks (TecPro) on the outsides at Eau Rouge, Pouhon and the Bus Stop, tyre walls at the other heavy stops (grey Armco elsewhere)
-  T.tecProCorners = ['Eau Rouge', 'Pouhon', 'Bus Stop'];
+  T.tecProCorners = ['Eau Rouge', 'Raidillon', 'Pouhon', 'Bus Stop'];
+  T.tecProColors = [0xd0151c, 0xf0c000];   // red / yellow blocks (F1 photos spa_eau_rouge_aerial_crowd_trees, spa_valley_hillside_view), not red / white
   T.tyreCorners = ['La Source', 'Eau Rouge', 'Raidillon', 'Les Combes', 'Bruxelles', 'Pouhon', 'Stavelot', 'Blanchimont', 'Bus Stop'];
 
   // ---- the catch fence: dark-green welded mesh on dark-green posts, 3.6 m (kept on Low: it is in every photo); the debris fence along the pit wall is low
   T.fence = Object.assign({}, T.fence || {}, {
     h: 3.6, op: 0.72, mesh: 'rgba(3,22,10,1)', postColor: 0x16281d, posts: 6, low: true,
+    // ground: where the drawn ground behind the barrier lies below the road (La Source exit, Les Combes run-off, the Bus Stop / pit-entry fill) the
+    // net and its posts stand on it (track.js fence.ground, as COTA) instead of hanging up to 4 m over the slope (SPA-UPGRADE fit audit: 12 posts floated)
+    ground: true,
     runs: [
       [6577, 445, -1, 2.4],      // pit wall: low debris fence along the pit lane
     ],

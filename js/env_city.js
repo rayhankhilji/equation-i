@@ -998,7 +998,7 @@ window.EI = window.EI || {};
     // the pink / peach blocks at Portier and the ochre-pink row of the Quai Antoine Ier above Rascasse
     const mc = T.data.id === 'monaco' && pa.dist < 90 && (style === 'riviera' || style === 'belle' || style === 'villa');
     const pinkP = mc && pa.s > 1330 && pa.s < 1470, pinkR = mc && pa.s > 2770 && pa.s < 2960;
-    const tint = albert ? C(pick([0xead3a2, 0xe5cb96, 0xefdcb4, 0xe2c48f, 0xf1e2c0], h2)) : pinkP ? C(pick([0xebbaa6, 0xf0c6b2, 0xe6ab96, 0xf2d2c0], h2)) : pinkR ? C(pick([0xe6a88e, 0xe3b480, 0xeec29c, 0xdc9c84, 0xe8b896], h2)) : soften(C(pick(TINTS[style] || TINTS.plain, h2)), 0.3), acc = C(pick(ACCS[style] || ACCS.plain, h5));
+    const tint = albert ? soften(C(pick([0xead3a2, 0xefdcb4, 0xf1e2c0, 0xf0d2bc, 0xe9c4a8, 0xf3ece0, 0xe5cb96, 0xeccab4], h2)), 0.18) : pinkP ? C(pick([0xebbaa6, 0xf0c6b2, 0xe6ab96, 0xf2d2c0], h2)) : pinkR ? C(pick([0xe6a88e, 0xe3b480, 0xeec29c, 0xdc9c84, 0xe8b896], h2)) : soften(C(pick(TINTS[style] || TINTS.plain, h2)), 0.3), acc = C(pick(ACCS[style] || ACCS.plain, h5));
     let roof = S.roof; if (b.roof === 1) roof = 'flat'; else if (b.roof === 2) roof = 'hip'; if (roof === 'mansard' && (area < 160 || nf < 3)) roof = 'flat'; if (roof === 'hip' && area > (zone === 'rocher' ? 2600 : 900)) roof = 'flat'; if (zone === 'rocher' && roof === 'flat' && area < 2600 && b.roof !== 1 && h6 < 0.8) roof = 'hip'; if (style === 'villa' && h3 < 0.35 && area > 200) roof = 'flat';
     if (style === 'riviera' && nf <= 4 && area < 500 && h6 < 0.35) roof = 'hip';
     const roofTint = roof === 'flat' ? C(pick(FLATT, h3)) : roof === 'mansard' ? C(0x8e969c) : soften(C(pick(ROOFT, h3)), 0.22);
