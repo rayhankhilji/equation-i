@@ -295,9 +295,9 @@ window.EI = window.EI || {};
     // street circuit: the entry and exit roads are walled off from the circuit along their track-side edge (concrete wall, white
     // and red chevron board where each road splits from the track)
     if (street) {
-      const ext = V.laneExt; const pp = {}, pr = {}; let walls = 0;
+      const ext = V.laneExt; const pp = {}, pr = {}; let walls = 0; const wallBoard = col(0x17181c);
       for (const [d0, d1, nose] of [[L.dRoad0 + 4, L.dA - 20, L.dRoad0 + 4], [L.dB + 20, L.dRoad1 - 4, L.dRoad1 - 4]]) {
-        for (let d = d0; d < d1; d += 3) { const o = ext(d + 1.5)[0] - 0.35; pathAt(d + 1.5, pp); track.project(pp.x + pp.gx * o, pp.z + pp.gz * o, null, pr); if (pr.dist < track.halfWidth + 1.4) continue; gb4(shell, frameAt(d + 1.5, o, 0), 3.02, 0.95, 0.4, concrete, 0.475); walls++; }
+        for (let d = d0; d < d1; d += 3) { const o = ext(d + 1.5)[0] - 0.35; pathAt(d + 1.5, pp); track.project(pp.x + pp.gx * o, pp.z + pp.gz * o, null, pr); if (pr.dist < track.halfWidth + 1.4) continue; const wf = frameAt(d + 1.5, o, 0); gb4(shell, wf, 3.02, 0.95, 0.4, concrete.clone().multiplyScalar(0.62), 0.475); gb4(shell, wf, 3.04, 0.62, 0.44, wallBoard, 0.5); walls++; }   // (MONACO-UPGRADE: grey concrete under a black partner board both sides, as the photos' walls, not a white slab)
         const o = ext(nose)[0] - 0.4; const f = frameAt(nose, o, 0); for (let k = 0; k < 4; k++) shell.add('box', lm(f, 0, 0.35 + k * 0.32, 0, 0.3, 0.3, 0.9), k & 1 ? col(0xf2f2f2) : col(0xc8102e));
       }
       L.entryWalls = walls;
