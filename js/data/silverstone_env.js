@@ -4,6 +4,8 @@
 window.EI = window.EI || {};
 EI.ENVDATA = EI.ENVDATA || {};
 EI.ENVDATA.silverstone = {
+  // grass tones (SILVERSTONE-UPGRADE): a touch drier / less blue-green than the shared palette - the 2024-26 photos show olive, half-dry summer grass
+  pal: { mowA: [54, 56, 38], mowB: [61, 62, 44], venue: [58, 58, 39], venueDry: [86, 78, 56] },
   // extra woodland blocks around the estate (OSM woods are used as well)
   woods: [
     [[-1350, -120], [-1180, -170], [-1060, -90], [-1040, 120], [-1090, 330], [-1180, 460], [-1330, 420], [-1390, 200]],   // west, beyond the car parks

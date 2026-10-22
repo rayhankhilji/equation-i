@@ -55,6 +55,14 @@
     ],
   });
 
+  // ---- MONZA-UPGRADE (WAVE 9, F1 photos staging/monza_refs): surfaces after the 2024 resurfacing - near-black charcoal asphalt (a linear
+  // colour on the asphalt material, js/env_monza_up.js), a darker pit lane, and the striped tricolore kerbs at the two first chicanes
+  // (track.js kerbGW stretches drawn from the 'monzastripe' tile: bands along the lap, pale-blue line at the edge; photos
+  // ferrari_chicane_striped_kerb, williams_striped_kerb_spray, redbull_kerb_redwhite). The other corners keep the R-W-G-W blocks.
+  T.asphaltTint = [0.62, 0.63, 0.66];
+  T.pitColor = 0x7a7976;
+  T.kerbGW = [[570, 705], [1795, 1910]];
+
   // ---- crowd and flags per stand (key = stand name as env_monza_stands labels it): fill = seat occupancy, red = share of red shirts,
   // flags = metres per flag pole, banners = chance of a tifosi banner per block
   T.dress = {

@@ -201,7 +201,7 @@ window.EI = window.EI || {};
     const x0 = F.x0, x1 = F.x1, half = F.half;
     const lane = (x) => { const a = P(x, 0, zG), b = P(x, 0, zG - 1); return [b[0] - a[0], 0, b[2] - a[2]]; };   // world direction towards the track
     const back = (x) => { const v = lane(x); return [-v[0], 0, -v[2]]; };
-    const rib = [C(0x9ca1a5), C(0x777d83)], ribM = C(0x8d9297), conc = C(0xc3c6c6), concD = C(0xa4a8a9), white = C(0xe4e6e5), offW = C(0xd3d6d7);   // greys read lighter under the Spa grade (BEAUTY): kept a step darker than the photo
+    const rib = [C(0x9ca1a5), C(0x777d83)], ribM = C(0x8d9297), conc = C(0x9ea3a6), concD = C(0x878c90), white = C(0xcdd0d1), offW = C(0xa9aeb2);   // (SPA-UPGRADE: a step darker again - the piers / header read as the only white slabs on the lap; refs spa_aerial_valley_grandstand: a grey-graphite building)   // greys read lighter under the Spa grade (BEAUTY): kept a step darker than the photo
     const glass = C(0x26323d), glassL = C(0x3e5263), mull = C(0xcfd3d6), steel = C(0x9aa0a6), brick = C(0x8f3a26), brickD = C(0x74301f), door = C(0xc9761a), roofC = C(0x8f9397), red = C(0xc8102e);
     const yH0 = 4.8, yH1 = 6.0, yB0 = 6.45, yB1 = 6.8, yL2 = 9.9, yS1 = 10.9, yT = 13.3, yR = 13.8;   // header, balcony slab, level 2 slab, spandrel top, roof
     const zBal = zG - 1.8, zGal = zG + 1.4, zL2 = zG - 0.3;
@@ -225,8 +225,8 @@ window.EI = window.EI || {};
           if (rc) { Sp.face(B, P(sa, 0, zG + 0.45), P(sb, 0, zG + 0.45), P(sb, yH0, zG + 0.45), P(sa, yH0, zG + 0.45), brickD, LN); const dm = (sa + sb) / 2; Sp.face(Fd, P(dm - 0.7, 0, zG + 0.43), P(dm + 0.7, 0, zG + 0.43), P(dm + 0.7, 2.4, zG + 0.43), P(dm - 0.7, 2.4, zG + 0.43), door, LN); Sp.face(G, P(sa + 0.3, 2.9, zG + 0.43), P(sb - 0.3, 2.9, zG + 0.43), P(sb - 0.3, 4.2, zG + 0.43), P(sa + 0.3, 4.2, zG + 0.43), glassL, LN); continue; }
           Sp.faceA(A, shR, P(sa, 0.02, zG + 0.4), P(sb, 0.02, zG + 0.4), P(sb, 4.5, zG + 0.4), P(sa, 4.5, zG + 0.4), LN); shutters++;
           // white number board with black numerals over the shutter
-          const n = String(gno++).padStart(2, '0'); const xm = (sa + sb) / 2, dw = 0.42, yb = yH0 + 0.2, dh = 0.7, zd = zG - 0.03;
-          Sp.face(B, P(xm - 1.0, yb - 0.05, zd + 0.01), P(xm + 1.0, yb - 0.05, zd + 0.01), P(xm + 1.0, yb + dh + 0.05, zd + 0.01), P(xm - 1.0, yb + dh + 0.05, zd + 0.01), white, LN);
+          const n = String(gno++).padStart(2, '0'); const xm = (sa + sb) / 2, dw = 0.3, yb = yH0 + 0.25, dh = 0.5, zd = zG - 0.03;
+          Sp.face(B, P(xm - 0.72, yb - 0.05, zd + 0.01), P(xm + 0.72, yb - 0.05, zd + 0.01), P(xm + 0.72, yb + dh + 0.05, zd + 0.01), P(xm - 0.72, yb + dh + 0.05, zd + 0.01), white, LN);
           for (let j = 0; j < 2; j++) { const d = +n[j]; const u0 = d / 10 + 0.004, u1 = (d + 1) / 10 - 0.004;
             // u runs left -> right as seen from the lane (F.dv = the lap direction of the viewer's left -> right)
             const lft = xm - F.dv * dw + j * F.dv * dw, rgt = lft + F.dv * dw; Sp.faceA(A, digR, P(lft, yb, zd - 0.01), P(rgt, yb, zd - 0.01), P(rgt, yb + dh, zd - 0.01), P(lft, yb + dh, zd - 0.01), LN, u0, u1, 0, 1); }

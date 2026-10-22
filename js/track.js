@@ -288,6 +288,11 @@ window.EI = window.EI || {};
     const W = 256, H = 512; const c = document.createElement('canvas'); c.width = W; c.height = H; const ctx = c.getContext('2d');
     ctx.fillStyle = style === 'street' ? '#e4e0d8' : '#ece9e1'; ctx.fillRect(0, 0, W, H);
     if (style === 'yas') { ctx.fillStyle = '#bd1c26'; ctx.fillRect(0, 0, W, H / 2); ctx.fillStyle = 'rgba(70,10,12,0.28)'; ctx.fillRect(0, H / 2 - 3, W, 3); ctx.fillRect(0, H - 3, W, 3); }
+    else if (style === 'monzastripe') {   // MONZA-UPGRADE: the 2024 chicane kerbs (F1 photos ferrari_chicane_striped_kerb, williams_striped_kerb_spray): bands ALONG the lap, a pale-blue line at the track edge, then white / green / white / red ... (x = across)
+      const bands = ['#e8e6de', '#13885a', '#e8e6de', '#c4202a', '#e8e6de', '#13885a', '#e8e6de', '#c4202a', '#e8e6de']; const x0 = W * 0.07, bw = (W - x0) / bands.length;
+      ctx.fillStyle = '#6fb0dc'; ctx.fillRect(0, 0, x0, H); bands.forEach((c, k) => { ctx.fillStyle = c; ctx.fillRect(x0 + k * bw, 0, bw + 1, H); });
+      ctx.fillStyle = 'rgba(40,40,40,0.18)'; for (let y = 0; y < H; y += H / 4) ctx.fillRect(0, y, W, 2);   // the joints between the 3 m precast kerb elements
+    }
     else if (style === 'monza') {   // 2024-25 Monza kerbs: flat painted blocks RED - WHITE - GREEN - WHITE, one tile = four ~3 m blocks (refs kerb_tricolore_2025)
       const slant = H * 0.02, B = H / 4; const blk = (k, col) => { const y0 = k * B; ctx.fillStyle = col; ctx.beginPath(); ctx.moveTo(0, y0 - slant); ctx.lineTo(W, y0 + slant); ctx.lineTo(W, y0 + B + slant); ctx.lineTo(0, y0 + B - slant); ctx.closePath(); ctx.fill(); };
       blk(-1, '#e6e4dc'); blk(0, '#c4202a'); blk(1, '#e6e4dc'); blk(2, '#13885a'); blk(3, '#e6e4dc'); blk(4, '#c4202a');
@@ -722,7 +727,7 @@ window.EI = window.EI || {};
         }
       }
       if (gwGeos.length) {
-        const gwMat = kerbMat.clone(); gwMat.map = kerbTexture('greenwhite');
+        const gwMat = kerbMat.clone(); gwMat.map = kerbTexture(KS === 'monza' ? 'monzastripe' : 'greenwhite');   // (Monza: the striped chicane kerbs on the kerbGW stretches)
         const gm = new THREE.Mesh(U.mergeGeometries(gwGeos.map(geo => ({ geo, matrix: new THREE.Matrix4() }))), gwMat); gm.receiveShadow = true; gm.name = 'kerb'; g.add(gm);
       }
       this.buildSausages(g);
