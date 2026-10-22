@@ -32,7 +32,7 @@ window.EI = window.EI || {};
   L.build = function (E) {
     const SK = EI.StreetKit; if (!SK || !SK.world) return;
     E.stats.mlm = {}; L.debug = {};
-    const lap = (k, f) => { const t0 = performance.now(); try { f(); } catch (e) { console.error('EnvMonacoLandmarks ' + k, e); } E.stats.mlm['ms_' + k] = Math.round(performance.now() - t0); };
+    const lap = (k, f) => { const t0 = performance.now(); try { f(); } catch (e) { console.error('EnvMonacoLandmarks ' + k, e); E.stats.mlm['err_' + k] = String(e); } E.stats.mlm['ms_' + k] = Math.round(performance.now() - t0); };
     lap('harbour', () => L.outerHarbour(E)); lap('pool', () => L.pool(E)); lap('rocher', () => L.rocher(E));
   };
 
