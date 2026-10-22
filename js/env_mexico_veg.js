@@ -116,8 +116,8 @@ window.EI = window.EI || {};
   const APAL = {
     broad: { dark: [20, 28, 16], mid: [48, 62, 32], light: [88, 100, 54], glow: [128, 136, 82], leaf: 5, density: 0.07, holes: 5 },
     broad2: { dark: [24, 30, 18], mid: [56, 66, 36], light: [98, 106, 62], glow: [140, 144, 94], leaf: 4.8, density: 0.065, holes: 7 },
-    euc: { dark: [30, 38, 33], mid: [70, 84, 70], light: [118, 132, 110], glow: [164, 174, 148], leaf: 3.4, density: 0.075, holes: 16 },
-    euc2: { dark: [34, 40, 32], mid: [78, 88, 66], light: [128, 138, 106], glow: [172, 178, 142], leaf: 3.4, density: 0.07, holes: 18 },
+    euc: { dark: [22, 32, 24], mid: [52, 70, 52], light: [92, 112, 82], glow: [134, 150, 106], leaf: 3.6, density: 0.095, holes: 11 },
+    euc2: { dark: [26, 34, 25], mid: [58, 74, 52], light: [100, 118, 82], glow: [142, 154, 106], leaf: 3.6, density: 0.09, holes: 12 },
     cas: { dark: [16, 25, 18], mid: [38, 54, 38], light: [70, 86, 60], glow: [104, 118, 86], leaf: 2.6, density: 0.15, holes: 14 },
     cas2: { dark: [18, 26, 18], mid: [42, 58, 38], light: [76, 90, 62], glow: [110, 122, 88], leaf: 2.6, density: 0.14, holes: 16 },
     hedge: { dark: [20, 28, 16], mid: [46, 60, 32], light: [84, 98, 54], glow: [124, 134, 80], leaf: 4.6, density: 0.08 },

@@ -141,8 +141,6 @@
 		uniform float mieDirectionalG;
 		uniform vec3 up;
 
-		const vec3 cameraPos = vec3( 0.0, 0.0, 0.0 );
-
 		// constants for atmospheric scattering
 		const float pi = 3.141592653589793238462643383279502884197169;
 
@@ -172,7 +170,10 @@
 
 		void main() {
 
-			vec3 direction = normalize( vWorldPosition - cameraPos );
+			// Equation I: the view direction from the EYE (three's cameraPosition), not from the world origin. The sky is infinitely far:
+			// the box follows the camera (main.js) and is only ~0.55 x far across, so measured from the origin the sun, the horizon and
+			// every layer painted on it swung round as the car drove away from the circuit's middle. Same cost (one vec3 subtract).
+			vec3 direction = normalize( vWorldPosition - cameraPosition );
 
 			// optical length
 			// cutoff angle at 90 to avoid singularity in next formula.

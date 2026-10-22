@@ -98,7 +98,7 @@
       const k = pos - 1; Mx.faceA(A, digR, P(xm - xs * 0.5, yD + 0.08, zF + 2.29), P(xm + xs * 0.5, yD + 0.08, zF + 2.29), P(xm + xs * 0.5, yD + h - 0.08, zF + 2.29), P(xm - xs * 0.5, yD + h - 0.08, zF + 2.29), fwd, k / 3 + 0.02, (k + 1) / 3 - 0.02, 0, 1); }
     // the backdrop wall (atlas), its steel frame
     const bw = 13, bh = 6.4, zB = zF + 5.4;
-    const bR = A.region('mxPodWall', 512, 256, (x2, w, h) => {
+    const bR = A.region('mxPodWall', 448, 224, (x2, w, h) => {
       const g = x2.createLinearGradient(0, 0, 0, h); g.addColorStop(0, '#123f27'); g.addColorStop(1, '#1f7a4a'); x2.fillStyle = g; x2.fillRect(0, 0, w, h);
       // papel picado along the top, a marigold border along the foot
       const pc = ['#e8820c', '#c2326e', '#2a8fd6', '#ffd23f', '#3fae5a', '#e04848', '#9a4fd0', '#f2f2f2']; for (let k = 0; k < 14; k++) { x2.fillStyle = pc[k % 8]; const x = k * w / 14; x2.beginPath(); x2.moveTo(x + 2, 6); x2.lineTo(x + w / 14 - 2, 6); x2.lineTo(x + w / 14 - 2, 40); x2.lineTo(x + w / 28, 48); x2.lineTo(x + 2, 40); x2.fill(); x2.fillStyle = 'rgba(27,21,48,0.6)'; x2.beginPath(); x2.arc(x + w / 28, 24, 6, 0, 7); x2.fill(); }
@@ -111,8 +111,8 @@
     Mx.faceA(A, bR, P(-xs * bw / 2, yD, zB), P(xs * bw / 2, yD, zB), P(xs * bw / 2, yD + bh, zB), P(-xs * bw / 2, yD + bh, zB), fwd);
     B.box(m, bw + 0.6, yD + bh + 0.4, 0.5, 0, -0.3, zB + 0.3, C(0x15171a));
     // two flanking LED screens on truss legs, the big TV screen above the backdrop (atlas: the broadcast picture), the truss canopy
-    const scrR = A.region('mxPodScreen', 384, 216, (x2, w, h) => { x2.fillStyle = '#0b0c0f'; x2.fillRect(0, 0, w, h); const g = x2.createLinearGradient(0, 0, w, h); g.addColorStop(0, '#2a3f5f'); g.addColorStop(0.55, '#5b7da6'); g.addColorStop(1, '#c9a35a'); x2.fillStyle = g; x2.fillRect(10, 10, w - 20, h - 20);
-      x2.fillStyle = 'rgba(20,20,24,0.85)'; x2.fillRect(10, h - 50, w - 20, 40); x2.fillStyle = '#e10600'; x2.fillRect(10, h - 50, 8, 40); x2.fillStyle = '#ffffff'; x2.font = '800 21px Arial'; x2.textAlign = 'left'; x2.textBaseline = 'middle'; x2.fillText('PODIO  ·  GP DE LA CIUDAD DE MÉXICO', 28, h - 30);
+    const scrR = A.region('mxPodScreen', 320, 180, (x2, w, h) => { x2.fillStyle = '#0b0c0f'; x2.fillRect(0, 0, w, h); const g = x2.createLinearGradient(0, 0, w, h); g.addColorStop(0, '#2a3f5f'); g.addColorStop(0.55, '#5b7da6'); g.addColorStop(1, '#c9a35a'); x2.fillStyle = g; x2.fillRect(10, 10, w - 20, h - 20);
+      x2.fillStyle = 'rgba(20,20,24,0.85)'; x2.fillRect(10, h - 50, w - 20, 40); x2.fillStyle = '#e10600'; x2.fillRect(10, h - 50, 8, 40); x2.fillStyle = '#ffffff'; x2.font = '800 17px Arial'; x2.textAlign = 'left'; x2.textBaseline = 'middle'; x2.fillText('PODIO  ·  GP DE LA CIUDAD DE MÉXICO', 28, h - 30);
       x2.fillStyle = '#e8820c'; x2.beginPath(); x2.moveTo(w * 0.2, h * 0.7); for (let k = 0; k <= 12; k++) x2.lineTo(w * (0.2 + k * 0.05), h * (0.62 - 0.18 * Math.sin(k * 0.6))); x2.lineTo(w * 0.8, h * 0.7); x2.fill(); });
     for (const sx of [-1, 1]) { const xc = sx * 11.8; const y0 = yD + 1.4, sw = 8, sh = 4.5;
       for (const dx of [-3.6, 3.6]) S.beam(I4(), P(xc + dx, -0.3, zF + 3.6), P(xc + dx, y0 + sh + 0.6, zF + 3.6), 0.35, truss);
@@ -204,7 +204,7 @@
       for (let y = g + 1; y < yT - 1; y += 1.3) Fd.beam(I, W(u - 0.5, y, v - 0.5), W(u + 0.5, y + 1.3, v - 0.5), 0.05, grey);
       const sw = 1.9, sh = 3.6, yS = yT - 0.2; B.box(Env.frame(...W(u, yS, v - 0.2), ax, az, tx, tz), sw + 0.3, sh + 0.3, 0.5, 0, 0, 0, C(0x1b1d22));
       B.box(Env.frame(...W(u, yS + sh + 0.3, v - 0.2), ax, az, tx, tz), sw + 0.5, 0.4, 0.7, 0, 0, 0, C(0x2a2d33));
-      const sr = A.region('mxTiming', 96, 192, (x2, w, h) => { x2.fillStyle = '#0b0c0e'; x2.fillRect(0, 0, w, h); x2.font = '700 18px Arial'; x2.textAlign = 'left'; ['1 VER', '2 NOR', '3 LEC', '4 RUS', '5 HAM', '6 PIA', '7 ANT', '8 PER'].forEach((q, k) => { x2.fillStyle = k ? '#e8e8e8' : '#ffd200'; x2.fillText(q, 8, 22 + k * 21); }); });
+      const sr = A.region('mxTiming', 64, 128, (x2, w, h) => { x2.fillStyle = '#0b0c0e'; x2.fillRect(0, 0, w, h); x2.font = '700 12px Arial'; x2.textAlign = 'left'; ['1 VER', '2 NOR', '3 LEC', '4 RUS', '5 HAM', '6 PIA', '7 ANT', '8 PER'].forEach((q, k) => { x2.fillStyle = k ? '#e8e8e8' : '#ffd200'; x2.fillText(q, 5, 15 + k * 14); }); });
       const vv = v - 0.48; Mx.faceA(A, sr, W(u - sw / 2, yS + 0.15, vv), W(u + sw / 2, yS + 0.15, vv), W(u + sw / 2, yS + 0.15 + sh, vv), W(u - sw / 2, yS + 0.15 + sh, vv), [-tx, 0, -tz]); }
     return { s: +s.toFixed(1), span: +span.toFixed(1) };
   }

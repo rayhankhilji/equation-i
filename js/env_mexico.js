@@ -221,7 +221,7 @@ window.EI = window.EI || {};
     region(name, w, h, paint) {
       if (this.R[name]) return this.R[name];
       let best = null; for (const s of this.shelves) if (s.h >= h && s.x + w <= 2048 && (!best || s.h < best.h)) best = s;
-      if (best && best.h > h * 1.7 && this.yTop + h <= 1024) best = null;
+      if (best && best.h > h * 2.5 && this.yTop + h <= 900) best = null;
       if (!best) { if (this.yTop + h > 1024) { this.full++; console.warn('EnvMexico atlas full', name); best = { y: 0, h, x: 0 }; } else { best = { y: this.yTop, h, x: 0 }; this.shelves.push(best); this.yTop += h + 2; } }
       const r = { x: best.x, y: best.y, w, h }; best.x += w + 2;
       this.cx.save(); this.cx.translate(r.x, r.y); this.cx.beginPath(); this.cx.rect(0, 0, w, h); this.cx.clip(); try { paint(this.cx, w, h); } catch (e) { console.error('EnvMexico atlas paint ' + name, e); } this.cx.restore();
@@ -265,8 +265,8 @@ window.EI = window.EI || {};
     const yH0 = 4.8, yH1 = 6.0, yB0 = 6.45, yB1 = 6.8, yL2 = 9.9, yS1 = 10.7, yT = 14.0, yR = 14.4, yR1 = 15.0;
     const zBal = zG - 1.8, zGal = zG + 1.4, zL2 = zG - 0.3, lean = 0.7, zR0 = zG - 7.2;
     const inRC = (x) => x > F.rc0 - 0.01 && x < F.rc1 + 0.01;
-    const shR = A.region('mxShutter', 96, 128, (x2, w, h) => { x2.fillStyle = '#6b7075'; x2.fillRect(0, 0, w, h); for (let y = 0; y < h; y += 4) { x2.fillStyle = 'rgba(255,255,255,0.12)'; x2.fillRect(0, y, w, 1); x2.fillStyle = 'rgba(0,0,0,0.2)'; x2.fillRect(0, y + 2, w, 1); } x2.fillStyle = 'rgba(0,0,0,0.3)'; x2.fillRect(0, h - 6, w, 6); });
-    const digR = A.region('mxDigits', 640, 96, (x2, w, h) => { x2.fillStyle = '#e4e5e6'; x2.fillRect(0, 0, w, h); x2.fillStyle = '#111111'; x2.font = '700 80px Arial, sans-serif'; x2.textAlign = 'center'; x2.textBaseline = 'middle'; for (let k = 0; k < 10; k++) x2.fillText(String(k), k * 64 + 32, h * 0.54); });
+    const shR = A.region('mxShutter', 64, 96, (x2, w, h) => { x2.fillStyle = '#6b7075'; x2.fillRect(0, 0, w, h); for (let y = 0; y < h; y += 4) { x2.fillStyle = 'rgba(255,255,255,0.12)'; x2.fillRect(0, y, w, 1); x2.fillStyle = 'rgba(0,0,0,0.2)'; x2.fillRect(0, y + 2, w, 1); } x2.fillStyle = 'rgba(0,0,0,0.3)'; x2.fillRect(0, h - 6, w, 6); });
+    const digR = A.region('mxDigits', 480, 64, (x2, w, h) => { x2.fillStyle = '#e4e5e6'; x2.fillRect(0, 0, w, h); x2.fillStyle = '#111111'; x2.font = '700 54px Arial, sans-serif'; x2.textAlign = 'center'; x2.textBaseline = 'middle'; for (let k = 0; k < 10; k++) x2.fillText(String(k), k * 48 + 24, h * 0.54); });
     const nameR = A.region('mxPitName', 1024, 64, (x2, w, h) => Mx.paintBand(x2, w, h, 'AUTÓDROMO HERMANOS RODRÍGUEZ'));
     const bays = []; for (let x = x0; x < x1 - 0.01; x += 9) bays.push([x, Math.min(x1, x + 9)]);
     let shutters = 0, gno = 1;

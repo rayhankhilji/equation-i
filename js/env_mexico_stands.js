@@ -229,9 +229,9 @@
   St.rowsOf = function (R) {
     const out = [];
     if (R.kind === 'foroSol') {
-      const L = FS.low; for (let r = 0; r < L.rows; r++) out.push({ z: L.z0 + r * L.tread, y: L.y0 + (r + 1) * L.rise, tr: L.tread, fill: 0.8, sh: 0.96, pitch: 0.66 });
+      const L = FS.low; for (let r = 0; r < L.rows; r++) out.push({ z: L.z0 + r * L.tread, y: L.y0 + (r + 1) * L.rise, tr: L.tread, fill: 0.84, sh: 0.96, pitch: 0.66 });
       const up = FS.up, yU = FS.low.y0 + FS.low.rows * FS.low.rise + FS.aisleRise; const zr = R.upZ0 + R.upRows * up.tread * 0.14;
-      for (let r = 0; r < R.upRows; r++) { const z = R.upZ0 + r * up.tread; out.push({ z, y: yU + (r + 1) * up.rise, tr: up.tread, fill: 0.6, sh: z > zr ? 0.72 : 0.95, pitch: 0.72 }); }
+      for (let r = 0; r < R.upRows; r++) { const z = R.upZ0 + r * up.tread; out.push({ z, y: yU + (r + 1) * up.rise, tr: up.tread, fill: 0.64, sh: z > zr ? 0.72 : 0.95, pitch: 0.72 }); }
     } else if (R.kind === 'main') {
       for (let r = 0; r < MG.rows; r++) out.push({ z: MG.z0 + r * MG.tread, y: MG.wallH + (r + 1) * MG.rise, tr: MG.tread, fill: 0.5, sh: r < 2 ? 0.9 : 0.72, pitch: 0.7 });
     } else if (R.kind === 'harp') {
@@ -290,6 +290,10 @@
     res.tempRuns = (E.mxRuns || []).map(r => r.R.label + ':' + r.blocks.length + '@' + r.R.gap).join(' '); res.tempSkirts = skirts;
   };
 
+  // the crowd mass under the fan sprites: each tread segment (station gap x row) gets a muted mixed-clothing tone (dark / white / orange /
+  // red / green / blue), so the gaps between the sprites read as a packed stand from any distance instead of bare concrete (0 cost)
+  const MASS = [0x4d4a47, 0x5b5652, 0x6e6a66, 0x8d8a86, 0xa9a6a1, 0x9a6a46, 0xa45a2e, 0x7a3a34, 0x3f5a46, 0x40506a, 0x5e5a50, 0x7d7368].map(h => C(h));
+  St.massC = (i, r, k) => { const h = Math.abs(Math.sin(i * 12.9898 + r * 78.233 + (k || 0) * 3.17) * 43758.5453) % 1; const c = MASS[Math.floor(h * MASS.length)].clone(); return c.multiplyScalar(0.88 + (h * 7.3 % 1) * 0.2); };
   // ---------------------------------------------------------------- generic loft helpers
   // quad between station i and i+1 for the cross-section segment (za, ya) -> (zb, yb), wound to face `want(i)`
   const loftQ = (Bd, R, i, za, ya, zb, yb, col, want) => { const a = R.st[i], b = R.st[i + 1]; Mx.face(Bd, SP(R, a, za, ya), SP(R, b, za, ya), SP(R, b, zb, yb), SP(R, a, zb, yb), col, want); };
@@ -322,12 +326,12 @@
       loftQ(B, R, i, 0, ga, 0, FS.wallH, concD, F); loftQ(B, R, i, 0, FS.wallH, L.z0, FS.wallH, concL, UP);
       St.stripQ(A, R, i, -0.03, 0.2, FS.wallH - 0.15, ledR[(i + R.half * 2) % ledR.length], F, 8.0);
       // the lower block: risers + grey treads
-      for (let r = 0; r < L.rows; r++) { const z = L.z0 + r * L.tread, y = L.y0 + r * L.rise; loftQ(B, R, i, z, y, z, y + L.rise, conc, F); loftQ(B, R, i, z, y + L.rise, z + L.tread, y + L.rise, treadC[r % 2], UP); }
+      for (let r = 0; r < L.rows; r++) { const z = L.z0 + r * L.tread, y = L.y0 + r * L.rise; loftQ(B, R, i, z, y, z, y + L.rise, conc, F); loftQ(B, R, i, z, y + L.rise, z + L.tread, y + L.rise, St.massC(i, r, R.half), UP); }
       // the cross-aisle (walkway) and the wall behind it: concrete with the dark vomitory openings at the odd stations, a cafe-brown band
       loftQ(B, R, i, zL, yL, zU0, yL, concL, UP); loftQ(B, R, i, zU0, yL, zU0, yU0, i % 2 ? dark : conc, F);
       if (i % 2 === 0) loftQ(B, R, i, zU0 - 0.02, yU0 - 0.32, zU0 - 0.02, yU0 - 0.05, cafe, F);
       // the upper block, the top GNP rows a cooler grey-blue at the riser edge
-      for (let r = 0; r < R.upRows; r++) { const z = zU0 + r * up.tread, y = yU0 + r * up.rise; loftQ(B, R, i, z, y, z, y + up.rise, r >= R.upRows - 4 ? C(0x8f949a) : conc, F); loftQ(B, R, i, z, y + up.rise, z + up.tread, y + up.rise, treadC[r % 2], UP); }
+      for (let r = 0; r < R.upRows; r++) { const z = zU0 + r * up.tread, y = yU0 + r * up.rise; loftQ(B, R, i, z, y, z, y + up.rise, r >= R.upRows - 4 ? C(0x8f949a) : conc, F); loftQ(B, R, i, z, y + up.rise, z + up.tread, y + up.rise, r >= R.upRows - 2 ? treadC[r % 2] : St.massC(i, r + 40, R.half), UP); }
       // the top: rear parapet, cap, the outer facade (atlas bays + pilasters) down to the drawn ground
       loftQ(B, R, i, zUB, yUT, zUB, yPar, concD, F); loftQ(B, R, i, zUB, yPar, zBk, yPar, concL, UP);
       { const a = st[i], b = st[i + 1]; const fA = SP(R, a, zBk, 0), fB = SP(R, b, zBk, 0); const yb0 = R.y + gb, yb1 = R.y + yFac; Mx.faceA(A, St.facadeR(A, i), [fA[0], yb0, fA[2]], [fB[0], yb0, fB[2]], [fB[0], yb1, fB[2]], [fA[0], yb1, fA[2]], N, 0, 1, 0, 1); }
@@ -395,7 +399,7 @@
   // the outer facade bay (atlas): pale concrete, two rows of arched openings onto the concourses, a pilaster at the bay edge
   St.facadeR = function (A, i) {
     // three concourse levels: deep openings between pilasters, a band at each floor, the section colour stripe on the middle band
-    return A.region('mxFacade' + (i % 2), 64, 192, (x2, w, h) => {
+    return A.region('mxFacade' + (i % 2), 48, 160, (x2, w, h) => {
       x2.fillStyle = '#c4bfb2'; x2.fillRect(0, 0, w, h); x2.fillStyle = 'rgba(0,0,0,0.05)'; for (let y = 0; y < h; y += 12) x2.fillRect(0, y, w, 1);
       for (const [y0, y1] of [[0.08, 0.27], [0.4, 0.58], [0.7, 0.9]]) { x2.fillStyle = '#34363a'; x2.fillRect(9, h * y0, w - 18, h * (y1 - y0)); x2.fillStyle = '#4a4c50'; x2.fillRect(9, h * y1 - 3, w - 18, 3); x2.fillStyle = 'rgba(160,160,150,0.5)'; x2.fillRect(w / 2 - 1, h * y0, 2, h * (y1 - y0)); }
       x2.fillStyle = '#aaa597'; x2.fillRect(0, 0, 7, h); x2.fillRect(w - 7, 0, 7, h); x2.fillRect(0, h * 0.3, w, 5); x2.fillRect(0, h * 0.62, w, 5); x2.fillRect(0, h * 0.93, w, h * 0.07);
@@ -422,7 +426,7 @@
       const ga = Math.min(R.g[i][0], R.g[i + 1][0]) - 0.4, gb = Math.min(R.g[i][1], R.g[i + 1][1]) - 0.4;
       loftQ(B, R, i, 0, ga, 0, MG.wallH, concD, F); loftQ(B, R, i, 0, MG.wallH, MG.z0, MG.wallH, concL, UP);
       St.stripQ(A, R, i, -0.03, 0.3, 1.3, tiles[(i + 2) % 8], F, 5.0);
-      for (let r = 0; r < MG.rows; r++) { const z = MG.z0 + r * MG.tread, y = MG.wallH + r * MG.rise; loftQ(B, R, i, z, y, z, y + MG.rise, conc, F); loftQ(B, R, i, z, y + MG.rise, z + MG.tread, y + MG.rise, seat[r % 2], UP); }
+      for (let r = 0; r < MG.rows; r++) { const z = MG.z0 + r * MG.tread, y = MG.wallH + r * MG.rise; loftQ(B, R, i, z, y, z, y + MG.rise, conc, F); loftQ(B, R, i, z, y + MG.rise, z + MG.tread, y + MG.rise, (i + r) % 3 ? St.massC(i, r, 7) : seat[r % 2], UP); }
       // the suites box behind the top row: a glazed front, its slab, the back wall to the ground (cladding + a glass band)
       loftQ(B, R, i, zT, yT, zT, ySt, concD, F); loftQ(G, R, i, zS, ySt, zS, ySu, glass, F); loftQ(B, R, i, zT, ySt, zS, ySt, concL, UP); loftQ(B, R, i, zS - 0.4, ySu, zW, ySu + 0.4, clad, F); loftQ(B, R, i, zS - 0.4, ySu + 0.4, zW, ySu + 0.4, C(0x8d9297), UP);
       loftQ(B, R, i, zW, gb, zW, ySu + 0.4, clad, N); loftQ(G, R, i, zW + 0.03, 3.0, zW + 0.03, 5.2, glass, N); loftQ(G, R, i, zW + 0.03, ySt + 0.6, zW + 0.03, ySu - 0.4, glass, N);

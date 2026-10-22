@@ -141,8 +141,8 @@ window.EI = window.EI || {};
     // in the low smog band (contrast grows with height), sunlit snow above ~80 % of the crest, gullies streaking the snow line. LOOKS
     // skyline: [contrast, [[compass deg, half width rad, top as sin(elevation), tone], ...]]: far towers painted after the hills (nearer
     // than the rim), backlit grey, their bases in the city haze. Sky pixels only, each mountain / the skyline behind its own sector test;
-    // compiled only when a circuit's look sets them (every other sky shader is unchanged). Sky.js measures its direction from the world origin while
-    // the sky box follows the eye, so these layers measure theirs from the box centre (the eye at ground level): bearings and heights stay true round the lap
+    // compiled only when a circuit's look sets them (every other sky shader is unchanged). Sky.js measures its direction from the eye (an
+    // infinitely far sky, SKY-FIX), and so do these layers: bearings and heights stay true round the lap
     const PK = (() => { const f = (v) => (+v).toFixed(4), ang = (c) => f(THREE.MathUtils.euclideanModulo(c - 90, 360) * Math.PI / 180);
       const sq = (o, w) => 'exp(-(pa - ' + f(o) + ') * (pa - ' + f(o) + ') * ' + f(1 / (w * w)) + ')';
       let p = ''; for (const [Cp, W, H, Kc, Sh, Sn] of LK.peaks || []) {
@@ -157,7 +157,7 @@ window.EI = window.EI || {};
         const mid = (lo + hi) / 2; k = ' { float sa = mod(pph - ' + ang(mid) + ' + 3.14159, 6.28319) - 3.14159; if (abs(sa) < ' + f((hi - lo) / 2 * Math.PI / 180 + 0.001) + ' && py < ' + f(top + 0.001) + ') { float th = 0.0, tn = 1.0;';
         for (const [c, w, h, tone] of T) k += ' { float m = step(abs(sa - ' + f((c - mid) * Math.PI / 180) + '), ' + f(w) + ') * step(th, ' + f(h) + '); th = mix(th, ' + f(h) + ', m); tn = mix(tn, ' + f(tone) + ', m); }';
         k += ' float tm = (1.0 - smoothstep(th - 0.0005, th, py)) * step(0.0001, th); hc = mix(hc, uHz * vec3(0.56, 0.6, 0.7) * tn, tm * ' + f(Kc) + ' * (0.45 + 0.55 * smoothstep(0.0, 0.02, py))); } }'; }
-      const D = ' vec3 pdv = normalize(vWorldPosition - vec3(cameraPosition.x, 0.0, cameraPosition.z)); float py = pdv.y, pph = atan(pdv.z, pdv.x);';
+      const D = ' float py = direction.y, pph = atan(direction.z, direction.x);';
       return LK.peaks || LK.skyline ? [' {' + D + p, k + ' }'] : ['', '']; })();
     const HAZE = !(LK.haze || LK.hills || LK.veil || LK.peaks || LK.skyline) ? '' : (() => { const f = (v) => (+v).toFixed(4), Hz = LK.haze || [0, 0.1], Vl = LK.veil, vc = Vl ? new THREE.Color(Vl[1]) : null;
       let s = '\n{ vec3 hc = gl_FragColor.rgb; float hy = direction.y, hph = atan(direction.z, direction.x);' +
