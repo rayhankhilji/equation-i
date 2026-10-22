@@ -19,6 +19,7 @@
 window.EI = window.EI || {};
 (function () {
   const BASE = 'assets/models/';
+  const ASSET_V = 'w9';   // bump whenever a file in assets/models changes (the GLB, atlases and bins must stay in step; a stale cached GLB with a new id atlas paints wrong colours)
   const FLAP_CLOSED = 0.5, FLAP_OPEN = FLAP_CLOSED - 55 * Math.PI / 180;   // ~55 degrees of DRS travel
   const cache = { hi: null, lo: null, meta: null, idImg: null, aoImg: null, lods: null };
   const texCache = {}, helmetMats = {}, shared = {}, roleMaps = {};
@@ -36,7 +37,7 @@ window.EI = window.EI || {};
     try { const m = /(^|\.)githack\.com$/.test(location.hostname) && /^\/([^/]+)\/([^/]+)\/([^/]+)\/(.*\/)?[^/]*$/.exec(location.pathname); return m ? 'https://cdn.jsdelivr.net/gh/' + m[1] + '/' + m[2] + '@' + m[3] + '/' + (m[4] || '') + BASE : null; } catch (e) { return null; }
   }
   function fetchModelFile(url, tries) {
-    const ext = (/\.(\w+)$/.exec(url) || [])[1], magic = MAGIC[ext] || '';
+    const ext = (/\.(\w+)(\?|$)/.exec(url) || [])[1], magic = MAGIC[ext] || '';
     const mb = /^(https?:)?\/\//.test(url) ? null : mirrorBase(), srcs = [url, url, mb && mb + url.slice(BASE.length), url, mb && mb + url.slice(BASE.length)].filter(Boolean).slice(0, tries || 5);
     const wait = [0, 800, 1500, 3000, 5000];
     const attempt = (k) => new Promise((r) => setTimeout(r, wait[k] || 0)).then(() => fetch(srcs[k], { cache: k ? 'no-cache' : 'default' }))
@@ -52,12 +53,12 @@ window.EI = window.EI || {};
     loading = new Promise((resolve, reject) => {
       if (!THREE.GLTFLoader) return reject(new Error('GLTFLoader not available'));
       const loader = new THREE.GLTFLoader();
-      const need = (f) => fetchModelFile(BASE + f).then((b) => b || Promise.reject(new Error('failed to load ' + f)));
+      const need = (f) => fetchModelFile(BASE + f + '?v=' + ASSET_V).then((b) => b || Promise.reject(new Error('failed to load ' + f)));
       const glb = (f) => need(f).then((b) => new Promise((res, rej) => loader.parse(b, '', res, rej)));
       // the atlases come in as bytes too (a blob URL: same origin, so the canvases they are drawn into stay readable)
       const img = (f) => need(f).then((b) => new Promise((res, rej) => { const u = URL.createObjectURL(new Blob([b], { type: 'image/png' })); const im = new Image(); im.onload = () => { URL.revokeObjectURL(u); res(im); }; im.onerror = () => { URL.revokeObjectURL(u); rej(new Error('failed to decode ' + f)); }; im.src = u; }));
       // the mid / far / vfar LOD index lists (ei-car-lods.bin, see lodSubset): optional, the vertex-clustered LODs stand in without it
-      const bin = (f) => fetchModelFile(BASE + f, 3);
+      const bin = (f) => fetchModelFile(BASE + f + '?v=' + ASSET_V, 3);
       const lods = CarGLB.lodsUrl ? fetch(CarGLB.lodsUrl).then((r) => r.ok ? r.arrayBuffer() : null).catch(() => null) : bin('ei-car-lods.bin');
       // the lo car is rebuilt from the hi GLB (ei-car-lohi.bin, see loFromHi); ei-car-lo.glb is only fetched when that is not possible
       Promise.all([glb('ei-car-hi.glb'), CarGLB.noLoHi ? null : bin('ei-car-lohi.bin'), img('ei-car-id.png'), img('ei-car-ao.png'), lods]).then(([hi, loHiBuf, idImg, aoImg, lodBuf]) => {
