@@ -418,7 +418,7 @@
   // ---------------------------------------------------------------- the Main Grandstand ribbon
   St.buildMain = function (E, BK, R, tiles) {
     const { B, S, G, F: Fd, H, A } = BK; const st = R.st, NS = st.length;
-    const conc = C(0xb3b5b1), concD = C(0x989b9c), concL = C(0xc2c4c1), seat = [C(0x2a4a7a), C(0x24426e)], glass = C(0x2a3846), clad = C(0xa9adb0), steel = C(0x9aa1a8), roofT = C(0xa6aaad), roofU = [C(0xb8bcbe), C(0xaeb2b5)];
+    const conc = C(0xb3b5b1), concD = C(0x989b9c), concL = C(0xc2c4c1), seat = [C(0x2a4a7a), C(0x24426e)], glass = C(0x2a3846), clad = C(0xa9adb0), steel = C(0x9aa1a8), roofT = C(0x959a9e), roofU = [C(0xb8bcbe), C(0xaeb2b5)];
     const yT = MG.wallH + MG.rows * MG.rise, zT = MG.z0 + MG.rows * MG.tread; const zS = zT + 0.4, ySt = yT + 1.1, ySu = yT + 4.6, zW = zT + 6.0;   // suites box
     const yRf = ySu + 3.6, yRb = ySu + 2.4, zRf = -2.0, zRb = zW + 0.8;
     for (let i = 0; i + 1 < NS; i++) {

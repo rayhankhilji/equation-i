@@ -29,10 +29,10 @@ window.EI = window.EI || {};
   // apron (track.js runoffFlag pattern 4: white | navy | white | navy with white stars | white | red with navy / white stars | white, ~10 m,
   // plain pale asphalt beyond) at every corner with an asphalt apron; Turn 1 is a solid red apron with a starred navy band (pattern 5).
   // Red and navy are pre-darkened for the grade (the old values clipped to 255,0,0). [turn number, pattern, colour A (red), colour B (navy)]
-  T.runoffGreen = '#84262a';
+  T.runoffGreen = '#7c2428';
   T.runoffFlag = true;
   T.runoffTint = [0.8, 0.78, 0.75];   // the apron: a mid warm grey, a little lighter than the track
-  const RED = '#84262a', NAVY = '#20283e';   // calibrated on Low frames: photo sunlit red ~190,25,22 / navy ~30,35,70 (the grade lifts red and blue hard)
+  const RED = '#7c2428', NAVY = '#20283e';   // calibrated on Low frames: photo sunlit red ~190,25,22 / navy ~30,35,70 (the grade lifts red and blue hard)
   T.runoffSchemes = [[1, 5, RED, NAVY]];
   for (let t = 2; t <= 20; t++) T.runoffSchemes.push([t, 4, RED, NAVY]);
   T.pitColor = 0x6c6b69;   // pit lane asphalt: the plain asphalt map under the default tint reads near white beside COTA's darker racing surface

@@ -295,7 +295,7 @@ window.EI = window.EI || {};
     }
     else {
     const slant = style === 'street' ? 0 : H * (style === 'spa' || style === 'cota' ? 0.05 : 0.07); const joint = (y0) => [[0, y0 - slant], [W, y0 + slant]];
-    ctx.fillStyle = style === 'street' ? '#b0242a' : style === 'spa' ? '#be1620' : style === 'cota' ? '#8c2329' : style === 'greenwhite' ? '#1d9670' : '#c8141e';   // 'greenwhite': Silverstone's green / white exit kerbs   // 'spa': deep red / white blocks on the raised bevelled kerb
+    ctx.fillStyle = style === 'street' ? '#b0242a' : style === 'spa' ? '#be1620' : style === 'cota' ? '#842127' : style === 'greenwhite' ? '#1d9670' : '#c8141e';   // 'greenwhite': Silverstone's green / white exit kerbs   // 'spa': deep red / white blocks on the raised bevelled kerb
     for (const off of [-H, 0, H]) { const a = joint(off), b = joint(off + H / 2); ctx.beginPath(); ctx.moveTo(a[0][0], a[0][1]); ctx.lineTo(a[1][0], a[1][1]); ctx.lineTo(b[1][0], b[1][1]); ctx.lineTo(b[0][0], b[0][1]); ctx.closePath(); ctx.fill(); }
     ctx.strokeStyle = 'rgba(25,10,10,0.55)'; ctx.lineWidth = 3;
     for (const off of [-H, -H / 2, 0, H / 2, H]) { const a = joint(off); ctx.beginPath(); ctx.moveTo(a[0][0], a[0][1]); ctx.lineTo(a[1][0], a[1][1]); ctx.stroke(); }

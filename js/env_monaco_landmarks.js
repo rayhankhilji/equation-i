@@ -113,6 +113,7 @@ window.EI = window.EI || {};
       const z = -ww + k * lw; const edge = k === 1 || k === nL - 1;
       for (let x = -wl + 0.2; x < wl - 0.2; x += 1.0) {
         const u = (x + wl) / (2 * wl); const c = (u < 0.1 || u > 0.9) ? red : edge ? blue : (Math.floor((x + wl) / 1.0) % 2 ? white : (k % 2 ? blue : yel));
+        const wp = Env.xf(m, x + 0.5, 0, z); if (E.sc.height(wp[0], wp[2]) > yw + 0.2) continue;
         Bd.set('white', 0.35, 0); Bd.box(m, 0.92, 0.15, 0.15, x + 0.5, yw, z, c);
       }
     }

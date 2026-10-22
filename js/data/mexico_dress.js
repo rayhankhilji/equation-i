@@ -91,7 +91,7 @@ window.EI = window.EI || {};
 
   // ---- the catch fence: dark charcoal welded mesh on dark posts, 4 m (kept on Low: it is in every photo, mex_start_pack_smoke_trees_barrier / mex_barrier_wall_mercedes_pair); taller in front of the stands, low along the pit wall
   T.fence = Object.assign({}, T.fence || {}, {
-    h: 4.0, op: 0.7, mesh: 'rgba(24,26,30,1)', postColor: 0x2a2d31, posts: 8, low: true, ground: true,
+    h: 4.0, op: 0.7, mesh: 'rgba(24,26,30,1)', postColor: 0x2a2d31, posts: 10, low: true, ground: true,
     runs: [
       [mod(tin(17) + 150), mod(tin(1) - 170), 1, 4.8],   // Main Grandstand front (the photos: a tall dark catch fence over a pale concrete wall)
       [ST0, ST1, 0, 5.0],                                // the stadium: both sides, in front of the decks

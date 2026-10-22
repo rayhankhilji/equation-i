@@ -243,8 +243,9 @@ window.EI = window.EI || {};
     const D = E.data.forest; if (!D || D.cityRing === false) return; const sc = E.sc, rng = U.rng(2240);
     const R0 = D.cityMin || 0, R1 = D.cityMax || 2500, LOT = 38;   // (from the park edge out; GEN's OSM buildings (OCC.BUILT) keep their lots; beyond R1 the fog)
     const WALLS = [[201, 169, 122], [201, 138, 138], [127, 155, 181], [176, 172, 162], [188, 176, 150], [150, 146, 138], [214, 200, 172], [170, 122, 96]];
-    const Q = [0, 1, 2, 3].map(() => ({ pos: [], col: [], n: 0 })); let nb = 0; const BAD = Env.OCC.ROAD | Env.OCC.BUILT | Env.OCC.WATER;
+    const Q = [0, 1, 2, 3].map(() => ({ pos: [], col: [], n: 0, nNear: 0 })); let nb = 0; const LOWR = 1900, lots = []; const BAD = Env.OCC.ROAD | Env.OCC.BUILT | Env.OCC.WATER;
     const box = (q, cx, cz, a, hw, hd, h, y0, c) => {
+      if (Math.hypot(cx, cz) <= LOWR) q.nNear++;
       const ca = Math.cos(a), sa = Math.sin(a); const pos = q.pos, col = q.col;
       const P = (lx, lz, y) => pos.push(cx + lx * ca - lz * sa, y, cz + lx * sa + lz * ca);
       const K = [[-hw, -hd], [hw, -hd], [hw, hd], [-hw, hd]];
@@ -263,8 +264,9 @@ window.EI = window.EI || {};
       for (const [lx, lz] of [[-hw, -hd], [hw, -hd], [hw, hd], [-hw, hd], [0, 0]]) { const qx = px + lx * ca - lz * sa, qz = pz + lx * sa + lz * ca; if (E.forestClass(qx, qz) === C.WATER || (E.occAt(qx, qz) & BAD)) { ok = false; break; } lo = Math.min(lo, sc.height(qx, qz)); }
       if (!ok) continue;
       const c = WALLS[Math.floor(rng() * WALLS.length)]; const v = (0.85 + rng() * 0.2) / 255, g = (c[0] + c[1] + c[2]) / 3;   // (render washed by sun and smog: 35 % toward grey)
-      box(Q[(px >= 0 ? 1 : 0) + (pz >= 0 ? 2 : 0)], px, pz, a, hw, hd, h, lo - 0.3, [(c[0] * 0.65 + g * 0.35) * v, (c[1] * 0.65 + g * 0.35) * v, (c[2] * 0.65 + g * 0.35) * v]);
+      lots.push({ rad, q: (px >= 0 ? 1 : 0) + (pz >= 0 ? 2 : 0), args: [px, pz, a, hw, hd, h, lo - 0.3, [(c[0] * 0.65 + g * 0.35) * v, (c[1] * 0.65 + g * 0.35) * v, (c[2] * 0.65 + g * 0.35) * v]] });
     }
+    lots.sort((A, B) => A.rad - B.rad); for (const L of lots) box(Q[L.q], ...L.args);   // nearest first: the Low tier draws only the first nNear blocks (the rest lies beyond its fog)
     if (!nb) return;
     // the statics material's program (env.js Statics: per-vertex roughness / metalness 'rm')
     const mat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.7, metalness: 0.1 });
@@ -278,8 +280,11 @@ window.EI = window.EI || {};
       if (!q.n) continue; const nv = q.pos.length / 3; const cl = new Float32Array(q.col.length); for (let k = 0; k < cl.length; k++) cl[k] = Math.pow(q.col[k], 2.2);
       const rm = new Float32Array(nv * 2); for (let k = 0; k < nv; k++) { rm[k * 2] = 0.9; rm[k * 2 + 1] = 0; }
       const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(q.pos, 3)); g.setAttribute('color', new THREE.BufferAttribute(cl, 3)); g.setAttribute('rm', new THREE.BufferAttribute(rm, 2)); g.computeVertexNormals(); g.computeBoundingSphere(); g.computeBoundingBox();
-      const m = new THREE.Mesh(g, mat); m.name = 'cityEdge'; m.receiveShadow = true; m.matrixAutoUpdate = false; m.userData.box = g.boundingBox; sc.group.add(m); E.cityEdge.push(m); tris += nv / 3;
+      const m = new THREE.Mesh(g, mat); m.name = 'cityEdge'; m.receiveShadow = true; m.matrixAutoUpdate = false; m.userData.box = g.boundingBox; m.userData.nearVerts = q.nNear * 30; sc.group.add(m); E.cityEdge.push(m); tris += nv / 3;
     }
     E.stats.cityBlocks = nb; E.stats.cityTris = tris;
   };
+  // Low: the city-edge blocks beyond LOWR (1.9 km, past Low's fog end) are not drawn (the blocks are sorted nearest first, so a draw range does it)
+  { const oSQ = EI.Scenery && EI.Scenery.prototype.setQuality;
+    if (oSQ) EI.Scenery.prototype.setQuality = function (q) { const r = oSQ.apply(this, arguments); const ce = this.env && this.env.cityEdge; if (ce) for (const m of ce) m.geometry.setDrawRange(0, q === 'low' ? m.userData.nearVerts : Infinity); return r; }; }
 })();

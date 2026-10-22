@@ -261,7 +261,7 @@ window.EI = window.EI || {};
     const lane = (x) => { const a = P(x, 0, zG), b = P(x, 0, zG - 1); return [b[0] - a[0], 0, b[2] - a[2]]; };
     const back = (x) => { const v = lane(x); return [-v[0], 0, -v[2]]; };
     const pan = [C(0xb6b9bb), C(0xa9adb0)], conc = C(0xb3b7ba), concD = C(0x9a9ea1), fasc = C(0x2a2d33), green = C(0x006847), red = C(0xce1126), white = C(0xcdd0d2), offW = C(0xc4c8ca);
-    const glass = C(0x26323d), glassL = C(0x3a4d5e), mull = C(0xb3b8bc), steel = C(0x8f969c), roofT = C(0xa2a6a9), soffit = C(0xaeb3b7), plinth = C(0x5d6166);
+    const glass = C(0x26323d), glassL = C(0x3a4d5e), mull = C(0xb3b8bc), steel = C(0x8f969c), roofT = C(0x8e9295), soffit = C(0xaeb3b7), plinth = C(0x5d6166);
     const yH0 = 4.8, yH1 = 6.0, yB0 = 6.45, yB1 = 6.8, yL2 = 9.9, yS1 = 10.7, yT = 14.0, yR = 14.4, yR1 = 15.0;
     const zBal = zG - 1.8, zGal = zG + 1.4, zL2 = zG - 0.3, lean = 0.7, zR0 = zG - 7.2;
     const inRC = (x) => x > F.rc0 - 0.01 && x < F.rc1 + 0.01;

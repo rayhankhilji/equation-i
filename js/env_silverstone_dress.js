@@ -41,7 +41,7 @@ window.EI = window.EI || {};
   const atlasV = (y) => 1 - y / AT.H;
   function atlasTexture() {
     const W = AT.W, H = AT.H; const [c, g] = Env.canvas(W, H); g.clearRect(0, 0, W, H); const r = U.rng(8128), CH = 160;
-    const shirts = ['#f2f2f0', '#f2f2f0', '#1c2a4a', '#c8102e', '#c8102e', '#ff8000', '#ff8000', '#f4e400', '#d8e000', '#2a3d6e', '#23242a', '#6e7a86', '#18a0a0', '#e8d8c8', '#a31d2a', '#3a6a3a', '#5b8fd0', '#8b1f3a'];
+    const shirts = ['#e6e6e2', '#e6e6e2', '#d8d8d2', '#1c2a44', '#24262c', '#2c2f36', '#8e1f2c', '#a8322c', '#c8641c', '#d8d200', '#c9d03a', '#2a3b66', '#6e7a86', '#a6a198', '#7a6a58', '#3a5a40', '#6d8fb8', '#5c1e30', '#3b4a5a'];
     const skins = ['#f1c7a5', '#e0ac87', '#c68a62', '#8d5a3b', '#f5d3b8', '#d9a07a'], hairs = ['#2a1d14', '#4b3020', '#141414', '#a07a4a', '#d9b46a', '#8a8a8a'], trou = ['#2b3a55', '#1d1f24', '#6b6250', '#34445e', '#4a4d52'];
     const shade = (hex, k) => { const q = new THREE.Color(hex); return 'rgb(' + Math.min(255, q.r * 255 * k | 0) + ',' + Math.min(255, q.g * 255 * k | 0) + ',' + Math.min(255, q.b * 255 * k | 0) + ')'; };
     const person = (x, base, k, hi) => {
@@ -133,14 +133,14 @@ window.EI = window.EI || {};
         }
         // end caps: skirts down to the ground (a closed earth bank, not a folded sheet)
         for (const a of [0, S - 1]) for (let k = 0; k + 1 < FR.length; k++) {
-          const A = G[a][k], B = G[a][k + 1]; const gA = E.ground(A[0], A[2]) - 0.35, gB = E.ground(B[0], B[2]) - 0.35; const vv = vS(0.5);
-          const b0 = push(A[0], A[1], A[2], 0, 0.3, 0, 0.1, vv, 0.6, 0.6, 0.55); push(B[0], B[1], B[2], 0, 0.3, 0, 0.1, vv, 0.6, 0.6, 0.55); push(B[0], gB, B[2], 0, 0.3, 0, 0.1, vv, 0.6, 0.6, 0.55); push(A[0], gA, A[2], 0, 0.3, 0, 0.1, vv, 0.6, 0.6, 0.55);
+          const A = G[a][k], B = G[a][k + 1]; const gA = E.ground(A[0], A[2]) - 0.35, gB = E.ground(B[0], B[2]) - 0.35; const vv = vS(0.95);
+          const b0 = push(A[0], A[1], A[2], 0, 0.3, 0, 0.1, vv, 0.55, 0.58, 0.5); push(B[0], B[1], B[2], 0, 0.3, 0, 0.1, vv, 0.55, 0.58, 0.5); push(B[0], gB, B[2], 0, 0.3, 0, 0.1, vv, 0.55, 0.58, 0.5); push(A[0], gA, A[2], 0, 0.3, 0, 0.1, vv, 0.55, 0.58, 0.5);
           M.i.push(b0, b0 + 1, b0 + 2, b0, b0 + 2, b0 + 3, b0, b0 + 2, b0 + 1, b0, b0 + 3, b0 + 2);
         }
         // standing fans on cards, one row per fraction of the depth (the card stands on the slope at its row)
         const vF = atlasV(AT.cardY1 - 1), vT = atlasV(AT.cardY0 + 1);
         ROWS.forEach((f, ri) => {
-          const off = rng(); const shd = 1.0 - ri * 0.05; let b0 = -1;
+          const off = rng(); const shd = 0.9 - ri * 0.05; let b0 = -1;
           for (let a = 0; a < S; a++) {
             const i = rn[a]; const p0 = P(t.s[i], side, E.wallCap(i, side) + gap + f * depth); const gy = E.ground(p0.x, p0.z) + hprof(f, H) - 0.05;
             const nx = -p0.nx * 0.55, nz = -p0.nz * 0.55; const nl = Math.hypot(nx, 0.8, nz); const uu = st[a].arc / U1 + off;
@@ -206,7 +206,7 @@ window.EI = window.EI || {};
   // ================================================================ the camping fields in the distance
   SD.camps = function (E, D) {
     const sc = E.sc, P = mkPt(E), rng = U.rng(6161), t = E.t, outside = mkOutside(E); const cf = D.camps; if (!cf) return;
-    const sites = []; const tcols = [0x2f6db5, 0x3c8d3f, 0xe06c1b, 0xd8c23a, 0xb02e2e, 0x6c757d, 0x1f3a5f, 0x8a5a9e, 0xe9e9e9, 0x2a9d8f, 0xc94f7c, 0x7a8f2a];
+    const sites = []; const tcols = [0x3b5f8a, 0x4a7a4a, 0xb4642a, 0xc9b24a, 0x8e3a36, 0x6c757d, 0x2a3f5f, 0x6a5a82, 0xdcdcd6, 0xdcdcd6, 0xdcdcd6, 0x4a8a82, 0x5c6a3a, 0x3a3f46];
     for (let k = 0; k < 900 && sites.length < cf.fields; k++) {
       const s = rng() * t.length, side = rng() < 0.6 ? 1 : -1; const i = t.idxAtS(s); const d = E.wallCap(i, side) + cf.near + rng() * (cf.far - cf.near);
       const p = P(s, side, d); const ang = rng() * Math.PI; const ax = Math.cos(ang), az = Math.sin(ang); const hl = 50 + rng() * 14, hd = 32 + rng() * 8;
@@ -219,10 +219,11 @@ window.EI = window.EI || {};
     }
     const tents = [], vans = new Env.Builder(); const blocks = new Env.Builder();
     for (const c of sites) {
+      c.flip = rng() < 0.5 ? 0 : Math.PI / 2;
       // rows of tents with a track between; a toilet block and a few caravans at one end
       for (let a = -c.hl + 4; a < c.hl - 3; a += 5.2) for (let b = -c.hd + 4; b < c.hd - 3; b += 6.4) {
         if (rng() < 0.2 || (Math.abs(b) < 2.4)) continue; const jx = (rng() - 0.5) * 1.6, jz = (rng() - 0.5) * 1.8; const x = c.x + c.ax * (a + jx) - c.az * (b + jz), z = c.z + c.az * (a + jx) + c.ax * (b + jz);
-        tents.push([x, z, Math.atan2(-c.az, c.ax) + (rng() - 0.5) * 0.5, rng() < 0.62 ? 0 : 1, 0.85 + rng() * 0.5, Math.floor(rng() * tcols.length)]);
+        tents.push([x, z, Math.atan2(-c.az, c.ax) + c.flip + (rng() - 0.5) * 0.16, rng() < 0.62 ? 0 : 1, 0.85 + rng() * 0.5, Math.floor(rng() * tcols.length)]);
       }
       const m = Env.frame(c.x - c.ax * (c.hl - 3), E.ground(c.x - c.ax * (c.hl - 3), c.z - c.az * (c.hl - 3)) - 0.05, c.z - c.az * (c.hl - 3), c.ax, c.az, -c.az, c.ax);
       blocks.box(m, 9, 2.6, 3.4, 0, 0, 0, C(0xd8dadb), { top: C(0xb8bcbf) }); blocks.box(m, 9.1, 0.5, 3.5, 0, 2.0, 0, C(0x3a6a8a));
@@ -285,7 +286,7 @@ window.EI = window.EI || {};
         for (let k = 0; k < N; k++) { const a0 = b[2] + k / N * 6.283, a1 = b[2] + (k + 1) / N * 6.283; const x0 = b[0] + Math.cos(a0) * R, z0 = b[1] + Math.sin(a0) * R, x1 = b[0] + Math.cos(a1) * R, z1 = b[1] + Math.sin(a1) * R;
           bB.quad([x0, y, z0], [x0, y + Hh, z0], [x1, y + Hh, z1], [x1, y, z1], k % 2 ? side2 : cc); bB.tri([b[0], y + Hh, b[1]], [x1, y + Hh, z1], [x0, y + Hh, z0], top); }
       }
-      sc.statics.add(bB.geometry(), 0.9, 0, 'main');
+      sc.statics.add(bB.geometry(), 0.9, 0, 'clutter');
     }
     E.stats.bales = bales.length;
     // ---- farm barns (steel-framed, corrugated roofs) with a house and a smaller shed
@@ -304,23 +305,34 @@ window.EI = window.EI || {};
       Fb.box(m, 4.5, 3.6, 0.2, bl / 2 - 6, 0, -bw / 2 - 0.05, C(0x4e5558)); Fb.box(m, 12, 3.0, 8, -bl / 2 - 9, 0, 9, brick, { top: tile }); Fb.box(m, 10, 3.5, 6, bl / 2 + 8, 0, 12, wc, { top: rc });
       E.markRect(x, z, ax, az, 36, 30, OCC.BUILT); nBarn++; (E.stats.barnAt = E.stats.barnAt || []).push([Math.round(x), Math.round(z)]);
     }
-    if (Fb.count) sc.statics.add(Fb.geometry(), 0.75, 0.05, 'main');
+    if (Fb.count) sc.statics.add(Fb.geometry(), 0.75, 0.05, 'clutter');
     E.stats.barns = nBarn; E.stats.barnReject = dbg;
-    // ---- a village church with a spire on the south-east horizon (Silverstone village lies beyond the Stowe woods)
+    // ---- a hamlet on the horizon: a church (stone tower and a short slate spire, the nave under a slate roof) with a ring of cottages (brick / limestone walls,
+    // tiled gabled roofs) and a few farm trees (Silverstone village lies beyond the circuit's south side)
     const ch = new Env.Builder(); let placedCh = 0;
+    const gable = (B, m, l, w, h, rh, x, z, wallc, roofc) => {   // a gabled house in frame m: ridge along x
+      B.box(m, l, h, w, x, 0, z, wallc); const P = (u, y, v) => Env.xf(m, x + u, y, z + v); const rc2 = new THREE.Color(roofc.r * 0.82, roofc.g * 0.82, roofc.b * 0.82);
+      const a0 = P(-l / 2 - 0.3, h, -w / 2 - 0.4), b0 = P(l / 2 + 0.3, h, -w / 2 - 0.4), c0 = P(l / 2 + 0.3, h, w / 2 + 0.4), d0 = P(-l / 2 - 0.3, h, w / 2 + 0.4), r1 = P(-l / 2 - 0.3, h + rh, 0), r2 = P(l / 2 + 0.3, h + rh, 0);
+      B.quad(a0, r1, r2, b0, roofc); B.quad(c0, r2, r1, d0, rc2); B.tri(b0, r2, c0, wallc); B.tri(d0, r1, a0, wallc);
+    };
     { let best = null;
       for (let k = 0; k < 900; k++) {
         const sv = rng() * t.length, sd = rng() < 0.5 ? 1 : -1; const i = t.idxAtS(sv); const q = P(sv, sd, E.wallCap(i, sd) + 480 + rng() * 420); const x = q.x, z = q.z; const fa = E.fAt(x, z);
         if (fa < 440 || !outside(x, z) || (E.occAt(x, z) & SOLID) || Math.abs(x) > 1950 || Math.abs(z) > 1950 || (best && fa >= best.fa)) continue;
-        const a = rng() * 6.283; const ax = Math.cos(a), az = Math.sin(a); if (E.rectFree(x, z, ax, az, 14, 10, SOLID, 0) < 0.99) continue; best = { x, z, ax, az, fa };
+        const a = rng() * 6.283; const ax = Math.cos(a), az = Math.sin(a); if (E.rectFree(x, z, ax, az, 60, 40, SOLID, 0) < 0.99) continue; best = { x, z, ax, az, fa };
       }
       if (best) { const { x, z, ax, az } = best;
-      const y = E.ground(x, z) - 0.1; const m = Env.frame(x, y, z, ax, az, -az, ax); const stone = C(0xb4ab98), slate = C(0x5e6468), spire = C(0x6d7378);
-      ch.box(m, 16, 7, 8, 0, 0, 0, stone, { top: slate }); ch.box(m, 6.2, 17, 6.2, 11, 0, 0, stone);
-      const Pq = (u, yy, v) => Env.xf(m, 11 + u, yy, v); const ap = Pq(0, 29, 0), c0 = [Pq(-3.1, 17, -3.1), Pq(3.1, 17, -3.1), Pq(3.1, 17, 3.1), Pq(-3.1, 17, 3.1)];
-      for (let k = 0; k < 4; k++) { ch.tri(c0[(k + 1) % 4], c0[k], ap, k % 2 ? spire : slate); ch.tri(c0[k], c0[(k + 1) % 4], ap, k % 2 ? spire : slate); }
-      E.markRect(x, z, ax, az, 18, 12, OCC.BUILT); placedCh++; E.stats.churchAt = [Math.round(x), Math.round(z)]; } }
-    if (ch.count) sc.statics.add(ch.geometry(), 0.8, 0.05, 'main');
+        let lo = 1e9; for (const [p, q] of [[-40, -30], [40, -30], [40, 30], [-40, 30], [0, 0]]) lo = Math.min(lo, E.ground(x + ax * p - az * q, z + az * p + ax * q));
+        const m = Env.frame(x, lo - 0.1, z, ax, az, -az, ax); const stone = C(0xb4ab98), slate = C(0x5e6468), spire = C(0x6d7378);
+        gable(ch, m, 15, 7.5, 6, 3.2, 0, 0, stone, slate); ch.box(m, 5.2, 13, 5.2, 9.2, 0, 0, stone);
+        const Pq = (u, yy, v) => Env.xf(m, 9.2 + u, yy, v); const ap = Pq(0, 19.5, 0), c0 = [Pq(-2.6, 13, -2.6), Pq(2.6, 13, -2.6), Pq(2.6, 13, 2.6), Pq(-2.6, 13, 2.6)];
+        for (let k = 0; k < 4; k++) { ch.tri(c0[(k + 1) % 4], c0[k], ap, spire); ch.tri(c0[k], c0[(k + 1) % 4], ap, spire); }
+        const walls = [C(0xb8946a), C(0xa8714f), C(0xc2b08a), C(0x9a6a4e)], roofs = [C(0x6a4a3e), C(0x585e62), C(0x7a5444)];
+        for (let k = 0; k < 7; k++) { const ang = k / 7 * 6.283 + rng() * 0.5, r = 24 + rng() * 14; gable(ch, m, 8 + rng() * 5, 5.5 + rng() * 1.5, 4.2 + rng() * 0.6, 2.2, Math.cos(ang) * r, Math.sin(ang) * r * 0.8, walls[k % 4], roofs[k % 3]); }
+        E.markRect(x, z, ax, az, 44, 34, OCC.BUILT);
+        for (let k = 0; k < 9; k++) { const ang = rng() * 6.283, r = 50 + rng() * 16; E.treeLines.push([x + ax * Math.cos(ang) * r - az * Math.sin(ang) * r * 0.7, z + az * Math.cos(ang) * r + ax * Math.sin(ang) * r * 0.7, x + ax * Math.cos(ang) * r - az * Math.sin(ang) * r * 0.7 + 4, z + az * Math.cos(ang) * r + ax * Math.sin(ang) * r * 0.7 + 4]); }
+        placedCh++; E.stats.churchAt = [Math.round(x), Math.round(z)]; } }
+    if (ch.count) sc.statics.add(ch.geometry(), 0.8, 0.05, 'clutter');
     E.stats.church = placedCh;
   };
 
