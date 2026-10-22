@@ -236,6 +236,7 @@
   // Mexico City (MEX-DRESS): the event's own hashtag board, the crimson '#MexicoGP' band that runs along the stadium walls and the stand fronts (F1 photo set, PHOTOS-A: mex_stadium_bowl_*, mex_podium_*)
   Object.assign(PARTNERS, {
     mexicogp: { n: '#MexicoGP', board: { bg: '#7a1a30', tone: 'white' }, word: W_(SANS, 900, { col: '#ffffff', ls: -0.02 }) },
+    italiangp: { n: '#ItalianGP', board: { bg: '#121418', tone: 'white' }, word: W_(SANS, 900, { col: '#ffffff', ls: -0.02 }) },   // MONZA-UPGRADE: the black #ItalianGP band (F1 photos grandstand_crowd_italiangp_msc, mclaren_italiangp_banner)
   });
   // Monaco (MONACO-UPGRADE, F1 photo set staging/monaco_refs): Explora Journeys' navy boards round the pool and the harbour, the Casino's red
   // CASINO MONTE-CARLO sign boards on Casino Square, and the event's black MONACO banner boards at Mirabeau / Loews (red lettering)
@@ -500,10 +501,13 @@
   };
   // Monza: Pirelli is the Italian GP's title partner ("Formula 1 Pirelli Gran Premio d'Italia") and its boards/bridges dominate the venue
   // Monza's trackside partner boards are dark navy (2025 photos: crypto.com-style navy walls behind pale gravel) with white lettering
+  // MONZA-UPGRADE (35 F1 photos 2023-25, staging/monza_refs): the walls are a mix - YELLOW Pirelli boards with red lettering (T1, the start wall,
+  // the Parabolica), green Heineken, navy MSC Cruises, the black #ItalianGP band, TAG Heuer; ownBoards keep their own ground on the navy venue
   VENUES.monza = { title: 'pirelli', event: "Gran Premio d'Italia", dark: false, darkBoards: true, darkBg: '#0c1a42',
-    tiles: ['pirelli', 'aramco', 'L0', 'heineken', 'dhl', 'msccruises', 'I4', 'qatarairways'],
-    barrier: ['pirelli', 'L', 'aramco', 'dhl', 'I'], billboard: ['pirelli', 'L2', 'heineken', 'I3'],
-    runoff: ['pirelli', 'L', 'aramco', 'I'], bridge: { lumi: 'L', intake: 'pirelli', lumi2: 'tagheuer', intake2: 'I' } };   // lumi2 = the green sign bridge after the Rettifilo (Rolex until 2024 -> TAG Heuer, F1's timekeeper since 2025)
+    ownBoards: { pirelli: { bg: '#ffd200', tone: 'color' }, heineken: {}, italiangp: {}, rolex: {} },
+    tiles: ['pirelli', 'heineken', 'L0', 'msccruises', 'italiangp', 'pirelli', 'I4', 'tagheuer'],
+    barrier: ['pirelli', 'L', 'italiangp', 'msccruises', 'I'], billboard: ['pirelli', 'L2', 'heineken', 'I3'],
+    runoff: ['pirelli', 'L', 'italiangp', 'I'], bridge: { lumi: 'L', intake: 'pirelli', lumi2: 'tagheuer', intake2: 'I' } };   // lumi2 = the green sign bridge after the Rettifilo (Rolex until 2024 -> TAG Heuer, F1's timekeeper since 2025)
   // Spa (SPA-UPGRADE, the 35 F1 photos 2022-2025 in staging/spa_refs/photos): red Moet & Chandon walls and the start gantry on the pit straight (the event's
   // title partner in the photos), Qatar Airways (La Source exit gantry, painted run-off, stand walls), Pirelli yellow walls, Globant at Eau Rouge, plus the
   // F1 partners; Lumi / Intake keep about one board in four
@@ -533,7 +537,8 @@
   // a partner board in a (w x h) frame that already has the board's physical proportions (the callers pre-squeeze, see paintTile).
   // Real LED / vinyl boards are flat: the brand ground and the logo, repeated on the very long formats. o.dark: Yas's black boards
   function partnerBoard(ctx, id, w, h, o) {
-    o = o || {}; const P = PARTNERS[id] || {}; const b = P.board || { bg: '#ffffff', tone: 'color' };
+    // (Monza: venue ownBoards keep their own ground on the dark-board venue)
+    o = o || {}; { const OB = venue().ownBoards && venue().ownBoards[id]; if (OB) o = Object.assign({}, o, { dark: false }, OB); } const P = PARTNERS[id] || {}; const b = P.board || { bg: '#ffffff', tone: 'color' };
     const dark = o.dark && id !== 'f1'; const bg = dark ? (venue().darkBg || '#0b0c0f') : (o.bg || b.bg); const tone = dark ? (b.tone === 'whiteKeepRed' ? b.tone : b.tone === 'color' && isLightRaster(id) ? 'color' : 'white') : (o.tone || b.tone);
     ctx.fillStyle = bg; ctx.fillRect(0, 0, w, h);
     // compact marks (TAG Heuer's shield, Gulf's disc ...) on long boards: larger, and repeated like the real boards; safe margins all round

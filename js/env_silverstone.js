@@ -71,8 +71,8 @@ window.EI = window.EI || {};
     const B = new Env.Builder(), G = new Env.Builder(), D = new Env.Builder();   // structure / glass / fine detail (clutter layer)
     const zG = F.zG, zGB = F.zGB;
     const NB = Math.max(10, (EI.TEAMS || []).length || 11), half = NB * 18 / 2;   // the team garages (js/pit.js), centred on the line
-    const white = C(0xf2f3f1), clad = C(0xb9bec3), cladD = C(0x9aa0a6), shutter = C(0x8f969d), slat = C(0x7b8289), frameC = C(0xd3d6d9), redL = C(0xc8102e),
-      lip = C(0x2a2d32), roofC = C(0x6f747a), soffit = C(0xd2d5d8), glassA = C(0x2f4256), glassB = C(0x24364a), backC = C(0xd6d8d9), steelW = C(0xe9eaea),
+    const white = C(0xf2f3f1), clad = C(0xa8adb2), cladD = C(0x8c9298), shutter = C(0x8f969d), slat = C(0x7b8289), frameC = C(0xd3d6d9), redL = C(0xc8102e),
+      lip = C(0x2a2d32), roofC = C(0x6f747a), soffit = C(0xd2d5d8), glassA = C(0x1f2d3c), glassB = C(0x182533), backC = C(0xd6d8d9), steelW = C(0xe9eaea),
       chkA = C(0x2a2c30), chkB = C(0x3d4045), paleA = C(0xdcd5c9), paleB = C(0xcfc8bb), black = C(0x1d1f23);
     const yG = 4.8, yS1 = 10.35, depthB = zG + 22;   // (the paddock trucks of js/infra.js start ~26 m behind the garage fronts)              // garage top, first slab, back face of the building
     const zle = zG - 7.0;                                     // roof leading edge (overhangs the pit lane)
@@ -94,7 +94,7 @@ window.EI = window.EI || {};
     // ---- level 1 over the whole frontage (the garages' upper floor): grey cladding with panel joints, the slab and balcony at 10.35 m
     for (let k = 0; k + 1 < xs.length; k++) {
       const xa = xs[k], xb = xs[k + 1];
-      Q(B, [xa, yG, zG + 0.05], [xb, yG, zG + 0.05], [xb, yS1, zG + 0.05], [xa, yS1, zG + 0.05], k % 2 ? clad : C(0xb2b7bc), [0, 0, -1]);
+      Q(B, [xa, yG, zG + 0.05], [xb, yG, zG + 0.05], [xb, yS1, zG + 0.05], [xa, yS1, zG + 0.05], k % 2 ? clad : C(0xa1a6ab), [0, 0, -1]);
       Q(D, [xa, yG, zG + 0.0], [xa + 0.12, yG, zG + 0.0], [xa + 0.12, yS1, zG + 0.0], [xa, yS1, zG + 0.0], cladD, [0, 0, -1]);
       // slab edge (white band), balcony soffit and floor, glass balustrade
       const zb = zG - 2.4;
@@ -121,7 +121,7 @@ window.EI = window.EI || {};
         }
       }
       // mullions every 3 m
-      for (let x = xa; x < xb - 0.1; x += 3) { const tp = glassTop(x); if (tp > yS1 + 0.5) BM(D, [x, yS1 + 0.1, frontZ(yS1 + 0.1) - 0.06], [x, tp, frontZ(tp) - 0.06], 0.1, steelW); }
+      for (let x = xa; x < xb - 0.1; x += 3) { const tp = glassTop(x); if (tp > yS1 + 0.5) BM(D, [x, yS1 + 0.1, frontZ(yS1 + 0.1) - 0.06], [x, tp, frontZ(tp) - 0.06], 0.09, C(0x7d848b)); }
     }
     // ---- the blade roof: fascia (white over a thin red line and a dark lip), dark-grey folded top, pale soffit back to the glazing
     for (let k = 0; k + 1 < xs.length; k++) {
@@ -138,7 +138,7 @@ window.EI = window.EI || {};
       if (k % 2 === 0) { const xm = (xa + xb) / 2, rr = roofY(xm) - 1.82; Q(D, [xm - 0.3, rr, zle + 2.0], [xm + 0.3, rr, zle + 2.0], [xm + 0.3, rr, zle + 2.6], [xm - 0.3, rr, zle + 2.6], C(0xfff6e2), [0, -1, 0]); }
     }
     // ---- slim white steel under the overhang: a V-strut pair every 24 m from the balcony slab to the roof lip (ref_078 / 037)
-    for (let x = L0 + 18; x < L1 - 6; x += 24) { const rr = roofY(x) - 1.8; for (const d of [-3.5, 3.5]) BM(D, [x, yS1 + 0.05, zG - 2.2], [x + d, rr, zle + 1.2], 0.32, steelW); }
+    for (let x = L1 - 70; x < L1 - 6; x += 24) { const rr = roofY(x) - 1.8; for (const d of [-3.5, 3.5]) BM(D, [x, yS1 + 0.05, zG - 2.2], [x + d, rr, zle + 1.2], 0.2, C(0xb9473f)); }   // the red bracing at the Abbey end (ref_037)
     // ---- Abbey end wall
     { const zf = frontZ(glassTop(L1)); Q(B, [L1, -1.2, zG], [L1, -1.2, depthB], [L1, backY(L1), depthB], [L1, glassTop(L1), zf], backC, [1, 0, 0]);
       Q(B, [L1, roofY(L1) - 1.8, zle], [L1, roofY(L1), zle], [L1, backY(L1), depthB], [L1, glassTop(L1), zf], white, [1, 0, 0]); }
@@ -169,7 +169,7 @@ window.EI = window.EI || {};
     }
     // ---- paddock-side service cores (dark glass slots) every ~90 m
     for (let x = L0 + 40; x < L1 - 30; x += 90) { BX(B, x - 4, x + 4, -1.2, backY(x) + 1.2, depthB, depthB + 2.5, backC); Q(G, [x - 0.7, 2, depthB + 2.55], [x + 0.7, 2, depthB + 2.55], [x + 0.7, backY(x) - 1, depthB + 2.55], [x - 0.7, backY(x) - 1, depthB + 2.55], glassB, [0, 0, 1]); }
-    sc.statics.add(B.geometry(), 0.55, 0.08, 'main'); sc.statics.add(G.geometry(), 0.22, 0.35, 'main'); sc.statics.add(D.geometry(), 0.5, 0.3, 'clutter');
+    sc.statics.add(B.geometry(), 0.55, 0.08, 'main'); sc.statics.add(G.geometry(), 0.18, 0.2, 'main'); sc.statics.add(D.geometry(), 0.5, 0.3, 'clutter');
     // ---- the DHL band along the first floor (one textured mesh, replaces the old roof-name sign): 2 m boards, 4:1
     {
       const cv = document.createElement('canvas'); cv.width = 1024; cv.height = 256; const x2 = cv.getContext('2d');
