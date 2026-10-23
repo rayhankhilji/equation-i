@@ -2007,7 +2007,9 @@ window.EI = window.EI || {};
     for (const m of sc.cityChunks || []) { const r = m.userData.ranges; m.geometry.setDrawRange(0, lite ? r[0] : r[2]); m.material = m.userData.kind === 'D' ? (lite ? M.DL : M.D) : (lite ? M.PL : M.P); }
   };
   // per frame: a distance test per tile (a few dozen): detail tiles near the eye (they cast shadows close by), proxies to the tier's range
+  // (PERF-2) a proxy tile whose nearest point lies beyond the camera's far plane (the fog's end) is wholly clipped: not drawn at all
   City.update = function (sc, x, z, T) {
-    for (const c of sc.cityChunks || []) { const d = Env.eyeDist(c.userData.box, x, z); if (c.userData.kind === 'D') { c.visible = d < T.cityDetail; c.castShadow = d < 170; } else c.visible = d < T.cityFar; }
+    let far = T.cityFar; const cams = EI.debug && EI.debug.cameras; if (cams && cams.length) { let f = 0; for (const cm of cams) f = Math.max(f, cm.far || 0); if (f > 0) far = Math.min(far, f); }
+    for (const c of sc.cityChunks || []) { const d = Env.eyeDist(c.userData.box, x, z); if (c.userData.kind === 'D') { c.visible = d < T.cityDetail; c.castShadow = d < 170; } else c.visible = d < far; }
   };
 })();
