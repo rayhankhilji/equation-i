@@ -243,7 +243,7 @@ window.EI = window.EI || {};
     const D = E.data.forest; if (!D || D.cityRing === false) return; const sc = E.sc, rng = U.rng(2240);
     const R0 = D.cityMin || 0, R1 = D.cityMax || 2500, LOT = 38;   // (from the park edge out; GEN's OSM buildings (OCC.BUILT) keep their lots; beyond R1 the fog)
     const WALLS = [[201, 169, 122], [201, 138, 138], [127, 155, 181], [176, 172, 162], [188, 176, 150], [150, 146, 138], [214, 200, 172], [170, 122, 96]];
-    const Q = [0, 1, 2, 3].map(() => ({ pos: [], col: [], n: 0, nNear: 0 })); let nb = 0; const LOWR = 1900, lots = []; const BAD = Env.OCC.ROAD | Env.OCC.BUILT | Env.OCC.WATER;
+    const Q = [0, 1, 2, 3].map(() => ({ pos: [], col: [], n: 0, nNear: 0 })); let nb = 0; const LOWR = 1500, lots = []; const BAD = Env.OCC.ROAD | Env.OCC.BUILT | Env.OCC.WATER;
     const box = (q, cx, cz, a, hw, hd, h, y0, c) => {
       if (Math.hypot(cx, cz) <= LOWR) q.nNear++;
       const ca = Math.cos(a), sa = Math.sin(a); const pos = q.pos, col = q.col;
@@ -284,7 +284,7 @@ window.EI = window.EI || {};
     }
     E.stats.cityBlocks = nb; E.stats.cityTris = tris;
   };
-  // Low: the city-edge blocks beyond LOWR (1.9 km, past Low's fog end) are not drawn (the blocks are sorted nearest first, so a draw range does it)
+  // Low: the city-edge blocks beyond LOWR (1.5 km, ~80 % into Low's fog) are not drawn (the blocks are sorted nearest first, so a draw range does it)
   { const oSQ = EI.Scenery && EI.Scenery.prototype.setQuality;
     if (oSQ) EI.Scenery.prototype.setQuality = function (q) { const r = oSQ.apply(this, arguments); const ce = this.env && this.env.cityEdge; if (ce) for (const m of ce) m.geometry.setDrawRange(0, q === 'low' ? m.userData.nearVerts : Infinity); return r; }; }
 })();
