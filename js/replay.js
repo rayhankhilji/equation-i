@@ -360,6 +360,7 @@ window.EI = window.EI || {};
     rec: null, host: null, playing: false, clips: [], ci: 0, pt: 0, paused: false, cam: null, focus: { x: 0, y: 0, z: 0 }, eye: { trk: { s: -1e9 } },
     audio: { rpm: 0.2, thr: 0, vol: 0, gear: 1 }, lights: 0, spots: null, spotsFor: null, ui: null, autoT: -1, saved: null, shot: -1, cur: 0, fade: 0, pad: {},
     get camera() { return this.cam; },
+    tvSpots() { return this.rec ? spots(this) : null; },   // the TV spots + their line-of-sight stats (P.spotStats); tests / probes
     bind(host) { this.host = host; },
     attach(race) {
       this.detach(); if (!race || !race.cars || !race.cars.length) return;
@@ -376,6 +377,7 @@ window.EI = window.EI || {};
       if (!this.rec || this.rec.race !== race) return;
       this.rec.frozen = true; for (const sl of this.rec.slots) sl.open = false;   // the kept windows are final: nothing can evict them now
       this.clips = this.rec.reel(8); this.btnState(this.clips.length > 0);
+      if (this.clips.length && this.host) try { spots(this); } catch (e) { if (typeof console !== 'undefined') console.warn('replay spots', e); }   // TV spots + line of sight, once per track
       let auto = true; try { auto = localStorage.getItem('ei-hl-auto') !== '0'; } catch (e) { }
       if (typeof navigator !== 'undefined' && navigator.webdriver && !/[?&]hl=auto/.test(location.search)) auto = false;
       if (auto && this.clips.length) this._autoTimer = setTimeout(() => { this._autoTimer = null; if (this.rec && this.rec.race === race && !this.playing && !document.getElementById('results').classList.contains('hidden')) this.play(); }, 1800);
@@ -499,22 +501,171 @@ window.EI = window.EI || {};
 
   // ------------------------------------------------------------------ cameras
   // trackside TV spots: the scenery's camera towers / scaffolds when exposed (scenery.infra.camSpots), plus tower-like spots
-  // every ~90 m on the outside of the coming bend (circuits: beyond the wall, ~8 m up; street circuits: on the fence line)
+  // every ~90 m on the outside of the coming bend (circuits: beyond the wall, ~8 m up; street circuits: on the fence line).
+  // Every spot is checked for line of sight to the racing line over the stretch it films (LOS below); a spot that sits inside or
+  // right behind scenery (stand, scaffold, crowd, tree / palm, frame, building, fence) is nudged (higher, along the track, further
+  // out, the other side) until it is clear, or dropped. Built once per track when the reel is first prepared, never per frame.
   function spots(P) {
     const tr = P.rec.track; if (P.spots && P.spotsFor === tr) return P.spots;
-    const out = [], L = tr.length, street = !!(tr.data && tr.data.street);
-    const inf = P.host && P.host.scenery && P.host.scenery.infra; const cs = (inf && inf.camSpots) || towerSpots(inf);
-    if (cs && cs.length) for (const p of cs) { const pr = tr.project(p.x, p.z, null, {}); out.push({ x: p.x, y: p.y, z: p.z, s: pr.s, tower: true }); }
-    const pit = tr.pitSideSign ? tr.pitSideSign() : -1;
-    for (let s = 0; s < L; s += 90) {
-      const i = tr.idxAtS(s); let ks = 0; for (let d = 0; d <= 160; d += 10) ks += tr.k[tr.idxAtS(s + d)];
-      const side = Math.abs(ks) < 0.02 ? -pit : ks > 0 ? -1 : 1;
-      const wall = side < 0 ? tr.wallL[i] : tr.wallR[i];
-      const off = street ? wall + 0.6 : Math.min(wall + 5, tr.halfWidth + 32); const h = street ? 5.2 : 8;
-      out.push({ x: tr.x[i] + tr.nx[i] * side * off, y: tr.y[i] + h, z: tr.z[i] + tr.nz[i] * side * off, s, tower: false });
+    const t0 = now(), out = [], L = tr.length, street = !!(tr.data && tr.data.street);
+    const sc = P.host && P.host.scenery; const los = LOS.build(tr, sc); const st = { cand: 0, ok: 0, nudged: 0, dropped: 0 };
+    const keep = (p, tower, nudges) => { st.cand++; const r = LOS.place(los, tr, p, nudges); if (!r) { st.dropped++; return; } if (r.nudged) st.nudged++; else st.ok++; r.tower = tower; out.push(r); };
+    const inf = sc && sc.infra; const cs = (inf && inf.camSpots) || towerSpots(inf);
+    if (cs && cs.length) for (const p of cs) {
+      const pr = tr.project(p.x, p.z, null, {}); const i = pr.i, sd = pr.lat >= 0 ? 1 : -1, nx = tr.nx[i] * sd, nz = tr.nz[i] * sd;
+      // a tower / scaffold eye stays on its structure: a little higher, or a little in front of the platform towards the track
+      keep({ x: p.x, y: p.y, z: p.z, s: pr.s }, true, [[0, 0, 1.5], [0, -1.6, 1], [0, 0, 3], [0, -1.6, 2.6], [0, 0, 4.5]].map(([a, b, c]) => ({ x: p.x + nx * b, y: p.y + c, z: p.z + nz * b, s: pr.s })));
     }
-    P.spots = out; P.spotsFor = tr; return out;
+    const pit = tr.pitSideSign ? tr.pitSideSign() : -1;
+    const at = (s, side, off, h) => { const i = tr.idxAtS(s); const w = side < 0 ? tr.wallL[i] : tr.wallR[i]; const o = street ? w + 0.6 + off : Math.min(w + 5, tr.halfWidth + 32) + off; return { x: tr.x[i] + tr.nx[i] * side * o, y: tr.y[i] + (street ? 5.2 : 8) + h, z: tr.z[i] + tr.nz[i] * side * o, s: U.mod(s, L) }; };
+    // nudges: [along s, further out, up]; the other side of the track last
+    const NUD = street ? [[0, 0, 2], [12, 0, 0], [-12, 0, 0], [12, 0, 2], [-12, 0, 2], [0, 0, 4], [24, 0, 0], [-24, 0, 0], [24, 0, 3], [-24, 0, 3], [0, 0, 6.5], [36, 0, 2], [-36, 0, 2]]
+      : [[0, 0, 3], [15, 0, 0], [-15, 0, 0], [0, 6, 2], [15, 0, 3], [-15, 0, 3], [0, -3, 0], [30, 0, 0], [-30, 0, 0], [0, 0, 6], [30, 6, 3], [-30, 6, 3]];
+    for (let s = 0; s < L; s += 90) {
+      let ks = 0; for (let d = 0; d <= 160; d += 10) ks += tr.k[tr.idxAtS(s + d)];
+      const side = Math.abs(ks) < 0.02 ? -pit : ks > 0 ? -1 : 1;
+      keep(at(s, side, 0, 0), false, NUD.map(([a, b, c]) => at(s + a, side, b, c)).concat([at(s, -side, 0, 0), at(s, -side, 0, 3)]));
+    }
+    P.spots = out; P.spotsFor = tr; P.line = finishSpot(P, tr, los);
+    P.spotStats = Object.assign(st, { ms: +(now() - t0).toFixed(1), build: los ? los.stats : null }); return out;
   }
+
+  // ------------------------------------------------------------------ line of sight from a camera spot to the racing line
+  // The occluders are gathered once per track into a 6 m grid over the circuit: every static triangle within ~75 m of the track
+  // (stands, scaffolds, frames, towers, buildings, fences, barriers, terrain; flat ground-level layers are left out) with its cell's
+  // top height, plus the trees / palms (crown as a vertical cylinder) and the crowd sprites (one cylinder each) from their record
+  // sets. A ray walks the grid cells it crosses and skips every cell whose contents lie below it, so most of a ray costs a few
+  // compares. A spot is tested against the cars it would film: points of the racing line from ~60 m past it to ~180 m before it,
+  // four rays each (the car, either side of it, above it).
+  const LOS = (function () {
+    const G = 6, BAND = 75, NEAR = 16;
+    const SKIP = /^(asphalt|kerb|runoff|verge|envVerge|paint|pitMarkings|pitText|pitLane|streetPaint|streetGrates|gravel|roads|water|grassCards|terrain|treeStrips|treeStripsNear|treeShadows|crowd|trees|treesFar)$/;
+    // ds of the car relative to the spot (pickSpot: spot ahead of the car by ds) at which visibility is sampled; CORE = what the TV shot mostly shows
+    const DS = [-60, -30, 0, 30, 60, 90, 120, 150, 180], CORE = (ds) => ds >= 0 && ds <= 150;
+    function grow(a, n) { if (n <= a.length) return a; const b = new a.constructor(Math.max(n, a.length * 2)); b.set(a); return b; }
+    function build(tr, sc) {
+      if (!tr || !sc || !sc.group || typeof THREE === 'undefined') return null;
+      const t0 = now(); const E = sc.env; const fAt = E && E.fAt ? (x, z) => E.fAt(x, z) : null;
+      let x0 = 1e9, x1 = -1e9, z0 = 1e9, z1 = -1e9; for (let i = 0; i < tr.n; i++) { x0 = Math.min(x0, tr.x[i]); x1 = Math.max(x1, tr.x[i]); z0 = Math.min(z0, tr.z[i]); z1 = Math.max(z1, tr.z[i]); }
+      x0 -= BAND + G; z0 -= BAND + G; const NX = Math.ceil((x1 + BAND + G - x0) / G), NZ = Math.ceil((z1 + BAND + G - z0) / G), NC = NX * NZ;
+      const top = new Float32Array(NC).fill(-1e9);
+      const O = { G, x0, z0, NX, NZ, top, mesh: [], stats: { tris: 0, kept: 0, cyl: 0 } };
+      // ---- triangles: (cell, mesh, triangle) pairs, then sorted into per-cell runs
+      let pc = new Int32Array(1 << 16), pm = new Uint16Array(1 << 16), pt = new Int32Array(1 << 16), np = 0;
+      const roots = [sc.group]; if (tr.group && tr.group !== sc.group) roots.push(tr.group);
+      const list = []; for (const r of roots) r.traverse(o => { if (o.isMesh && !o.isInstancedMesh && o.geometry && !o.geometry.isInstancedBufferGeometry && o.geometry.attributes.position) list.push(o); });
+      const mw = new THREE.Matrix4(), I4 = new THREE.Matrix4(), v = new THREE.Vector3();
+      for (const o of list) {
+        const g = o.geometry, m = o.material; if (SKIP.test(o.name || '') || (m && !Array.isArray(m) && m.transparent && !m.depthWrite) || O.mesh.length >= 65535) continue;
+        const pa = g.attributes.position, ix = g.index ? g.index.array : null; const nv = pa.count; let pos = pa.array;
+        o.updateWorldMatrix(true, false); mw.copy(o.matrixWorld); const id = mw.equals(I4);
+        if (!id || pa.isInterleavedBufferAttribute || pa.itemSize !== 3 || pa.normalized) { pos = new Float32Array(nv * 3); for (let k = 0; k < nv; k++) { v.fromBufferAttribute(pa, k); if (!id) v.applyMatrix4(mw); pos[k * 3] = v.x; pos[k * 3 + 1] = v.y; pos[k * 3 + 2] = v.z; } }
+        const dr = g.drawRange, n0 = ix ? ix.length : nv; const a0 = Math.max(0, dr.start | 0), a1 = Math.min(n0, dr.count === Infinity ? n0 : a0 + dr.count);
+        const mi = O.mesh.length; O.mesh.push({ pos, ix, name: o.name }); let kept = 0;
+        for (let q = a0 - a0 % 3; q + 2 < a1; q += 3) {
+          const i0 = (ix ? ix[q] : q) * 3, i1 = (ix ? ix[q + 1] : q + 1) * 3, i2 = (ix ? ix[q + 2] : q + 2) * 3;
+          const ax = pos[i0], az = pos[i0 + 2], bx = pos[i1], bz = pos[i1 + 2], cx = pos[i2], cz = pos[i2 + 2];
+          if (fAt && fAt((ax + bx + cx) / 3, (az + bz + cz) / 3) > BAND && fAt(ax, az) > BAND) continue;
+          const gx0 = Math.max(0, Math.floor((Math.min(ax, bx, cx) - x0) / G)), gx1 = Math.min(NX - 1, Math.floor((Math.max(ax, bx, cx) - x0) / G));
+          const gz0 = Math.max(0, Math.floor((Math.min(az, bz, cz) - z0) / G)), gz1 = Math.min(NZ - 1, Math.floor((Math.max(az, bz, cz) - z0) / G));
+          if (gx1 < gx0 || gz1 < gz0 || (gx1 - gx0 + 1) * (gz1 - gz0 + 1) > 400) continue;
+          const ym = Math.max(pos[i0 + 1], pos[i1 + 1], pos[i2 + 1]); kept++;
+          for (let gz = gz0; gz <= gz1; gz++) for (let gx = gx0; gx <= gx1; gx++) {
+            const c = gz * NX + gx; if (ym > top[c]) top[c] = ym;
+            if (np >= pc.length) { pc = grow(pc, np + 1); pm = grow(pm, np + 1); pt = grow(pt, np + 1); }
+            pc[np] = c; pm[np] = mi; pt[np] = q; np++;
+          }
+        }
+        O.stats.tris += Math.max(0, a1 - a0) / 3; O.stats.kept += kept;
+      }
+      const sortRuns = (n, cellOf, put) => { const st = new Int32Array(NC + 1); for (let k = 0; k < n; k++) st[cellOf(k) + 1]++; for (let c = 0; c < NC; c++) st[c + 1] += st[c]; const w = st.slice(0, NC); for (let k = 0; k < n; k++) put(k, w[cellOf(k)]++); return st; };
+      O.tm = new Uint16Array(np); O.tt = new Int32Array(np); O.tst = sortRuns(np, (k) => pc[k], (k, j) => { O.tm[j] = pm[k]; O.tt[j] = pt[k]; });
+      // ---- cylinders: tree crowns (iA = x, y, z, yaw; iB = width, height, species) and crowd sprites (cP = x, y, z; cD.y = scale)
+      const cy = []; const PALM = 5, POPLAR = 1, CYPRESS = 6, SHRUB = 3;
+      const ts = sc.treeLod && sc.treeLod.set; if (ts && ts.data) { const A = ts.data[0], B = ts.data[1];
+        for (let k = 0; k < ts.n; k++) { const x = A[k * 4], y = A[k * 4 + 1], z = A[k * 4 + 2], w = B[k * 4], h = B[k * 4 + 1], sp = Math.round(B[k * 4 + 2]); if (fAt && fAt(x, z) > BAND + w) continue;
+          const lo = sp === PALM ? 0.42 : sp === SHRUB ? 0 : sp === POPLAR || sp === CYPRESS ? 0.12 : 0.28; cy.push(x, z, w * 0.42, y + h * lo, y + h * 0.97); } }
+      O.ntree = cy.length / 5; const cr = sc.crowdLod && sc.crowdLod.set; if (cr && cr.data) { const A = cr.data[0], B = cr.data[1];
+        for (let k = 0; k < cr.n; k++) { const x = A[k * 4], z = A[k * 4 + 2], s = B[k * 4 + 1] || 1; if (fAt && fAt(x, z) > BAND) continue; cy.push(x, z, 0.38 * s, A[k * 4 + 1], A[k * 4 + 1] + 1.75 * s); } }
+      const nc = cy.length / 5; O.cy = new Float32Array(cy); O.stats.cyl = nc; let cc = [], ci = [];
+      for (let k = 0; k < nc; k++) { const x = O.cy[k * 5], z = O.cy[k * 5 + 1], r = O.cy[k * 5 + 2], yt = O.cy[k * 5 + 4];
+        const gx0 = Math.max(0, Math.floor((x - r - x0) / G)), gx1 = Math.min(NX - 1, Math.floor((x + r - x0) / G)), gz0 = Math.max(0, Math.floor((z - r - z0) / G)), gz1 = Math.min(NZ - 1, Math.floor((z + r - z0) / G));
+        for (let gz = gz0; gz <= gz1; gz++) for (let gx = gx0; gx <= gx1; gx++) { const c = gz * NX + gx; if (yt > top[c]) top[c] = yt; cc.push(c); ci.push(k); } }
+      O.ci = new Int32Array(cc.length); O.cst = sortRuns(cc.length, (k) => cc[k], (k, j) => { O.ci[j] = ci[k]; }); cc = ci = null;
+      O.stats.ms = +(now() - t0).toFixed(1); O.stats.pairs = np;
+      return O;
+    }
+    // first hit along a -> b as a fraction of the segment (0..1), or 2 when the segment is clear
+    function ray(O, ax, ay, az, bx, by, bz) {
+      const G = O.G, NX = O.NX, NZ = O.NZ, top = O.top, dx = bx - ax, dy = by - ay, dz = bz - az;
+      let gx = Math.floor((ax - O.x0) / G), gz = Math.floor((az - O.z0) / G); const ex = Math.floor((bx - O.x0) / G), ez = Math.floor((bz - O.z0) / G);
+      const sx = dx > 0 ? 1 : -1, sz = dz > 0 ? 1 : -1; const tdx = dx !== 0 ? Math.abs(G / dx) : 1e9, tdz = dz !== 0 ? Math.abs(G / dz) : 1e9;
+      let tx = dx !== 0 ? ((dx > 0 ? (gx + 1) * G : gx * G) + O.x0 - ax) / dx : 1e9, tz = dz !== 0 ? ((dz > 0 ? (gz + 1) * G : gz * G) + O.z0 - az) / dz : 1e9;
+      let tc = 0, best = 2;
+      for (let step = 0; step < 4096; step++) {
+        const te = Math.min(tx, tz, 1);
+        if (gx >= 0 && gz >= 0 && gx < NX && gz < NZ) {
+          const c = gz * NX + gx; const ylo = Math.min(ay + dy * tc, ay + dy * te);
+          if (ylo <= top[c]) {
+            for (let j = O.tst[c], j1 = O.tst[c + 1]; j < j1; j++) {
+              const M = O.mesh[O.tm[j]], p = M.pos, ix = M.ix, q = O.tt[j];
+              const i0 = (ix ? ix[q] : q) * 3, i1 = (ix ? ix[q + 1] : q + 1) * 3, i2 = (ix ? ix[q + 2] : q + 2) * 3;
+              const e1x = p[i1] - p[i0], e1y = p[i1 + 1] - p[i0 + 1], e1z = p[i1 + 2] - p[i0 + 2], e2x = p[i2] - p[i0], e2y = p[i2 + 1] - p[i0 + 1], e2z = p[i2 + 2] - p[i0 + 2];
+              const hx = dy * e2z - dz * e2y, hy = dz * e2x - dx * e2z, hz = dx * e2y - dy * e2x; const det = e1x * hx + e1y * hy + e1z * hz; if (det > -1e-9 && det < 1e-9) continue;
+              const f = 1 / det, sx0 = ax - p[i0], sy0 = ay - p[i0 + 1], sz0 = az - p[i0 + 2]; const u = f * (sx0 * hx + sy0 * hy + sz0 * hz); if (u < 0 || u > 1) continue;
+              const qx = sy0 * e1z - sz0 * e1y, qy = sz0 * e1x - sx0 * e1z, qz = sx0 * e1y - sy0 * e1x; const w = f * (dx * qx + dy * qy + dz * qz); if (w < 0 || u + w > 1) continue;
+              const t = f * (e2x * qx + e2y * qy + e2z * qz); if (t > 0 && t < best) { best = t; O.hit = O.tm[j]; }
+            }
+            for (let j = O.cst[c], j1 = O.cst[c + 1]; j < j1; j++) {
+              const k = O.ci[j] * 5, cx = O.cy[k], cz = O.cy[k + 1], r = O.cy[k + 2], y0 = O.cy[k + 3], y1 = O.cy[k + 4];
+              const fx = ax - cx, fz = az - cz, A = dx * dx + dz * dz, B = fx * dx + fz * dz, C = fx * fx + fz * fz - r * r;
+              let ta, tb; if (A < 1e-9) { if (C > 0) continue; ta = 0; tb = 1; } else { const D = B * B - A * C; if (D < 0) continue; const sq = Math.sqrt(D); ta = (-B - sq) / A; tb = (-B + sq) / A; }
+              ta = Math.max(ta, 0); tb = Math.min(tb, 1); if (ta > tb) continue;
+              const ya = ay + dy * ta, yb = ay + dy * tb; if (Math.max(ya, yb) < y0 || Math.min(ya, yb) > y1) continue;
+              let t = ta; if (ya > y1) t = (y1 - ay) / dy; else if (ya < y0) t = (y0 - ay) / dy; if (t < best) { best = t; O.hit = -1 - O.ci[j]; }
+            }
+            if (best <= te) return best;
+          }
+        }
+        if (te >= 1 || (gx === ex && gz === ez)) break;
+        if (tx < tz) { tc = tx; tx += tdx; gx += sx; } else { tc = tz; tz += tdz; gz += sz; }
+      }
+      return best <= 1 ? best : 2;
+    }
+    // visibility of the cars a spot would film: bit k of `vis` = the car at ds DS[k] behind the spot is in clear view (no foreground
+    // clutter within NEAR m of the lens, the car itself unobstructed); out-of-range samples count as visible (pickSpot skips them)
+    function judge(O, tr, p) {
+      let vis = 0, core = 0, coreOk = 0, fg = 0;
+      for (let k = 0; k < DS.length; k++) {
+        const i = tr.idxAtS(p.s - DS[k]); const X = tr.lineX ? tr.lineX[i] : tr.x[i], Z = tr.lineZ ? tr.lineZ[i] : tr.z[i], Y = tr.y[i] + 0.8;
+        const hx = X - p.x, hz = Z - p.z, d = Math.hypot(hx, hz); if (d < 18 || d > 260) { vis |= 1 << k; continue; }
+        const d3 = Math.hypot(d, Y - p.y), e = Math.max(0, 1 - 3 / d3); const px = -hz / d * 3.5, pz = hx / d * 3.5;
+        const c0 = ray(O, p.x, p.y, p.z, p.x + (X - p.x) * e, p.y + (Y - p.y) * e, p.z + (Z - p.z) * e);
+        let near = c0 * d3 < NEAR;
+        for (const [ox, oy, oz] of [[px, 0, pz], [-px, 0, -pz], [0, 2.2, 0]]) { if (near) break; const t = ray(O, p.x, p.y, p.z, p.x + (X + ox - p.x) * e, p.y + (Y + oy - p.y) * e, p.z + (Z + oz - p.z) * e); if (t * d3 < NEAR) near = true; }
+        const ok = c0 > 1 && !near; if (ok) vis |= 1 << k; if (near) fg++;
+        if (CORE(DS[k])) { core++; if (ok) coreOk++; }
+      }
+      return { vis, core, coreOk, fg, q: core ? coreOk / core : 0 };
+    }
+    // the spot itself when clear, else the first clear nudge, else the best usable one (most of the core stretch in view), else null
+    function place(O, tr, p, nudges) {
+      if (!O) return Object.assign({}, p, { vis: -1 });
+      const good = (j) => j.core >= 2 && j.q >= 0.8 && j.fg === 0;
+      let j = judge(O, tr, p); if (good(j)) return Object.assign({}, p, { vis: j.vis, q: j.q });
+      let best = j.core >= 2 && j.fg === 0 && j.q >= 0.5 ? { p, j } : null;
+      for (const n of nudges || []) { const jn = judge(O, tr, n); if (good(jn)) return Object.assign({}, n, { vis: jn.vis, q: jn.q, nudged: true }); if (jn.core >= 2 && jn.fg === 0 && jn.q >= 0.5 && (!best || jn.q > best.j.q)) best = { p: n, j: jn }; }
+      return best ? Object.assign({}, best.p, { vis: best.j.vis, q: best.j.q, nudged: best.p !== p }) : null;
+    }
+    // pickSpot penalty: the car at ds behind the spot is out of view (bit cleared) - 1 for the nearest sample, 0.4 for its neighbours
+    function blocked(p, ds) {
+      if (p.vis == null || p.vis < 0) return 0; const f = (ds - DS[0]) / (DS[1] - DS[0]); const k = Math.round(f); let b = 0;
+      for (const [kk, w] of [[k, 1], [k - 1, 0.4], [k + 1, 0.4]]) if (kk >= 0 && kk < DS.length && !(p.vis & (1 << kk))) b += w;
+      return b;
+    }
+    return { build, ray, judge, place, blocked, DS };
+  })();
+  EI.ReplayCore.LOS = LOS;   // node harness / tests
   // the TV towers and camera scaffolds js/infra.js built: their placement is deterministic (want list -> freeSpot -> reserve), so each
   // one is found again from its reservation [s, side, 4] and re-derived with the builder's own numbers (deck height, camera on top)
   function towerSpots(cx) {
@@ -526,19 +677,13 @@ window.EI = window.EI || {};
       for (const [s, which] of F.cameraTowers || [[3160, 1], [3900, 1], [5075, 1], [5705, -1], [2010, 1], [965, 1], [460, 1]]) {
         const i = t.idxAtS(s + 20); const side = which > 0 ? -cx.outsideSide(i) : cx.outsideSide(i); const ps = find(s, side); if (ps == null) continue;
         const p = cx.at(ps, side, 5.5); const H = 9 + (placed % 3) * 1.5; placed++;
-        // Silverstone (QA r3, Village): the eye sat inside the tower's top cage, so its own lattice filled the foreground: put it just in
-        // front of the platform (towards the track) and a metre higher
-        const sv = t.data && t.data.id === 'silverstone'; const fo = sv ? 2.6 : 0.85, fu = sv ? 2.7 : 1.7;
-        out.push({ x: p.x - p.nx * fo, y: p.y + H + fu, z: p.z - p.nz * fo });
+        out.push({ x: p.x - p.nx * 0.85, y: p.y + H + 1.7, z: p.z - p.nz * 0.85 });   // (a cage / fence in the way: spots() nudges the eye clear)
       }
       let sc = 0;
       for (const s0 of F.scaffolds || [610, 1130, 1960, 2470, 3470, 3790, 4230, 5290, 5560, 760, 2860]) {
         const side = cx.outsideSide(t.idxAtS(s0 + 20)); const ps = find(s0, side); if (ps == null) continue;
         const p = cx.at(ps, side, 4.2); const Hh = 2.4 + (sc % 3) * 0.6; sc++;
-        // Silverstone (QA r3): the 3.6 m catch fence stands 2.5 m in front of the scaffold, so the eye (~4-5 m) looked through its posts and rail:
-        // lift it 1.4 m clear of the fence top there
-        const fy = t.data && t.data.id === 'silverstone' && t.fenceH ? p.y + t.fenceH(t.idxAtS(ps), side, (t.data.fence && t.data.fence.h) || 3.4) + 1.4 : -1e9;
-        out.push({ x: p.x - p.nx * 0.95, y: Math.max(p.y + Hh + 1.5, fy), z: p.z - p.nz * 0.95 });
+        out.push({ x: p.x - p.nx * 0.95, y: p.y + Hh + 1.5, z: p.z - p.nz * 0.95 });
       }
     } catch (e) { return out; }
     return out;
@@ -548,7 +693,8 @@ window.EI = window.EI || {};
     for (const p of spots(P)) {
       let ds = U.mod(p.s - s + L / 2, L) - L / 2; if (ds < -80 || ds > 200) continue;
       const d = Math.hypot(p.x - x, p.z - z); if (d < 18 || d > 260) continue;
-      const sc = Math.abs(ds - (wantAhead == null ? 70 : wantAhead)) + (p.tower ? -25 : 0) + Math.abs(d - 70) * 0.3;
+      // line of sight: a spot that cannot see the car here (or just before / after) scores far worse
+      const sc = Math.abs(ds - (wantAhead == null ? 70 : wantAhead)) + (p.tower ? -25 : 0) + Math.abs(d - 70) * 0.3 + LOS.blocked(p, ds) * 90;
       if (sc < bs) { bs = sc; best = p; }
     }
     if (!best) { const i = tr.idxAtS(s + 60); best = { x: tr.x[i] + tr.nx[i] * (tr.halfWidth + 8), y: tr.y[i] + 6, z: tr.z[i] + tr.nz[i] * (tr.halfWidth + 8), s: s + 60 }; }
@@ -581,10 +727,13 @@ window.EI = window.EI || {};
     return sh;
   }
   // the finish line camera: beside the track opposite the pit wall, ~40 m before the line, looking down the straight
-  function lineSpot(P) {
-    const tr = P.rec.track, side = -(tr.pitSideSign ? tr.pitSideSign() : -1), i = tr.idxAtS(tr.sf + 35); const wall = side < 0 ? tr.wallL[i] : tr.wallR[i];
-    const street = !!(tr.data && tr.data.street); const off = street ? wall + 0.5 : Math.min(wall + 6, tr.halfWidth + 22);
-    return { x: tr.x[i] + tr.nx[i] * side * off, y: tr.y[i] + (street ? 5.5 : 9.5), z: tr.z[i] + tr.nz[i] * side * off, s: tr.sf + 35 };
+  // (line of sight checked like the TV spots, nudged higher / along the straight when blocked; built with them)
+  function lineSpot(P) { spots(P); return P.line; }
+  function finishSpot(P, tr, los) {
+    const side = -(tr.pitSideSign ? tr.pitSideSign() : -1), street = !!(tr.data && tr.data.street);
+    const at = (ds, up) => { const i = tr.idxAtS(tr.sf + 35 + ds); const wall = side < 0 ? tr.wallL[i] : tr.wallR[i]; const off = street ? wall + 0.5 : Math.min(wall + 6, tr.halfWidth + 22);
+      return { x: tr.x[i] + tr.nx[i] * side * off, y: tr.y[i] + (street ? 5.5 : 9.5) + up, z: tr.z[i] + tr.nz[i] * side * off, s: U.mod(tr.sf + 35 + ds, tr.length) }; };
+    return LOS.place(los, tr, at(0, 0), [[0, 2], [10, 0], [-10, 0], [10, 2], [-10, 2], [0, 4.5], [20, 2]].map(([a, b]) => at(a, b))) || at(0, 0);
   }
   const _v = typeof THREE !== 'undefined' ? new THREE.Vector3() : null, _w = typeof THREE !== 'undefined' ? new THREE.Vector3() : null;
   function shotCamera(P, c, sh, snap, dt) {

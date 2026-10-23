@@ -826,7 +826,7 @@ window.EI = window.EI || {};
         this.n = n; setCount(n); return true;
       } };
     sc.crowdLod = {
-      inst, carpet: cm, uni,
+      inst, carpet: cm, uni, set,   // set: every spectator's record (replay.js: line of sight of the TV cameras)
       setRange(spriteR, farR) { uni.uLod.value.set(spriteR, farR); dyn.range(0, spriteR + 40); if (cm) cm.visible = farR > spriteR; const lw = EI.quality === 'low'; uni.uThin.value = lw ? LOW_THIN : 0; low.r1 = spriteR + 40; low.last = null; this.lowOn = lw; if (!lw) dyn.last = null; },
       update(dt, x, z) { uni.uEye.value.set(x, 0, z); uni.uTime.value += dt; if (this.lowOn) low.update(x, z); else dyn.update(x, z); },
       get count() { return this.lowOn ? low.n : dyn.n; },

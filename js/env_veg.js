@@ -473,7 +473,7 @@ window.EI = window.EI || {};
     const dn = new Env.DynSet(set, nattr, (n) => { ng.instanceCount = n; bg.instanceCount = n; near.visible = n > 0; blobs.visible = n > 0 && sc.treeBlobs !== false; }, 25);
     const df = new Env.DynSet(set, fattr, (n) => { fg.instanceCount = n; far.visible = n > 0; }, 90);
     sc.treeLod = {
-      near, far, blobs, uni,
+      near, far, blobs, uni, set,   // set: the full record set (replay.js: tree crowns block the TV cameras' line of sight)
       // nearR: 3-card trees inside; farR: billboards out to here (nothing beyond)
       setRange(nearR, farR) { this.nearR = nearR; this.farR = farR; uni.uLodN.value.set(0, nearR); uni.uLodF.value.set(nearR, farR); dn.range(0, nearR + 60); df.range(Math.max(0, nearR - 160), farR + 160); },
       update(x, z) { uni.uEye.value.set(x, 0, z); dn.update(x, z); df.update(x, z); },
