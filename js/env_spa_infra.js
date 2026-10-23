@@ -36,7 +36,8 @@
     const A0 = Sp.at(t, s, pside, dP), A1 = Sp.at(t, s, -pside, dO); const ty = A0.y;
     const ux = A1.x - A0.x, uz = A1.z - A0.z, span = Math.hypot(ux, uz), ax = ux / span, az = uz / span; const tx = A0.tx, tz = A0.tz;
     const W = (u, y, v) => [A0.x + ax * u + tx * v, ty + y, A0.z + az * u + tz * v];
-    const white = C(0x5b6066), grey = C(0x8c9399), I = I4();   // (SPA-UPGRADE: graphite truss - the 2022+ gantry is a red title-partner box, spa_main_straight_moet_board_cars) const yD = 8.9, dep = 2.2, hw = 0.8;
+    // (SPA-UPGRADE) graphite truss: the 2022+ gantry is a red title-partner box (spa_main_straight_moet_board_cars)
+    const white = C(0x5b6066), grey = C(0x8c9399), I = I4(); const yD = 8.9, dep = 2.2, hw = 0.8;
     // legs: twin lattice columns per side down to the drawn ground
     for (const [u, sg] of [[-0.45, -1], [span + 0.6, 1]]) {
       const g = sc.height(...[W(u, 0, 0)[0], W(u, 0, 0)[2]]) - ty - 0.3;

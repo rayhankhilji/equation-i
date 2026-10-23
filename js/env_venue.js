@@ -741,9 +741,9 @@ window.EI = window.EI || {};
   // a painted crowd strip on each row beyond (the two meet exactly at uLod.x, per spectator / per pixel)
   V.crowd = function (E, set, carpet) {
     const sc = E.sc; if (!set.n) return; const atlas = crowdAtlas(); const N = set.n;
-    const uni = { uEye: { value: new THREE.Vector3() }, uLod: { value: new THREE.Vector2(400, 1e5) }, uTime: { value: 0 } };
+    const uni = { uEye: { value: new THREE.Vector3() }, uLod: { value: new THREE.Vector2(400, 1e5) }, uTime: { value: 0 }, uThin: { value: 0 } };
     const L3 = (hex) => { const c = C(hex); return 'vec3(' + c.r.toFixed(4) + ',' + c.g.toFixed(4) + ',' + c.b.toFixed(4) + ')'; };
-    const head = '#include <common>\nattribute vec4 cP;\nattribute vec4 cD;\nattribute vec4 cS;\nattribute vec4 cA;\nuniform vec3 uEye;\nuniform vec2 uLod;\nuniform float uTime;\nvarying vec3 vShirt;\nvarying vec3 vAcc;\nvarying vec3 vSkin;\nvarying vec3 vHair;\nvarying float vShade;\n';
+    const head = '#include <common>\nattribute vec4 cP;\nattribute vec4 cD;\nattribute vec4 cS;\nattribute vec4 cA;\nuniform vec3 uEye;\nuniform vec2 uLod;\nuniform float uThin;\nuniform float uTime;\nvarying vec3 vShirt;\nvarying vec3 vAcc;\nvarying vec3 vSkin;\nvarying vec3 vHair;\nvarying float vShade;\n';
     const place = [
       'vec2 fd = vec2(sin(cP.w), cos(cP.w)); vec2 tc = cameraPosition.xz - cP.xz; float tl = length(tc); vec2 td = tl > 0.01 ? tc / tl : fd;',
       'float ang = clamp(atan(fd.x * td.y - fd.y * td.x, dot(fd, td)), -0.7, 0.7); vec2 f2 = vec2(fd.x * cos(ang) - fd.y * sin(ang), fd.x * sin(ang) + fd.y * cos(ang));',
@@ -752,7 +752,9 @@ window.EI = window.EI || {};
       'float ph = cD.z * 6.283; float bob = cD.w > 1.5 ? max(0.0, sin(uTime * (6.0 + cD.z * 3.0) + ph)) * 0.07 : 0.0;',
       'vec3 transformed = cP.xyz + crt * position.x * 0.8 * cD.y + vec3(0.0, position.y * 2.0 * cD.y + bob, 0.0);',
       'if (cD.w > 0.5) transformed += crt * sin(uTime * 2.2 + ph) * 0.05 * position.y;',
-      'if (distance(cP.xz, uEye.xz) >= uLod.x) transformed = cP.xyz;'].join('\n');
+      'if (distance(cP.xz, uEye.xz) >= uLod.x) transformed = cP.xyz;',
+      // Low (PERF-2): every other spectator beyond uThin steps aside for the painted carpet, which starts there instead of at uLod.x
+      'if (uThin > 0.0 && fract(cD.z * 5.31) >= 0.5 && distance(cP.xz, uEye.xz) >= uThin) transformed = cP.xyz;'].join('\n');
     const uvc = '#include <uv_vertex>\n#ifdef USE_UV\nfloat cc = cD.x; float ccol = mod(cc, 4.0), crow = floor(cc / 4.0 + 0.01);\nvUv = vec2((ccol + 0.01 + uv.x * 0.98) * 0.125, 1.0 - (crow + 1.0 - (0.004 + uv.y * 0.992)) * 0.25);\n#endif';
     const patch = (sh, depth) => {
       Object.assign(sh.uniforms, uni);
@@ -780,16 +782,54 @@ window.EI = window.EI || {};
       const cg = new THREE.BufferGeometry(); cg.setAttribute('position', new THREE.Float32BufferAttribute(carpet.p, 3)); cg.setAttribute('normal', new THREE.Float32BufferAttribute(carpet.n, 3)); cg.setAttribute('color', new THREE.Float32BufferAttribute(carpet.c, 3)); cg.setAttribute('uv', new THREE.Float32BufferAttribute(carpet.uv, 2)); cg.computeBoundingSphere();
       const shirts = ['#f2f2f2', '#e6e6e6', '#1a1a1a', '#2a2b2e', '#3b404a', '#5c6370', '#1b2a4a', '#24467e', '#2b5ba8', '#b8141c', '#c81010', '#0d5e52', '#e0c341', '#ff8000', '#c9b28a', '#9aa7b8'].concat((EI.TEAMS || []).map(tm => tm.primary));
       const cmat = new THREE.MeshStandardMaterial({ map: crowdCarpetTexture(shirts), vertexColors: true, alphaTest: 0.5, roughness: 0.9, metalness: 0, side: THREE.DoubleSide });
-      cmat.onBeforeCompile = (sh) => { Object.assign(sh.uniforms, uni); sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nvarying vec3 vWP;').replace('#include <begin_vertex>', '#include <begin_vertex>\nvWP = position;'); sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nvarying vec3 vWP;\nuniform vec3 uEye;\nuniform vec2 uLod;').replace('#include <clipping_planes_fragment>', '#include <clipping_planes_fragment>\nfloat dC = distance(vWP.xz, uEye.xz); if (dC < uLod.x || dC > uLod.y) discard;'); };
+      cmat.onBeforeCompile = (sh) => { Object.assign(sh.uniforms, uni); sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nvarying vec3 vWP;').replace('#include <begin_vertex>', '#include <begin_vertex>\nvWP = position;'); sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nvarying vec3 vWP;\nuniform vec3 uEye;\nuniform vec2 uLod;\nuniform float uThin;').replace('#include <clipping_planes_fragment>', '#include <clipping_planes_fragment>\nfloat dC = distance(vWP.xz, uEye.xz); if (dC < (uThin > 0.0 ? min(uThin, uLod.x) : uLod.x) || dC > uLod.y) discard;'); };
       cmat.customProgramCacheKey = () => 'crowd-carpet';
       cm = new THREE.Mesh(cg, cmat); cm.name = 'crowdFar'; sc.group.add(cm); E.stats.crowdCarpetTris = carpet.p.length / 9;
     }
-    const dyn = new Env.DynSet(set, attrs, (n) => { g.instanceCount = n; inst.visible = n > 0; }, 30);
+    const setCount = (n) => { g.instanceCount = n; inst.visible = n > 0; };
+    const dyn = new Env.DynSet(set, attrs, setCount, 30);
+    // Low tier crowd LOD (PERF-2, wave 9: Foro Sol drew ~18-21k sprites on Low): the set is split in two halves by the spectator's hash
+    // (A = shown out to the sprite range, B = only within LOW_THIN, the shader drops B beyond it and the carpet fills in from there), and
+    // cells more than LOW_NEAR away outside +-LOW_ANG of every camera's view are not gathered (Low mirrors hide the scenery group).
+    // Regathered after a 30 m move or a LOW_TURN turn of any camera. Medium / High keep the plain DynSet above.
+    const LOW_THIN = 60, LOW_NEAR = 40, LOW_ANG = 80 * Math.PI / 180, LOW_TURN = Math.cos(24 * Math.PI / 180);
+    let halves = null; const lowCam = []; const _cd = new THREE.Vector3();
+    const splitHalves = () => {
+      const st = set.strides, A = new Env.CellSet(st, set.cell), B = new Env.CellSet(st, set.cell), D = set.data;
+      for (let j = 0; j < set.n; j++) { const recs = st.map((s, k) => D[k].subarray(j * s, (j + 1) * s)); ((D[1][j * 4 + 2] * 5.31) % 1 >= 0.5 ? B : A).push(D[0][j * 4], D[0][j * 4 + 2], recs); }
+      return [A.n ? A.finalize() : null, B.n ? B.finalize() : null];
+    };
+    const gatherCone = (S, r1, eyes, dirs, n0) => {
+      if (!S) return 0; const h = S.cell * 0.7072, st = S.strides, cap = attrs[0].array.length / st[0]; let n = n0;
+      for (const c of S.cells) {
+        let take = false;
+        for (let k = 0; k < eyes.length && !take; k++) { const dx = c.x - eyes[k][0], dz = c.z - eyes[k][1], d = Math.hypot(dx, dz); if (d - h > r1) continue; const f = dirs[k];
+          if (d - h < LOW_NEAR || !f) { take = true; break; } take = (dx * f[0] + dz * f[1]) / d >= Math.cos(Math.min(Math.PI, LOW_ANG + Math.asin(Math.min(1, h / d)))); }
+        if (!take || n + c.count > cap) continue;
+        for (let k = 0; k < st.length; k++) attrs[k].array.set(S.data[k].subarray(c.start * st[k], (c.start + c.count) * st[k]), n * st[k]);
+        n += c.count;
+      }
+      return n - n0;
+    };
+    const low = { last: null, dirs: null, r1: 0, n: 0,
+      update(x, z) {
+        const eyes = EI.Env.eyes ? EI.Env.eyes.map(e => [e[0], e[1]]) : [[x, z]]; const cams = (EI.debug && EI.debug.cameras) || [];
+        const dirs = eyes.map((e, k) => { const cam = cams[k] || cams[0]; if (!cam) return null; cam.getWorldDirection(_cd); const l = Math.hypot(_cd.x, _cd.z); return l > 0.2 ? [_cd.x / l, _cd.z / l] : null; });
+        const L = this.last, D0 = this.dirs;
+        const still = L && L.length === eyes.length && eyes.every((e, k) => Math.hypot(e[0] - L[k][0], e[1] - L[k][1]) < 30) &&
+          dirs.every((f, k) => { const o = D0[k]; return (!f && !o) || (f && o && f[0] * o[0] + f[1] * o[1] > LOW_TURN); });
+        if (still) return false;
+        if (!halves) halves = splitHalves();
+        this.last = eyes; this.dirs = dirs;
+        const na = this.r1 > 0 ? gatherCone(halves[0], this.r1, eyes, dirs, 0) : 0, nb = this.r1 > 0 ? gatherCone(halves[1], Math.min(this.r1, LOW_THIN + 40), eyes, dirs, na) : 0;
+        const n = na + nb; for (const a of attrs) { a.updateRange.offset = 0; a.updateRange.count = Math.max(1, n * 4); a.needsUpdate = true; }
+        this.n = n; setCount(n); return true;
+      } };
     sc.crowdLod = {
       inst, carpet: cm, uni,
-      setRange(spriteR, farR) { uni.uLod.value.set(spriteR, farR); dyn.range(0, spriteR + 40); if (cm) cm.visible = farR > spriteR; },
-      update(dt, x, z) { uni.uEye.value.set(x, 0, z); uni.uTime.value += dt; dyn.update(x, z); },
-      get count() { return dyn.n; },
+      setRange(spriteR, farR) { uni.uLod.value.set(spriteR, farR); dyn.range(0, spriteR + 40); if (cm) cm.visible = farR > spriteR; const lw = EI.quality === 'low'; uni.uThin.value = lw ? LOW_THIN : 0; low.r1 = spriteR + 40; low.last = null; this.lowOn = lw; if (!lw) dyn.last = null; },
+      update(dt, x, z) { uni.uEye.value.set(x, 0, z); uni.uTime.value += dt; if (this.lowOn) low.update(x, z); else dyn.update(x, z); },
+      get count() { return this.lowOn ? low.n : dyn.n; },
     };
     sc.crowdLod.setRange(400, 1e5);
   };

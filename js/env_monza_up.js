@@ -2,6 +2,7 @@
 // Monza-gated hooks only (track id 'monza'); every other circuit runs the shared code untouched. Loaded after the other env files.
 //   * the park's trees: deep olive crowns, dark bark (data.treeTint on the tree materials)
 //   * grandstands OSM misses: Lesmo 2 interno, the Parabolica outside through the exit (data.standsUp)
+//   * the green standing boards on the verges of the long straights (data.vergeBoards; sign atlas + merged statics)
 //   * surfaces: the 2024 resurfacing - near-black charcoal asphalt (data.asphaltTint, a material colour: no program / call change)
 // All additions are uniform / vertex-colour changes or geometry merged into the scenery's existing statics (no new draw calls on Low).
 window.EI = window.EI || {};
@@ -47,6 +48,44 @@ window.EI = window.EI || {};
       } catch (e) { console.error('MonzaUp stands', e); }
       return r;
     };
+  }
+
+  // ================================================================ the green standing partner boards on the grass verges of the long straights (F1 photo
+  // rolex_straight_alps_trees: A-frame boards every ~40 m both sides, angled to face the oncoming cars). Front faces in the venue's sign atlas
+  // (the monzaSigns mesh: no new draw call), backs and legs vertex-coloured into the merged statics. data.vergeBoards: { runs: [[s0, s1], ...],
+  // step, brand, bg }. Never in the drivable corridor: they stand just behind the barrier line and the catch fence (wall + 1.7 .. 2.3 m), away
+  // from the kerb / run-off / gravel rows and the trackside furniture; their ground is marked BUILT so the park's trees keep off them.
+  function vergeBoards(E, BK, out) {
+    const t = E.t, VB = t.data.vergeBoards; if (!VB || !BK.A) return;
+    const { B, A } = BK; const K = Mz.K, C = K.C; const OCC = EI.Env.OCC; const I4 = new THREE.Matrix4(); const rng = U.rng(4242);
+    const r = A.region('mzUpVerge', 384, 160, (x2, w, h) => { x2.fillStyle = VB.bg || '#006039'; x2.fillRect(0, 0, w, h); x2.strokeStyle = 'rgba(255,255,255,0.18)'; x2.lineWidth = 4; x2.strokeRect(6, 6, w - 12, h - 12); if (EI.Ads && EI.Ads.drawPartner) EI.Ads.drawPartner(x2, VB.brand || 'rolex', w / 2, h / 2, w * 0.78, h * 0.62, { tone: 'white', fill: 0.5 }); });
+    const back = C(0x1d4a33), leg = C(0x6c7176);
+    const F = t.data.furniture || {}; const busy = [];
+    for (const m of F.marshals || []) busy.push(m[0]); for (const c of F.cameraTowers || []) busy.push(c[0]); for (const q of F.scaffolds || []) busy.push(q); for (const q of F.billboards || []) busy.push(q); for (const q of F.cranes || []) busy.push(q);
+    for (const sc of F.screens || []) busy.push(sc[0]); for (const q of F.gantries || []) busy.push(q); for (const q of F.bridges || []) busy.push(q[0]);
+    const kk = t.smooth(t.k, 6); const hw = t.halfWidth, kw = t.kerbWidth; let n = 0; const step = VB.step || 40;
+    for (const [s0, s1] of VB.runs || []) for (let s = s0; s < s1; s += step) for (const side of [-1, 1]) {
+      const sb = s + (side > 0 ? step / 2 : 0) + (rng() - 0.5) * 6; if (sb > s1) continue;
+      if (busy.some(q => Math.abs(U.mod(q - sb + t.length / 2, t.length) - t.length / 2) < 14)) continue;
+      const i = t.idxAtS(sb); let bad = false; for (let d = -10; d <= 10; d += 2) { const j = t.idxAtS(sb + d); if (Math.abs(kk[j]) > 1 / 700 || t.runoffL[j] || t.runoffR[j] || t.gravelL[j] || t.gravelR[j]) bad = true; } if (bad) continue;
+      const wall = side < 0 ? t.wallL[i] : t.wallR[i]; const lat = wall + 1.7 + rng() * 0.6; if (wall < hw + kw + 3) continue;
+      const cx = t.x[i] + t.nx[i] * side * lat, cz = t.z[i] + t.nz[i] * side * lat; if (E.occAt(cx, cz) & (OCC.BUILT | OCC.ROAD)) continue;
+      const yg = E.ground(cx, cz); if (!Number.isFinite(yg)) continue;
+      // front normal: towards the oncoming cars, turned 46 deg towards the track
+      const ca = Math.cos(0.8), sa = Math.sin(0.8); let fx = -t.tx[i] * ca - t.nx[i] * side * sa, fz = -t.tz[i] * ca - t.nz[i] * side * sa; const fl = Math.hypot(fx, fz); fx /= fl; fz /= fl;
+      const rx = fz, rz = -fx; const W = 2.6, H = 1.1, y0 = yg + 0.25, lean = 0.36;   // viewer's right = (fz, -fx)
+      const a = [cx - rx * W / 2, y0, cz - rz * W / 2], b = [cx + rx * W / 2, y0, cz + rz * W / 2];
+      const c = [b[0] - fx * lean, y0 + H, b[2] - fz * lean], d = [a[0] - fx * lean, y0 + H, a[2] - fz * lean];
+      A.quad(r, a, b, c, d, 0, 1, 0, 1); B.quad(b, a, d, c, back);
+      // the A-frame: two legs behind the panel to the ground, a foot bar
+      for (const u of [-0.8, 0.8]) { const px = cx + rx * u, pz = cz + rz * u; B.beam(I4, [px - fx * lean, y0 + H - 0.05, pz - fz * lean], [px - fx * 0.9, yg - 0.05, pz - fz * 0.9], 0.05, leg); B.beam(I4, [px, y0, pz], [px, yg - 0.05, pz], 0.05, leg); }
+      E.markRect(cx - fx * 0.4, cz - fz * 0.4, rx, rz, W / 2 + 0.6, 0.9, OCC.BUILT); n++;
+    }
+    out.vergeBoards = n;
+  }
+  if (Mz && Mz.Park) {
+    const oPB = Mz.Park.build;
+    Mz.Park.build = function (E, BK, out) { const r = oPB.apply(this, arguments); if (isMonza(E.t)) { try { vergeBoards(E, BK, out); } catch (e) { console.error('MonzaUp vergeBoards', e); } } return r; };
   }
 
   // ================================================================ surfaces (track.js): asphalt tone after the build

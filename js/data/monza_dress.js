@@ -68,6 +68,8 @@
   // the aprons the same dark tarmac as the track, the band behind the kerbs a deep emerald (the grade lifts it; '#2f5a24' read lime), pale grey gravel
   T.runoffTint = [0.74, 0.75, 0.78]; T.runoffGreen = '#1d6444'; T.gravelTint = [1.8, 1.74, 1.6];
   T.treeTint = [0.46, 0.56, 0.44];
+  // green standing A-frame partner boards on the grass of the long straights (photo rolex_straight_alps_trees), env_monza_up.js
+  T.vergeBoards = { runs: [[730, 1700], [2700, 3250], [3350, 3560], [3960, 4600]], step: 42, brand: 'rolex', bg: '#006039' };
   // extra stand runs (game s; side +1 = left of travel): Lesmo 2 interno (right-hander: inside = right), the Parabolica's outside to the exit
   T.standsUp = [
     { s0: 2556, s1: 2614, side: -1, gap: 7, rows: 10, label: 'LESMO', seat: 0x9aa3ad, once: true },

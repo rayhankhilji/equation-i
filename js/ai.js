@@ -691,9 +691,10 @@ window.EI = window.EI || {};
       { const fx = Math.cos(car.heading), fz = Math.sin(car.heading), kp = Math.abs(this.kWant || 0) < 1 / 30 ? this.kWant || 0 : 0;   // (hairpins: the straight-heading check, as before)
         for (const o of cars) {
           if (o === car || (o.pit && o.pit.active)) continue; const dx = o.x - car.x, dz = o.z - car.z; if (dx * dx + dz * dz > 144) continue;
-          // side measured from the arc this car steers along (kWant), not its straight heading: in a bend the car in the next lane sits
-          // straight ahead of the outside car's nose, and the outside lane braked for it (lap-1 Village / Loop pile-ups at Silverstone)
-          const fwd = dx * fx + dz * fz, side = dz * fx - dx * fz - kp * Math.max(0, fwd) * Math.max(0, fwd) / 2, rh = U.wrapAngle(o.heading - car.heading);
+          // a car clearly in the next lane (track lateral > 2.6 m): side measured from the arc this car steers along (kWant), not its straight
+          // heading - in a bend that car sits straight ahead of the outside car's nose, and the outside lane braked for it (lap-1 Village /
+          // Loop pile-ups at Silverstone); a diagonal car closer than that keeps the straight-heading check (chicanes)
+          const fwd = dx * fx + dz * fz, sideA = Math.abs(o.trk.lat - car.trk.lat) > 2.6 ? kp * Math.max(0, fwd) * Math.max(0, fwd) / 2 : 0, side = dz * fx - dx * fz - sideA, rh = U.wrapAngle(o.heading - car.heading);
           if (fwd <= 0 || Math.abs(side) > 2.5 + 1.45 * Math.abs(Math.sin(rh))) continue;
           if (av < 4 && o.dist < car.dist - 0.5) continue;   // crawling in a jam: a car behind us on the lap that sits across our nose (chicane, hairpin) waits for us, not the other way round - no gridlock
           if (fwd < 8.5 && Math.abs(side) < 2.4) pathClear = false;
