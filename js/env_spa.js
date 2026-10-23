@@ -201,8 +201,8 @@ window.EI = window.EI || {};
     const x0 = F.x0, x1 = F.x1, half = F.half;
     const lane = (x) => { const a = P(x, 0, zG), b = P(x, 0, zG - 1); return [b[0] - a[0], 0, b[2] - a[2]]; };   // world direction towards the track
     const back = (x) => { const v = lane(x); return [-v[0], 0, -v[2]]; };
-    const rib = [C(0x9ca1a5), C(0x777d83)], ribM = C(0x8d9297), conc = C(0x9ea3a6), concD = C(0x878c90), white = C(0xcdd0d1), offW = C(0xa9aeb2);   // (SPA-UPGRADE: a step darker again - the piers / header read as the only white slabs on the lap; refs spa_aerial_valley_grandstand: a grey-graphite building)   // greys read lighter under the Spa grade (BEAUTY): kept a step darker than the photo
-    const glass = C(0x26323d), glassL = C(0x3e5263), mull = C(0xcfd3d6), steel = C(0x9aa0a6), brick = C(0x8f3a26), brickD = C(0x74301f), door = C(0xc9761a), roofC = C(0x8f9397), red = C(0xc8102e);
+    const rib = [C(0x9ca1a5), C(0x777d83)], ribM = C(0x8d9297), conc = C(0x868b90), concD = C(0x73787d), white = C(0xb4b8ba), offW = C(0x969ba0);   // (SPA-UPGRADE: a step darker again - the piers / header read as the only white slabs on the lap; refs spa_aerial_valley_grandstand: a grey-graphite building)   // greys read lighter under the Spa grade (BEAUTY): kept a step darker than the photo
+    const glass = C(0x26323d), glassL = C(0x3e5263), mull = C(0x9aa0a5), steel = C(0x9aa0a6), brick = C(0x8f3a26), brickD = C(0x74301f), door = C(0xc9761a), roofC = C(0x8f9397), red = C(0xc8102e);
     const yH0 = 4.8, yH1 = 6.0, yB0 = 6.45, yB1 = 6.8, yL2 = 9.9, yS1 = 10.9, yT = 13.3, yR = 13.8;   // header, balcony slab, level 2 slab, spandrel top, roof
     const zBal = zG - 1.8, zGal = zG + 1.4, zL2 = zG - 0.3;
     const inRC = (x) => x > F.rc0 - 0.01 && x < F.rc1 + 0.01;
