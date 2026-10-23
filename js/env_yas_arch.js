@@ -646,20 +646,20 @@ window.EI = window.EI || {};
     if (!spots.length) return;
     const night = isNight();
     // the head: a short mast, three tiers of arms fanning towards the track, a lamp on every arm end (5 + 4 + 3 lamps)
-    const tilt = new THREE.Matrix4().makeRotationX(0.32); const frame = [], lampG = [], cols = [];
-    const mast = new THREE.CylinderGeometry(0.12, 0.16, 5.2, 6, 1); mast.translate(0, 0.4, 0); frame.push(mast);
+    const tilt = new THREE.Matrix4().makeRotationX(0.32); const frame = [], lampG = [], cols = [], farFrame = [];
+    const mast = new THREE.CylinderGeometry(0.12, 0.16, 5.2, 6, 1); mast.translate(0, 0.4, 0); frame.push(mast); farFrame.push(mast);
     const lampW = new THREE.Color(1.0, 0.97, 0.9), red = new THREE.Color(1.0, 0.06, 0.03);
     const pushLamp = (g, c) => { const n = g.attributes.position.count; const ca = new Float32Array(n * 3); for (let k = 0; k < n; k++) { ca[k * 3] = c.r; ca[k * 3 + 1] = c.g; ca[k * 3 + 2] = c.b; } g.setAttribute('color', new THREE.BufferAttribute(ca, 3)); lampG.push(g); };
     [[5, 2.2, 1.0], [4, 1.0, 0.9], [3, -0.2, 0.75]].forEach(([nl, y, sp]) => {
       for (let k = 0; k < nl; k++) {
         const a = (k - (nl - 1) / 2) * 0.42 * sp, r = 1.15 + 0.25 * Math.abs(k - (nl - 1) / 2); const lx = Math.sin(a) * r, lz = Math.cos(a) * r;
         const arm = new THREE.BoxGeometry(0.08, 0.08, r); arm.translate(0, 0, r / 2); arm.applyMatrix4(new THREE.Matrix4().makeRotationY(a)); arm.translate(0, y, 0); frame.push(arm);
-        const box = new THREE.BoxGeometry(0.5, 0.42, 0.26); box.applyMatrix4(tilt); box.applyMatrix4(new THREE.Matrix4().makeRotationY(a)); box.translate(lx, y, lz); frame.push(box);
+        const box = new THREE.BoxGeometry(0.5, 0.42, 0.26); box.applyMatrix4(tilt); box.applyMatrix4(new THREE.Matrix4().makeRotationY(a)); box.translate(lx, y, lz); frame.push(box); farFrame.push(box);
         const face = new THREE.PlaneGeometry(0.44, 0.36); face.translate(0, 0, 0.14); face.applyMatrix4(tilt); face.applyMatrix4(new THREE.Matrix4().makeRotationY(a)); face.translate(lx, y, lz); pushLamp(face, lampW);
       }
     });
     const av = new THREE.SphereGeometry(0.2, 6, 4); av.translate(0, 3.15, 0); pushLamp(av, red);
-    const headG = EI.Env.merge(frame), lampsG = EI.Env.merge(lampG);
+    const headG = EI.Env.merge(frame), lampsG = EI.Env.merge(lampG), farHeadG = EI.Env.merge(farFrame);   // far head (PERF-2): no arms (8 cm, sub-pixel beyond ~150 m)
     const col = new THREE.CylinderGeometry(0.17, 0.36, 1, 8, 1); col.translate(0, 0.5, 0);
     const mPy = new THREE.MeshStandardMaterial({ color: 0xeceef0, roughness: 0.5, metalness: 0.25 });
     const lampK = night ? 3.2 : 1.1;
@@ -678,6 +678,19 @@ window.EI = window.EI || {};
     const bb = new THREE.Box3(); for (const S of spots) bb.expandByPoint(p.set(S[0], S[1], S[2])); bb.max.y += 42; const bs = bb.getBoundingSphere(new THREE.Sphere());
     for (const im of [iPole, iHead, iL]) { im.instanceMatrix.needsUpdate = true; im.castShadow = false; im.receiveShadow = false; im.geometry = im.geometry.clone(); im.geometry.boundingSphere = bs.clone(); }
     iPole.name = 'yasFloodPoles'; iHead.name = 'yasFloodHeads'; iL.name = 'yasFloodLamps';
+    // (PERF-2) heads more than FAR_HEAD m from the camera are drawn from the arm-less far head (a second instanced mesh); the two lists
+    // are rebuilt when the camera has moved 20 m (onBeforeRender of the near heads; split screen: the union of both views' near sets)
+    { const FAR_HEAD = 260, hm = [], iFar = new THREE.InstancedMesh(farHeadG, mPy, n); iFar.castShadow = false; iFar.receiveShadow = false; iFar.geometry.boundingSphere = bs.clone(); iFar.name = 'yasFloodHeadsFar';
+      for (let k = 0; k < n; k++) { const mk = new THREE.Matrix4(); iHead.getMatrixAt(k, mk); hm.push(mk); iFar.setMatrixAt(k, mk); }
+      iFar.count = 0;   // until the first render: every head near (as built)
+      const last = [], R2 = FAR_HEAD * FAR_HEAD;
+      const regather = () => { const cams = (EI.debug && EI.debug.cameras) || []; if (!cams.length) return;
+        const moved = cams.length !== last.length || cams.some((c, k) => !last[k] || Math.hypot(c.position.x - last[k][0], c.position.z - last[k][1]) > 20); if (!moved) return;
+        last.length = 0; for (const c of cams) last.push([c.position.x, c.position.z]); let a = 0, b = 0;
+        for (let k = 0; k < n; k++) { const S = spots[k]; let nearK = false; for (const c of cams) { const dx = S[0] - c.position.x, dz = S[2] - c.position.z; if (dx * dx + dz * dz < R2) { nearK = true; break; } }
+          if (nearK) iHead.setMatrixAt(a++, hm[k]); else iFar.setMatrixAt(b++, hm[k]); }
+        iHead.count = a; iFar.count = b; iHead.instanceMatrix.needsUpdate = true; iFar.instanceMatrix.needsUpdate = true; };
+      iHead.onBeforeRender = regather; iFar.onBeforeRender = regather; sc.group.add(iFar); }
     sc.group.add(iPole); sc.group.add(iHead); sc.group.add(iL); out.floodlights = n; out.floodTris = n * (16 + (headG.attributes.position.count + lampsG.attributes.position.count) / 3);
   }
 

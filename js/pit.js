@@ -134,6 +134,7 @@ window.EI = window.EI || {};
     else if (name === 'cyl6') g = new THREE.CylinderGeometry(1, 1, 1, 6, 1);
     else if (name === 'sph') g = new THREE.SphereGeometry(1, 10, 8);
     else if (name === 'sphL') g = new THREE.SphereGeometry(1, 7, 5);
+    else if (name === 'sphM') g = new THREE.SphereGeometry(1, 8, 6);   // Medium crew heads (PERF-2)
     g = g.toNonIndexed(); UNIT[name] = { p: g.attributes.position.array, n: g.attributes.normal.array, uv: g.attributes.uv.array }; return UNIT[name];
   }
   class GB {
@@ -444,7 +445,7 @@ window.EI = window.EI || {};
   }
   function buildFigureMeshes(count, group) {
     // street circuit: lighter heads (the crews are seen from the stands and the grid, a few hundred figures in one draw per part)
-    const SPH = (L.track && L.track.data.street) || EI.quality === 'low' ? 'sphL' : 'sph';   // low-poly heads on street circuits and on Low
+    const SPH = (L.track && L.track.data.street) || EI.quality === 'low' ? 'sphL' : EI.quality === 'medium' ? 'sphM' : 'sph';   // low-poly heads on street circuits and on Low, 8x6 on Medium (PERF-2)
     const mk = (fn) => { const gb = new GB(); fn(gb); return gb.geometry(); };
     const I = new THREE.Matrix4();
     const S = (x, y, z, sx, sy, sz) => new THREE.Matrix4().makeTranslation(x, y, z).multiply(new THREE.Matrix4().makeScale(sx, sy, sz));

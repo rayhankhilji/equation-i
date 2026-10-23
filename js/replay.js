@@ -508,13 +508,12 @@ window.EI = window.EI || {};
   function spots(P) {
     const tr = P.rec.track; if (P.spots && P.spotsFor === tr) return P.spots;
     const t0 = now(), out = [], L = tr.length, street = !!(tr.data && tr.data.street);
-    const sc = P.host && P.host.scenery; const los = LOS.build(tr, sc); const st = { cand: 0, ok: 0, nudged: 0, dropped: 0, lost: [] };
-    const keep = (p, tower, nudges) => { st.cand++; const r = LOS.place(los, tr, p, nudges); if (!r) { st.dropped++; st.lost.push(Object.assign({ tower }, p)); return; } if (r.nudged) st.nudged++; else st.ok++; r.tower = tower; out.push(r); };
+    const sc = P.host && P.host.scenery; const G = [];   // candidates: [spot, tower, nudges]
     const inf = sc && sc.infra; const cs = (inf && inf.camSpots) || towerSpots(inf);
     if (cs && cs.length) for (const p of cs) {
       const pr = tr.project(p.x, p.z, null, {}); const i = pr.i, sd = pr.lat >= 0 ? 1 : -1, nx = tr.nx[i] * sd, nz = tr.nz[i] * sd;
       // a tower / scaffold eye stays on its structure: a little higher, or a little in front of the platform towards the track
-      keep({ x: p.x, y: p.y, z: p.z, s: pr.s }, true, [[0, 0, 1.5], [0, -1.6, 1], [0, 0, 3], [0, -1.6, 2.6], [0, 0, 4.5]].map(([a, b, c]) => ({ x: p.x + nx * b, y: p.y + c, z: p.z + nz * b, s: pr.s })));
+      G.push([{ x: p.x, y: p.y, z: p.z, s: pr.s }, true, [[0, 1.5], [-1.6, 1], [0, 3], [-1.6, 2.6], [0, 4.5]].map(([b, c]) => ({ x: p.x + nx * b, y: p.y + c, z: p.z + nz * b, s: pr.s }))]);
     }
     const pit = tr.pitSideSign ? tr.pitSideSign() : -1;
     const at = (s, side, off, h) => { const i = tr.idxAtS(s); const w = side < 0 ? tr.wallL[i] : tr.wallR[i]; const o = street ? w + 0.6 + off : Math.min(w + 5, tr.halfWidth + 32) + off; return { x: tr.x[i] + tr.nx[i] * side * o, y: tr.y[i] + (street ? 5.2 : 8) + h, z: tr.z[i] + tr.nz[i] * side * o, s: U.mod(s, L) }; };
@@ -524,26 +523,35 @@ window.EI = window.EI || {};
     for (let s = 0; s < L; s += 90) {
       let ks = 0; for (let d = 0; d <= 160; d += 10) ks += tr.k[tr.idxAtS(s + d)];
       const side = Math.abs(ks) < 0.02 ? -pit : ks > 0 ? -1 : 1;
-      keep(at(s, side, 0, 0), false, NUD.map(([a, b, c]) => at(s + a, side, b, c)).concat([at(s, -side, 0, 0), at(s, -side, 0, 3)]));
+      G.push([at(s, side, 0, 0), false, NUD.map(([a, b, c]) => at(s + a, side, b, c)).concat([at(s, -side, 0, 0), at(s, -side, 0, 3)])]);
     }
-    P.spots = out; P.spotsFor = tr; P.line = finishSpot(P, tr, los);
+    const fin = finishSpot(tr);
+    const eyes = []; for (const g of G.concat([fin])) { eyes.push(g[0]); for (const n of g[2]) eyes.push(n); }
+    const los = LOS.build(tr, sc, eyes); const st = { cand: G.length, ok: 0, nudged: 0, dropped: 0, lost: [] };
+    for (const [p, tower, nudges] of G) {
+      const r = LOS.place(los, tr, p, nudges, tower ? 0.75 : 0.5); if (!r) { st.dropped++; st.lost.push(Object.assign({ tower }, p)); continue; }
+      if (r.nudged) st.nudged++; else st.ok++; r.tower = tower; out.push(r);
+    }
+    P.spots = out; P.spotsFor = tr; P.line = LOS.place(los, tr, fin[0], fin[2]) || fin[0];
     P.spotStats = Object.assign(st, { ms: +(now() - t0).toFixed(1), build: los ? los.stats : null }); return out;
   }
 
   // ------------------------------------------------------------------ line of sight from a camera spot to the racing line
-  // The occluders are gathered once per track into a 6 m grid over the circuit: every static triangle within ~75 m of the track
-  // (stands, scaffolds, frames, towers, buildings, fences, barriers, terrain; flat ground-level layers are left out) with its cell's
-  // top height, plus the trees / palms (crown as a vertical cylinder) and the crowd sprites (one cylinder each) from their record
-  // sets. A ray walks the grid cells it crosses and skips every cell whose contents lie below it, so most of a ray costs a few
-  // compares. A spot is tested against the cars it would film: points of the racing line from ~60 m past it to ~180 m before it,
-  // four rays each (the car, either side of it, above it).
+  // The occluders are gathered once per track into a 6 m grid over the circuit, only in the cells a test ray can cross: every static
+  // triangle there (stands, scaffolds, frames, towers, buildings, barriers, terrain; ground-level layers and anything within 0.35 m of
+  // the road level are left out) with its cell's top height, the catch fences as near-only occluders, plus the trees / palms (crown
+  // as a vertical cylinder) and the crowd sprites (one cylinder each) from their record sets. Geometry arrays are read in place. A ray
+  // walks the grid cells it crosses and skips every cell whose contents lie below it, so most of a ray costs a few compares. A spot
+  // is tested against the cars it would film: racing-line points from ~50 m past it to ~160 m before it, the car itself, plus
+  // either side of it, above and below it on the stretch the shot mostly shows (foreground clutter within NEAR m of the lens).
   const LOS = (function () {
     const G = 6, BAND = 48, NEAR = 16;
+    const SOFT = /^(fence|fencePosts|street_fence)$/;
     const SKIP = /^(asphalt|kerb|runoff|verge|envVerge|paint|pitMarkings|pitText|pitLane|streetPaint|streetGrates|gravel|roads|water|grassCards|terrain|treeStrips|treeStripsNear|treeShadows|crowd|trees|treesFar)$/;
     // ds of the car relative to the spot (pickSpot: spot ahead of the car by ds) at which visibility is sampled; CORE = what the TV shot mostly shows
     const DS = [-50, -15, 20, 55, 90, 125, 160], CORE = (ds) => ds >= 0 && ds <= 150, ORDER = [3, 2, 4, 5, 1, 6, 0];   // core first
     function grow(a, n) { if (n <= a.length) return a; const b = new a.constructor(Math.max(n, a.length * 2)); b.set(a); return b; }
-    function build(tr, sc) {
+    function build(tr, sc, eyes) {
       if (!tr || !sc || !sc.group || typeof THREE === 'undefined') return null;
       const t0 = now(); const E = sc.env; const fAt = E && E.fAt ? (x, z) => E.fAt(x, z) : null;
       let x0 = 1e9, x1 = -1e9, z0 = 1e9, z1 = -1e9; for (let i = 0; i < tr.n; i++) { x0 = Math.min(x0, tr.x[i]); x1 = Math.max(x1, tr.x[i]); z0 = Math.min(z0, tr.z[i]); z1 = Math.max(z1, tr.z[i]); }
@@ -552,7 +560,14 @@ window.EI = window.EI || {};
       // cells within BAND of the circuit (one distance-field lookup per cell; everything else is never gathered) and their road level:
       // a triangle that stays within 0.35 m of it (road, kerbs, pavements, verges, flat ground) cannot hide a car from an elevated lens
       for (let gz = 0, c = 0; gz < NZ; gz++) for (let gx = 0; gx < NX; gx++, c++) { const x = x0 + (gx + 0.5) * G, z = z0 + (gz + 0.5) * G; band[c] = !fAt || fAt(x, z) < BAND + G * 0.71 ? 1 : 0; if (band[c] && E.idxAt) gy[c] = tr.y[E.idxAt(x, z)] + 0.35; }
-      const O = { G, x0, z0, NX, NZ, top, mesh: [], stats: { tris: 0, kept: 0, cyl: 0 } };
+      // only the cells some test ray can cross (every candidate eye to its sample cars, one cell either side) are gathered
+      if (eyes && eyes.length) {
+        const hot = new Uint8Array(NC);
+        for (const p of eyes) for (const ds of DS) { const i = tr.idxAtS(p.s - ds); const X = tr.lineX ? tr.lineX[i] : tr.x[i], Z = tr.lineZ ? tr.lineZ[i] : tr.z[i]; const d = Math.hypot(X - p.x, Z - p.z); if (d < 18 || d > 260) continue;
+          const n = Math.ceil(d / (G * 0.5)); for (let k = 0; k <= n; k++) { const gx = Math.floor((p.x + (X - p.x) * k / n - x0) / G), gz = Math.floor((p.z + (Z - p.z) * k / n - z0) / G); if (gx > 0 && gz > 0 && gx < NX - 1 && gz < NZ - 1) hot[gz * NX + gx] = 1; } }
+        for (let gz = 1; gz < NZ - 1; gz++) for (let gx = 1, c = gz * NX + 1; gx < NX - 1; gx++, c++) if (band[c] && !(hot[c] || hot[c - 1] || hot[c + 1] || hot[c - NX] || hot[c + NX] || hot[c - NX - 1] || hot[c - NX + 1] || hot[c + NX - 1] || hot[c + NX + 1])) band[c] = 0;
+      }
+      const O = { G, x0, z0, NX, NZ, top, mesh: [], stats: { tris: 0, kept: 0, cyl: 0, tBand: +(now() - t0).toFixed(1) } };
       // ---- (cell, item) pairs, then sorted into per-cell runs
       let pc = new Int32Array(1 << 18), pm = new Uint16Array(1 << 18), pt = new Int32Array(1 << 18), np = 0;
       const add = (gx0, gx1, gz0, gz1, ym, m, q) => {
@@ -566,16 +581,26 @@ window.EI = window.EI || {};
       };
       const roots = [sc.group]; if (tr.group && tr.group !== sc.group) roots.push(tr.group);
       const list = []; for (const r of roots) r.traverse(o => { if (o.isMesh && !o.isInstancedMesh && o.geometry && !o.geometry.isInstancedBufferGeometry && o.geometry.attributes.position) list.push(o); });
-      const mw = new THREE.Matrix4(), I4 = new THREE.Matrix4(), v = new THREE.Vector3(), iG = 1 / G;
+      const mw = new THREE.Matrix4(), I4 = new THREE.Matrix4(), v = new THREE.Vector3(), iG = 1 / G, bb = new THREE.Box3();
+      const detail = list.some(o => o.name === 'cityDetail');   // the street city's near tiles: its far proxies are the same buildings
+      // a mesh whose bounds touch no gathered cell is skipped whole
+      const touches = (b) => { const gx0 = Math.max(0, Math.floor((b.min.x - x0) * iG)), gx1 = Math.min(NX - 1, Math.floor((b.max.x - x0) * iG)), gz0 = Math.max(0, Math.floor((b.min.z - z0) * iG)), gz1 = Math.min(NZ - 1, Math.floor((b.max.z - z0) * iG));
+        for (let gz = gz0; gz <= gz1; gz++) for (let c = gz * NX + gx0, c1 = gz * NX + gx1; c <= c1; c++) if (band[c]) return true; return false; };
       for (const o of list) {
-        const g = o.geometry, m = o.material; if (SKIP.test(o.name || '') || (m && !Array.isArray(m) && m.transparent && !m.depthWrite) || O.mesh.length >= 65534) continue;
-        const pa = g.attributes.position, ix = g.index ? g.index.array : null; const nv = pa.count; let pos = pa.array;
-        o.updateWorldMatrix(true, false); mw.copy(o.matrixWorld); const id = mw.equals(I4);
-        if (!id || pa.isInterleavedBufferAttribute || pa.itemSize !== 3 || pa.normalized) { pos = new Float32Array(nv * 3); for (let k = 0; k < nv; k++) { v.fromBufferAttribute(pa, k); if (!id) v.applyMatrix4(mw); pos[k * 3] = v.x; pos[k * 3 + 1] = v.y; pos[k * 3 + 2] = v.z; } }
-        const dr = g.drawRange, n0 = ix ? ix.length : nv; const a0 = Math.max(0, dr.start | 0), a1 = Math.min(n0, dr.count === Infinity ? n0 : a0 + dr.count);
-        const mi = O.mesh.length; const M = { pos, ix, name: o.name, kept: 0 }; O.mesh.push(M); let kept = 0;
+        // catch fences (the see-through net and its posts) only count in front of the lens: a car seen through the far fence is a normal TV shot
+        const g = o.geometry, m = o.material, soft = SOFT.test(o.name || ''); if (SKIP.test(o.name || '') || (detail && o.name === 'cityProxy') || (!soft && m && !Array.isArray(m) && m.transparent && !m.depthWrite) || O.mesh.length >= 65534) continue;
+        if (!g.boundingBox) g.computeBoundingBox(); o.updateWorldMatrix(true, false); bb.copy(g.boundingBox).applyMatrix4(o.matrixWorld); if (!touches(bb)) continue;
+        const pa = g.attributes.position, ix = g.index ? g.index.array : null, nv = pa.count, il = pa.isInterleavedBufferAttribute;
+        mw.copy(o.matrixWorld); const id = mw.equals(I4);
+        // world positions read in place (plain or interleaved Float32 arrays: vertex k at k * st + of); a moved or quantised mesh is copied once
+        let pos = il ? pa.data.array : pa.array, st = il ? pa.data.stride : 3, of = il ? pa.offset : 0;
+        if (!id || pa.itemSize !== 3 || pa.normalized || !(pos instanceof Float32Array)) { O.stats.copied = (O.stats.copied || 0) + nv; pos = new Float32Array(nv * 3); st = 3; of = 0; for (let k = 0; k < nv; k++) { v.fromBufferAttribute(pa, k); if (!id) v.applyMatrix4(mw); pos[k * 3] = v.x; pos[k * 3 + 1] = v.y; pos[k * 3 + 2] = v.z; } }
+        // the whole mesh, also the part a split tile's draw range hides beyond the clutter distance at the moment
+        const dr = g.drawRange, n0 = ix ? ix.length : nv, full = o.userData && o.userData.split ? o.userData.split.full : 0;
+        const a0 = full ? 0 : Math.max(0, dr.start | 0), a1 = full ? Math.min(n0, full) : Math.min(n0, dr.count === Infinity ? n0 : a0 + dr.count);
+        const mi = O.mesh.length; const M = { pos, ix, st, of, soft, name: o.name, kept: 0 }; O.mesh.push(M); let kept = 0;
         for (let q = a0 - a0 % 3; q + 2 < a1; q += 3) {
-          const i0 = (ix ? ix[q] : q) * 3, i1 = (ix ? ix[q + 1] : q + 1) * 3, i2 = (ix ? ix[q + 2] : q + 2) * 3;
+          const i0 = (ix ? ix[q] : q) * st + of, i1 = (ix ? ix[q + 1] : q + 1) * st + of, i2 = (ix ? ix[q + 2] : q + 2) * st + of;
           const ax = pos[i0], az = pos[i0 + 2], bx = pos[i1], bz = pos[i1 + 2], cx = pos[i2], cz = pos[i2 + 2];
           const gx0 = Math.floor(((ax < bx ? (ax < cx ? ax : cx) : (bx < cx ? bx : cx)) - x0) * iG), gx1 = Math.floor(((ax > bx ? (ax > cx ? ax : cx) : (bx > cx ? bx : cx)) - x0) * iG);
           const gz0 = Math.floor(((az < bz ? (az < cz ? az : cz) : (bz < cz ? bz : cz)) - z0) * iG), gz1 = Math.floor(((az > bz ? (az > cz ? az : cz) : (bz > cz ? bz : cz)) - z0) * iG);
@@ -586,7 +611,7 @@ window.EI = window.EI || {};
         }
         M.kept = kept; O.stats.tris += Math.max(0, a1 - a0) / 3; O.stats.kept += kept;
       }
-      const ntp = np;
+      const ntp = np; O.stats.tTri = +(now() - t0).toFixed(1);
       // ---- cylinders: tree crowns (iA = x, y, z, yaw; iB = width, height, species) and crowd sprites (cP = x, y, z; cD.y = scale)
       const PALM = 5, POPLAR = 1, CYPRESS = 6, SHRUB = 3; let cyl = new Float32Array(5 << 12), nc = 0;
       const cyAdd = (x, z, r, y0, y1) => { if (nc * 5 + 5 > cyl.length) cyl = grow(cyl, nc * 5 + 5); if (!add(Math.floor((x - r - x0) * iG), Math.floor((x + r - x0) * iG), Math.floor((z - r - z0) * iG), Math.floor((z + r - z0) * iG), y1, 65535, nc)) return; cyl.set([x, z, r, y0, y1], nc * 5); nc++; };
@@ -594,7 +619,7 @@ window.EI = window.EI || {};
         for (let k = 0; k < ts.n; k++) { const sp = Math.round(B[k * 4 + 2]), y = A[k * 4 + 1], h = B[k * 4 + 1]; const lo = sp === PALM ? 0.42 : sp === SHRUB ? 0 : sp === POPLAR || sp === CYPRESS ? 0.12 : 0.28; cyAdd(A[k * 4], A[k * 4 + 2], B[k * 4] * 0.42, y + h * lo, y + h * 0.97); } }
       O.ntree = nc; const cr = sc.crowdLod && sc.crowdLod.set; if (cr && cr.data) { const A = cr.data[0], B = cr.data[1];
         for (let k = 0; k < cr.n; k++) { const s = B[k * 4 + 1] || 1; cyAdd(A[k * 4], A[k * 4 + 2], 0.38 * s, A[k * 4 + 1], A[k * 4 + 1] + 1.75 * s); } }
-      O.cy = cyl; O.stats.cyl = nc;
+      O.cy = cyl; O.stats.cyl = nc; O.stats.tCyl = +(now() - t0).toFixed(1);
       // counting sort of the pairs by cell: triangles (mesh < 65535) and cylinders (65535) in separate runs
       const tst = new Int32Array(NC + 1), cst = new Int32Array(NC + 1);
       for (let k = 0; k < np; k++) (pm[k] === 65535 ? cst : tst)[pc[k] + 1]++;
@@ -606,7 +631,7 @@ window.EI = window.EI || {};
       return O;
     }
     // first hit along a -> b as a fraction of the segment (0..1), or 2 when the segment is clear
-    function ray(O, ax, ay, az, bx, by, bz) {
+    function ray(O, ax, ay, az, bx, by, bz, softT) {
       const G = O.G, NX = O.NX, NZ = O.NZ, top = O.top, dx = bx - ax, dy = by - ay, dz = bz - az;
       let gx = Math.floor((ax - O.x0) / G), gz = Math.floor((az - O.z0) / G); const ex = Math.floor((bx - O.x0) / G), ez = Math.floor((bz - O.z0) / G);
       const sx = dx > 0 ? 1 : -1, sz = dz > 0 ? 1 : -1; const tdx = dx !== 0 ? Math.abs(G / dx) : 1e9, tdz = dz !== 0 ? Math.abs(G / dz) : 1e9;
@@ -618,13 +643,13 @@ window.EI = window.EI || {};
           const c = gz * NX + gx; const ylo = Math.min(ay + dy * tc, ay + dy * te);
           if (ylo <= top[c]) {
             for (let j = O.tst[c], j1 = O.tst[c + 1]; j < j1; j++) {
-              const M = O.mesh[O.tm[j]], p = M.pos, ix = M.ix, q = O.tt[j];
-              const i0 = (ix ? ix[q] : q) * 3, i1 = (ix ? ix[q + 1] : q + 1) * 3, i2 = (ix ? ix[q + 2] : q + 2) * 3;
+              const M = O.mesh[O.tm[j]], p = M.pos, ix = M.ix, q = O.tt[j], st = M.st, of = M.of; if (M.soft && tc > softT) continue;
+              const i0 = (ix ? ix[q] : q) * st + of, i1 = (ix ? ix[q + 1] : q + 1) * st + of, i2 = (ix ? ix[q + 2] : q + 2) * st + of;
               const e1x = p[i1] - p[i0], e1y = p[i1 + 1] - p[i0 + 1], e1z = p[i1 + 2] - p[i0 + 2], e2x = p[i2] - p[i0], e2y = p[i2 + 1] - p[i0 + 1], e2z = p[i2 + 2] - p[i0 + 2];
               const hx = dy * e2z - dz * e2y, hy = dz * e2x - dx * e2z, hz = dx * e2y - dy * e2x; const det = e1x * hx + e1y * hy + e1z * hz; if (det > -1e-9 && det < 1e-9) continue;
               const f = 1 / det, sx0 = ax - p[i0], sy0 = ay - p[i0 + 1], sz0 = az - p[i0 + 2]; const u = f * (sx0 * hx + sy0 * hy + sz0 * hz); if (u < 0 || u > 1) continue;
               const qx = sy0 * e1z - sz0 * e1y, qy = sz0 * e1x - sx0 * e1z, qz = sx0 * e1y - sy0 * e1x; const w = f * (dx * qx + dy * qy + dz * qz); if (w < 0 || u + w > 1) continue;
-              const t = f * (e2x * qx + e2y * qy + e2z * qz); if (t > 0 && t < best) { best = t; O.hit = O.tm[j]; }
+              const t = f * (e2x * qx + e2y * qy + e2z * qz); if (t > 0 && t < best && !(M.soft && t > softT)) { best = t; O.hit = O.tm[j]; }
             }
             for (let j = O.cst[c], j1 = O.cst[c + 1]; j < j1; j++) {
               const k = O.ci[j] * 5, cx = O.cy[k], cz = O.cy[k + 1], r = O.cy[k + 2], y0 = O.cy[k + 3], y1 = O.cy[k + 4];
@@ -649,25 +674,26 @@ window.EI = window.EI || {};
       for (const k of ORDER) {
         const i = tr.idxAtS(p.s - DS[k]); const X = tr.lineX ? tr.lineX[i] : tr.x[i], Z = tr.lineZ ? tr.lineZ[i] : tr.z[i], Y = tr.y[i] + 0.8;
         const hx = X - p.x, hz = Z - p.z, d = Math.hypot(hx, hz); const isC = CORE(DS[k]); if (d < 18 || d > 260) { vis |= 1 << k; if (isC) ncore--; continue; }
-        const px = -hz / d * 3.5, pz = hx / d * 3.5;
+        const px = -hz / d * 6, pz = hx / d * 6;   // the TV frame is ~16 m wide at the car
         // metres from the lens to the first hit on the way to (tx, ty, tz), from just past the TV camera's near plane to 3 m short of the car
         const seg = (tx, ty, tz) => { const L3 = Math.hypot(tx - p.x, ty - p.y, tz - p.z), a = 0.6 / L3, b = Math.max(a, 1 - 3 / L3);
-          const t = ray(O, p.x + (tx - p.x) * a, p.y + (ty - p.y) * a, p.z + (tz - p.z) * a, p.x + (tx - p.x) * b, p.y + (ty - p.y) * b, p.z + (tz - p.z) * b); return t > 1 ? 1e9 : (a + (b - a) * t) * L3; };
+          const t = ray(O, p.x + (tx - p.x) * a, p.y + (ty - p.y) * a, p.z + (tz - p.z) * a, p.x + (tx - p.x) * b, p.y + (ty - p.y) * b, p.z + (tz - p.z) * b, NEAR / ((b - a) * L3)); return t > 1 ? 1e9 : (a + (b - a) * t) * L3; };
         const c0 = seg(X, Y, Z); let near = c0 < NEAR;
-        // foreground clutter (either side of the car, above it) only matters on the stretch the shot mostly shows
-        if (isC) for (const [ox, oy, oz] of [[px, 0, pz], [-px, 0, -pz], [0, 2.2, 0]]) { if (near) break; if (seg(X + ox, Y + oy, Z + oz) < NEAR) near = true; }
+        // foreground clutter (either side of the car, above and below it) only matters on the stretch the shot mostly shows
+        if (isC) for (const [ox, oy, oz] of [[px, 0, pz], [-px, 0, -pz], [0, 2.2, 0], [px * 0.5, -0.7, pz * 0.5], [-px * 0.5, -0.7, -pz * 0.5]]) { if (near) break; if (seg(X + ox, Y + oy, Z + oz) < NEAR) near = true; }
         const ok = c0 > 1e8 && !near; if (ok) vis |= 1 << k;
         if (isC) { core++; if (ok) coreOk++; if (near) fg++; if (need && (fg || ncore - core + coreOk < need * ncore)) return null; }   // cannot pass any more
       }
       return { vis, core, coreOk, fg, q: core ? coreOk / core : 0 };
     }
     // the spot itself when clear, else the first clear nudge, else the best usable one (most of the core stretch in view), else null
-    function place(O, tr, p, nudges) {
-      if (!O) return Object.assign({}, p, { vis: -1 });
-      const good = (j) => j && j.core >= 2 && j.q >= 0.8 && j.fg === 0, usable = (j) => j && j.core >= 2 && j.fg === 0 && j.q >= 0.5;
-      const j = judge(O, tr, p, 0.5); if (good(j)) return Object.assign({}, p, { vis: j.vis, q: j.q });
+    // minQ: the share of the core stretch a fallback (no clear nudge) must still see (towers 0.75: the generic spots cover them)
+    function place(O, tr, p, nudges, minQ) {
+      if (!O) return Object.assign({}, p, { vis: -1 }); const mq = minQ || 0.5;
+      const good = (j) => j && j.core >= 2 && j.q >= 0.8 && j.fg === 0, usable = (j) => j && j.core >= 2 && j.fg === 0 && j.q >= mq;
+      const j = judge(O, tr, p, mq); if (good(j)) return Object.assign({}, p, { vis: j.vis, q: j.q });
       const from = { x: p.x, y: p.y, z: p.z, s: p.s, q: j ? j.q : 0 }; let best = usable(j) ? { p, j } : null;
-      for (const n of nudges || []) { const jn = judge(O, tr, n, best ? Math.max(0.5, best.j.q + 0.01) : 0.5); if (good(jn)) return Object.assign({}, n, { vis: jn.vis, q: jn.q, nudged: true, from }); if (usable(jn) && (!best || jn.q > best.j.q)) best = { p: n, j: jn }; }
+      for (const n of nudges || []) { const jn = judge(O, tr, n, best ? Math.max(mq, best.j.q + 0.01) : mq); if (good(jn)) return Object.assign({}, n, { vis: jn.vis, q: jn.q, nudged: true, from }); if (usable(jn) && (!best || jn.q > best.j.q)) best = { p: n, j: jn }; }
       return best ? Object.assign({}, best.p, { vis: best.j.vis, q: best.j.q, nudged: best.p !== p, from }) : null;
     }
     // pickSpot penalty: the car at ds behind the spot is out of view (bit cleared) - 1 for the nearest sample, 0.4 for its neighbours
@@ -706,12 +732,12 @@ window.EI = window.EI || {};
     for (const p of spots(P)) {
       let ds = U.mod(p.s - s + L / 2, L) - L / 2; if (ds < -80 || ds > 200) continue;
       const d = Math.hypot(p.x - x, p.z - z); if (d < 18 || d > 260) continue;
-      // line of sight: a spot that cannot see the car here (or just before / after) scores far worse
-      const sc = Math.abs(ds - (wantAhead == null ? 70 : wantAhead)) + (p.tower ? -25 : 0) + Math.abs(d - 70) * 0.3 + LOS.blocked(p, ds) * 90;
+      // line of sight: never a spot that cannot see the car here; one blocked just before / after scores worse
+      const bl = LOS.blocked(p, ds); if (bl >= 1) continue;
+      const sc = Math.abs(ds - (wantAhead == null ? 70 : wantAhead)) + (p.tower ? -25 : 0) + Math.abs(d - 70) * 0.3 + bl * 90;
       if (sc < bs) { bs = sc; best = p; }
     }
-    if (!best) { const i = tr.idxAtS(s + 60); best = { x: tr.x[i] + tr.nx[i] * (tr.halfWidth + 8), y: tr.y[i] + 6, z: tr.z[i] + tr.nz[i] * (tr.halfWidth + 8), s: s + 60 }; }
-    return best;
+    return best;   // null: no clear TV spot films this stretch (Monaco's tunnel) - planShots cuts to the chase camera instead
   }
   // the camera plan of a clip: 2-3 shots cut on the action
   function planShots(c, i, P) {
@@ -719,7 +745,7 @@ window.EI = window.EI || {};
     const S = (t0, kind, car, extra) => sh.push(Object.assign({ t0: Math.max(c.c0, t0), kind, car, car2: -1 }, extra || {}));
     const at = (j, t) => { const sl = c.slot, st = sl.st; let i0 = 0; while (i0 < sl.n - 1 && st.t[i0 + 1] <= t) i0++; const q = i0 * st.nc + j; return { x: st.x[q], z: st.z[q] }; };
     const sAt = (j, t) => { const p = at(j, t); return P.rec.track.project(p.x, p.z, null, {}).s; };
-    const tv = (t0, j, j2, tKey, ahead) => { const p = at(j, tKey); S(t0, 'tv', j, { car2: j2, spot: pickSpot(P, sAt(j, tKey), p.x, p.z, ahead) }); };
+    const tv = (t0, j, j2, tKey, ahead) => { const p = at(j, tKey), spot = pickSpot(P, sAt(j, tKey), p.x, p.z, ahead); if (spot) S(t0, 'tv', j, { car2: j2, spot }); else S(t0, 'chase', j); };
     const v = i % 3;
     switch (e.type) {
       case 'pass':
@@ -742,11 +768,11 @@ window.EI = window.EI || {};
   // the finish line camera: beside the track opposite the pit wall, ~40 m before the line, looking down the straight
   // (line of sight checked like the TV spots, nudged higher / along the straight when blocked; built with them)
   function lineSpot(P) { spots(P); return P.line; }
-  function finishSpot(P, tr, los) {
+  function finishSpot(tr) {
     const side = -(tr.pitSideSign ? tr.pitSideSign() : -1), street = !!(tr.data && tr.data.street);
     const at = (ds, up) => { const i = tr.idxAtS(tr.sf + 35 + ds); const wall = side < 0 ? tr.wallL[i] : tr.wallR[i]; const off = street ? wall + 0.5 : Math.min(wall + 6, tr.halfWidth + 22);
       return { x: tr.x[i] + tr.nx[i] * side * off, y: tr.y[i] + (street ? 5.5 : 9.5) + up, z: tr.z[i] + tr.nz[i] * side * off, s: U.mod(tr.sf + 35 + ds, tr.length) }; };
-    return LOS.place(los, tr, at(0, 0), [[0, 2], [10, 0], [-10, 0], [10, 2], [-10, 2], [0, 4.5], [20, 2]].map(([a, b]) => at(a, b))) || at(0, 0);
+    return [at(0, 0), false, [[0, 2], [10, 0], [-10, 0], [10, 2], [-10, 2], [0, 4.5], [20, 2]].map(([a, b]) => at(a, b))];
   }
   const _v = typeof THREE !== 'undefined' ? new THREE.Vector3() : null, _w = typeof THREE !== 'undefined' ? new THREE.Vector3() : null;
   function shotCamera(P, c, sh, snap, dt) {
