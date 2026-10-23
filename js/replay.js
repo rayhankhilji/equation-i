@@ -508,8 +508,8 @@ window.EI = window.EI || {};
   function spots(P) {
     const tr = P.rec.track; if (P.spots && P.spotsFor === tr) return P.spots;
     const t0 = now(), out = [], L = tr.length, street = !!(tr.data && tr.data.street);
-    const sc = P.host && P.host.scenery; const los = LOS.build(tr, sc); const st = { cand: 0, ok: 0, nudged: 0, dropped: 0 };
-    const keep = (p, tower, nudges) => { st.cand++; const r = LOS.place(los, tr, p, nudges); if (!r) { st.dropped++; return; } if (r.nudged) st.nudged++; else st.ok++; r.tower = tower; out.push(r); };
+    const sc = P.host && P.host.scenery; const los = LOS.build(tr, sc); const st = { cand: 0, ok: 0, nudged: 0, dropped: 0, lost: [] };
+    const keep = (p, tower, nudges) => { st.cand++; const r = LOS.place(los, tr, p, nudges); if (!r) { st.dropped++; st.lost.push(Object.assign({ tower }, p)); return; } if (r.nudged) st.nudged++; else st.ok++; r.tower = tower; out.push(r); };
     const inf = sc && sc.infra; const cs = (inf && inf.camSpots) || towerSpots(inf);
     if (cs && cs.length) for (const p of cs) {
       const pr = tr.project(p.x, p.z, null, {}); const i = pr.i, sd = pr.lat >= 0 ? 1 : -1, nx = tr.nx[i] * sd, nz = tr.nz[i] * sd;
@@ -548,50 +548,57 @@ window.EI = window.EI || {};
       const t0 = now(); const E = sc.env; const fAt = E && E.fAt ? (x, z) => E.fAt(x, z) : null;
       let x0 = 1e9, x1 = -1e9, z0 = 1e9, z1 = -1e9; for (let i = 0; i < tr.n; i++) { x0 = Math.min(x0, tr.x[i]); x1 = Math.max(x1, tr.x[i]); z0 = Math.min(z0, tr.z[i]); z1 = Math.max(z1, tr.z[i]); }
       x0 -= BAND + G; z0 -= BAND + G; const NX = Math.ceil((x1 + BAND + G - x0) / G), NZ = Math.ceil((z1 + BAND + G - z0) / G), NC = NX * NZ;
-      const top = new Float32Array(NC).fill(-1e9);
+      const top = new Float32Array(NC).fill(-1e9), band = new Uint8Array(NC);
+      // cells within BAND of the circuit (one distance-field lookup per cell); everything else is never gathered
+      for (let gz = 0, c = 0; gz < NZ; gz++) for (let gx = 0; gx < NX; gx++, c++) band[c] = !fAt || fAt(x0 + (gx + 0.5) * G, z0 + (gz + 0.5) * G) < BAND + G * 0.71 ? 1 : 0;
       const O = { G, x0, z0, NX, NZ, top, mesh: [], stats: { tris: 0, kept: 0, cyl: 0 } };
-      // ---- triangles: (cell, mesh, triangle) pairs, then sorted into per-cell runs
-      let pc = new Int32Array(1 << 16), pm = new Uint16Array(1 << 16), pt = new Int32Array(1 << 16), np = 0;
+      // ---- (cell, item) pairs, then sorted into per-cell runs
+      let pc = new Int32Array(1 << 18), pm = new Uint16Array(1 << 18), pt = new Int32Array(1 << 18), np = 0;
+      const add = (gx0, gx1, gz0, gz1, ym, m, q) => {
+        let any = false; if (gx0 < 0) gx0 = 0; if (gz0 < 0) gz0 = 0; if (gx1 >= NX) gx1 = NX - 1; if (gz1 >= NZ) gz1 = NZ - 1;
+        for (let gz = gz0; gz <= gz1; gz++) for (let gx = gx0, c = gz * NX + gx0; gx <= gx1; gx++, c++) {
+          if (!band[c]) continue; any = true; if (ym > top[c]) top[c] = ym;
+          if (np >= pc.length) { pc = grow(pc, np + 1); pm = grow(pm, np + 1); pt = grow(pt, np + 1); }
+          pc[np] = c; pm[np] = m; pt[np] = q; np++;
+        }
+        return any;
+      };
       const roots = [sc.group]; if (tr.group && tr.group !== sc.group) roots.push(tr.group);
       const list = []; for (const r of roots) r.traverse(o => { if (o.isMesh && !o.isInstancedMesh && o.geometry && !o.geometry.isInstancedBufferGeometry && o.geometry.attributes.position) list.push(o); });
-      const mw = new THREE.Matrix4(), I4 = new THREE.Matrix4(), v = new THREE.Vector3();
+      const mw = new THREE.Matrix4(), I4 = new THREE.Matrix4(), v = new THREE.Vector3(), iG = 1 / G;
       for (const o of list) {
-        const g = o.geometry, m = o.material; if (SKIP.test(o.name || '') || (m && !Array.isArray(m) && m.transparent && !m.depthWrite) || O.mesh.length >= 65535) continue;
+        const g = o.geometry, m = o.material; if (SKIP.test(o.name || '') || (m && !Array.isArray(m) && m.transparent && !m.depthWrite) || O.mesh.length >= 65534) continue;
         const pa = g.attributes.position, ix = g.index ? g.index.array : null; const nv = pa.count; let pos = pa.array;
         o.updateWorldMatrix(true, false); mw.copy(o.matrixWorld); const id = mw.equals(I4);
         if (!id || pa.isInterleavedBufferAttribute || pa.itemSize !== 3 || pa.normalized) { pos = new Float32Array(nv * 3); for (let k = 0; k < nv; k++) { v.fromBufferAttribute(pa, k); if (!id) v.applyMatrix4(mw); pos[k * 3] = v.x; pos[k * 3 + 1] = v.y; pos[k * 3 + 2] = v.z; } }
         const dr = g.drawRange, n0 = ix ? ix.length : nv; const a0 = Math.max(0, dr.start | 0), a1 = Math.min(n0, dr.count === Infinity ? n0 : a0 + dr.count);
-        const mi = O.mesh.length; O.mesh.push({ pos, ix, name: o.name }); let kept = 0;
+        const mi = O.mesh.length; const M = { pos, ix, name: o.name, kept: 0 }; O.mesh.push(M); let kept = 0;
         for (let q = a0 - a0 % 3; q + 2 < a1; q += 3) {
           const i0 = (ix ? ix[q] : q) * 3, i1 = (ix ? ix[q + 1] : q + 1) * 3, i2 = (ix ? ix[q + 2] : q + 2) * 3;
           const ax = pos[i0], az = pos[i0 + 2], bx = pos[i1], bz = pos[i1 + 2], cx = pos[i2], cz = pos[i2 + 2];
-          if (fAt && fAt((ax + bx + cx) / 3, (az + bz + cz) / 3) > BAND && fAt(ax, az) > BAND) continue;
-          const gx0 = Math.max(0, Math.floor((Math.min(ax, bx, cx) - x0) / G)), gx1 = Math.min(NX - 1, Math.floor((Math.max(ax, bx, cx) - x0) / G));
-          const gz0 = Math.max(0, Math.floor((Math.min(az, bz, cz) - z0) / G)), gz1 = Math.min(NZ - 1, Math.floor((Math.max(az, bz, cz) - z0) / G));
-          if (gx1 < gx0 || gz1 < gz0 || (gx1 - gx0 + 1) * (gz1 - gz0 + 1) > 400) continue;
-          const ym = Math.max(pos[i0 + 1], pos[i1 + 1], pos[i2 + 1]); kept++;
-          for (let gz = gz0; gz <= gz1; gz++) for (let gx = gx0; gx <= gx1; gx++) {
-            const c = gz * NX + gx; if (ym > top[c]) top[c] = ym;
-            if (np >= pc.length) { pc = grow(pc, np + 1); pm = grow(pm, np + 1); pt = grow(pt, np + 1); }
-            pc[np] = c; pm[np] = mi; pt[np] = q; np++;
-          }
+          const gx0 = Math.floor(((ax < bx ? (ax < cx ? ax : cx) : (bx < cx ? bx : cx)) - x0) * iG), gx1 = Math.floor(((ax > bx ? (ax > cx ? ax : cx) : (bx > cx ? bx : cx)) - x0) * iG);
+          const gz0 = Math.floor(((az < bz ? (az < cz ? az : cz) : (bz < cz ? bz : cz)) - z0) * iG), gz1 = Math.floor(((az > bz ? (az > cz ? az : cz) : (bz > cz ? bz : cz)) - z0) * iG);
+          if (gx1 < 0 || gz1 < 0 || gx0 >= NX || gz0 >= NZ || (gx1 - gx0 + 1) * (gz1 - gz0 + 1) > 300) continue;
+          const ay = pos[i0 + 1], by = pos[i1 + 1], cy = pos[i2 + 1]; if (add(gx0, gx1, gz0, gz1, ay > by ? (ay > cy ? ay : cy) : (by > cy ? by : cy), mi, q)) kept++;
         }
-        O.stats.tris += Math.max(0, a1 - a0) / 3; O.stats.kept += kept;
+        M.kept = kept; O.stats.tris += Math.max(0, a1 - a0) / 3; O.stats.kept += kept;
       }
-      const sortRuns = (n, cellOf, put) => { const st = new Int32Array(NC + 1); for (let k = 0; k < n; k++) st[cellOf(k) + 1]++; for (let c = 0; c < NC; c++) st[c + 1] += st[c]; const w = st.slice(0, NC); for (let k = 0; k < n; k++) put(k, w[cellOf(k)]++); return st; };
-      O.tm = new Uint16Array(np); O.tt = new Int32Array(np); O.tst = sortRuns(np, (k) => pc[k], (k, j) => { O.tm[j] = pm[k]; O.tt[j] = pt[k]; });
+      const ntp = np;
       // ---- cylinders: tree crowns (iA = x, y, z, yaw; iB = width, height, species) and crowd sprites (cP = x, y, z; cD.y = scale)
-      const cy = []; const PALM = 5, POPLAR = 1, CYPRESS = 6, SHRUB = 3;
+      const PALM = 5, POPLAR = 1, CYPRESS = 6, SHRUB = 3; let cyl = new Float32Array(5 << 12), nc = 0;
+      const cyAdd = (x, z, r, y0, y1) => { if (nc * 5 + 5 > cyl.length) cyl = grow(cyl, nc * 5 + 5); if (!add(Math.floor((x - r - x0) * iG), Math.floor((x + r - x0) * iG), Math.floor((z - r - z0) * iG), Math.floor((z + r - z0) * iG), y1, 65535, nc)) return; cyl.set([x, z, r, y0, y1], nc * 5); nc++; };
       const ts = sc.treeLod && sc.treeLod.set; if (ts && ts.data) { const A = ts.data[0], B = ts.data[1];
-        for (let k = 0; k < ts.n; k++) { const x = A[k * 4], y = A[k * 4 + 1], z = A[k * 4 + 2], w = B[k * 4], h = B[k * 4 + 1], sp = Math.round(B[k * 4 + 2]); if (fAt && fAt(x, z) > BAND + w) continue;
-          const lo = sp === PALM ? 0.42 : sp === SHRUB ? 0 : sp === POPLAR || sp === CYPRESS ? 0.12 : 0.28; cy.push(x, z, w * 0.42, y + h * lo, y + h * 0.97); } }
-      O.ntree = cy.length / 5; const cr = sc.crowdLod && sc.crowdLod.set; if (cr && cr.data) { const A = cr.data[0], B = cr.data[1];
-        for (let k = 0; k < cr.n; k++) { const x = A[k * 4], z = A[k * 4 + 2], s = B[k * 4 + 1] || 1; if (fAt && fAt(x, z) > BAND) continue; cy.push(x, z, 0.38 * s, A[k * 4 + 1], A[k * 4 + 1] + 1.75 * s); } }
-      const nc = cy.length / 5; O.cy = new Float32Array(cy); O.stats.cyl = nc; let cc = [], ci = [];
-      for (let k = 0; k < nc; k++) { const x = O.cy[k * 5], z = O.cy[k * 5 + 1], r = O.cy[k * 5 + 2], yt = O.cy[k * 5 + 4];
-        const gx0 = Math.max(0, Math.floor((x - r - x0) / G)), gx1 = Math.min(NX - 1, Math.floor((x + r - x0) / G)), gz0 = Math.max(0, Math.floor((z - r - z0) / G)), gz1 = Math.min(NZ - 1, Math.floor((z + r - z0) / G));
-        for (let gz = gz0; gz <= gz1; gz++) for (let gx = gx0; gx <= gx1; gx++) { const c = gz * NX + gx; if (yt > top[c]) top[c] = yt; cc.push(c); ci.push(k); } }
-      O.ci = new Int32Array(cc.length); O.cst = sortRuns(cc.length, (k) => cc[k], (k, j) => { O.ci[j] = ci[k]; }); cc = ci = null;
+        for (let k = 0; k < ts.n; k++) { const sp = Math.round(B[k * 4 + 2]), y = A[k * 4 + 1], h = B[k * 4 + 1]; const lo = sp === PALM ? 0.42 : sp === SHRUB ? 0 : sp === POPLAR || sp === CYPRESS ? 0.12 : 0.28; cyAdd(A[k * 4], A[k * 4 + 2], B[k * 4] * 0.42, y + h * lo, y + h * 0.97); } }
+      O.ntree = nc; const cr = sc.crowdLod && sc.crowdLod.set; if (cr && cr.data) { const A = cr.data[0], B = cr.data[1];
+        for (let k = 0; k < cr.n; k++) { const s = B[k * 4 + 1] || 1; cyAdd(A[k * 4], A[k * 4 + 2], 0.38 * s, A[k * 4 + 1], A[k * 4 + 1] + 1.75 * s); } }
+      O.cy = cyl; O.stats.cyl = nc;
+      // counting sort of the pairs by cell: triangles (mesh < 65535) and cylinders (65535) in separate runs
+      const tst = new Int32Array(NC + 1), cst = new Int32Array(NC + 1);
+      for (let k = 0; k < np; k++) (pm[k] === 65535 ? cst : tst)[pc[k] + 1]++;
+      for (let c = 0; c < NC; c++) { tst[c + 1] += tst[c]; cst[c + 1] += cst[c]; }
+      const tw = tst.slice(0, NC), cw = cst.slice(0, NC); O.tm = new Uint16Array(tst[NC]); O.tt = new Int32Array(tst[NC]); O.ci = new Int32Array(cst[NC]);
+      for (let k = 0; k < np; k++) { const c = pc[k]; if (pm[k] === 65535) O.ci[cw[c]++] = pt[k]; else { const j = tw[c]++; O.tm[j] = pm[k]; O.tt[j] = pt[k]; } }
+      O.tst = tst; O.cst = cst; O.stats.tpairs = ntp;
       O.stats.ms = +(now() - t0).toFixed(1); O.stats.pairs = np;
       return O;
     }
@@ -639,11 +646,13 @@ window.EI = window.EI || {};
       for (let k = 0; k < DS.length; k++) {
         const i = tr.idxAtS(p.s - DS[k]); const X = tr.lineX ? tr.lineX[i] : tr.x[i], Z = tr.lineZ ? tr.lineZ[i] : tr.z[i], Y = tr.y[i] + 0.8;
         const hx = X - p.x, hz = Z - p.z, d = Math.hypot(hx, hz); if (d < 18 || d > 260) { vis |= 1 << k; continue; }
-        const d3 = Math.hypot(d, Y - p.y), e = Math.max(0, 1 - 3 / d3); const px = -hz / d * 3.5, pz = hx / d * 3.5;
-        const c0 = ray(O, p.x, p.y, p.z, p.x + (X - p.x) * e, p.y + (Y - p.y) * e, p.z + (Z - p.z) * e);
-        let near = c0 * d3 < NEAR;
-        for (const [ox, oy, oz] of [[px, 0, pz], [-px, 0, -pz], [0, 2.2, 0]]) { if (near) break; const t = ray(O, p.x, p.y, p.z, p.x + (X + ox - p.x) * e, p.y + (Y + oy - p.y) * e, p.z + (Z + oz - p.z) * e); if (t * d3 < NEAR) near = true; }
-        const ok = c0 > 1 && !near; if (ok) vis |= 1 << k; if (near) fg++;
+        const px = -hz / d * 3.5, pz = hx / d * 3.5;
+        // metres from the lens to the first hit on the way to (tx, ty, tz), from just past the TV camera's near plane to 3 m short of the car
+        const seg = (tx, ty, tz) => { const L3 = Math.hypot(tx - p.x, ty - p.y, tz - p.z), a = 0.6 / L3, b = Math.max(a, 1 - 3 / L3);
+          const t = ray(O, p.x + (tx - p.x) * a, p.y + (ty - p.y) * a, p.z + (tz - p.z) * a, p.x + (tx - p.x) * b, p.y + (ty - p.y) * b, p.z + (tz - p.z) * b); return t > 1 ? 1e9 : (a + (b - a) * t) * L3; };
+        const c0 = seg(X, Y, Z); let near = c0 < NEAR;
+        for (const [ox, oy, oz] of [[px, 0, pz], [-px, 0, -pz], [0, 2.2, 0]]) { if (near) break; if (seg(X + ox, Y + oy, Z + oz) < NEAR) near = true; }
+        const ok = c0 > 1e8 && !near; if (ok) vis |= 1 << k; if (near) fg++;
         if (CORE(DS[k])) { core++; if (ok) coreOk++; }
       }
       return { vis, core, coreOk, fg, q: core ? coreOk / core : 0 };
@@ -654,8 +663,9 @@ window.EI = window.EI || {};
       const good = (j) => j.core >= 2 && j.q >= 0.8 && j.fg === 0;
       let j = judge(O, tr, p); if (good(j)) return Object.assign({}, p, { vis: j.vis, q: j.q });
       let best = j.core >= 2 && j.fg === 0 && j.q >= 0.5 ? { p, j } : null;
-      for (const n of nudges || []) { const jn = judge(O, tr, n); if (good(jn)) return Object.assign({}, n, { vis: jn.vis, q: jn.q, nudged: true }); if (jn.core >= 2 && jn.fg === 0 && jn.q >= 0.5 && (!best || jn.q > best.j.q)) best = { p: n, j: jn }; }
-      return best ? Object.assign({}, best.p, { vis: best.j.vis, q: best.j.q, nudged: best.p !== p }) : null;
+      const from = { x: p.x, y: p.y, z: p.z, s: p.s, q: j.q };
+      for (const n of nudges || []) { const jn = judge(O, tr, n); if (good(jn)) return Object.assign({}, n, { vis: jn.vis, q: jn.q, nudged: true, from }); if (jn.core >= 2 && jn.fg === 0 && jn.q >= 0.5 && (!best || jn.q > best.j.q)) best = { p: n, j: jn }; }
+      return best ? Object.assign({}, best.p, { vis: best.j.vis, q: best.j.q, nudged: best.p !== p, from }) : null;
     }
     // pickSpot penalty: the car at ds behind the spot is out of view (bit cleared) - 1 for the nearest sample, 0.4 for its neighbours
     function blocked(p, ds) {
