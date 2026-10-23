@@ -46,6 +46,7 @@ window.EI = window.EI || {};
       // everything that is dropped beyond the tier's clutter distance: small static chunks + the chunked trackside instanced families
       this.clutter = this.statics.chunks.filter(c => c.userData.layer === 'clutter'); this.group.traverse(o => { if (o.userData.clutter && o.userData.box) this.clutter.push(o); });
       this.shadowTiles = this.statics.chunks;
+      this.splitTiles = this.statics.chunks.filter(c => c.userData.split);   // main + clutter in one mesh (Env.Statics): clutter part by draw range
       this.envStats = E.stats;
       this.setQuality(EI.quality || 'medium');
       return this.group;
@@ -81,6 +82,7 @@ window.EI = window.EI || {};
       if (this.parkedCars) this.parkedCars.dyn.update(x, z, force);
       for (const tn of this.tents || []) tn.dyn.update(x, z, force);
       for (const c of this.clutter || []) c.visible = EI.Env.eyeDist(c.userData.box, x, z) < T.clutter;
+      for (const c of this.splitTiles || []) { const u = c.userData.split; c.geometry.setDrawRange(0, EI.Env.eyeDist(u.box, x, z) < T.clutter ? u.full : u.main); }
       for (const f of this.nearFar || []) { f.far.range(100, T.clutter); f.near.range(0, 200); f.far.update(x, z, force); f.near.update(x, z, force); }
       // shadow casters: the sun shadow covers ~70 m round a point just ahead of the camera and the sun is 42 degrees up, so
       // static tiles further than ~170 m away cannot reach it - they skip the shadow pass (the bulk of its cost)

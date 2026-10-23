@@ -222,9 +222,18 @@ window.EI = window.EI || {};
       };
       mat.customProgramCacheKey = () => 'env-static-rm';
       const chunks = []; let tris = 0;
+      // (PERF-2) a tile with both a 'main' and a 'clutter' bucket is one mesh: main first, clutter after; scenery.updateLod draws the
+      // clutter part (userData.split) only within the tier's clutter range - one draw call instead of two, the same triangles
       for (const b of buckets.values()) {
+        if (b.layer !== 'main') continue; const c = buckets.get('clutter' + b.key); if (!c || !c.n) continue;
+        const cat = (x, y) => { const o = new Float32Array(x.length + y.length); o.set(x); o.set(y, x.length); return o; };
+        const cb = new THREE.Box3().setFromArray(c.pos);
+        b.split = { main: b.n * 3, full: (b.n + c.n) * 3, box: cb }; b.pos = cat(b.pos, c.pos); b.nrm = cat(b.nrm, c.nrm); b.col = cat(b.col, c.col); b.rm = cat(b.rm, c.rm); b.n += c.n; c.merged = true;
+      }
+      for (const b of buckets.values()) {
+        if (b.merged) continue;
         const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(b.pos, 3)); g.setAttribute('normal', new THREE.BufferAttribute(b.nrm, 3)); g.setAttribute('color', new THREE.BufferAttribute(b.col, 3)); g.setAttribute('rm', new THREE.BufferAttribute(b.rm, 2)); g.computeBoundingSphere(); g.computeBoundingBox();
-        const m = new THREE.Mesh(g, mat); m.castShadow = true; m.receiveShadow = true; m.name = b.layer === 'clutter' ? 'venueClutter' : 'venueStatic'; m.userData.box = g.boundingBox; m.userData.layer = b.layer;
+        const m = new THREE.Mesh(g, mat); m.castShadow = true; m.receiveShadow = true; m.name = b.layer === 'clutter' ? 'venueClutter' : 'venueStatic'; m.userData.box = g.boundingBox; m.userData.layer = b.layer; if (b.split) m.userData.split = b.split;
         group.add(m); chunks.push(m); tris += b.n;
       }
       this.src = []; this.chunks = chunks; this.mat = mat; this.tris = tris;
