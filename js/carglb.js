@@ -1058,7 +1058,7 @@ window.EI = window.EI || {};
         for (const o of hideList) if (o.visible) { o.visible = false; hidden.push(o); }
         if (lite) for (const o of lite) if (o && o.visible) { o.visible = false; hidden.push(o); }
         if (swap && swap.ck) for (const o of swap.ck) if (o.visible) { o.visible = false; hidden.push(o); }   // wheel, arms, torso: never in a rear view
-        const R2 = lite ? 70 * 70 : 150 * 150;   // lite: the cars that matter (the next ~2 s behind) for (const o of carList) if (o.visible && o.position.distanceToSquared(cam.position) > R2) { o.visible = false; hidden.push(o); }
+        const R2 = lite ? 70 * 70 : 150 * 150; for (const o of carList) if (o.visible && o.position.distanceToSquared(cam.position) > R2) { o.visible = false; hidden.push(o); }   // lite: the cars that matter (the next ~2 s behind)
         // lite: the other cars draw from their far LOD (1 draw call, ~6k triangles each) - plenty for a 112 px mirror
         lodSave.length = 0;
         // lite: at most the LITE_CARS nearest cars (a full grid behind would cost a draw call per car)

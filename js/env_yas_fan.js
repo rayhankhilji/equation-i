@@ -102,7 +102,7 @@ window.EI = window.EI || {};
     const sm = new THREE.Mesh(sg, smat); sm.name = 'yasFanScreens'; sc.group.add(sm);
     // side screen supports
     // ---- moving-head beams from the roof truss
-    const NB = 12; const cone = new THREE.CylinderGeometry(0.0, 0.04, 1, 10, 1, true);   // apex at the lamp after the turn below cone.rotateX(-Math.PI / 2); cone.translate(0, 0, 0.5);
+    const NB = 12; const cone = new THREE.CylinderGeometry(0.0, 0.04, 1, 10, 1, true); cone.rotateX(-Math.PI / 2); cone.translate(0, 0, 0.5);   // apex at the lamp after the turn
     const bmat = new THREE.ShaderMaterial({ vertexShader: BEAM_V, fragmentShader: BEAM_F, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide });
     bmat.userData.nightEmissive = true;
     const beams = new THREE.InstancedMesh(cone, bmat, NB); beams.name = 'yasFanBeams'; beams.frustumCulled = false;

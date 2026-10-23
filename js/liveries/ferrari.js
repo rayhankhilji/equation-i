@@ -120,7 +120,7 @@
       for (const z of [-0.3, 0.3]) L.partnerTop('hp', -2.06, z, 0.15, 0.15, 'color');
       L.partnerTop('ibm', -2.26, 0, 0.3, 0.07, 'white');
       for (const z of [-0.62, 0.62]) L.partnerTop('hp', 2.72, z, 0.12, 0.12, 'color');
-      L.haloTop('DXC', W, -1, { w: 900, ls: 0.12 }, 0.06); L.haloTop('DXC', W, 1, { w: 900, ls: 0.12 }, 0.06);   // DXC big on both halo arms (2026 photos) L.haloFront('dxc', 'white');
+      L.haloTop('DXC', W, -1, { w: 900, ls: 0.12 }, 0.06); L.haloTop('DXC', W, 1, { w: 900, ls: 0.12 }, 0.06); L.haloFront('dxc', 'white');   // DXC big on both halo arms (2026 photos)
     },
   });
   // front-wing main planes (LIVERY-LEAD default from the 2026 photos; a frontWing in the design above takes precedence)
