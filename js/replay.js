@@ -525,7 +525,11 @@ window.EI = window.EI || {};
       let placed = 0;
       for (const [s, which] of F.cameraTowers || [[3160, 1], [3900, 1], [5075, 1], [5705, -1], [2010, 1], [965, 1], [460, 1]]) {
         const i = t.idxAtS(s + 20); const side = which > 0 ? -cx.outsideSide(i) : cx.outsideSide(i); const ps = find(s, side); if (ps == null) continue;
-        const p = cx.at(ps, side, 5.5); const H = 9 + (placed % 3) * 1.5; placed++; out.push({ x: p.x - p.nx * 0.85, y: p.y + H + 1.7, z: p.z - p.nz * 0.85 });
+        const p = cx.at(ps, side, 5.5); const H = 9 + (placed % 3) * 1.5; placed++;
+        // Silverstone (QA r3, Village): the eye sat inside the tower's top cage, so its own lattice filled the foreground: put it just in
+        // front of the platform (towards the track) and a metre higher
+        const sv = t.data && t.data.id === 'silverstone'; const fo = sv ? 2.6 : 0.85, fu = sv ? 2.7 : 1.7;
+        out.push({ x: p.x - p.nx * fo, y: p.y + H + fu, z: p.z - p.nz * fo });
       }
       let sc = 0;
       for (const s0 of F.scaffolds || [610, 1130, 1960, 2470, 3470, 3790, 4230, 5290, 5560, 760, 2860]) {

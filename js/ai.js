@@ -604,8 +604,8 @@ window.EI = window.EI || {};
           const late = aheadGap < 9 && closing > 1 && car.lapsDone >= 1;     // right on the gearbox with a run: out-brake it into the corner
           if (P.abortSlow && !late) { want = false; if (this.passing) st.aborts++; }  // careful drivers tuck back in before a slow corner
           // risk-takers (or anyone with the run) go for the inside and brake later - only from where the run can still get it alongside
-          // before the turn-in, and never on lap 1 (the pack arrives 2-3 wide: a late-braking dive there piles up the corner)
-          else if ((P.dive && car.lapsDone >= 1 && aheadGap < Math.min(26, 10 + 3 * Math.max(0, closing))) || (late && aheadGap < 26)) dive = true;
+          // before the turn-in, and never into the first corner (the grid arrives 2-3 wide: a late-braking dive there piles up T1)
+          else if ((P.dive && this.t1 === false && aheadGap < Math.min(26, 10 + 3 * Math.max(0, closing))) || (late && aheadGap < 26)) dive = true;
         }
         // attacking on a straight: first close right up in the tow, then pull out with the speed it gives (pulling out 20-30 m
         // back threw the tow away and the pass never got closer); pull out once close, closing fast, with DRS, or near the braking zone
@@ -650,7 +650,8 @@ window.EI = window.EI || {};
         // from the grid into the first corner a column brakes on the kinematic cap above alone while it is more than ~2 lengths back: the
         // follow controller on top (reading a braking car 0.3 s ahead) made each car of a grid column brake ~8 m/s earlier than the one in
         // front - a braking wave down the grid into Ste Devote that let a late-braking player pass 7-8 cars
-        if (overlap && !attack && aheadGap < fg + 9 && !(t1 && ahead.aLong < -3 && aheadGap > 11)) {
+        // (not into a hairpin, nc.vmin < 20 m/s: that is single file anyway and the tighter column only queued longer - La Source / COTA T1)
+        if (overlap && !attack && aheadGap < fg + 9 && !(t1 && nc.vmin > 20 && ahead.aLong < -3 && aheadGap > 11)) {
           const follow = Math.max(vA + (aheadGap - fg) * 1.1, 3);
           target = Math.min(target, Math.max(follow, vA + (passing ? 1.5 : L(0.4, 1.5, P.agg))));
         }

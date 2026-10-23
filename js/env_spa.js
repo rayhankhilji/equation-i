@@ -64,6 +64,7 @@ window.EI = window.EI || {};
       if (isSpa(E.t)) { try { E._spPF = undefined; if (Sp.Stands && Sp.Stands.refit) Sp.Stands.refit(E); } catch (e) { console.error('EnvSpa refit', e); } }
       const r = oBuild.call(this, E);
       if (isSpa(E.t)) { try { Sp.build(E); } catch (e) { console.error('EnvSpa build', e); } finally { if (E._spGs) E.t.data.scenery.grandstands = E._spGs; } }
+      if (isSpa(E.t)) { try { Sp.pitLod(E); } catch (e) { console.error('EnvSpa pitLod', e); } }
       return r;
     };
     // the crowd: Dutch orange and Belgian colours in the stands; the spectator banks (Kemmel, Pouhon, Blanchimont) join the same
@@ -74,6 +75,20 @@ window.EI = window.EI || {};
       return oCrowd.call(this, E, set, carpet);
     };
   }
+  // far LOD for the pit complex (SPA-UPGRADE, PERF): js/pit.js keeps its team signs, lane text and screens (unlit MeshBasic draws) at any range;
+  // seen from across the valley (the Pouhon descent looks straight at the paddock 1.5 km away) they are sub-pixel, so beyond 700 m from the
+  // start line they are hidden, and only those this hook hid are shown again (pit.js's own crew / interior LOD is left alone). ~6 draws on Medium.
+  Sp.pitLod = function (E) {
+    const t = E.t, sc = E.sc; const i0 = t.idxAtS(t.sf || 0); const cx = t.x[i0], cz = t.z[i0]; let list = null, tries = 0, far = false; const hid = [];
+    const find = () => { let r = sc.group; while (r && r.parent) r = r.parent; const p = r && r !== sc.group ? r.getObjectByName('pitlane') : null; if (!p) return false;
+      list = p.children.filter(o => o.isMesh && !o.isInstancedMesh && o.material && o.material.isMeshBasicMaterial); return true; };
+    const update = (x, z) => {
+      if (!list) { if ((tries++ % 30) || !find()) return; }
+      const f = Math.hypot(x - cx, z - cz) > 700; if (f === far) return; far = f;
+      if (f) { for (const o of list) if (o.visible) { o.visible = false; hid.push(o); } } else { for (const o of hid) o.visible = true; hid.length = 0; }
+    };
+    sc.nearFar = sc.nearFar || []; sc.nearFar.push({ far: { range() {}, update }, near: { range() {}, update() {} } });
+  };
   Sp.crowd = function (E, set) {
     const rng = U.rng(1965); const S = set.data[2], A = set.data[3], D = set.data[1], N = set.n;
     const oranges = [C(0xff6a00), C(0xf47a1f), C(0xff8c1a), C(0xe85d04)], be = [C(0x111111), C(0xfdda24), C(0xef3340)], red = C(0xc8102e);

@@ -170,7 +170,7 @@ window.EI = window.EI || {};
       const lasers = new THREE.LineSegments(lg, lmat); lasers.name = 'yasFanLasers'; lasers.frustumCulled = false; sc.group.add(lasers);
       const setLasers = (t) => {
         const on = Math.sin(t * 0.45) > -0.2; lasers.visible = on && beams.visible; if (!lasers.visible) return;
-        for (let e = 0; e < 2; e++) for (let k = 0; k < NL; k++) { const o = ((e * NL + k) * 2) * 3; const a = (k / (NL - 1) - 0.5) * 1.6 + Math.sin(t * 1.3 + e * 2) * 0.35; const el = 0.05 + 0.18 * Math.sin(t * 0.9 + k * 0.4 + e);
+        for (let e = 0; e < 2; e++) for (let k = 0; k < NL; k++) { const o = ((e * NL + k) * 2) * 3; const a = (k / (NL - 1) - 0.5) * 1.6 + Math.sin(t * 1.3 + e * 2) * 0.35; const el = 0.07 + 0.1 * (0.5 + 0.5 * Math.sin(t * 0.9 + k * 0.4 + e));   // (always over the crowd's heads: a downward sweep sent them through the ground for 100 m)
           const hx = fwd[0] * Math.cos(a) - fwd[1] * Math.sin(a), hz = fwd[1] * Math.cos(a) + fwd[0] * Math.sin(a); const L = 140;
           lpos[o] = em[e][0]; lpos[o + 1] = em[e][1]; lpos[o + 2] = em[e][2]; lpos[o + 3] = em[e][0] + hx * L; lpos[o + 4] = em[e][1] + el * L; lpos[o + 5] = em[e][2] + hz * L; }
         lg.attributes.position.needsUpdate = true;

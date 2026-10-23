@@ -62,7 +62,7 @@ window.EI = window.EI || {};
   // roofline: the fascia's top edge (m above the line) along the straight, Club end (x < 0) -> Abbey end. Knots after ref_039 (seen across
   // the straight: tall prow, a deep V, a second crest, then the long low run) and ref_045 / 078 (seen along it from the Club end).
   const L0 = -206, L1 = 196;
-  const RK = [[L0, 36.5], [L0 + 12, 33.0], [-152, 19.6], [-98, 27.2], [-46, 19.4], [60, 18.6], [150, 18.2], [L1, 17.4]];
+  const RK = [[L0, 38.0], [L0 + 12, 34.5], [-150, 18.8], [-96, 31.0], [-42, 18.9], [60, 18.4], [150, 18.0], [L1, 17.4]];   // (crest raised after the first comparison: ref_039's V reads as deep as the building is tall)
   const roofY = (x) => { if (x <= RK[0][0]) return RK[0][1]; for (let k = 0; k + 1 < RK.length; k++) { const a = RK[k], b = RK[k + 1]; if (x <= b[0]) return U.lerp(a[1], b[1], (x - a[0]) / (b[0] - a[0])); } return RK[RK.length - 1][1]; };
   Sv.roofY = roofY;
   Sv.buildWing = function (sc, grp) {
@@ -105,7 +105,7 @@ window.EI = window.EI || {};
       Q(D, [xa, yS1 + 1.05, zb], [xb, yS1 + 1.05, zb], [xb, yS1 + 1.12, zb], [xa, yS1 + 1.12, zb], steelW, [0, 0, -1]);
     }
     // ---- glazed hospitality / media floors: leaning glass up to under the roof, slab bands at 14.2 and 18.05 m with balconies
-    const floors = [yS1, 14.2, 18.05, 21.9, 25.75, 29.6];
+    const floors = [yS1, 14.2, 18.05, 21.9, 25.75, 29.6, 33.45, 37.3];
     for (let k = 0; k + 1 < xs.length; k++) {
       const xa = xs[k], xb = xs[k + 1]; const ta = glassTop(xa), tb = glassTop(xb);
       for (let f = 0; f + 1 < floors.length; f++) {
