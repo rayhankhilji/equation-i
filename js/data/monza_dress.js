@@ -59,13 +59,18 @@
   // colour on the asphalt material, js/env_monza_up.js), a darker pit lane, and the striped tricolore kerbs at the two first chicanes
   // (track.js kerbGW stretches drawn from the 'monzastripe' tile: bands along the lap, pale-blue line at the edge; photos
   // ferrari_chicane_striped_kerb, williams_striped_kerb_spray, redbull_kerb_redwhite). The other corners keep the R-W-G-W blocks.
-  T.asphaltTint = [0.62, 0.63, 0.66];
+  T.asphaltTint = [0.44, 0.45, 0.48]; T.asphaltEnv = 0.16;
   T.pitColor = 0x7a7976;
   T.kerbGW = [[570, 705], [1795, 1910]];
   // painted run-off and gravel as the photos have them (pack_stands_pirelli, ferrari_banks_tifosi, gravel_runoff_haas_alpine, mercedes_gravel_runoff):
   // the aprons the same dark tarmac as the track, the band behind the kerbs a deep emerald (the grade lifts it; '#2f5a24' read lime), pale grey gravel
   T.runoffTint = [0.74, 0.75, 0.78]; T.runoffGreen = '#1d6444'; T.gravelTint = [1.8, 1.74, 1.6];
-  T.treeTint = [0.64, 0.74, 0.64];   // the park's crowns: deep olive green, not lime (linear material colour, js/env_monza_up.js)
+  T.treeTint = [0.46, 0.56, 0.44];
+  // extra stand runs (game s; side +1 = left of travel): Lesmo 2 interno (right-hander: inside = right), the Parabolica's outside to the exit
+  T.standsUp = [
+    { s0: 2556, s1: 2614, side: -1, gap: 7, rows: 10, label: 'LESMO', seat: 0x9aa3ad, once: true },
+    { s0: 4880, s1: 5070, side: 1, gap: 3, rows: 18, label: 'PARABOLICA', seat: 0xb4b8bc },
+  ];   // the park's crowns: deep olive green, not lime (linear material colour, js/env_monza_up.js)
 
   // ---- crowd and flags per stand (key = stand name as env_monza_stands labels it): fill = seat occupancy, red = share of red shirts,
   // flags = metres per flag pole, banners = chance of a tifosi banner per block

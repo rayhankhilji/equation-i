@@ -178,7 +178,8 @@ window.EI = window.EI || {};
           .replace('gl_FragColor = vec4( retColor, 1.0 );', 'vec3 hz0 = retColor; float zk = smoothstep(0.02, 0.75, direction.y); retColor *= uSkyGain * mix(vec3(1.0), vec3(0.78, 0.9, 1.08), zk * uSkyDeep);' + RIDGE + ' gl_FragColor = vec4( retColor, 1.0 );')
           .replace('#include <encodings_fragment>', '#include <encodings_fragment>' + HAZE); };
       skyMesh.material.customProgramCacheKey = () => 'ei-sky-gain' + (LK.ridge ? 'r' : '') + (HAZE ? 'h' + HAZE.length : ''); }
-    if (nightLook) { scene.remove(skyMesh); skyMesh = EI.Night.makeSky(nightWest); scene.add(skyMesh); }
+    // the night sky sits on the far plane like the day sky: drawn last of the opaques, it only shades the pixels where it shows (PERF-2)
+    if (nightLook) { scene.remove(skyMesh); skyMesh = EI.Night.makeSky(nightWest); skyMesh.renderOrder = 100; scene.add(skyMesh); }
     const t0 = performance.now(); const pm = new THREE.PMREMGenerator(renderer); pm.compileEquirectangularShader();
     const skyScene = new THREE.Scene(); const sky2 = new THREE.Sky(); sky2.scale.setScalar(5500); sky2.material.uniforms.turbidity.value = LK.turb; sky2.material.uniforms.rayleigh.value = LK.ray; if (LK.skyElev != null) { sky2.material.uniforms.mieCoefficient.value = LK.mie; sky2.material.uniforms.mieDirectionalG.value = LK.mieG || 0.85; } sky2.material.uniforms.sunPosition.value.copy(skySun); skyScene.add(sky2);
     // the environment (reflections + ambient of every PBR surface) sees a greyer sky than the screen: the saturated cyan otherwise
