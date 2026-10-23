@@ -71,7 +71,7 @@
   // painted partner logos on the run-off tarmac (corner, run-off row 0-3, length m): the La Source and Bus Stop aprons only
   T.logoSpots = [['La Source', 0, 34], ['Bus Stop', 1, 30]];
 
-  // ---- barriers: red / white cushion blocks (TecPro) on the outsides at Eau Rouge, Pouhon and the Bus Stop, tyre walls at the other heavy stops (grey Armco elsewhere)
+  // ---- barriers: red / yellow cushion blocks (TecPro) on the outsides at Eau Rouge / Raidillon, Pouhon and the Bus Stop, tyre walls at the other heavy stops (grey Armco elsewhere)
   T.tecProCorners = ['Eau Rouge', 'Raidillon', 'Pouhon', 'Bus Stop'];
   T.tecProColors = [0xd0151c, 0xf0c000];   // red / yellow blocks (F1 photos spa_eau_rouge_aerial_crowd_trees, spa_valley_hillside_view), not red / white
   T.tyreCorners = ['La Source', 'Eau Rouge', 'Raidillon', 'Les Combes', 'Bruxelles', 'Pouhon', 'Stavelot', 'Blanchimont', 'Bus Stop'];

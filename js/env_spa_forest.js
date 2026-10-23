@@ -9,6 +9,9 @@ window.EI = window.EI || {};
 (function () {
   const U = EI.U, Env = EI.Env;
   const SF = {}; EI.SpaForest = SF;
+  // ground options for js/env_forest.js (SPA-UPGRADE, PERF): the coarse terrain ring in 2 halves (north / south) instead of 4 strips, as COTA / Mexico:
+  // 6 terrain tiles instead of 8 (the Medium Pouhon cockpit view drew 165 calls at the 165 cap)
+  SF.ground = { ringHalves: true };
   // sectors (SPEC 4.14): [from turn, ds, to turn, ds, conifer share] - turn-in s from EI.TRACKS.spa.corners by turn number t
   const SECTORS = [[18, -250, 1, -350, 0.5], [1, -350, 2, 100, 0.4], [2, 100, 4, 130, 0.75], [4, 130, 5, -50, 0.7], [5, -50, 8, 0, 0.45],
     [8, 0, 10, -70, 0.75], [10, -70, 12, -200, 0.7], [12, -200, 16, -300, 0.25], [16, -300, 18, -250, 0.6]];

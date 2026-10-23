@@ -57,7 +57,8 @@ window.EI = window.EI || {};
   if (EI.Night && EI.Night.makeSky) {
     const orig = EI.Night.makeSky;
     EI.Night.makeSky = function (westDir) {
-      const L = EI.look; if (EI.trackId !== 'abudhabi' || !L || !L.twilight) return orig.call(this, westDir);
+      // (gated on the look: only LOOKS.abudhabi carries 'twilight'; EI.trackId is only assigned after the sky is made)
+      const L = EI.look; if (!L || !L.twilight) return orig.call(this, westDir);
       const P = Object.assign({}, TW, L.twilight === true ? {} : L.twilight);
       const mat = new THREE.ShaderMaterial({ uniforms: { uWest: { value: (westDir || new THREE.Vector3(-1, 0, 0.3)).clone().normalize() } }, vertexShader: SKY_V, fragmentShader: twilightFrag(P), side: THREE.BackSide, depthWrite: false, fog: false });
       mat.userData.nightEmissive = true;
