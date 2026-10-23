@@ -139,9 +139,19 @@ window.EI = window.EI || {};
     }
     // ---- slim white steel under the overhang: a V-strut pair every 24 m from the balcony slab to the roof lip (ref_078 / 037)
     for (let x = L1 - 70; x < L1 - 6; x += 24) { const rr = roofY(x) - 1.8; for (const d of [-3.5, 3.5]) BM(D, [x, yS1 + 0.05, zG - 2.2], [x + d, rr, zle + 1.2], 0.2, C(0xb9473f)); }   // the red bracing at the Abbey end (ref_037)
-    // ---- Abbey end wall
-    { const zf = frontZ(glassTop(L1)); Q(B, [L1, -1.2, zG], [L1, -1.2, depthB], [L1, backY(L1), depthB], [L1, glassTop(L1), zf], backC, [1, 0, 0]);
-      Q(B, [L1, roofY(L1) - 1.8, zle], [L1, roofY(L1), zle], [L1, backY(L1), depthB], [L1, glassTop(L1), zf], white, [1, 0, 0]); }
+    // ---- Abbey end (ref_037): grey cladding to the first floor, dark glazing above, and the blade roof running on 7 m past the end, its
+    // fascia wrapping round the tip (white over the red line), so the end reads as the roof's overhang rather than a flat wall
+    { const zf = frontZ(glassTop(L1)), xe = L1 + 7, re = roofY(L1) + 0.6;
+      Q(B, [L1, -1.2, zG], [L1, -1.2, depthB], [L1, yS1, depthB], [L1, yS1, zG], cladD, [1, 0, 0]);
+      Q(G, [L1, yS1, zf + 0.6], [L1, yS1, depthB], [L1, backY(L1) - 0.4, depthB], [L1, glassTop(L1), zf], glassB, [1, 0, 0]);
+      for (let z = zf + 3; z < depthB - 1; z += 3) BM(D, [L1 + 0.05, yS1, z], [L1 + 0.05, U.lerp(glassTop(L1), backY(L1) - 0.4, (z - zf) / (depthB - zf)), z], 0.09, C(0x7d848b));
+      const ra = roofY(L1);
+      Q(B, [L1, ra, zle], [xe, re, zle + 1.5], [xe, backY(L1) + 0.4, depthB - 4], [L1, backY(L1), depthB], roofC, [0, 1, 0]);
+      Q(B, [L1, ra - 1.8, zle + 0.05], [xe, re - 1.6, zle + 1.55], [xe, backY(L1) - 1.0, depthB - 4], [L1, backY(L1) - 1.2, depthB], soffit, [0, -1, 0]);
+      Q(B, [L1, ra - 1.25, zle], [xe, re - 1.15, zle + 1.5], [xe, re, zle + 1.5], [L1, ra, zle], white, [0, 0, -1]);
+      Q(B, [L1, ra - 1.43, zle - 0.01], [xe, re - 1.33, zle + 1.49], [xe, re - 1.15, zle + 1.49], [L1, ra - 1.25, zle - 0.01], redL, [0, 0, -1]);
+      Q(B, [xe, re - 1.15, zle + 1.5], [xe, backY(L1) - 0.6, depthB - 4], [xe, backY(L1) + 0.4, depthB - 4], [xe, re, zle + 1.5], white, [1, 0, 0]);
+      Q(B, [xe, re - 1.6, zle + 1.55], [xe, backY(L1) - 1.0, depthB - 4], [xe, backY(L1) - 0.6, depthB - 4], [xe, re - 1.15, zle + 1.5], redL, [1, 0, 0]); }
     // ---- the prow (Club end): its end face, from the roof's sloping end edge (high at the track side, low at the back) down to the first
     // floor, chequered dark-grey panels below a pale band under the edge (ref_045), framed by a black fascia with a red line and white top
     {

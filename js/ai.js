@@ -508,6 +508,7 @@ window.EI = window.EI || {};
       const i = car.trk.i, n = t.n, hw = t.halfWidth;
       this.ncT -= dt; if (this.ncT <= 0) { this.ncT = 0.1; this.scanAhead(); }
       const nc = this.nc;
+      if (this.t1 !== false && (race.time > 25 || car.lapsDone >= 1 || (nc.dist < 12 && av < nc.vmin + 4 && race.time > 3))) this.t1 = false;
       // --- speed target from this driver's braking profile, looking slightly ahead
       this.diveT = Math.max(0, this.diveT - dt);
       const prof = this.diveT > 0 ? this.profDive : this.prof;
@@ -595,12 +596,16 @@ window.EI = window.EI || {};
         // the lap-1 pack: queued behind a car that holds it up, take a free lane beside it (the whole field runs 2-3 wide into
         // the first corner and brakes there, instead of a single file that crawls while the outside of the road stays empty)
         const pack = car.lapsDone < 1 && race.time < 30 && aheadGap < P.followGap + 10 + av * 0.1 && ahead.v < av + 3;
-        if (pack && kHere < P.passK) want = true;
+        const brakeZone = slowSoon && nc.dist < (av * av - nc.vmin * nc.vmin) / 50 + 30;   // no new lane into a braking zone: the pack files through
+        if (pack && kHere < P.passK && !brakeZone) want = true;
+        if (ahead.dist - car.dist > t.length * 0.5) want = false;            // a car that has just lapped this one: no fight to unlap it
         let dive = false;
         if (want && slowSoon && aheadGap > 4) {
           const late = aheadGap < 9 && closing > 1 && car.lapsDone >= 1;     // right on the gearbox with a run: out-brake it into the corner
           if (P.abortSlow && !late) { want = false; if (this.passing) st.aborts++; }  // careful drivers tuck back in before a slow corner
-          else if ((P.dive || late) && aheadGap < 26) dive = true;             // risk-takers (or anyone with the run) go for the inside and brake later
+          // risk-takers (or anyone with the run) go for the inside and brake later - only from where the run can still get it alongside
+          // before the turn-in, and never on lap 1 (the pack arrives 2-3 wide: a late-braking dive there piles up the corner)
+          else if ((P.dive && car.lapsDone >= 1 && aheadGap < Math.min(26, 10 + 3 * Math.max(0, closing))) || (late && aheadGap < 26)) dive = true;
         }
         // attacking on a straight: first close right up in the tow, then pull out with the speed it gives (pulling out 20-30 m
         // back threw the tow away and the pass never got closer); pull out once close, closing fast, with DRS, or near the braking zone
@@ -617,6 +622,7 @@ window.EI = window.EI || {};
           }
           if (passing && dive && this.diveT <= 0) { this.diveT = 2.5; st.dives++; }
         }
+        this.aheadDl = Math.abs(ahead.trk.lat - car.trk.lat);
         if (passing && !this.passing) st.passAttempts++;
         this.passing = passing;
         // do not run into the back of the car ahead: match its speed while there is lateral overlap
@@ -625,7 +631,7 @@ window.EI = window.EI || {};
         const fg = attack ? fgA : pack ? 7 + av * 0.04 : held ? Math.max(6.5, P.followGap - 2.5) + av * 0.05 : (onStraight ? Math.max(6.2, P.followGap - 0.8 * T.tow) : P.followGap) + av * 0.06;   // + a time headway: 5 m more at 300 km/h; the lap-1 pack runs nose to tail
         // vA: the car ahead's speed a moment from now if it keeps braking as hard as it is now; the kinematic cap is the most
         // this car can carry and still match vA before the gap closes to 3.5 m (braking at 25 m/s2, well inside the brakes)
-        const start = car.lapsDone < 1;
+        const start = car.lapsDone < 1, t1 = start && this.t1 !== false;   // t1: from the grid to the first corner
         // + its acceleration: off the line the car ahead is gone 0.5 s later, so do not queue behind it; but a car ahead braking hard for a
         // corner (beyond -15 m/s2, not just lifting off the line) is read 0.3 s ahead on lap 1 too: the short lap-1 read rear-ended the
         // first-corner queues (SPA-GEN, 5 tracks x 2 levels x 2 seeds: race contacts -6 %, lap-1 -10 %, bot wall hits 0 -> 0)
@@ -641,13 +647,16 @@ window.EI = window.EI || {};
           const B = EI.CAR.BRAKE, bF = 0.72 * Math.min(B.cap, B.b0 + B.b1 * av * av) * car.tyre.grip, bL = Math.max(bF, -ahead.aLong);
           target = Math.min(target, Math.sqrt(Math.max(0, 2 * bF * (aheadGap - 6 - av * (pack ? 0.04 : 0.08)) + ahead.v * ahead.v * bF / bL)));
         }
-        if (overlap && !attack && aheadGap < fg + 9) {
+        // from the grid into the first corner a column brakes on the kinematic cap above alone while it is more than ~2 lengths back: the
+        // follow controller on top (reading a braking car 0.3 s ahead) made each car of a grid column brake ~8 m/s earlier than the one in
+        // front - a braking wave down the grid into Ste Devote that let a late-braking player pass 7-8 cars
+        if (overlap && !attack && aheadGap < fg + 9 && !(t1 && ahead.aLong < -3 && aheadGap > 11)) {
           const follow = Math.max(vA + (aheadGap - fg) * 1.1, 3);
           target = Math.min(target, Math.max(follow, vA + (passing ? 1.5 : L(0.4, 1.5, P.agg))));
         }
         if (overlap && aheadGap < Math.min(7, fg)) target = Math.min(target, vA - 1);
         if (overlap && aheadGap < fg && target < av - 0.6) this.urgent = true;   // closing on the car ahead: brake like it, not gently
-      } else { this.tailCar = null; this.tailT = 0; this.passing = false; }
+      } else { this.tailCar = null; this.tailT = 0; this.passing = false; this.aheadDl = 0; }
       this.queued = !!ahead && aheadGap < 12;
       // slipstream hunters line up behind the car ahead on a straight to sit in its tow
       if (!passing && towCar && onStraight && P.towHunt > 0 && alongside === 0) { wantOffset = L(wantOffset, U.clamp(towCar.trk.lat, -hw + 1.3, hw - 1.3) - base, P.towHunt); st.towT += dt; }
@@ -670,6 +679,7 @@ window.EI = window.EI || {};
         let db = blue.trk.s - car.trk.s; if (db > t.length / 2) db -= t.length; if (db < -t.length / 2) db += t.length;
         if (db < 0 && db > -60) {
           this.defending = false; st.blues = (st.blues || 0) + dt;
+          if (db > -6.5) target = Math.min(target, Math.max(blue.v - 1, 12));   // alongside: let it through, never fight it into the corner
           if (onStraight) { wantOffset = U.clamp(car.trk.lat - base + (blue.trk.lat > car.trk.lat ? -2.5 : 2.5), -hw + 1.3 - base, hw - 1.3 - base); if (db > -30) target = Math.min(target, Math.max(blue.v - 3, 20)); }
         }
       }
@@ -677,15 +687,22 @@ window.EI = window.EI || {};
       for (const o of cars) { if (o === car) continue; let dsx = o.trk.s - car.trk.s; if (dsx > t.length / 2) dsx -= t.length; if (dsx < -t.length / 2) dsx += t.length; const dl = o.trk.lat - car.trk.lat; if (dsx > 2 && dsx < P.diagWin && Math.abs(dl) > 1.2 && Math.abs(dl) < 3.4) { wantOffset = U.clamp(car.trk.lat - base - Math.sign(dl) * 1.2, -hw + 1.2 - base, hw - 1.2 - base); if (Math.abs(dl) < 2.5) target = Math.min(target, Math.max(o.v - 0.5, 15)); } }
       // bumper check in world space (track s / lat distort in hairpins: the inside of a 10 m hairpin has half the arc length):
       // a car in front of this one's nose within 12 m and in its path caps the speed to what can still be killed in the gap
-      { const fx = Math.cos(car.heading), fz = Math.sin(car.heading);
+      let pathClear = true;
+      { const fx = Math.cos(car.heading), fz = Math.sin(car.heading), kp = Math.abs(this.kWant || 0) < 1 / 30 ? this.kWant || 0 : 0;   // (hairpins: the straight-heading check, as before)
         for (const o of cars) {
           if (o === car || (o.pit && o.pit.active)) continue; const dx = o.x - car.x, dz = o.z - car.z; if (dx * dx + dz * dz > 144) continue;
-          const fwd = dx * fx + dz * fz, side = dz * fx - dx * fz, rh = U.wrapAngle(o.heading - car.heading);
+          // side measured from the arc this car steers along (kWant), not its straight heading: in a bend the car in the next lane sits
+          // straight ahead of the outside car's nose, and the outside lane braked for it (lap-1 Village / Loop pile-ups at Silverstone)
+          const fwd = dx * fx + dz * fz, side = dz * fx - dx * fz - kp * Math.max(0, fwd) * Math.max(0, fwd) / 2, rh = U.wrapAngle(o.heading - car.heading);
           if (fwd <= 0 || Math.abs(side) > 2.5 + 1.45 * Math.abs(Math.sin(rh))) continue;
           if (av < 4 && o.dist < car.dist - 0.5) continue;   // crawling in a jam: a car behind us on the lap that sits across our nose (chicane, hairpin) waits for us, not the other way round - no gridlock
+          if (fwd < 8.5 && Math.abs(side) < 2.4) pathClear = false;
           const vo = Math.max(0, o.v * Math.cos(rh)); target = Math.min(target, vo + Math.sqrt(2 * 8 * Math.max(0, fwd - 6.3)));
           if (fwd < 7.5 && av > vo) this.urgent = true;
         } }
+      // jam release: crawling behind a car that is in the next lane (a queue in a hairpin / chicane) with nothing in this car's own path:
+      // creep on instead of waiting for it (every car of a pile-up waited for a car beside it: 4-6 cars stood > 2 s at the Village)
+      if (av < 4 && pathClear && this.queued && this.aheadDl > 2.2 && race.time > 3 && !this.reactT) target = Math.max(target, Math.min(6, prof[i]));
       // lap 1: change lanes only into a gap. Merging two grid columns into one file at 8 m spacing made every car brake to
       // open the gap again (a braking wave down the grid 2-4 s after the start that let a player from the back pass half the field);
       // nor cut in front of a car close behind in that lane
@@ -789,7 +806,7 @@ window.EI = window.EI || {};
       const tx = t.lineX[j] + t.nx[j] * this.offset, tz = t.lineZ[j] + t.nz[j] * this.offset;
       const dx = tx - car.x, dz = tz - car.z, ld = Math.max(2, Math.hypot(dx, dz));
       const err = U.wrapAngle(Math.atan2(dz, dx) - car.heading);
-      const av = Math.abs(car.v), kWant = 2 * Math.sin(err) / ld;
+      const av = Math.abs(car.v), kWant = 2 * Math.sin(err) / ld; this.kWant = car.v < 0 ? 0 : kWant;
       const dMax = Math.max(0.42 / (1 + av / 18), 0.55 / (1 + Math.pow(av / 16, 3)));
       const G = EI.CAR.GRIP, mu = car.tyre.grip * (1 - 0.3 * Math.min(1, car.wear));
       const kMax = Math.min(Math.tan(dMax) / EI.CAR.WB, av > 0.5 ? mu * Math.min(G.cap, G.a0 + G.a1 * av * av) / (av * av) : 99);
