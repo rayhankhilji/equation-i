@@ -29,6 +29,28 @@ window.EI = window.EI || {};
     };
   }
 
+  // the trees on the slope in front of the ramparts (they hid the wall from the harbour): the vegetation pass drops every tree whose crown
+  // would rise above the foot of the wall within 32 m in front of it (E.mlmWalls, written by L.rocher before the vegetation is planted)
+  const VG = EI.EnvVeg;
+  if (VG && VG.instance) {
+    const oInst = VG.instance;
+    VG.instance = function (E, trees) {
+      if (isMonaco(E) && E.mlmWalls && E.mlmWalls.length && trees && trees.length) {
+        try {
+          const G = 12, H = new Map(); for (const w of E.mlmWalls) { const k = Math.floor(w.x / G) * 8192 + Math.floor(w.z / G); let l = H.get(k); if (!l) H.set(k, l = []); l.push(w); }
+          const keep = []; let cut = 0;
+          for (const tr of trees) {
+            const x = tr[0], z = tr[1]; let drop = false; const gx = Math.floor(x / G), gz = Math.floor(z / G);
+            for (let a = -3; a <= 3 && !drop; a++) for (let b = -3; b <= 3 && !drop; b++) { const l = H.get((gx + a) * 8192 + gz + b); if (!l) continue; for (const w of l) { const vx = x - w.x, vz = z - w.z; const al = vx * w.ox + vz * w.oz, la = Math.abs(-vx * w.oz + vz * w.ox); if (al > -9 && al < 32 && la < 7 + al * 0.3 && E.sc.height(x, z) + tr[4] > w.yb + 1) { drop = true; break; } } }
+            if (drop) cut++; else keep.push(tr);
+          }
+          if (E.stats.mlm) E.stats.mlm.treesCleared = cut; trees = keep;
+        } catch (e) { console.error('EnvMonacoLandmarks trees', e); }
+      }
+      return oInst.call(this, E, trees);
+    };
+  }
+
   L.build = function (E) {
     const SK = EI.StreetKit; if (!SK || !SK.world) return;
     E.stats.mlm = {}; L.debug = {};
@@ -49,44 +71,48 @@ window.EI = window.EI || {};
     for (const p of blds) { if (!p || p.length < 3) continue; const b = U.polyBounds(p); if (b.x1 < bb.x0 - 20 || b.x0 > bb.x1 + 20 || b.z1 < bb.z0 - 20 || b.z0 > bb.z1 + 20) continue; for (let x = Math.floor((b.x0 - 4) / G); x <= Math.floor((b.x1 + 4) / G); x++) for (let z = Math.floor((b.z0 - 4) / G); z <= Math.floor((b.z1 + 4) / G); z++) { const k = x * 8192 + z; let l = H.get(k); if (!l) H.set(k, l = []); l.push(p); } }
     const nearB = (x, z, r) => { const l = H.get(hk(x, z)); if (!l) return false; for (const p of l) if (U.pointInPoly(x, z, p) || polyD(x, z, p) < r) return true; return false; };
     const Bm = new SKx.Batch(), Bd = new SKx.Batch(); const lime = C(0xf3ead6), limeTop = C(0xd9cdb4); let nW = 0, nT = 0, len = 0;
-    const runs = []; let cur = null;
-    const n = ring.length; let area = 0; for (let i = 0; i < n; i++) { const a = ring[i], b = ring[(i + 1) % n]; area += a[0] * b[1] - b[0] * a[1]; }
+    // the wall stands on the upper break of the slope: its outer face DOUT m outside the plateau outline, the walkway level with the
+    // plateau DIN m inside it, so the face shows ~8-12 m of dressed stone over the cliff below (a low parapet on the top read as nothing)
+    const DIN = 4, DOUT = 3; const runs = []; let cur = null; const n = ring.length;
     for (let i = 0; i < n; i++) {
       const a = ring[i], b = ring[(i + 1) % n]; const l = Math.hypot(b[0] - a[0], b[1] - a[1]); if (l < 1) continue; const tx = (b[0] - a[0]) / l, tz = (b[1] - a[1]) / l;
       // inward normal (towards the plateau's inside)
       let nx = -tz, nz = tx; if (!U.pointInPoly((a[0] + b[0]) / 2 + nx * 4, (a[1] + b[1]) / 2 + nz * 4, ring)) { nx = -nx; nz = -nz; }
       for (let d = 0; d < l; d += 2.5) {
-        const x = a[0] + tx * d + nx * inset, z = a[1] + tz * d + nz * inset; const g = sc.gridHeight(x, z); const gOut = sc.gridHeight(x - nx * 26, z - nz * 26);
+        const px = a[0] + tx * d, pz = a[1] + tz * d; const ix = px + nx * DIN, iz = pz + nz * DIN, ox = px - nx * DOUT, oz = pz - nz * DOUT;
+        const gI = sc.gridHeight(ix, iz), gO = Math.min(sc.gridHeight(ox, oz), sc.gridHeight(ox - nx * 2, oz - nz * 2)); const gF = sc.gridHeight(px - nx * 26, pz - nz * 26);
         // only the faces that look over the port and the circuit (north-west round to east); the sea cliffs behind are not seen from the lap
-        const ok = -nz < 0.35 && U.pointInPoly(x, z, ring) && g - gOut > 14 && E.dcAt(x, z) > 30 && E.dcAt(x - nx * 26, z - nz * 26) > 12 && !nearB(x, z, 2.2) && !nearB(x - nx * 1.5, z - nz * 1.5, 1.5);
-        if (ok) { if (!cur) runs.push(cur = []); cur.push({ x, z, g, ox: -nx, oz: -nz }); } else cur = null;
+        const ok = -nz < 0.35 && U.pointInPoly(ix, iz, ring) && gI - gF > 14 && gI - gO > 3 && E.dcAt(ox, oz) > 28 && E.dcAt(px - nx * 26, pz - nz * 26) > 12 && !nearB(ix, iz, 2.2) && !nearB(px, pz, 2) && !nearB(ox, oz, 2);
+        if (ok) { if (!cur) runs.push(cur = []); cur.push({ ix, iz, x: ox, z: oz, gI, gO, ox: -nx, oz: -nz }); } else cur = null;
       }
       cur = null;
     }
-    const I4 = new THREE.Matrix4(); const UP = [0, 1, 0];
-    const turret = (x, z, g, r) => { const y0 = g - 6, y1 = g + 3.8; Bm.set(stone, 0.95, 0); Bm.col(I4, x, z, y0, y1, r, r, 12, lime, true); Bd.set(stone, 0.95, 0); for (let k = 0; k < 10; k++) { const a = k / 10 * Math.PI * 2; const mm = Env.frame(x + Math.cos(a) * (r - 0.35), y1, z + Math.sin(a) * (r - 0.35), -Math.sin(a), Math.cos(a), Math.cos(a), Math.sin(a)); Bd.box(mm, 0.9, 0.85, 0.6, 0, 0, 0, lime, { top: limeTop }); } nT++; };
+    const I4 = new THREE.Matrix4(); const UP = [0, 1, 0]; const walls = E.mlmWalls = [];
+    const turret = (x, z, yb, yt, r) => { Bm.set(stone, 0.95, 0); Bm.col(I4, x, z, yb, yt, r, r, 12, lime, true); Bd.set(stone, 0.95, 0); for (let k = 0; k < 10; k++) { const a = k / 10 * Math.PI * 2; const mm = Env.frame(x + Math.cos(a) * (r - 0.35), yt, z + Math.sin(a) * (r - 0.35), -Math.sin(a), Math.cos(a), Math.cos(a), Math.sin(a)); Bd.box(mm, 0.9, 0.85, 0.6, 0, 0, 0, lime, { top: limeTop }); } nT++; };
+    const PT = 0.6;   // parapet thickness
     for (const R of runs) {
       if (R.length < 6) continue; let acc = 0;
+      for (const q of R) { q.yT = q.gI + 1.4; q.yW = q.gI + 0.15; q.yb = q.gO - 1.5; walls.push(q); }
       for (let k = 0; k + 1 < R.length; k++) {
-        const p = R[k], q = R[k + 1]; const l = Math.hypot(q.x - p.x, q.z - p.z); if (l > 4) continue; acc += l; len += l;
-        const ox = (p.ox + q.ox) / 2, oz = (p.oz + q.oz) / 2; const th = 0.8; const yt0 = p.g + 2.4, yt1 = q.g + 2.4;
-        const A = [p.x + ox * th / 2, p.z + oz * th / 2], B = [q.x + ox * th / 2, q.z + oz * th / 2], Ai = [p.x - ox * th / 2, p.z - oz * th / 2], Bi = [q.x - ox * th / 2, q.z - oz * th / 2];
-        // the outer face runs down the cliff top (into the ground in front), the inner face is a low parapet on the plateau
-        const yb0 = Math.min(p.g, sc.gridHeight(A[0] + ox * 2, A[1] + oz * 2)) - 3, yb1 = Math.min(q.g, sc.gridHeight(B[0] + ox * 2, B[1] + oz * 2)) - 3;
-        Bm.set(stone, 0.95, 0); const u0 = acc / 4 - l / 4, u1 = acc / 4;
-        fq(Bm, [A[0], yb0, A[1]], [B[0], yb1, B[1]], [B[0], yt1, B[1]], [A[0], yt0, A[1]], lime, [u0, yb0 / 4, u1, yb1 / 4, u1, yt1 / 4, u0, yt0 / 4], [ox, 0, oz]);
-        fq(Bm, [Ai[0], p.g - 0.4, Ai[1]], [Bi[0], q.g - 0.4, Bi[1]], [Bi[0], yt1 - 1.4, Bi[1]], [Ai[0], yt0 - 1.4, Ai[1]], lime, [u0, 0, u1, 0, u1, 0.5, u0, 0.5], [-ox, 0, -oz]);
-        fq(Bm, [Ai[0], yt0 - 1.4, Ai[1]], [Bi[0], yt1 - 1.4, Bi[1]], [B[0], yt1 - 1.4, B[1]], [A[0], yt0 - 1.4, A[1]], limeTop, null, UP);
-        // the outer face stands 1.4 m above the walkway as a crenellated parapet: merlons on the outer half
-        fq(Bm, [A[0] - ox * 0.4, yt0 - 1.4, A[1] - oz * 0.4], [B[0] - ox * 0.4, yt1 - 1.4, B[1] - oz * 0.4], [B[0] - ox * 0.4, yt1 - 0.6, B[1] - oz * 0.4], [A[0] - ox * 0.4, yt0 - 0.6, A[1] - oz * 0.4], lime, [u0, 0, u1, 0, u1, 0.2, u0, 0.2], [-ox, 0, -oz]);
-        fq(Bm, [A[0] - ox * 0.4, yt0 - 0.6, A[1] - oz * 0.4], [B[0] - ox * 0.4, yt1 - 0.6, B[1] - oz * 0.4], [B[0], yt1 - 0.6, B[1]], [A[0], yt0 - 0.6, A[1]], limeTop, null, UP);
+        const p = R[k], q = R[k + 1]; const l = Math.hypot(q.x - p.x, q.z - p.z); if (l > 5) continue; acc += l; len += l;
+        const ox = (p.ox + q.ox) / 2, oz = (p.oz + q.oz) / 2; const u0 = acc / 4 - l / 4, u1 = acc / 4; Bm.set(stone, 0.95, 0);
+        const A = [p.x, p.z], B = [q.x, q.z], Ap = [p.x - ox * PT, p.z - oz * PT], Bp = [q.x - ox * PT, q.z - oz * PT];
+        // outer face: from below the slope surface up to the parapet top
+        fq(Bm, [A[0], p.yb, A[1]], [B[0], q.yb, B[1]], [B[0], q.yT, B[1]], [A[0], p.yT, A[1]], lime, [u0, p.yb / 4, u1, q.yb / 4, u1, q.yT / 4, u0, p.yT / 4], [ox, 0, oz]);
+        // parapet top and its inner face, the walkway back to the plateau, the low inner face
+        fq(Bm, [A[0], p.yT, A[1]], [B[0], q.yT, B[1]], [Bp[0], q.yT, Bp[1]], [Ap[0], p.yT, Ap[1]], limeTop, null, UP);
+        fq(Bm, [Ap[0], p.yW, Ap[1]], [Bp[0], q.yW, Bp[1]], [Bp[0], q.yT, Bp[1]], [Ap[0], p.yT, Ap[1]], lime, [u0, 0, u1, 0, u1, 0.35, u0, 0.35], [-ox, 0, -oz]);
+        fq(Bm, [Ap[0], p.yW, Ap[1]], [Bp[0], q.yW, Bp[1]], [q.ix, q.yW, q.iz], [p.ix, p.yW, p.iz], limeTop, null, UP);
+        fq(Bm, [p.ix, p.gI - 0.6, p.iz], [q.ix, q.gI - 0.6, q.iz], [q.ix, q.yW, q.iz], [p.ix, p.yW, p.iz], lime, [u0, 0, u1, 0, u1, 0.2, u0, 0.2], [-ox, 0, -oz]);
         // a merlon on every 2.5 m sample (detail layer)
-        const mm = Env.frame((A[0] + B[0]) / 2 - ox * 0.2, (yt0 + yt1) / 2 - 0.6, (A[1] + B[1]) / 2 - oz * 0.2, (B[0] - A[0]) / l, (B[1] - A[1]) / l, ox, oz);
-        Bd.set(stone, 0.95, 0); Bd.box(mm, 1.1, 0.75, 0.4, 0, 0, 0, lime, { top: limeTop });
-        if (acc > 110 && k < R.length - 12) { acc = 0; turret(q.x + ox * 1.6, q.z + oz * 1.6, q.g, 3.0); }
+        const mm = Env.frame((A[0] + B[0]) / 2 - ox * PT / 2, (p.yT + q.yT) / 2, (A[1] + B[1]) / 2 - oz * PT / 2, (B[0] - A[0]) / l, (B[1] - A[1]) / l, ox, oz);
+        Bd.set(stone, 0.95, 0); Bd.box(mm, 1.1, 0.75, PT, 0, 0, 0, lime, { top: limeTop });
+        if (acc > 110 && k < R.length - 12) { acc = 0; turret(q.x + ox * 1.2, q.z + oz * 1.2, q.yb - 1, q.yT + 1.6, 3.2); }
         nW++;
       }
-      const e0 = R[0], e1 = R[R.length - 1]; if (R.length >= 16) { turret(e0.x + e0.ox * 1.6, e0.z + e0.oz * 1.6, e0.g, 3.4); turret(e1.x + e1.ox * 1.6, e1.z + e1.oz * 1.6, e1.g, 3.4); }
+      // the run's two ends closed (solid wall block between the outer face and the plateau)
+      for (const [e, sg] of [[R[0], -1], [R[R.length - 1], 1]]) { const nb = R[sg < 0 ? 1 : R.length - 2]; const dx = e.x - nb.x, dz = e.z - nb.z; Bm.set(stone, 0.95, 0); fq(Bm, [e.x, e.yb, e.z], [e.ix, e.gI - 0.6, e.iz], [e.ix, e.yT, e.iz], [e.x, e.yT, e.z], lime, [0, e.yb / 4, 2, e.yb / 4, 2, e.yT / 4, 0, e.yT / 4], [dx, 0, dz]); }
+      const e0 = R[0], e1 = R[R.length - 1]; if (R.length >= 16) { turret(e0.x + e0.ox * 1.2, e0.z + e0.oz * 1.2, e0.yb - 1, e0.yT + 1.8, 3.6); turret(e1.x + e1.ox * 1.2, e1.z + e1.oz * 1.2, e1.yb - 1, e1.yT + 1.8, 3.6); }
     }
     // the Monaco flag (red over white) on a tall pole over the Palace
     const pal = (E.data.landmarks || {}).palace;
@@ -97,7 +123,7 @@ window.EI = window.EI || {};
         fl(y1 - 0.2, y1 - 1.6, C(0xce1126)); fl(y1 - 1.6, y1 - 3.0, C(0xf4f4f4)); E.stats.mlm.palaceFlag = [Math.round(cx), Math.round(cz), Math.round(y1)]; }
     }
     L.debug.ramparts = runs.filter(R => R.length >= 6).map(R => R.map(q => [Math.round(q.x), Math.round(q.z)]));
-    W.add(Bm, 'main'); W.add(Bd, 'detail'); E.stats.mlm.ramparts = [runs.length, nW, Math.round(len), nT];
+    W.add(Bm, 'main'); W.add(Bd, 'detail'); E.stats.mlm.ramparts = [runs.length, nW, Math.round(len), nT]; if (walls.length) { const hs = walls.map(w => w.yT - w.yb); E.stats.mlm.wallFace = [Math.round(Math.min(...hs)), Math.round(hs.reduce((a, b) => a + b, 0) / hs.length), Math.round(Math.max(...hs))]; }
   };
 
   // ================================================================ the Stade Nautique Rainier III: racing lanes on the basin built by the city pass
