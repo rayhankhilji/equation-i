@@ -46,7 +46,9 @@
   T.tyreCorners = ['Variante del Rettifilo', 'Curva Biassono', 'Variante della Roggia', 'Lesmo 1', 'Lesmo 2', 'Variante Ascari', 'Curva Alboreto'];
 
   // ---- catch fence runs [s0, s1, side (0 = both), height m]: later runs win; 0 = none. Base = data.fence.h (4.5 m).
-  T.fence = Object.assign({}, T.fence || {}, {
+  // MONZA-UPGRADE: the catch fence is galvanised wire that reads as a silver-grey veil in the sun (photos rolex_straight_alps_trees, ferrari_banks_tifosi),
+  // not the near-black grid that made a checkerboard at distance: lighter, thinner (lower opacity); unlit material = colour only
+  T.fence = Object.assign({}, T.fence || {}, { color: 0x8c9298, op: 0.5 }, {
     runs: [
       [5396, 22, 1, 2.4],       // pit wall: low debris fence along the pit lane
       [430, 720, 0, 6.0],       // Prima Variante: the tall fence in front of Alta Velocita / Prima Variante Esterna (t1_braking_boards_fences_2022)

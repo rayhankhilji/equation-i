@@ -65,7 +65,11 @@ window.EI = window.EI || {};
       // horizon, the Royal Park's deep greens bouncing up as a green-olive ground light; a rich grade (deep park greens, vivid kerbs and
       // grass, slightly lower exposure so the pale sky and the white buildings hold); canopy: dappled sun under the park's trees (js/canopy.js)
       monza: { elev: 37, azim: 305, turb: 3.4, ray: 2.0, mie: 0.005, mieG: 0.84, horizon: 0xc8c9c3, sky: [0.46, 1.1], fog: [480, 2300], fogLow: [320, 1400],
-        hemi: [0xb4c4d6, 0x4b6130, 0.44], sun: [0xffeccc, 2.5], envSat: 0.5, exp: 1.0, grade: { sat: 1.45, con: 1.16, warm: [1.02, 1.0, 0.98] }, canopy: { k: 0.72 } },
+        hemi: [0xb4c4d6, 0x4b6130, 0.44], sun: [0xffeccc, 2.5], envSat: 0.5, exp: 1.0, grade: { sat: 1.36, con: 1.16, warm: [1.02, 1.0, 0.98] }, canopy: { k: 0.72 },
+        // MONZA-UPGRADE (F1 photos grid_stands_alps, rolex_straight_alps_trees): the Lombard Prealps on the northern horizon over the park - a broad
+        // hazy range from Como to Bergamo, the Grigne massif and the Resegone's saw-tooth above Lecco, Monte Rosa's snow far in the west-north-west;
+        // and a little less saturation boost (the park's crowns read lime, the photos' are deep olive). Sky pixels only.
+        peaks: [[292, 0.07, 0.024, 0.28, 1, 0.9], [8, 0.62, 0.03, 0.32, 2, 0], [17, 0.12, 0.046, 0.42, 1, 0.12], [31, 0.08, 0.041, 0.42, 0, 0]] },
       // Yas Marina: the race starts at sunset - the sun low over the Gulf in the west-south-west, warm haze, long shadows
       // Yas Marina: a night race under floodlights (js/night.js: night sky, the light map, glows); the 'sun' is dim moonlight from
       // high up so the cars keep their contact shadows
