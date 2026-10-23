@@ -158,7 +158,7 @@ window.EI = window.EI || {};
           : Sh === 2 ? '(1.0 - pu * pu) * (0.78 + 0.12 * sin(pa * 23.0 + ' + f(Cp * 0.37) + ') + 0.07 * sin(pa * 61.0 + ' + f(Cp * 0.71) + ') + 0.03 * abs(sin(pa * 157.0 + ' + f(Cp) + ')))'
           : 'min(1.0, 1.04 * (1.0 - pu) * (1.0 - pu)) * (1.0 + 0.03 * pu * sin(pa * 140.0 + ' + f(Cp * 0.53) + '))';
         p += ' { float pa = mod(pph - ' + ang(Cp) + ' + 3.14159, 6.28319) - 3.14159, pu = abs(pa) * ' + f(1 / W) + '; if (pu < 1.0) { float ph = ' + f(H) + ' * ' + shape + ';' +
-          ' float pm = 1.0 - smoothstep(ph - 0.0012, ph, py); if (pm > 0.0) { vec3 pc = uHz * vec3(0.56, 0.63, 0.76);' +
+          ' float pm = (1.0 - smoothstep(ph - 0.0012, ph, py)) * smoothstep(-0.006, 0.0, py); if (pm > 0.0) { vec3 pc = uHz * vec3(0.56, 0.63, 0.76);' +
           (Sn ? ' pc = mix(pc, min(uHz * 1.1 + 0.03, vec3(1.0)), ' + f(Sn) + ' * smoothstep(' + f(0.8 * H - 0.0015) + ', ' + f(0.8 * H + 0.0015) + ', py + 0.0016 * sin(pa * 330.0 + 1.3 * sin(pa * 120.0))));' : '') +
           ' hc = mix(hc, pc, pm * ' + f(Kc) + ' * (0.3 + 0.7 * smoothstep(0.004, 0.034, py))); } } }'; }
       let k = ''; if (LK.skyline) { const [Kc, T] = LK.skyline; let lo = 1e9, hi = -1e9, top = 0; for (const [c, w, h] of T) { lo = Math.min(lo, c - w * 57.3); hi = Math.max(hi, c + w * 57.3); top = Math.max(top, h); }
