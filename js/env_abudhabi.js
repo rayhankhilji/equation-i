@@ -32,7 +32,7 @@ window.EI = window.EI || {};
       '  vec3 c = mix(' + v3(P.hor) + ', ' + v3(P.mid) + ', smoothstep(0.0, 0.3, h)); c = mix(c, ' + v3(P.zen) + ', smoothstep(0.25, 0.95, h));',
       // the sunset: a hot band on the horizon in the west, a wide warm cloak over half the sky, the earth's shadow + violet belt in the east
       '  float gl = pow(wp, 1.6) * exp(-hp * 9.0); c += ' + v3(P.glow) + ' * gl;',
-      '  c += ' + v3(P.cloak) + ' * pow(w01, 3.0) * exp(-hp * 2.6);',
+      '  c += ' + v3(P.cloak) + ' * pow(w01, 3.0) * exp(-hp * 4.2);',
       '  c += ' + v3(P.belt) + ' * (1.0 - w01) * (1.0 - w01) * exp(-abs(h - 0.08) * 9.0);',
       // the venue's light dome: the floodlit haze over the island, low all round
       '  c += ' + v3(P.dome) + ' * exp(-hp * 10.0);',
@@ -52,8 +52,8 @@ window.EI = window.EI || {};
       '}'].join('\n');
   }
   const SKY_V = 'varying vec3 vDir; void main() { vec4 wp = modelMatrix * vec4(position, 1.0); vDir = wp.xyz - cameraPosition; gl_Position = projectionMatrix * viewMatrix * wp; gl_Position.z = gl_Position.w; }';
-  const TW = { zen: [0.008, 0.016, 0.058], mid: [0.022, 0.028, 0.08], hor: [0.05, 0.04, 0.065], glow: [0.55, 0.11, 0.018], cloak: [0.15, 0.045, 0.03],
-    belt: [0.03, 0.012, 0.045], dome: [0.045, 0.03, 0.016], ground: [0.045, 0.036, 0.03], clouds: 0.85, cloudDark: [0.03, 0.022, 0.04], cloudLit: [0.9, 0.3, 0.07] };
+  const TW = { zen: [0.008, 0.016, 0.058], mid: [0.022, 0.028, 0.08], hor: [0.05, 0.04, 0.065], glow: [0.55, 0.11, 0.018], cloak: [0.12, 0.036, 0.016],
+    belt: [0.022, 0.012, 0.042], dome: [0.045, 0.03, 0.016], ground: [0.045, 0.036, 0.03], clouds: 0.7, cloudDark: [0.03, 0.022, 0.04], cloudLit: [0.9, 0.3, 0.07] };
   if (EI.Night && EI.Night.makeSky) {
     const orig = EI.Night.makeSky;
     EI.Night.makeSky = function (westDir) {
