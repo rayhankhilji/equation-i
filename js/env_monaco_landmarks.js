@@ -88,11 +88,13 @@ window.EI = window.EI || {};
       cur = null;
     }
     const I4 = new THREE.Matrix4(); const UP = [0, 1, 0]; const walls = E.mlmWalls = [];
-    const turret = (x, z, yb, yt, r) => { Bm.set(stone, 0.95, 0); Bm.col(I4, x, z, yb, yt, r, r, 12, lime, true); Bd.set(stone, 0.95, 0); for (let k = 0; k < 10; k++) { const a = k / 10 * Math.PI * 2; const mm = Env.frame(x + Math.cos(a) * (r - 0.35), yt, z + Math.sin(a) * (r - 0.35), -Math.sin(a), Math.cos(a), Math.cos(a), Math.sin(a)); Bd.box(mm, 0.9, 0.85, 0.6, 0, 0, 0, lime, { top: limeTop }); } nT++; };
+    // a round bastion: 12 faces wound outwards (lit like the wall), a flat top, merlons round the rim
+    const turret = (x, z, yb, yt, r) => { Bm.set(stone, 0.95, 0); const N = 12; for (let k = 0; k < N; k++) { const a0 = k / N * Math.PI * 2, a1 = (k + 1) / N * Math.PI * 2, am = (a0 + a1) / 2; const P = (a, y) => [x + Math.cos(a) * r, y, z + Math.sin(a) * r]; const u0 = k * r * 0.52 / 4 * 2, u1 = (k + 1) * r * 0.52 / 4 * 2; fq(Bm, P(a0, yb), P(a1, yb), P(a1, yt), P(a0, yt), lime, [u0, yb / 4, u1, yb / 4, u1, yt / 4, u0, yt / 4], [Math.cos(am), 0, Math.sin(am)]); ft(Bm, [x, yt, z], P(a0, yt), P(a1, yt), limeTop, UP); }
+      Bd.set(stone, 0.95, 0); for (let k = 0; k < 10; k++) { const a = k / 10 * Math.PI * 2; const mm = Env.frame(x + Math.cos(a) * (r - 0.3), yt, z + Math.sin(a) * (r - 0.3), -Math.sin(a), Math.cos(a), Math.cos(a), Math.sin(a)); Bd.box(mm, 0.9, 0.85, 0.6, 0, 0, 0, lime, { top: limeTop }); } nT++; };
     const PT = 0.6;   // parapet thickness
     for (const R of runs) {
       if (R.length < 6) continue; let acc = 0;
-      for (const q of R) { q.yT = q.gI + 1.4; q.yW = q.gI + 0.15; q.yb = q.gO - 1.5; walls.push(q); }
+      for (const q of R) { q.yT = q.gI + 1.4; q.yW = q.gI + 0.15; q.yb = Math.max(q.gO - 1.5, q.gI - 18); walls.push(q); }
       for (let k = 0; k + 1 < R.length; k++) {
         const p = R[k], q = R[k + 1]; const l = Math.hypot(q.x - p.x, q.z - p.z); if (l > 5) continue; acc += l; len += l;
         const ox = (p.ox + q.ox) / 2, oz = (p.oz + q.oz) / 2; const u0 = acc / 4 - l / 4, u1 = acc / 4; Bm.set(stone, 0.95, 0);
@@ -121,6 +123,44 @@ window.EI = window.EI || {};
       if (U.pointInPoly(cx, cz, pal)) { const g = sc.gridHeight(cx, cz); const y0 = g + 3.6 * 3 + 4.4 - 3, y1 = y0 + 13; Bm.set('white', 0.5, 0.3); Bm.beam(I4, [cx, y0, cz], [cx, y1, cz], 0.22, C(0xe8e8e4), 6);
         const fl = (yA, yB, c) => { const a = [cx, yA, cz], b = [cx + 4.2, yA, cz + 1.2], c2 = [cx + 4.2, yB, cz + 1.2], d = [cx, yB, cz]; Bm.set('white', 0.85, 0); fq(Bm, a, b, c2, d, c, null, [-0.27, 0, 0.96]); fq(Bm, a, b, c2, d, c, null, [0.27, 0, -0.96]); };
         fl(y1 - 0.2, y1 - 1.6, C(0xce1126)); fl(y1 - 1.6, y1 - 3.0, C(0xf4f4f4)); E.stats.mlm.palaceFlag = [Math.round(cx), Math.round(cz), Math.round(y1)]; }
+    }
+    // ---- the Prince's Palace (its ranges are the city pass's 'palace' block, 3 floors, flat roof): the crenellated towers that make its
+    // silhouette from the port, the Place du Palais paved in front of it, the red-and-white sentry boxes at the gate, cannonball pyramids
+    if (pal) {
+      let cx = 0, cz = 0; for (const q of pal) { cx += q[0] / pal.length; cz += q[1] / pal.length; }
+      let sxx = 0, szz = 0, sxz = 0; for (const q of pal) { const dx = q[0] - cx, dz = q[1] - cz; sxx += dx * dx; szz += dz * dz; sxz += dx * dz; }
+      const ang = 0.5 * Math.atan2(2 * sxz, sxx - szz); const ux = Math.cos(ang), uz = Math.sin(ang), vx = -uz, vz = ux;
+      let a0 = 1e9, a1 = -1e9, b0 = 1e9, b1 = -1e9; for (const q of pal) { const a = (q[0] - cx) * ux + (q[1] - cz) * uz, b = (q[0] - cx) * vx + (q[1] - cz) * vz; a0 = Math.min(a0, a); a1 = Math.max(a1, a); b0 = Math.min(b0, b); b1 = Math.max(b1, b); }
+      const yG = sc.gridHeight(cx, cz), yR = yG + 3.6 * 3 + 4.4; const cream = C(0xf4e6cc), creamTop = C(0xd8c8aa), slate = C(0x8a8478);
+      // the square: on the plateau east of the Palace (the side away from the cliff), clear of every other building
+      const cand = [[ux, uz, a1], [-ux, -uz, -a0], [vx, vz, b1], [-vx, -vz, -b0]].sort((p, q) => (q[0] - p[0]))[0];   // the face looking east (+x)
+      const towerAt = (tx, tz, hw, h) => {
+        if (!U.pointInPoly(tx, tz, pal)) return false; const y0 = sc.gridHeight(tx, tz) - 1, y1 = yR + h; const R = [[-1, -1], [1, -1], [1, 1], [-1, 1]].map(([a, b]) => [tx + (ux * a + vx * b) * hw, tz + (uz * a + vz * b) * hw]);
+        Bm.set(stone, 0.95, 0); for (let i = 0; i < 4; i++) { const A = R[i], B = R[(i + 1) % 4]; const mx = (A[0] + B[0]) / 2 - tx, mz = (A[1] + B[1]) / 2 - tz; fq(Bm, [A[0], y0, A[1]], [B[0], y0, B[1]], [B[0], y1, B[1]], [A[0], y1, A[1]], cream, [0, y0 / 4, hw / 2, y0 / 4, hw / 2, y1 / 4, 0, y1 / 4], [mx, 0, mz]);
+          // the corbelled machicolation band under the battlements
+          const o = 0.45; const Ao = [A[0] + mx / hw * o, A[1] + mz / hw * o], Bo = [B[0] + mx / hw * o, B[1] + mz / hw * o]; fq(Bm, [Ao[0], y1 - 0.2, Ao[1]], [Bo[0], y1 - 0.2, Bo[1]], [Bo[0], y1 + 1.1, Bo[1]], [Ao[0], y1 + 1.1, Ao[1]], cream, null, [mx, 0, mz]); fq(Bm, [A[0], y1 - 0.2, A[1]], [B[0], y1 - 0.2, B[1]], [Bo[0], y1 - 0.2, Bo[1]], [Ao[0], y1 - 0.2, Ao[1]], creamTop, null, [0, -1, 0]);
+          const L2 = Math.hypot(Bo[0] - Ao[0], Bo[1] - Ao[1]); const nm = Math.max(2, Math.round(L2 / 1.6)); Bd.set(stone, 0.95, 0); for (let k = 0; k < nm; k++) { const u = (k + 0.5) / nm; const mm = Env.frame(Ao[0] + (Bo[0] - Ao[0]) * u, y1 + 1.1, Ao[1] + (Bo[1] - Ao[1]) * u, (Bo[0] - Ao[0]) / L2, (Bo[1] - Ao[1]) / L2, mx / hw, mz / hw); Bd.box(mm, 0.8, 0.9, 0.5, 0, 0, 0, cream, { top: creamTop }); } }
+        const Ro = R.map(([x, z]) => [x + (x - tx) / hw * 0.45, z + (z - tz) / hw * 0.45]); Bm.set('white', 0.9, 0); fq(Bm, [Ro[0][0], y1 + 1.1, Ro[0][1]], [Ro[1][0], y1 + 1.1, Ro[1][1]], [Ro[2][0], y1 + 1.1, Ro[2][1]], [Ro[3][0], y1 + 1.1, Ro[3][1]], slate, null, UP);
+        return true;
+      };
+      let nTow = 0; const fx = cand[0], fz = cand[1], fa = cand[2]; const gx = -fz, gz = fx;   // f = out of the east face, g = along it
+      let gl = Infinity, gh = -Infinity; for (const q of pal) { const a = (q[0] - cx) * fx + (q[1] - cz) * fz; if (a < fa - 14) continue; const b = (q[0] - cx) * gx + (q[1] - cz) * gz; gl = Math.min(gl, b); gh = Math.max(gh, b); }
+      for (const [b, hw, h] of [[gl + 5, 3.6, 9], [gh - 5, 3.6, 9], [(gl + gh) / 2, 4.2, 12]]) { if (!isFinite(b)) continue; for (let back = 5; back < 20; back += 1.5) { const tx = cx + fx * (fa - back) + gx * b, tz = cz + fz * (fa - back) + gz * b; if (towerAt(tx, tz, hw, h)) { nTow++; break; } } }
+      // the Place du Palais: a draped grid of pale stone setts in front of the east face, cut round every footprint
+      const pv = C(0xe6dccb); Bm.set('white', 0.9, 0); let nSq = 0;
+      for (let a = 2; a < 70; a += 4) for (let b = gl - 10; b < gh + 10; b += 4) {
+        const P = (da, db) => { const x = cx + fx * (fa + a + da) + gx * (b + db), z = cz + fz * (fa + a + da) + gz * (b + db); return [x, sc.gridHeight(x, z) + 0.06, z]; };
+        const mx = cx + fx * (fa + a + 2) + gx * (b + 2), mz = cz + fz * (fa + a + 2) + gz * (b + 2);
+        if (!U.pointInPoly(mx, mz, ring) || nearB(mx, mz, 3) || E.dcAt(mx, mz) < 40) continue; const g = sc.gridHeight(mx, mz); if (Math.abs(g - yG) > 4) continue;
+        fq(Bm, P(0, 0), P(4, 0), P(4, 4), P(0, 4), pv, null, UP); nSq++;
+      }
+      // the gate on the square: two sentry boxes (red and white stripes), cannonball pyramids at the square's corners
+      const gtx = cx + fx * (fa + 2.5) + gx * (gl + gh) / 2, gtz = cz + fz * (fa + 2.5) + gz * (gl + gh) / 2;
+      if (nSq) {
+        for (const sd of [-1, 1]) { const x = gtx + gx * sd * 5, z = gtz + gz * sd * 5; const y = sc.gridHeight(x, z); const m = Env.frame(x, y, z, gx, gz, fx, fz); Bd.set('white', 0.6, 0); for (let k = 0; k < 6; k++) Bd.box(m, 1.2, 0.42, 1.2, 0, k * 0.42, 0, k % 2 ? C(0xf4f4f2) : C(0xc8102e)); Bd.box(m, 1.5, 0.25, 1.5, 0, 2.52, 0, C(0xc8102e)); }
+        for (const sd of [-1, 1]) { const x = gtx + fx * 14 + gx * sd * 16, z = gtz + fz * 14 + gz * sd * 16; const y = sc.gridHeight(x, z); Bd.set('white', 0.5, 0.4); for (let l = 0; l < 3; l++) for (let i = 0; i < 3 - l; i++) for (let j = 0; j < 3 - l; j++) Bd.ball(I4, x + (i - (2 - l) / 2) * 0.4, y + 0.2 + l * 0.33, z + (j - (2 - l) / 2) * 0.4, 0.2, 0.2, 0.2, C(0x34363a), 6); }
+      }
+      E.stats.mlm.palace = [nTow, nSq];
     }
     L.debug.ramparts = runs.filter(R => R.length >= 6).map(R => R.map(q => [Math.round(q.x), Math.round(q.z)]));
     W.add(Bm, 'main'); W.add(Bd, 'detail'); E.stats.mlm.ramparts = [runs.length, nW, Math.round(len), nT]; if (walls.length) { const hs = walls.map(w => w.yT - w.yb); E.stats.mlm.wallFace = [Math.round(Math.min(...hs)), Math.round(hs.reduce((a, b) => a + b, 0) / hs.length), Math.round(Math.max(...hs))]; }
