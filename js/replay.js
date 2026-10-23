@@ -530,7 +530,11 @@ window.EI = window.EI || {};
       let sc = 0;
       for (const s0 of F.scaffolds || [610, 1130, 1960, 2470, 3470, 3790, 4230, 5290, 5560, 760, 2860]) {
         const side = cx.outsideSide(t.idxAtS(s0 + 20)); const ps = find(s0, side); if (ps == null) continue;
-        const p = cx.at(ps, side, 4.2); const Hh = 2.4 + (sc % 3) * 0.6; sc++; out.push({ x: p.x - p.nx * 0.95, y: p.y + Hh + 1.5, z: p.z - p.nz * 0.95 });
+        const p = cx.at(ps, side, 4.2); const Hh = 2.4 + (sc % 3) * 0.6; sc++;
+        // Silverstone (QA r3): the 3.6 m catch fence stands 2.5 m in front of the scaffold, so the eye (~4-5 m) looked through its posts and rail:
+        // lift it 1.4 m clear of the fence top there
+        const fy = t.data && t.data.id === 'silverstone' && t.fenceH ? p.y + t.fenceH(t.idxAtS(ps), side, (t.data.fence && t.data.fence.h) || 3.4) + 1.4 : -1e9;
+        out.push({ x: p.x - p.nx * 0.95, y: Math.max(p.y + Hh + 1.5, fy), z: p.z - p.nz * 0.95 });
       }
     } catch (e) { return out; }
     return out;
