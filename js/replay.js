@@ -538,19 +538,20 @@ window.EI = window.EI || {};
   // compares. A spot is tested against the cars it would film: points of the racing line from ~60 m past it to ~180 m before it,
   // four rays each (the car, either side of it, above it).
   const LOS = (function () {
-    const G = 6, BAND = 75, NEAR = 16;
+    const G = 6, BAND = 48, NEAR = 16;
     const SKIP = /^(asphalt|kerb|runoff|verge|envVerge|paint|pitMarkings|pitText|pitLane|streetPaint|streetGrates|gravel|roads|water|grassCards|terrain|treeStrips|treeStripsNear|treeShadows|crowd|trees|treesFar)$/;
     // ds of the car relative to the spot (pickSpot: spot ahead of the car by ds) at which visibility is sampled; CORE = what the TV shot mostly shows
-    const DS = [-60, -30, 0, 30, 60, 90, 120, 150, 180], CORE = (ds) => ds >= 0 && ds <= 150;
+    const DS = [-50, -15, 20, 55, 90, 125, 160], CORE = (ds) => ds >= 0 && ds <= 150, ORDER = [3, 2, 4, 5, 1, 6, 0];   // core first
     function grow(a, n) { if (n <= a.length) return a; const b = new a.constructor(Math.max(n, a.length * 2)); b.set(a); return b; }
     function build(tr, sc) {
       if (!tr || !sc || !sc.group || typeof THREE === 'undefined') return null;
       const t0 = now(); const E = sc.env; const fAt = E && E.fAt ? (x, z) => E.fAt(x, z) : null;
       let x0 = 1e9, x1 = -1e9, z0 = 1e9, z1 = -1e9; for (let i = 0; i < tr.n; i++) { x0 = Math.min(x0, tr.x[i]); x1 = Math.max(x1, tr.x[i]); z0 = Math.min(z0, tr.z[i]); z1 = Math.max(z1, tr.z[i]); }
       x0 -= BAND + G; z0 -= BAND + G; const NX = Math.ceil((x1 + BAND + G - x0) / G), NZ = Math.ceil((z1 + BAND + G - z0) / G), NC = NX * NZ;
-      const top = new Float32Array(NC).fill(-1e9), band = new Uint8Array(NC);
-      // cells within BAND of the circuit (one distance-field lookup per cell); everything else is never gathered
-      for (let gz = 0, c = 0; gz < NZ; gz++) for (let gx = 0; gx < NX; gx++, c++) band[c] = !fAt || fAt(x0 + (gx + 0.5) * G, z0 + (gz + 0.5) * G) < BAND + G * 0.71 ? 1 : 0;
+      const top = new Float32Array(NC).fill(-1e9), band = new Uint8Array(NC), gy = new Float32Array(NC).fill(-1e9);
+      // cells within BAND of the circuit (one distance-field lookup per cell; everything else is never gathered) and their road level:
+      // a triangle that stays within 0.35 m of it (road, kerbs, pavements, verges, flat ground) cannot hide a car from an elevated lens
+      for (let gz = 0, c = 0; gz < NZ; gz++) for (let gx = 0; gx < NX; gx++, c++) { const x = x0 + (gx + 0.5) * G, z = z0 + (gz + 0.5) * G; band[c] = !fAt || fAt(x, z) < BAND + G * 0.71 ? 1 : 0; if (band[c] && E.idxAt) gy[c] = tr.y[E.idxAt(x, z)] + 0.35; }
       const O = { G, x0, z0, NX, NZ, top, mesh: [], stats: { tris: 0, kept: 0, cyl: 0 } };
       // ---- (cell, item) pairs, then sorted into per-cell runs
       let pc = new Int32Array(1 << 18), pm = new Uint16Array(1 << 18), pt = new Int32Array(1 << 18), np = 0;
@@ -579,7 +580,9 @@ window.EI = window.EI || {};
           const gx0 = Math.floor(((ax < bx ? (ax < cx ? ax : cx) : (bx < cx ? bx : cx)) - x0) * iG), gx1 = Math.floor(((ax > bx ? (ax > cx ? ax : cx) : (bx > cx ? bx : cx)) - x0) * iG);
           const gz0 = Math.floor(((az < bz ? (az < cz ? az : cz) : (bz < cz ? bz : cz)) - z0) * iG), gz1 = Math.floor(((az > bz ? (az > cz ? az : cz) : (bz > cz ? bz : cz)) - z0) * iG);
           if (gx1 < 0 || gz1 < 0 || gx0 >= NX || gz0 >= NZ || (gx1 - gx0 + 1) * (gz1 - gz0 + 1) > 300) continue;
-          const ay = pos[i0 + 1], by = pos[i1 + 1], cy = pos[i2 + 1]; if (add(gx0, gx1, gz0, gz1, ay > by ? (ay > cy ? ay : cy) : (by > cy ? by : cy), mi, q)) kept++;
+          const ay = pos[i0 + 1], by = pos[i1 + 1], cy = pos[i2 + 1], ym = ay > by ? (ay > cy ? ay : cy) : (by > cy ? by : cy);
+          if (gx0 >= 0 && gz0 >= 0 && gx0 < NX && gz0 < NZ && ym < gy[gz0 * NX + gx0]) continue;
+          if (add(gx0, gx1, gz0, gz1, ym, mi, q)) kept++;
         }
         M.kept = kept; O.stats.tris += Math.max(0, a1 - a0) / 3; O.stats.kept += kept;
       }
@@ -641,30 +644,30 @@ window.EI = window.EI || {};
     }
     // visibility of the cars a spot would film: bit k of `vis` = the car at ds DS[k] behind the spot is in clear view (no foreground
     // clutter within NEAR m of the lens, the car itself unobstructed); out-of-range samples count as visible (pickSpot skips them)
-    function judge(O, tr, p) {
-      let vis = 0, core = 0, coreOk = 0, fg = 0;
-      for (let k = 0; k < DS.length; k++) {
+    function judge(O, tr, p, need) {
+      let vis = 0, core = 0, coreOk = 0, fg = 0, ncore = 0; for (const ds of DS) if (CORE(ds)) ncore++;
+      for (const k of ORDER) {
         const i = tr.idxAtS(p.s - DS[k]); const X = tr.lineX ? tr.lineX[i] : tr.x[i], Z = tr.lineZ ? tr.lineZ[i] : tr.z[i], Y = tr.y[i] + 0.8;
-        const hx = X - p.x, hz = Z - p.z, d = Math.hypot(hx, hz); if (d < 18 || d > 260) { vis |= 1 << k; continue; }
+        const hx = X - p.x, hz = Z - p.z, d = Math.hypot(hx, hz); const isC = CORE(DS[k]); if (d < 18 || d > 260) { vis |= 1 << k; if (isC) ncore--; continue; }
         const px = -hz / d * 3.5, pz = hx / d * 3.5;
         // metres from the lens to the first hit on the way to (tx, ty, tz), from just past the TV camera's near plane to 3 m short of the car
         const seg = (tx, ty, tz) => { const L3 = Math.hypot(tx - p.x, ty - p.y, tz - p.z), a = 0.6 / L3, b = Math.max(a, 1 - 3 / L3);
           const t = ray(O, p.x + (tx - p.x) * a, p.y + (ty - p.y) * a, p.z + (tz - p.z) * a, p.x + (tx - p.x) * b, p.y + (ty - p.y) * b, p.z + (tz - p.z) * b); return t > 1 ? 1e9 : (a + (b - a) * t) * L3; };
         const c0 = seg(X, Y, Z); let near = c0 < NEAR;
-        for (const [ox, oy, oz] of [[px, 0, pz], [-px, 0, -pz], [0, 2.2, 0]]) { if (near) break; if (seg(X + ox, Y + oy, Z + oz) < NEAR) near = true; }
-        const ok = c0 > 1e8 && !near; if (ok) vis |= 1 << k; if (near) fg++;
-        if (CORE(DS[k])) { core++; if (ok) coreOk++; }
+        // foreground clutter (either side of the car, above it) only matters on the stretch the shot mostly shows
+        if (isC) for (const [ox, oy, oz] of [[px, 0, pz], [-px, 0, -pz], [0, 2.2, 0]]) { if (near) break; if (seg(X + ox, Y + oy, Z + oz) < NEAR) near = true; }
+        const ok = c0 > 1e8 && !near; if (ok) vis |= 1 << k;
+        if (isC) { core++; if (ok) coreOk++; if (near) fg++; if (need && (fg || ncore - core + coreOk < need * ncore)) return null; }   // cannot pass any more
       }
       return { vis, core, coreOk, fg, q: core ? coreOk / core : 0 };
     }
     // the spot itself when clear, else the first clear nudge, else the best usable one (most of the core stretch in view), else null
     function place(O, tr, p, nudges) {
       if (!O) return Object.assign({}, p, { vis: -1 });
-      const good = (j) => j.core >= 2 && j.q >= 0.8 && j.fg === 0;
-      let j = judge(O, tr, p); if (good(j)) return Object.assign({}, p, { vis: j.vis, q: j.q });
-      let best = j.core >= 2 && j.fg === 0 && j.q >= 0.5 ? { p, j } : null;
-      const from = { x: p.x, y: p.y, z: p.z, s: p.s, q: j.q };
-      for (const n of nudges || []) { const jn = judge(O, tr, n); if (good(jn)) return Object.assign({}, n, { vis: jn.vis, q: jn.q, nudged: true, from }); if (jn.core >= 2 && jn.fg === 0 && jn.q >= 0.5 && (!best || jn.q > best.j.q)) best = { p: n, j: jn }; }
+      const good = (j) => j && j.core >= 2 && j.q >= 0.8 && j.fg === 0, usable = (j) => j && j.core >= 2 && j.fg === 0 && j.q >= 0.5;
+      const j = judge(O, tr, p, 0.5); if (good(j)) return Object.assign({}, p, { vis: j.vis, q: j.q });
+      const from = { x: p.x, y: p.y, z: p.z, s: p.s, q: j ? j.q : 0 }; let best = usable(j) ? { p, j } : null;
+      for (const n of nudges || []) { const jn = judge(O, tr, n, best ? Math.max(0.5, best.j.q + 0.01) : 0.5); if (good(jn)) return Object.assign({}, n, { vis: jn.vis, q: jn.q, nudged: true, from }); if (usable(jn) && (!best || jn.q > best.j.q)) best = { p: n, j: jn }; }
       return best ? Object.assign({}, best.p, { vis: best.j.vis, q: best.j.q, nudged: best.p !== p, from }) : null;
     }
     // pickSpot penalty: the car at ds behind the spot is out of view (bit cleared) - 1 for the nearest sample, 0.4 for its neighbours
