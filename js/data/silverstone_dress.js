@@ -43,7 +43,7 @@ window.EI = window.EI || {};
   // infra.js' instanced ones (near / far split; no fence.posts here: track.js' merged leaning posts would be ~24 k tris, always drawn). The debris fence along
   // the pit wall is low (the pit lane is on the right: s 5331 -> 762).
   T.fence = Object.assign({}, T.fence || {}, {
-    h: 3.6, op: 0.8, mesh: 'rgba(22,25,29,1)', postColor: 0x3c4147, low: true,
+    h: 3.6, op: 0.8, mesh: 'rgba(22,25,29,1)', postColor: 0x3c4147, low: true, ground: true,   // ground: the net drops onto the drawn ground where it lies below the road (QA r4: 10 net sections hung 0.5-1.3 m up)
     runs: [
       [5331, 762, -1, 2.4],     // pit wall: low debris fence along the pit lane
     ],

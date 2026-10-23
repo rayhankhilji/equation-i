@@ -48,7 +48,9 @@
   // ---- catch fence runs [s0, s1, side (0 = both), height m]: later runs win; 0 = none. Base = data.fence.h (4.5 m).
   // MONZA-UPGRADE: the catch fence is galvanised wire that reads as a silver-grey veil in the sun (photos rolex_straight_alps_trees, ferrari_banks_tifosi),
   // not the near-black grid that made a checkerboard at distance: lighter, thinner (lower opacity); unlit material = colour only
-  T.fence = Object.assign({}, T.fence || {}, { color: 0x8c9298, op: 0.5 }, {
+  // ground: true (track.js data.fence.ground, as COTA): where the drawn ground lies below the road behind the barrier (the Prima Variante's
+  // run-off, QA r4 posts.js: 6 posts / 4 net sections 0.5-1.0 m in the air at s 587-684) the net and its posts stand on the ground
+  T.fence = Object.assign({}, T.fence || {}, { color: 0x8c9298, op: 0.5, ground: true }, {
     runs: [
       [5396, 22, 1, 2.4],       // pit wall: low debris fence along the pit lane
       [430, 720, 0, 6.0],       // Prima Variante: the tall fence in front of Alta Velocita / Prima Variante Esterna (t1_braking_boards_fences_2022)
