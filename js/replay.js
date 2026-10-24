@@ -518,7 +518,7 @@ window.EI = window.EI || {};
     const pit = tr.pitSideSign ? tr.pitSideSign() : -1;
     const at = (s, side, off, h) => { const i = tr.idxAtS(s); const w = side < 0 ? tr.wallL[i] : tr.wallR[i]; const o = street ? w + 0.6 + off : Math.min(w + 5, tr.halfWidth + 32) + off; return { x: tr.x[i] + tr.nx[i] * side * o, y: tr.y[i] + (street ? 5.2 : 8) + h, z: tr.z[i] + tr.nz[i] * side * o, s: U.mod(s, L) }; };
     // nudges: [along s, further out, up]; the other side of the track last
-    const NUD = street ? [[0, 0, 2], [12, 0, 0], [-12, 0, 0], [12, 0, 2], [-12, 0, 2], [0, 0, 4], [24, 0, 0], [-24, 0, 0], [24, 0, 3], [-24, 0, 3], [0, 0, 6.5], [36, 0, 2], [-36, 0, 2]]
+    const NUD = street ? [[0, 0, 2], [12, 0, 0], [-12, 0, 0], [12, 0, 2], [-12, 0, 2], [0, 0, 4], [24, 0, 0], [-24, 0, 0], [24, 0, 3], [-24, 0, 3], [0, 0, 6.5], [36, 0, 2], [-36, 0, 2], [0, 0, 9], [12, 0, 8], [-12, 0, 8], [24, 0, 10], [-24, 0, 10]]
       : [[0, 0, 3], [15, 0, 0], [-15, 0, 0], [0, 6, 2], [15, 0, 3], [-15, 0, 3], [0, -3, 0], [30, 0, 0], [-30, 0, 0], [0, 0, 6], [30, 6, 3], [-30, 6, 3]];
     for (let s = 0; s < L; s += 90) {
       let ks = 0; for (let d = 0; d <= 160; d += 10) ks += tr.k[tr.idxAtS(s + d)];
@@ -676,11 +676,12 @@ window.EI = window.EI || {};
         const hx = X - p.x, hz = Z - p.z, d = Math.hypot(hx, hz); const isC = CORE(DS[k]); if (d < 18 || d > 260) { vis |= 1 << k; if (isC) ncore--; continue; }
         const px = -hz / d * 6, pz = hx / d * 6;   // the TV frame is ~16 m wide at the car
         // metres from the lens to the first hit on the way to (tx, ty, tz), from just past the TV camera's near plane to 3 m short of the car
-        const seg = (tx, ty, tz) => { const L3 = Math.hypot(tx - p.x, ty - p.y, tz - p.z), a = 0.6 / L3, b = Math.max(a, 1 - 3 / L3);
+        const seg = (tx, ty, tz, lim) => { const L3 = Math.hypot(tx - p.x, ty - p.y, tz - p.z), a = 0.6 / L3, b = Math.max(a, lim ? Math.min(1 - 3 / L3, lim / L3) : 1 - 3 / L3);
           const t = ray(O, p.x + (tx - p.x) * a, p.y + (ty - p.y) * a, p.z + (tz - p.z) * a, p.x + (tx - p.x) * b, p.y + (ty - p.y) * b, p.z + (tz - p.z) * b, NEAR / ((b - a) * L3)); return t > 1 ? 1e9 : (a + (b - a) * t) * L3; };
         const c0 = seg(X, Y, Z); let near = c0 < NEAR;
         // foreground clutter (either side of the car, above and below it) only matters on the stretch the shot mostly shows
-        if (isC) for (const [ox, oy, oz] of [[px, 0, pz], [-px, 0, -pz], [0, 2.2, 0], [px * 0.5, -0.7, pz * 0.5], [-px * 0.5, -0.7, -pz * 0.5]]) { if (near) break; if (seg(X + ox, Y + oy, Z + oz) < NEAR) near = true; }
+        // (a 7 x 5 fan of short rays over the frame, each only NEAR m long: lamp posts, palm fronds, a scaffold beam, the tower's own cage)
+        if (isC) for (let u = -3; u <= 3 && !near; u++) for (let w = 0; w < 5 && !near; w++) { const f = u / 3; if (seg(X + px * f, Y - 1.6 + w * 1.15, Z + pz * f, NEAR) < NEAR) near = true; }
         const ok = c0 > 1e8 && !near; if (ok) vis |= 1 << k;
         if (isC) { core++; if (ok) coreOk++; if (near) fg++; if (need && (fg || ncore - core + coreOk < need * ncore)) return null; }   // cannot pass any more
       }
