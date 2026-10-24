@@ -680,8 +680,9 @@ window.EI = window.EI || {};
           const t = ray(O, p.x + (tx - p.x) * a, p.y + (ty - p.y) * a, p.z + (tz - p.z) * a, p.x + (tx - p.x) * b, p.y + (ty - p.y) * b, p.z + (tz - p.z) * b, NEAR / ((b - a) * L3)); return t > 1 ? 1e9 : (a + (b - a) * t) * L3; };
         const c0 = seg(X, Y, Z); let near = c0 < NEAR;
         // foreground clutter (either side of the car, above and below it) only matters on the stretch the shot mostly shows
-        // (a 7 x 5 fan of short rays over the frame, each only NEAR m long: lamp posts, palm fronds, a scaffold beam, the tower's own cage)
-        if (isC) for (let u = -3; u <= 3 && !near; u++) for (let w = 0; w < 5 && !near; w++) { const f = u / 3; if (seg(X + px * f, Y - 1.6 + w * 1.15, Z + pz * f, NEAR) < NEAR) near = true; }
+        // (a 5 x 3 fan of short rays over the frame, each only NEAR m long: lamp posts, palm fronds, a scaffold beam, the tower's own cage);
+        // on the core stretch it fails the spot, elsewhere it only marks that sample out of view
+        for (let u = -2; u <= 2 && !near; u++) for (let w = 0; w < 3 && !near; w++) { const f = u / 2; if (seg(X + px * f, Y - 1.4 + w * 1.8, Z + pz * f, NEAR) < NEAR) near = true; }
         const ok = c0 > 1e8 && !near; if (ok) vis |= 1 << k;
         if (isC) { core++; if (ok) coreOk++; if (near) fg++; if (need && (fg || ncore - core + coreOk < need * ncore)) return null; }   // cannot pass any more
       }
@@ -698,9 +699,12 @@ window.EI = window.EI || {};
       return best ? Object.assign({}, best.p, { vis: best.j.vis, q: best.j.q, nudged: best.p !== p, from }) : null;
     }
     // pickSpot penalty: the car at ds behind the spot is out of view (bit cleared) - 1 for the nearest sample, 0.4 for its neighbours
-    function blocked(p, ds) {
-      if (p.vis == null || p.vis < 0) return 0; const f = (ds - DS[0]) / (DS[1] - DS[0]); const k = Math.round(f); let b = 0;
-      for (const [kk, w] of [[k, 1], [k - 1, 0.4], [k + 1, 0.4]]) if (kk >= 0 && kk < DS.length && !(p.vis & (1 << kk))) b += w;
+    // pickSpot, for the whole shot (the car moves ~250 m while the TV camera follows it): ds0 at the key moment, dsA..dsB over the shot.
+    // -1 when the car is out of view at the key moment, else the number of samples out of view while the shot runs
+    function blocked(p, ds0, dsA, dsB) {
+      if (p.vis == null || p.vis < 0) return 0; const st = DS[1] - DS[0], ix = (ds) => Math.round((ds - DS[0]) / st);
+      const k0 = ix(ds0); if (k0 >= 0 && k0 < DS.length && !(p.vis & (1 << k0))) return -1;
+      let b = 0; for (let k = Math.max(0, ix(Math.min(dsA, dsB))); k <= Math.min(DS.length - 1, ix(Math.max(dsA, dsB))); k++) if (!(p.vis & (1 << k))) b++;
       return b;
     }
     return { build, ray, judge, place, blocked, DS };
@@ -728,14 +732,15 @@ window.EI = window.EI || {};
     } catch (e) { return out; }
     return out;
   }
-  function pickSpot(P, s, x, z, wantAhead) {
+  function pickSpot(P, s, x, z, wantAhead, sA, sB) {
     const tr = P.rec.track, L = tr.length; let best = null, bs = 1e9;
     for (const p of spots(P)) {
       let ds = U.mod(p.s - s + L / 2, L) - L / 2; if (ds < -80 || ds > 200) continue;
       const d = Math.hypot(p.x - x, p.z - z); if (d < 18 || d > 260) continue;
-      // line of sight: never a spot that cannot see the car here; one blocked just before / after scores worse
-      const bl = LOS.blocked(p, ds); if (bl >= 1) continue;
-      const sc = Math.abs(ds - (wantAhead == null ? 70 : wantAhead)) + (p.tower ? -25 : 0) + Math.abs(d - 70) * 0.3 + bl * 90;
+      // line of sight: never a spot that cannot see the car at the key moment; each stretch of the shot it cannot see scores worse
+      const dA = sA == null ? ds : U.mod(p.s - sA + L / 2, L) - L / 2, dB = sB == null ? ds : U.mod(p.s - sB + L / 2, L) - L / 2;
+      const bl = LOS.blocked(p, ds, dA, dB); if (bl < 0) continue;
+      const sc = Math.abs(ds - (wantAhead == null ? 70 : wantAhead)) + (p.tower ? -25 : 0) + Math.abs(d - 70) * 0.3 + bl * 45;
       if (sc < bs) { bs = sc; best = p; }
     }
     return best;   // null: no clear TV spot films this stretch (Monaco's tunnel) - planShots cuts to the chase camera instead
@@ -746,7 +751,7 @@ window.EI = window.EI || {};
     const S = (t0, kind, car, extra) => sh.push(Object.assign({ t0: Math.max(c.c0, t0), kind, car, car2: -1 }, extra || {}));
     const at = (j, t) => { const sl = c.slot, st = sl.st; let i0 = 0; while (i0 < sl.n - 1 && st.t[i0 + 1] <= t) i0++; const q = i0 * st.nc + j; return { x: st.x[q], z: st.z[q] }; };
     const sAt = (j, t) => { const p = at(j, t); return P.rec.track.project(p.x, p.z, null, {}).s; };
-    const tv = (t0, j, j2, tKey, ahead) => { const p = at(j, tKey), spot = pickSpot(P, sAt(j, tKey), p.x, p.z, ahead); if (spot) S(t0, 'tv', j, { car2: j2, spot }); else S(t0, 'chase', j); };
+    const tv = (t0, j, j2, tKey, ahead) => { const p = at(j, tKey), spot = pickSpot(P, sAt(j, tKey), p.x, p.z, ahead, sAt(j, Math.max(c.c0, t0)), sAt(j, Math.min(c.c1, t0 + 4.5))); if (spot) S(t0, 'tv', j, { car2: j2, spot }); else S(t0, 'chase', j); };
     const v = i % 3;
     switch (e.type) {
       case 'pass':
