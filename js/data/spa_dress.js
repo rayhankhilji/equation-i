@@ -56,6 +56,7 @@
   F.bridges = [[1600, 'lumi', 'plum'], [4640, 'intake', 'brown'], [5600, 'intake2', 'blue']];
   F.gantries = [2120, 3400];
   F.floodlights = [];
+  F.drsBoards = false;   // POLISH-B: no blue 'DRS' / 'DRS DETECTION' boards (track.js generic): 2026 has no DRS and the Spa refs show none at the Bus Stop
   // concrete spectator walls with sponsor covers behind the tyre wall: only at the tight corners (the rest of the lap is Armco + fence)
   F.sponsorWallCorners = ['La Source', 'Bus Stop'];
   // partner boards (hoardings, 5 x 1 m): [s0, s1, side (0 = both), spacing m]; a continuous wall opposite the pits, sparse boards elsewhere,

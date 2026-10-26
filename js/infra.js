@@ -171,9 +171,12 @@ window.EI = window.EI || {};
     inst.count = spots.length; posts.count = spots.length;
     spots.forEach((sp, k) => {
       const p = cx.at(sp[0], sp[1], 1.9);
-      if (cx.sc.env && cx.sc.env.forestOn) {   // forest ground (Spa): the board follows the grade, each leg on the drawn ground
-        const sd = sp[1], hA = cx.sc.height(p.x + sd * p.tx * 2.3, p.z + sd * p.tz * 2.3), hB = cx.sc.height(p.x - sd * p.tx * 2.3, p.z - sd * p.tz * 2.3);
-        frame(_m, p.x, (hA + hB) / 2 - 0.03, p.z, sd, p.tx, p.tz); _m.multiply(new THREE.Matrix4().makeRotationZ(Math.atan2(hA - hB, 4.6)));
+      // every circuit: the board follows the grade along its length with each leg on the drawn ground; where the ground dips between the
+      // legs (a drain, the foot of a bank) the frame settles up to 0.35 m so the middle does not hang over it (POLISH-B: Spa Bruxelles 0.11-0.13 m)
+      // (flat verges at road level - most of every lap - give hA = hB = hM = the road level: the boards stay where they were, feet 3 cm into the verge)
+      if (cx.sc && cx.sc.height) {
+        const sd = sp[1], hA = cx.sc.height(p.x + sd * p.tx * 2.3, p.z + sd * p.tz * 2.3), hB = cx.sc.height(p.x - sd * p.tx * 2.3, p.z - sd * p.tz * 2.3), hM = cx.sc.height(p.x, p.z), av = (hA + hB) / 2;
+        frame(_m, p.x, Math.max(av - 0.35, Math.min(av, hM)) - 0.03, p.z, sd, p.tx, p.tz); _m.multiply(new THREE.Matrix4().makeRotationZ(Math.atan2(hA - hB, 4.6)));
       } else frame(_m, p.x, p.y, p.z, sp[1], p.tx, p.tz);
       posts.setMatrixAt(k, _m);
       _m.multiply(new THREE.Matrix4().makeTranslation(0, 1.5, 0)); inst.setMatrixAt(k, _m);

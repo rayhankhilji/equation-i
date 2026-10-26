@@ -608,7 +608,11 @@ window.EI = window.EI || {};
             // on the visible ground under the tuft (FIT-AUDIT): the centre line's level left tufts floating / buried wherever the verge
             // or the terrain falls away from or climbs above the road (Monaco's hillside woods, banks beyond the fences)
             // (street circuits: beyond the verge ribbon's own width the ground is the terrain mesh, not the draped verge)
-            push(x, (E.forestOn ? E.forestGround(x, z) : groundAt(i, side, d, x, z)) - 0.02, z, 0.6 + rng() * 0.7);   // (forest: the drawn surface between two cross-sections)
+            const gy = E.forestOn ? E.forestGround(x, z) : groundAt(i, side, d, x, z);   // (forest: the drawn surface between two cross-sections)
+            // draped street verge (Monaco): where a step of the verge ribbon spans a steep fall (Loews / Fairmont, Casino bank) it hangs metres over the
+            // terrain; no tufts on that overhang, they read as floating cards from below (POLISH-B: fit audit 36 > 0.5 m)
+            if (drape && gy - sc.height(x, z) > 0.4) continue;
+            push(x, gy - 0.02, z, 0.6 + rng() * 0.7);
           }
         }
       }
