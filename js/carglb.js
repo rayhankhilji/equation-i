@@ -612,6 +612,16 @@ window.EI = window.EI || {};
     const sp = (i, o) => Object.assign({}, sps[i % sps.length], o || {});
     return { P, S, A, NC, SC, sp, works: team.id === 'lumi' || team.id === 'intake', Ads: EI.Ads };
   }
+  // The halo's front pillar ends in a flat base plate lying on the nose, whose decimated outline is ragged and dips in and out of the
+  // nose skin: in the halo colour it showed as dark jagged spikes on the nose. Its texels (and the blade's last few mm above it) take
+  // the body role instead, so the plate reads as part of the nose and the halo colour ends in a clean line along the blade foot.
+  function haloFootToBody(rm, M) {
+    const pm = posMap(M); if (!pm) return; const H = ROLE_NAMES.indexOf('halo'), B = ROLE_NAMES.indexOf('body'); const inv = 1 / PQ;
+    for (const k of pm.idx) {
+      if (rm[k] !== H) continue; const x = pm.pos[k * 3] * inv; if (x < 0.86) continue; const y = pm.pos[k * 3 + 1] * inv, z = pm.pos[k * 3 + 2] * inv;
+      if (y < 0.706 || (pm.cls[k] === 3 && Math.abs(z) > 0.016)) rm[k] = B;
+    }
+  }
   // the role colour fill + the projected design views (pass 'team' or 'all'), no AO; returns the canvas
   function* paintSheetGen(team, num, code, size, pass) {
     const meta = cache.meta || {}; const atlas = meta.atlas || {};
@@ -631,6 +641,7 @@ window.EI = window.EI || {};
       // role atlas (meta.roleAtlas, tools/carlods/uvpack.py): the red channel holds the role index (R >> 4), gutters included
       if (meta.roleAtlas) { for (let i = 0, n = base * base; i < n; i++) { const r = src[i * 4]; rm[i] = r ? Math.min(ROLE_NAMES.length - 1, r >> 4) : 0; } }
       else for (const p of Object.keys(atlas)) { const [u0, v0, w, h] = atlas[p]; fill(Math.round(u0 * base), Math.round((1 - v0 - h) * base), Math.round(w * base), Math.round(h * base), PART_ROLES[p]); }
+      haloFootToBody(rm, base);
       roleMaps[base] = rm;
     }
     const rm = roleMaps[base]; const pal = ROLE_NAMES.map(n => roles[n]);

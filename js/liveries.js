@@ -124,10 +124,10 @@ window.EI = window.EI || {};
     sp: [-0.2, 0.43, 0.82, 0.17], spLow: [-0.15, 0.27, 0.62, 0.075], spFront: [0.72, 0.47, 0.38, 0.1], ec: [-0.62, 0.885, 0.95, 0.11],
     ecRear: [-1.5, 0.52, 0.5, 0.16], noseSide: [2.0, 0.39, 0.55, 0.075], cockpit: [1.3, 0.62, 0.36, 0.06], airbox: [-0.12, 0.93, 0.28, 0.07],
     rwEnd: [-2.13, 0.84, 0.36, 0.13], rwEndLow: [-2.13, 0.6, 0.36, 0.1], fwEnd: [2.68, 0.18, 0.36, 0.1], floor: [0.6, 0.155, 0.6, 0.04],
-    haloSide: [0.6, 0.885, 0.6, 0.035], haloPillar: [1.12, 0.78, 0.08, 0.1], mirror: [0.8, 0.72, 0.2, 0.05],
+    haloSide: [0.6, 0.885, 0.6, 0.035], haloPillar: [0.945, 0.757, 0.26, 0.06, 0.36], mirror: [0.8, 0.72, 0.2, 0.05],
   };
   const TOP = { noseTop: [1.62, 0, 0.17, 0.22], rwTop: [-2.1, 0, 0.9, 0.12], spTop: [0.35, 0.4, 0.42, 0.13, 1], ecTop: [-0.9, 0, 0.2, 0.5, 1], fwTop: [2.75, 0.62, 0.42, 0.1],
-    haloFront: [0.76, 0, 0.12, 0.07], mirrorTop: [0.8, 0.52, 0.16, 0.08] };
+    haloFront: [0.733, 0, 0.1, 0.032], mirrorTop: [0.8, 0.52, 0.16, 0.08] };
   // centre line of the halo's top bar (x, |z|), rear mount -> front pillar (measured from the model)
   const HALO_ARM = [[0.02, 0.32], [0.2, 0.32], [0.34, 0.295], [0.45, 0.245], [0.54, 0.17], [0.61, 0.09], [0.67, 0.02]];
   // Paintable areas (all carry the livery sheet): body, halo (top bar / sides / front pillar), mirrors, front-wing endplates + flaps,
@@ -167,6 +167,9 @@ window.EI = window.EI || {};
       // a handle on the halo ARM as the driver sees it from the cockpit (arm -1 = left, +1 = right): the inner face of an arm takes
       // the OPPOSITE side view, so it is drawn there only (it also shows on the outside of the other arm, as on the real cars)
       haloHandle(str, col, arm, o) { if (k.s === -arm) this.haloSide(str, col, o); },
+      // a logo on the flank of the halo's front pillar (the thin blade from the hoop down to the nose), along the blade, reading
+      // left to right from either side; drawn for every L.haloFront(id) of the design's top view (see sideHalo)
+      haloPillar(id, tone) { if (!haloOn) return; const b = SIDE.haloPillar; at(b[0], b[1], () => { g.rotate(k.s * b[4]); partner(g, id, b[2], b[3], tone); }); },
     };
   }
   function helpersTop(g, t, team, num, haloOn, noCar) {
@@ -184,7 +187,8 @@ window.EI = window.EI || {};
       // text along one arm of the halo's top bar, reading from the cockpit with the letters' tops outward (side -1 left arm,
       // +1 right arm), e.g. a team / driver handle like '@McLarenF1'; cap = letter height (m, the bar is ~0.07 wide)
       haloTop(str, col, side, o, cap) { if (!haloOn) return; const pts = HALO_ARM.map(([x, z]) => [z * (side < 0 ? -1 : 1) * MM, -x * MM]); if (side > 0) pts.reverse(); textOnPath(g, str, pts, cap || 0.04, col, o); },
-      haloFront(id, tone) { if (!haloOn) return; const b = TOP.haloFront; t.at(b[0], b[1], () => partner(g, id, b[2], b[3], tone)); },
+      // the logo where the arms meet the front pillar, reading from the front of the car (its pillar flanks: sideHalo)
+      haloFront(id, tone) { if (!haloOn) return; const b = TOP.haloFront; t.at(b[0], b[1], () => partner(g, id, b[2], b[3], tone), Math.PI); },
     };
   }
   let PASS = 'all';
@@ -233,6 +237,9 @@ window.EI = window.EI || {};
       const d = D[team.id]; if (!d || PASS === 'car') return; const dg = scratch(); const R = helpersSide(g, k, team, num, code, true);
       const L = helpersSide(dg, sideKit(dg, k.s), team, num, code, false); L.haloSide = R.haloSide.bind(R); L.haloHandle = R.haloHandle.bind(R);
       d.side(L);
+      // the halo front logo (L.haloFront in the design's top view) also goes on both flanks of the front pillar
+      const nop = () => { }; const T = helpersTop(dg, { at: (x, z, fn) => fn(), rect: nop, poly: nop, txt: nop, dec: nop }, team, num, false);
+      T.haloFront = (id, tone) => R.haloPillar(id, tone); d.top(T);
     },
     topHalo(g, t, team, num) {
       const d = D[team.id]; if (!d || PASS === 'car') return; const dg = scratch(); const R = helpersTop(g, t, team, num, true);

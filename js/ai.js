@@ -79,9 +79,9 @@ window.EI = window.EI || {};
   // lap time of the season's fastest car + driver at skill 100 (no form), headless sim on the circuit (qsim.js, solo flying laps):
   // the anchor that turns a real lap time into the game's scale. Re-measure with C_LIMIT.
   // (Silverstone / Monaco / Spa nudged by the Official-level fit against every driver's real quali lap, solo on softs, no form)
-  const LIMIT_LAP = { silverstone: 80.8, monaco: 64.17, abudhabi: 79.26, monza: 76.65, spa: 94.28, cota: 87.88, mexico: 70.49 }, OFFICIAL_LOSS_DEFAULT = 0.08;
+  const LIMIT_LAP = { silverstone: 80.8, monaco: 64.17, abudhabi: 79.26, monza: 76.65, spa: 94.28, cota: 88.04, mexico: 70.49 }, OFFICIAL_LOSS_DEFAULT = 0.08;
   // per-circuit slope of the realised driver gaps against the real quali gaps (same fit; 1 = no correction), applied at every level
-  const GAP_SLOPE = { silverstone: 0.971, monaco: 1.04, monza: 1.064, spa: 0.943 };
+  const GAP_SLOPE = { silverstone: 0.971, monaco: 1.04, monza: 1.064, spa: 0.943, cota: 1.025 };
   // real 2026 pole lap of a circuit (s): EI.RACEPACE (real lap data) > EI.SEASON.tracks > the season's real grids (pole time)
   const GRID_NAME = { silverstone: /british/i, monaco: /monaco/i, abudhabi: /abu dhabi/i, monza: /italian/i, spa: /belgian/i, cota: /united states/i, mexico: /mexic/i };
   const parseLap = t => { if (typeof t === 'number') return t; const m = /^(?:(\d+):)?(\d+(?:\.\d+)?)$/.exec(String(t || '').trim()); return m ? (+(m[1] || 0)) * 60 + (+m[2]) : 0; };

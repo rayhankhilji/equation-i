@@ -437,7 +437,8 @@ window.EI = window.EI || {};
   const LOD_TIER = { low: 2.2, medium: 1.25, high: 0.8 };   // medium: full-detail bots within ~22 m, the 14k mid LOD to ~58 m (PERF wave 6: was 27 / 72 m)   // low: full-detail bots within ~12 m, the 14k-triangle mid LOD to ~33 m
   let contactShadows = null, lodFrame = -1;
   function updateCarLod() {
-    const ts = (LOD_TIER[quality] || 1) * (cameras.length > 1 ? 1.3 : 1);   // two views: every car is drawn twice, switch to the lighter LODs sooner
+    // two views: every car is drawn twice, switch to the lighter LODs sooner; top/bottom views are half height, so x2 keeps the switch at the 1P on-screen size (PERF-2)
+    const ts = (LOD_TIER[quality] || 1) * (cameras.length > 1 ? (splitDirNow === 'tb' ? 2 : 1.3) : 1);
     for (const c of race.cars) {
       let d = 1e9;
       for (const cam of cameras) { const dx = c.x - cam.position.x, dy = c.y - cam.position.y, dz = c.z - cam.position.z; const z = Math.tan(cam.fov * Math.PI / 360) * 1.732; const dd = Math.sqrt(dx * dx + dy * dy + dz * dz) * z; if (dd < d) d = dd; }

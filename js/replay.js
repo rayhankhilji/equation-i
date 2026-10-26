@@ -560,11 +560,13 @@ window.EI = window.EI || {};
       // cells within BAND of the circuit (one distance-field lookup per cell; everything else is never gathered) and their road level:
       // a triangle that stays within 0.35 m of it (road, kerbs, pavements, verges, flat ground) cannot hide a car from an elevated lens
       for (let gz = 0, c = 0; gz < NZ; gz++) for (let gx = 0; gx < NX; gx++, c++) { const x = x0 + (gx + 0.5) * G, z = z0 + (gz + 0.5) * G; band[c] = !fAt || fAt(x, z) < BAND + G * 0.71 ? 1 : 0; if (band[c] && E.idxAt) gy[c] = tr.y[E.idxAt(x, z)] + 0.35; }
-      // only the cells some test ray can cross (every candidate eye to its sample cars, one cell either side) are gathered
+      // only the cells some test ray can cross (every candidate eye to its sample cars and the edges of the frame there, one cell either
+      // side - the fan's inner columns fall within that) are gathered
       if (eyes && eyes.length) {
         const hot = new Uint8Array(NC);
         for (const p of eyes) for (const ds of DS) { const i = tr.idxAtS(p.s - ds); const X = tr.lineX ? tr.lineX[i] : tr.x[i], Z = tr.lineZ ? tr.lineZ[i] : tr.z[i]; const d = Math.hypot(X - p.x, Z - p.z); if (d < 18 || d > 260) continue;
-          const n = Math.ceil(d / (G * 0.5)); for (let k = 0; k <= n; k++) { const gx = Math.floor((p.x + (X - p.x) * k / n - x0) / G), gz = Math.floor((p.z + (Z - p.z) * k / n - z0) / G); if (gx > 0 && gz > 0 && gx < NX - 1 && gz < NZ - 1) hot[gz * NX + gx] = 1; } }
+          const n = Math.ceil(d / (G * 0.9)), px = -(Z - p.z) / d * FANW, pz = (X - p.x) / d * FANW;
+          for (const f of [-1, 0, 1]) { const tx = X + px * f, tz = Z + pz * f; for (let k = 0; k <= n; k++) { const gx = Math.floor((p.x + (tx - p.x) * k / n - x0) / G), gz = Math.floor((p.z + (tz - p.z) * k / n - z0) / G); if (gx > 0 && gz > 0 && gx < NX - 1 && gz < NZ - 1) hot[gz * NX + gx] = 1; } } }
         for (let gz = 1; gz < NZ - 1; gz++) for (let gx = 1, c = gz * NX + 1; gx < NX - 1; gx++, c++) if (band[c] && !(hot[c] || hot[c - 1] || hot[c + 1] || hot[c - NX] || hot[c + NX] || hot[c - NX - 1] || hot[c - NX + 1] || hot[c + NX - 1] || hot[c + NX + 1])) band[c] = 0;
       }
       const O = { G, x0, z0, NX, NZ, top, mesh: [], stats: { tris: 0, kept: 0, cyl: 0, tBand: +(now() - t0).toFixed(1) } };
@@ -685,35 +687,46 @@ window.EI = window.EI || {};
     }
     // visibility of the cars a spot would film: bit k of `vis` = the car at ds DS[k] behind the spot is in clear view (no foreground
     // clutter within NEAR m of the lens, the car itself unobstructed); out-of-range samples count as visible (pickSpot skips them)
+    // FAN: columns across the frame (x 13 m at the car: the widest framing, two cars side by side) and rows from above the car down to the
+    // bottom of the picture (y m relative to the car); each fan ray runs 70 % of the way to the car (what stands right by the car - its
+    // barrier, the kerb - is the scene, not in the way)
+    const FANU = [-1, -0.5, 0, 0.5, 1], FANY = [3, 0, -2.2, -4.5], FANW = 13, FANL = 0.7;
     function judge(O, tr, p, need) {
-      let vis = 0, thru = 0, core = 0, coreOk = 0, fg = 0, ncore = 0; for (const ds of DS) if (CORE(ds)) ncore++;
+      let vis = 0, thru = 0, core = 0, coreOk = 0, fg = 0, ncore = 0, thruC = 0; for (const ds of DS) if (CORE(ds)) ncore++;
       for (const k of ORDER) {
         const i = tr.idxAtS(p.s - DS[k]); const X = tr.lineX ? tr.lineX[i] : tr.x[i], Z = tr.lineZ ? tr.lineZ[i] : tr.z[i], Y = tr.y[i] + 0.8;
         const hx = X - p.x, hz = Z - p.z, d = Math.hypot(hx, hz); const isC = CORE(DS[k]); if (d < 6 || d > 260) { vis |= 1 << k; if (isC) ncore--; continue; }   // (the shot follows a car right past the lens too)
-        const px = -hz / d * 9, pz = hx / d * 9;   // the TV frame is 16 m wide at the car, more with two cars
-        // metres from the lens to the first hit on the way to (tx, ty, tz), from just past the TV camera's near plane to 3 m short of the car
-        const seg = (tx, ty, tz, lim, all) => { const L3 = Math.hypot(tx - p.x, ty - p.y, tz - p.z), a = 0.6 / L3, b = Math.max(a, lim ? Math.min(1 - 3 / L3, lim / L3) : 1 - 3 / L3);
-          const t = ray(O, p.x + (tx - p.x) * a, p.y + (ty - p.y) * a, p.z + (tz - p.z) * a, p.x + (tx - p.x) * b, p.y + (ty - p.y) * b, p.z + (tz - p.z) * b, all ? 2 : NEAR / ((b - a) * L3)); return t > 1 ? 1e9 : (a + (b - a) * t) * L3; };
-        const c0 = seg(X, Y, Z); let near = c0 < NEAR;
-        // foreground clutter (either side of the car, above and below it) only matters on the stretch the shot mostly shows
-        // (a 5 x 4 fan of short rays over the frame, each only NEAR m long - the bottom row, aimed under the car, 10 m: lamp posts, palm
-        // fronds, a scaffold beam, the tower's own cage, a catch fence across the bottom of the picture); on the core stretch it fails
-        // the spot, elsewhere it only marks that sample out of view
-        for (let u = -2; u <= 2 && !near; u++) for (let w = 0; w < 4 && !near; w++) { const f = u / 2, lim = w ? NEAR : 10; if (seg(X + px * f, Y - 3 + w * 1.9, Z + pz * f, lim) < lim) near = true; }
-        const ok = c0 > 1e8 && !near; if (ok) vis |= 1 << k;
-        if (ok && seg(X, Y, Z, 0, true) < 1e8) thru |= 1 << k;   // in view, but through a catch fence further out (pickSpot prefers a clear one)
+        const px = -hz / d * FANW, pz = hx / d * FANW;
+        // first hit on the way to (tx, ty, tz), from just past the TV camera's near plane to `frac` of the way (default: 3 m short of the
+        // car): metres from the lens, and whether it is a catch fence (soft: only a hit in front of the lens unless `all`)
+        let soft = false;
+        const seg = (tx, ty, tz, frac, all) => { const L3 = Math.hypot(tx - p.x, ty - p.y, tz - p.z), a = 0.6 / L3, b = Math.max(a, frac ? frac : 1 - 3 / L3); O.hit = -1;
+          const t = ray(O, p.x + (tx - p.x) * a, p.y + (ty - p.y) * a, p.z + (tz - p.z) * a, p.x + (tx - p.x) * b, p.y + (ty - p.y) * b, p.z + (tz - p.z) * b, all ? 2 : NEAR / ((b - a) * L3));
+          soft = t <= 1 && O.hit >= 0 && O.mesh[O.hit].soft; return t > 1 ? 1e9 : (a + (b - a) * t) * L3; };
+        const c0 = seg(X, Y, Z); let near = c0 < NEAR, clutter = 0, low = 0;
+        // the frame (core stretch; the rest only needs the car itself): anything within NEAR m of the lens (lamp post, fronds, a scaffold beam, the tower's own cage) fails the sample;
+        // further out, solid things at car height or above (a lattice tower, a screen, a building) fail it when 3+ rays meet them; a catch fence across
+        // the lower half of the picture only marks it (thru: pickSpot and the nudging prefer a clear one)
+        if (isC) for (let w = 0; w < FANY.length && !near; w++) for (let u = 0; u < FANU.length && !near; u++) {
+          const r = seg(X + px * FANU[u], Y + FANY[w], Z + pz * FANU[u], FANL, w >= 2);
+          if (r < NEAR) near = true; else if (r < 1e8) { if (soft) low++; else if (w < 2) clutter++; }   // (low rows: barriers, banks near the car are the scene)
+        }
+        const ok = c0 > 1e8 && !near && clutter < 3; if (ok) vis |= 1 << k;
+        if (ok && (low >= 2 || seg(X, Y, Z, 0, true) < 1e8)) { thru |= 1 << k; if (isC) thruC++; }   // in view, through / over a catch fence
         if (isC) { core++; if (ok) coreOk++; if (near) fg++; if (need && (fg || ncore - core + coreOk < need * ncore)) return null; }   // cannot pass any more
       }
-      return { vis, thru, core, coreOk, fg, q: core ? coreOk / core : 0 };
+      return { vis, thru, thruC, core, coreOk, fg, q: core ? coreOk / core : 0 };
     }
     // the spot itself when clear, else the first clear nudge, else the best usable one (most of the core stretch in view), else null
     // minQ: the share of the core stretch a fallback (no clear nudge) must still see (towers 0.75: the generic spots cover them)
     function place(O, tr, p, nudges, minQ) {
       if (!O) return Object.assign({}, p, { vis: -1 }); const mq = minQ || 0.5;
-      const good = (j) => j && j.core >= 2 && j.q >= 0.8 && j.fg === 0, usable = (j) => j && j.core >= 2 && j.fg === 0 && j.q >= mq;
+      // good: clear on the core stretch, at most one sample of it through a fence; else the best usable (most in view, then least fence)
+      const good = (j) => j && j.core >= 2 && j.q >= 0.8 && j.fg === 0 && j.thruC <= 1, usable = (j) => j && j.core >= 2 && j.fg === 0 && j.q >= mq;
+      const better = (a, b) => !b || a.q > b.q + 1e-6 || (Math.abs(a.q - b.q) < 1e-6 && a.thruC < b.thruC);
       const j = judge(O, tr, p, mq); if (good(j)) return Object.assign({}, p, { vis: j.vis, thru: j.thru, q: j.q });
       const from = { x: p.x, y: p.y, z: p.z, s: p.s, q: j ? j.q : 0 }; let best = usable(j) ? { p, j } : null;
-      for (const n of nudges || []) { const jn = judge(O, tr, n, best ? Math.max(mq, best.j.q + 0.01) : mq); if (good(jn)) return Object.assign({}, n, { vis: jn.vis, thru: jn.thru, q: jn.q, nudged: true, from }); if (usable(jn) && (!best || jn.q > best.j.q)) best = { p: n, j: jn }; }
+      for (const n of nudges || []) { const jn = judge(O, tr, n, best ? Math.max(mq, best.j.q - 1e-6) : mq); if (good(jn)) return Object.assign({}, n, { vis: jn.vis, thru: jn.thru, q: jn.q, nudged: true, from }); if (usable(jn) && better(jn, best && best.j)) best = { p: n, j: jn }; }
       return best ? Object.assign({}, best.p, { vis: best.j.vis, thru: best.j.thru, q: best.j.q, nudged: best.p !== p, from }) : null;
     }
     // pickSpot penalty: the car at ds behind the spot is out of view (bit cleared) - 1 for the nearest sample, 0.4 for its neighbours
