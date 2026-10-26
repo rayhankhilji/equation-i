@@ -632,6 +632,9 @@ window.EI = window.EI || {};
     p.shade(c => { for (let i = 0; i < 40; i++) { c.fillStyle = ['rgba(230,60,110,0.8)', 'rgba(250,250,240,0.7)', 'rgba(240,180,40,0.7)'][(r() * 3) | 0]; c.beginPath(); c.arc(r() * IN, r() * IN, 2 + r() * 2.5, 0, 6.283); c.fill(); } });
   }]);
   def('roofsign', 12, 4, [(p) => { p.clear(sp([34, 36, 40], TN, 0.5, 0, 0.5)); p.shade(c => { c.fillStyle = '#f2efe6'; c.font = 'bold 46px Georgia, serif'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText('HOTEL', IN / 2, IN / 2 + 4); }); p.rect(0, 0, IN, 8, sp([150, 150, 150], TN, 0.4, 0, 0.6)); p.rect(0, IN - 8, IN, 8, sp([150, 150, 150], TN, 0.4, 0, 0.6)); }]);
+  // the Fairmont's roof sign (POLISH-B, monaco_ref_012: slate panel, white 'Fairmont' script, 'MONTE CARLO' caps): the cell spans a 14 x 3 m face,
+  // so the lettering is drawn pre-squeezed 4.67 : 1 to read in proportion once stretched over it
+  def('fairsign', 14, 0, [(p) => { p.clear(sp([46, 50, 54], TN, 0.5, 0, 0.5)); p.shade(c => { c.fillStyle = '#f4f2ec'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.setTransform(1 / 4.67, 0, 0, 1, 0, 0); c.font = 'italic 112px Georgia, serif'; c.fillText('Fairmont', IN * 4.67 / 2, IN * 0.42); c.font = '600 30px Georgia, serif'; c.fillText('M O N T E   C A R L O', IN * 4.67 / 2, IN * 0.78); }); p.rect(0, 0, IN, 6, sp([120, 124, 128], TN, 0.4, 0, 0.6)); p.rect(0, IN - 6, IN, 6, sp([120, 124, 128], TN, 0.4, 0, 0.6)); }]);
   def('mod_bal', 12, 5, [(p) => {
     // late-modern apartment floor: floor-to-ceiling glazing behind a curved white balcony with a glass front
     p.clear(wallP([240, 240, 238])); glass(p, 10, 20, 204, 160, { seed: 261 }); frame(p, 10, 20, 204, 160, 4, [214, 216, 218], 4); aoTop(p, 0, 50, 0.4);
@@ -1537,8 +1540,32 @@ window.EI = window.EI || {};
         }
         G.cap(fair, yTop, C(0xcfc8bc), cell('terrace'), 3);
         const ob = obb(fair); if (ob) for (const k of [-0.25, 0.3]) { const r = rectRing(ob.cx + ob.ux * ob.hl * k, ob.cz + ob.uz * ob.hl * k, ob.ux, ob.uz, 9, Math.min(6, ob.hw * 0.4)); G.prism(r, yTop, yTop + 3.4, C(0xf2f0ea), cell('mg_flr'), 3, 3.4, 0); G.cap(r, yTop + 3.4, C(0xe0ddd6), cell('flat'), 3); }
-        // the sign rack on the roof
-        if (ob) { const sx = ob.cx + ob.ux * ob.hl * 0.02, sz = ob.cz + ob.uz * ob.hl * 0.02; const sn = rectRing(sx, sz, ob.ux, ob.uz, 7, 0.15); G.prism(sn, yTop + 3.4, yTop + 6.4, C(0xffffff), cell('roofsign'), 14, 3, 0); }
+        // the sign rack on the roof: the slate 'Fairmont / MONTE CARLO' panel on a steel frame (POLISH-B: was a plain 'HOTEL' board floating over the roof)
+        if (ob) { const sx = ob.cx + ob.ux * ob.hl * 0.02, sz = ob.cz + ob.uz * ob.hl * 0.02; const sn = rectRing(sx, sz, ob.ux, ob.uz, 7, 0.15); G.prism(sn, yTop + 3.4, yTop + 6.4, C(0xffffff), cell('fairsign'), 14, 3, 0);
+          if (kind === 'D') for (const k of [-6.2, -2.1, 2.1, 6.2]) { G.box(sx + ob.ux * k, sz + ob.uz * k, ob.ux, ob.uz, 0.09, 0.09, yTop, yTop + 3.45, C(0x6a6e72), cell('plain'), null, 1, 1); G.box(sx + ob.ux * k - ob.uz * 1.2, sz + ob.uz * k + ob.ux * 1.2, ob.ux, ob.uz, 0.06, 0.06, yTop, yTop + 1.2, C(0x6a6e72), cell('plain'), null, 1, 1); }
+          if (kind === 'D') G.box(sx, sz, ob.ux, ob.uz, 7, 0.06, yTop + 3.3, yTop + 3.4, C(0x6a6e72), cell('plain'), null, 1, 1); }
+        // the roof garden (POLISH-B: the hotel's roof terrace is planted): lawn beds in raised stone planters on a 6 m grid, terrace walks
+        // between them every fourth row and around the pavilions / sign, a pool at the west end; near: shrubs, a few palms, parasols at the pool
+        if (ob) {
+          const along = (u, v) => [ob.cx + ob.ux * u - ob.uz * v, ob.cz + ob.uz * u + ob.ux * v];
+          const inside = (u, v, h) => { for (const [a, b] of [[-h, -h], [h, -h], [h, h], [-h, h], [0, 0]]) { const q = along(u + a, v + b); if (!pip(q[0], q[1], fair)) return false; } return true; };
+          const pw = Math.min(6, ob.hw * 0.4), busy = (u, v) => Math.abs(u - ob.hl * 0.02) < 9 && Math.abs(v) < 3.2 || [-0.25, 0.3].some(k => Math.abs(u - ob.hl * k) < 11 && Math.abs(v) < pw + 2);
+          const pu = -ob.hl * 0.62; const pool = inside(pu, 0, 6.5) && inside(pu - 4, 0, 4) && inside(pu + 4, 0, 4) && !busy(pu, 0);
+          if (pool) { const pr = rectRing(...along(pu, 0), ob.ux, ob.uz, 6, 2.6); G.prism(pr, yTop, yTop + 0.35, C(0xf0ece4), cell('pooltile'), 2, 0.35, 0); G.cap(offsetRing(pr, 0.35, true), yTop + 0.3, C(0xffffff), cell('water'), 3);
+            if (kind === 'D') for (const sg of [-1, 1]) for (const k of [-4, 0, 4]) { const q = along(pu + k, sg * 4.6); parasol(G, q[0], yTop, q[1], 1.3); } }
+          let bi = 0;
+          for (let iu = 0, u = -ob.hl + 4; u < ob.hl - 4; u += 6, iu++) {
+            if (iu % 4 === 3) continue;
+            for (let v = -ob.hw + 4; v < ob.hw - 3.5; v += 6) {
+              if (busy(u, v) || (pool && Math.abs(u - pu) < 10 && Math.abs(v) < 6) || !inside(u, v, 3.6)) continue;
+              const q = along(u, v); G.box(q[0], q[1], ob.ux, ob.uz, 2.4, 2.4, yTop, yTop + 0.5, C(0xe4ddd0), cell('kerb'), cell('lawn'), 1.6, 0.5, C(0xffffff)); bi++;
+              if (kind !== 'D') continue;
+              const hh = hash(q[0] * 3, q[1] * 3, 77);
+              if (bi % 5 === 2) palm(G, q[0], yTop + 0.5, q[1], 4.5 + hh * 2.5, 300 + bi);
+              else if (hh < 0.55) { const col = new THREE.Color().setHSL(0.25 + hh * 0.1, 0.34, 0.36 + hh * 0.12); const r = 0.9 + hh * 0.5; G.lathe(q[0] + 0.8, q[1] - 0.6, [[r * 0.8, yTop + 0.45], [r * 1.15, yTop + 0.5 + r * 0.7], [r * 0.85, yTop + 0.5 + r * 1.5], [0.05, yTop + 0.5 + r * 1.8]], 6, col, cell('shrub'), 0.6, 0.6); }
+            }
+          }
+        }
       }
     }
   };

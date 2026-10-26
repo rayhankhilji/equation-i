@@ -527,7 +527,7 @@ window.EI = window.EI || {};
     }
     const fin = finishSpot(tr);
     const eyes = []; for (const g of G.concat([fin])) { eyes.push(g[0]); for (const n of g[2]) eyes.push(n); }
-    const los = LOS.build(tr, sc, eyes); const st = { cand: G.length, ok: 0, nudged: 0, dropped: 0, lost: [] };
+    const los = LOS.build(tr, sc, eyes, cs && cs.towers); const st = { cand: G.length, ok: 0, nudged: 0, dropped: 0, lost: [] };
     for (const [p, tower, nudges] of G) {
       const r = LOS.place(los, tr, p, nudges, tower ? 0.75 : 0.5); if (!r) { st.dropped++; st.lost.push(Object.assign({ tower }, p)); continue; }
       if (r.nudged) st.nudged++; else st.ok++; r.tower = tower; out.push(r);
@@ -551,7 +551,7 @@ window.EI = window.EI || {};
     // ds of the car relative to the spot (pickSpot: spot ahead of the car by ds) at which visibility is sampled; CORE = what the TV shot mostly shows
     const DS = [-50, -15, 20, 55, 90, 125, 160], CORE = (ds) => ds >= 0 && ds <= 150, ORDER = [3, 2, 4, 5, 1, 6, 0];   // core first
     function grow(a, n) { if (n <= a.length) return a; const b = new a.constructor(Math.max(n, a.length * 2)); b.set(a); return b; }
-    function build(tr, sc, eyes) {
+    function build(tr, sc, eyes, towers) {
       if (!tr || !sc || !sc.group || typeof THREE === 'undefined') return null;
       const t0 = now(); const E = sc.env; const fAt = E && E.fAt ? (x, z) => E.fAt(x, z) : null;
       let x0 = 1e9, x1 = -1e9, z0 = 1e9, z1 = -1e9; for (let i = 0; i < tr.n; i++) { x0 = Math.min(x0, tr.x[i]); x1 = Math.max(x1, tr.x[i]); z0 = Math.min(z0, tr.z[i]); z1 = Math.max(z1, tr.z[i]); }
@@ -635,6 +635,8 @@ window.EI = window.EI || {};
       const cyAdd = (x, z, r, y0, y1) => { if (nc * 5 + 5 > cyl.length) cyl = grow(cyl, nc * 5 + 5); if (!add(Math.floor((x - r - x0) * iG), Math.floor((x + r - x0) * iG), Math.floor((z - r - z0) * iG), Math.floor((z + r - z0) * iG), y1, 65535, nc)) return; cyl.set([x, z, r, y0, y1], nc * 5); nc++; };
       const ts = sc.treeLod && sc.treeLod.set; if (ts && ts.data) { const A = ts.data[0], B = ts.data[1];
         for (let k = 0; k < ts.n; k++) { const sp = Math.round(B[k * 4 + 2]), y = A[k * 4 + 1], h = B[k * 4 + 1]; const lo = sp === PALM ? 0.42 : sp === SHRUB ? 0 : sp === POPLAR || sp === CYPRESS ? 0.12 : 0.28; cyAdd(A[k * 4], A[k * 4 + 2], B[k * 4] * 0.42, y + h * lo, y + h * 0.97); } }
+      // the lattice camera towers (thin beams the rays slip through): one solid column each, ignored by a lens standing on it (r < 0)
+      for (const q of towers || []) cyAdd(q.x, q.z, -q.r, q.y0, q.y1);
       O.ntree = nc; const cr = sc.crowdLod && sc.crowdLod.set; if (cr && cr.data) { const A = cr.data[0], B = cr.data[1];
         for (let k = 0; k < cr.n; k++) { const s = B[k * 4 + 1] || 1; cyAdd(A[k * 4], A[k * 4 + 2], 0.38 * s, A[k * 4 + 1], A[k * 4 + 1] + 1.75 * s); } }
       O.cy = cyl; O.stats.cyl = nc; O.stats.tCyl = +(now() - t0).toFixed(1);
@@ -670,8 +672,8 @@ window.EI = window.EI || {};
               const t = f * (e2x * qx + e2y * qy + e2z * qz); if (t > 0 && t < best && !(M.soft && t > softT)) { best = t; O.hit = O.tm[j]; }
             }
             for (let j = O.cst[c], j1 = O.cst[c + 1]; j < j1; j++) {
-              const k = O.ci[j] * 5, cx = O.cy[k], cz = O.cy[k + 1], r = O.cy[k + 2], y0 = O.cy[k + 3], y1 = O.cy[k + 4];
-              const fx = ax - cx, fz = az - cz, A = dx * dx + dz * dz, B = fx * dx + fz * dz, C = fx * fx + fz * fz - r * r;
+              const k = O.ci[j] * 5, cx = O.cy[k], cz = O.cy[k + 1], rr = O.cy[k + 2], r = rr < 0 ? -rr : rr, y0 = O.cy[k + 3], y1 = O.cy[k + 4];
+              const fx = ax - cx, fz = az - cz, A = dx * dx + dz * dz, B = fx * dx + fz * dz, C = fx * fx + fz * fz - r * r; if (rr < 0 && C < 0) continue;   // a lens on that tower
               let ta, tb; if (A < 1e-9) { if (C > 0) continue; ta = 0; tb = 1; } else { const D = B * B - A * C; if (D < 0) continue; const sq = Math.sqrt(D); ta = (-B - sq) / A; tb = (-B + sq) / A; }
               ta = Math.max(ta, 0); tb = Math.min(tb, 1); if (ta > tb) continue;
               const ya = ay + dy * ta, yb = ay + dy * tb; if (Math.max(ya, yb) < y0 || Math.min(ya, yb) > y1) continue;
@@ -745,7 +747,7 @@ window.EI = window.EI || {};
   // the TV towers and camera scaffolds js/infra.js built: their placement is deterministic (want list -> freeSpot -> reserve), so each
   // one is found again from its reservation [s, side, 4] and re-derived with the builder's own numbers (deck height, camera on top)
   function towerSpots(cx) {
-    if (!cx || !cx.reserved || !cx.at || !cx.t) return null; const t = cx.t, out = [], F = cx.F || {};
+    if (!cx || !cx.reserved || !cx.at || !cx.t) return null; const t = cx.t, out = [], F = cx.F || {}; out.towers = [];
     const DS = [0, 15, -15, 30, -30, 45, -45, 60, -60, 80, -80, 100, -100];
     const find = (s, side) => { for (const ds of DS) for (const r of cx.reserved) if (r[1] === side && r[2] === 4 && r[0] === s + ds) return s + ds; return null; };
     try {
@@ -753,7 +755,7 @@ window.EI = window.EI || {};
       for (const [s, which] of F.cameraTowers || [[3160, 1], [3900, 1], [5075, 1], [5705, -1], [2010, 1], [965, 1], [460, 1]]) {
         const i = t.idxAtS(s + 20); const side = which > 0 ? -cx.outsideSide(i) : cx.outsideSide(i); const ps = find(s, side); if (ps == null) continue;
         const p = cx.at(ps, side, 5.5); const H = 9 + (placed % 3) * 1.5; placed++;
-        out.push({ x: p.x - p.nx * 0.85, y: p.y + H + 1.7, z: p.z - p.nz * 0.85 });   // (a cage / fence in the way: spots() nudges the eye clear)
+        out.push({ x: p.x - p.nx * 0.85, y: p.y + H + 1.7, z: p.z - p.nz * 0.85 }); out.towers.push({ x: p.x, z: p.z, r: 1.0, y0: p.y, y1: p.y + H + 1.3 });   // (a cage / fence in the way: spots() nudges the eye clear)
       }
       let sc = 0;
       for (const s0 of F.scaffolds || [610, 1130, 1960, 2470, 3470, 3790, 4230, 5290, 5560, 760, 2860]) {

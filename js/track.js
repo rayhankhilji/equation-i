@@ -1151,7 +1151,11 @@ window.EI = window.EI || {};
       // data.fence.ground (COTA): behind a barrier the drawn ground can lie below the road (cut / fill slopes, the pit side of the T1 climb): the net and its posts then
       // stand on it (drop m below the road level, 0..4) instead of hanging over the slope. Off by default: other circuits are unchanged
       const fGr = FD.ground && this.scenery && this.scenery.height ? this.scenery : null; const fDrop = {};
-      if (fGr) for (const side of [-1, 1]) { const w0 = side < 0 ? this.wallL : this.wallR; const a = new Float32Array(this.n); for (let i = 0; i < this.n; i++) { const d = w0[i] + 0.8; const dz = this.y[i] - fGr.height(this.x[i] + this.nx[i] * side * d, this.z[i] + this.nz[i] * side * d); a[i] = dz > 0.03 ? Math.min(4, dz + 0.2) : dz < -0.12 ? Math.max(-3, dz + 0.08) : 0; } fDrop[side] = a; }   // (+0.2: a post's foot sits just in the ground; where the ground RISES above the road (a bank behind the barrier, Monza's Prima Variante) the net and posts go up with it instead of standing 0.3-1 m in the bank - POLISH-B)
+      // (+0.2: a post's foot sits just in the ground; where the ground RISES above the road (a bank behind the barrier, Monza's Prima Variante) the net and posts go up
+      // with it instead of standing 0.3-1 m in the bank - POLISH-B. The net is sampled where ribbon() draws it: clamped on the inside of tight bends (kFold); the posts where they stand)
+      const fDropAt = (i, side, d) => { const dz = this.y[i] - fGr.height(this.x[i] + this.nx[i] * side * d, this.z[i] + this.nz[i] * side * d); return dz > 0.03 ? Math.min(4, dz + 0.2) : dz < -0.12 ? Math.max(-3, dz + 0.08) : 0; };
+      const fNetD = (i, side, d) => { if (!this.kFold) return d; const kf = this.kFold[i], cap = Math.max(2, 0.9 / (Math.abs(kf) + 1e-6)); return (kf > 0) === (side > 0) ? Math.min(d, cap) : d; };
+      if (fGr) for (const side of [-1, 1]) { const w0 = side < 0 ? this.wallL : this.wallR; const a = new Float32Array(this.n); for (let i = 0; i < this.n; i++) a[i] = fDropAt(i, side, fNetD(i, side, w0[i] + 0.8)); fDrop[side] = a; }
       for (const side of [-1, 1]) {
         const wall = side < 0 ? this.wallL : this.wallR; const fd = fDrop[side];
         const TD = this.data.tunnel; const fg = this.ribbon(i => side * (wall[i] + 0.8), i => side * (wall[i] + 0.8), { ya: fd ? (i => -fd[i]) : () => 0, yb: (i) => fenceH(i, side, FD.h || 3.4) - (fd ? fd[i] : 0), vScale: 3, mask: TD || FD.runs ? (i => (!TD || this.s[i] < TD.s0 - 6 || this.s[i] > TD.s1 + 6) && fenceH(i, side, 1) > 0) : undefined });
@@ -1166,7 +1170,7 @@ window.EI = window.EI || {};
           for (let i = 0; i < this.n; i += step) {
             if (TD0 && this.s[i] > TD0.s0 - 6 && this.s[i] < TD0.s1 + 6) continue;
             const Hh = fenceH(i, side, FD.h || 4.5); if (Hh <= 0) continue;
-            const d = wall[i] + 0.8, d2 = d - side * 0 ; const x = this.x[i] + this.nx[i] * side * d, z = this.z[i] + this.nz[i] * side * d, y = this.y[i] - (fDrop[side] ? fDrop[side][i] : 0); const ex = -this.nx[i] * side * lean, ez = -this.nz[i] * side * lean;
+            const d = wall[i] + 0.8, d2 = d - side * 0 ; const x = this.x[i] + this.nx[i] * side * d, z = this.z[i] + this.nz[i] * side * d, y = this.y[i] - (fGr ? fDropAt(i, side, d) : 0); const ex = -this.nx[i] * side * lean, ez = -this.nz[i] * side * lean;
             prism(x, y, z, x, y + Hh - 0.9, z, this.tx[i], this.tz[i]); prism(x, y + Hh - 0.9, z, x + ex, y + Hh, z + ez, this.tx[i], this.tz[i]);
           }
         }

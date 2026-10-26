@@ -135,6 +135,11 @@ window.EI = window.EI || {};
     else if (name === 'sph') g = new THREE.SphereGeometry(1, 10, 8);
     else if (name === 'sphL') g = new THREE.SphereGeometry(1, 7, 5);
     else if (name === 'sphM') g = new THREE.SphereGeometry(1, 8, 6);   // Medium crew heads (PERF-2)
+    // crew figures (POLISH-B): six-sided open tubes with smooth normals read round where the boxes read blocky, at the same 12 triangles
+    // as a box; 'tor6' = the torso (shoulders wider than the waist) with a top cap, 18 triangles
+    else if (name === 'tub6') g = new THREE.CylinderGeometry(1, 1, 1, 6, 1, true);
+    else if (name === 'tap6') g = new THREE.CylinderGeometry(1, 0.78, 1, 6, 1, true);
+    else if (name === 'tor6') { const a = new THREE.CylinderGeometry(1, 0.8, 1, 6, 1, true).toNonIndexed(), b = new THREE.CircleGeometry(1, 6).rotateX(-Math.PI / 2).rotateY(Math.PI / 2).translate(0, 0.5, 0).toNonIndexed(); g = U.mergeGeometries([{ geo: a, matrix: new THREE.Matrix4() }, { geo: b, matrix: new THREE.Matrix4() }]); }
     g = g.toNonIndexed(); UNIT[name] = { p: g.attributes.position.array, n: g.attributes.normal.array, uv: g.attributes.uv.array }; return UNIT[name];
   }
   class GB {
@@ -450,14 +455,14 @@ window.EI = window.EI || {};
     const I = new THREE.Matrix4();
     const S = (x, y, z, sx, sy, sz) => new THREE.Matrix4().makeTranslation(x, y, z).multiply(new THREE.Matrix4().makeScale(sx, sy, sz));
     const geos = {
-      torso: mk(g => { g.add('box', S(0, 0.3, 0, 0.25, 0.6, 0.42), 0xffffff); g.add('box', S(0, -0.02, 0, 0.22, 0.18, 0.36), 0xffffff); g.add('box', S(-0.02, 0.43, 0, 0.27, 0.06, 0.44), col(0xffffff, 0.55)); }),
+      torso: mk(g => { g.add('tor6', S(0, 0.29, 0, 0.135, 0.64, 0.218), 0xffffff); g.add('tub6', S(-0.01, 0.43, 0, 0.14, 0.06, 0.224), col(0xffffff, 0.55)); }),
       helmet: mk(g => { g.add(SPH, S(0.0, 0.14, 0, 0.145, 0.145, 0.14), 0xffffff); g.add('box', S(0.1, 0.15, 0, 0.07, 0.07, 0.2), col(0x111111)); g.add('box', S(0, 0.02, 0, 0.1, 0.06, 0.1), col(0x222222)); }),
       face: mk(g => { g.add(SPH, S(0, 0.13, 0, 0.11, 0.125, 0.105), col(0xd9a37e)); g.add('box', S(-0.01, 0.15, 0, 0.05, 0.1, 0.25), col(0x15161a)); g.add('box', S(0.0, 0.25, 0, 0.04, 0.03, 0.24), col(0x15161a)); g.add('box', S(0.09, 0.08, 0.1, 0.1, 0.02, 0.02), col(0x15161a)); g.add('box', S(0, 0.02, 0, 0.08, 0.06, 0.08), col(0xd9a37e)); }),
       cap: mk(g => { g.add(SPH, S(0, 0.2, 0, 0.115, 0.07, 0.11), 0xffffff); g.add('box', S(0.1, 0.18, 0, 0.1, 0.015, 0.16), 0xffffff); }),
-      uarm: mk(g => { g.add('box', S(0, -0.15, 0, 0.11, 0.32, 0.11), 0xffffff); }),
-      larm: mk(g => { g.add('box', S(0, -0.14, 0, 0.1, 0.28, 0.1), 0xffffff); g.add('box', S(0.01, -0.31, 0, 0.09, 0.1, 0.07), col(0x15161a)); }),
-      uleg: mk(g => { g.add('box', S(0, -0.22, 0, 0.16, 0.47, 0.16), 0xffffff); }),
-      lleg: mk(g => { g.add('box', S(0, -0.21, 0, 0.13, 0.44, 0.13), 0xffffff); g.add('box', S(0.05, -0.45, 0, 0.27, 0.08, 0.12), col(0x111214)); }),
+      uarm: mk(g => { g.add('tap6', S(0, -0.15, 0, 0.062, 0.33, 0.062), 0xffffff); }),
+      larm: mk(g => { g.add('tap6', S(0, -0.14, 0, 0.054, 0.29, 0.054), 0xffffff); g.add('box', S(0.01, -0.31, 0, 0.08, 0.1, 0.065), col(0x15161a)); }),
+      uleg: mk(g => { g.add('tap6', S(0, -0.22, 0, 0.09, 0.48, 0.09), 0xffffff); }),
+      lleg: mk(g => { g.add('tap6', S(0, -0.21, 0, 0.072, 0.45, 0.072), 0xffffff); g.add('box', S(0.05, -0.45, 0, 0.27, 0.08, 0.12), col(0x111214)); }),
     };
     void I;
     const mat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.75 });

@@ -611,7 +611,7 @@ window.EI = window.EI || {};
             const gy = E.forestOn ? E.forestGround(x, z) : groundAt(i, side, d, x, z);   // (forest: the drawn surface between two cross-sections)
             // draped street verge (Monaco): where a step of the verge ribbon spans a steep fall (Loews / Fairmont, Casino bank) it hangs metres over the
             // terrain; no tufts on that overhang, they read as floating cards from below (POLISH-B: fit audit 36 > 0.5 m)
-            if (drape && gy - sc.height(x, z) > 0.4) continue;
+            if (drape && gy - sc.height(x, z) > 0.25) continue;
             push(x, gy - 0.02, z, 0.6 + rng() * 0.7);
           }
         }

@@ -60,13 +60,15 @@ window.EI = window.EI || {};
   // Lesmo 1 exit / Parabolica (3-lap 22-car sims, 4 seeds), at 1.12 not -> 1.12
   // Spa (SPA-GEN, swarm/spa/gen/sweep.sh): solo clean to 1.15, wide from 1.2; 3-lap 22-car races at 1.12 / 1.15 (2 seeds) both 0 bot wall hits -> 1.12
   // COTA (COTA-GEN, swarm/cota/gen/sweep.sh): solo clean to 1.15, wide from 1.2; ultra 22-car 3-lap races at 1.12: 0 bot wall hits -> 1.12.
-  // LIMIT_LAP 87.88 (qsim ultra, mediums); TYRE_DELTA soft -0.48 % / hard +0.42 % (whole field); Official on softs 95.98-96.00 vs the 2026 estimate 96.033
+  // LIMIT_LAP 87.88 (qsim ultra, mediums); TYRE_DELTA soft -0.48 % / hard +0.42 % (whole field); (26 Oct: real 2026 quali in EI.RACEPACE, pole ANT 1:34.035 -> anchor refit
+  // to 88.04 + GAP_SLOPE 1.025 against every driver's real lap, see f1 BOARD WAVE 10)
   // Mexico (MEX-GEN, swarm/mexico/gen/sweep.sh + lapct.sh): solo clean to 1.25, ultra 22-car 3-lap races clean at 1.0 / 1.06 / 1.12 (0 bot wall hits). ALTITUDE (2,240 m,
   // air density ~0.78 of sea level): the real cars lose ~22 % aero load at equal wing and win part of it back with max-downforce wings, while
   // car.js (shared, frozen) has one sea-level grip model -> the limit car's corner grip is capped lower here: 1.0 = the usual 1.12 x ~0.89.
   // Straights need no constant: with Straight Mode + full ERS the game car already reaches 356 km/h at the end of the pit straight (real 2025
   // traps 355-363) and bots never pace on straights (speedFactor 1). LIMIT_LAP 70.49 (qsim ultra, mediums); TYRE_DELTA soft -0.51 % / hard +0.45 %;
-  // GAP_STRETCH 1.175: the bots realise only ~86 % of the profile's lap ratio on this straight-heavy lap; Official on softs 78.46 vs the 2026 estimate 78.464
+  // GAP_STRETCH 1.175: the bots realise only ~86 % of the profile's lap ratio on this straight-heavy lap; Official target = 2025 pole x the season factor
+  // (EI.RACEPACE.mexico.pole: 1.03214 = mean 2026/2025 pole ratio over all circuits with real 2026 quali; anchor 70.56 after the refit)
   const C_LIMIT = { silverstone: 1.1, monaco: 1.25, abudhabi: 1.16, monza: 1.12, spa: 1.12, cota: 1.12, mexico: 1.0 }, C_LIMIT_DEFAULT = 1.1;
   // lap time a late braker gains over an early one on top of the profile (trail-braking carry, later lift: update()), per unit of
   // the braking trait, measured in the headless sim. The corner grip is solved against it so braking style never changes the pace.
@@ -79,7 +81,7 @@ window.EI = window.EI || {};
   // lap time of the season's fastest car + driver at skill 100 (no form), headless sim on the circuit (qsim.js, solo flying laps):
   // the anchor that turns a real lap time into the game's scale. Re-measure with C_LIMIT.
   // (Silverstone / Monaco / Spa nudged by the Official-level fit against every driver's real quali lap, solo on softs, no form)
-  const LIMIT_LAP = { silverstone: 80.8, monaco: 64.17, abudhabi: 79.26, monza: 76.65, spa: 94.28, cota: 88.04, mexico: 70.49 }, OFFICIAL_LOSS_DEFAULT = 0.08;
+  const LIMIT_LAP = { silverstone: 80.8, monaco: 64.17, abudhabi: 79.26, monza: 76.65, spa: 94.28, cota: 88.04, mexico: 70.56 }, OFFICIAL_LOSS_DEFAULT = 0.08;
   // per-circuit slope of the realised driver gaps against the real quali gaps (same fit; 1 = no correction), applied at every level
   const GAP_SLOPE = { silverstone: 0.971, monaco: 1.04, monza: 1.064, spa: 0.943, cota: 1.025 };
   // real 2026 pole lap of a circuit (s): EI.RACEPACE (real lap data) > EI.SEASON.tracks > the season's real grids (pole time)
