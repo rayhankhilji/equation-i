@@ -129,7 +129,7 @@ window.EI = window.EI || {};
     // blue-grey clumps in the upper half with a lot of sky through it (the card is ~2.4 x taller than wide: clumps painted flat)
     const euc = (ox, oy, seed, pal) => {
       const r = U.rng(seed); trunk(ox, oy, 256, 512, 120, 26, 10, '#857d6e'); trunk(ox, oy, 262, 512, 180, 7, 3, '#a39b88'); trunk(ox, oy, 249, 480, 240, 5, 2, '#5e574b');
-      for (let b = 0; b < 6; b++) { const dir = b % 2 ? 1 : -1; const y0 = 300 - b * 34; branch(ox, oy, 256 + dir * 3, y0, 256 + dir * (60 + r() * 120), y0 - 90 - r() * 70, 9 - b, '#7e7668'); }
+      for (let b = 0; b < 6; b++) { const dir = b % 2 ? 1 : -1; const y0 = 300 - b * 34; branch(ox, oy, 256 + dir * 3, y0, 256 + dir * (60 + r() * 120), Math.max(95, y0 - 90 - r() * 70), 9 - b, '#7e7668'); }   // (POLISH-C: limbs end inside the crown, no bare sticks above it)
       const lobes = []; for (let i = 0; i < 26; i++) { const a = r() * 6.283, d = Math.pow(r(), 0.7); const x = Math.cos(a) * d * 210, y = 150 + Math.sin(a) * d * 120 + Math.abs(x) * 0.25; lobes.push({ x: 256 + x, y, rx: 34 + r() * 32, ry: 16 + r() * 12 }); }
       for (let i = 0; i < 5; i++) { const sd = i % 2 ? 1 : -1; lobes.push({ x: 256 + sd * (70 + r() * 90), y: 300 + r() * 50, rx: 30 + r() * 20, ry: 14 + r() * 8 }); }   // (a few lower hanging clumps)
       lobes.sort((a, b) => a.y - b.y); const global = (y) => 1.1 - U.clamp((y - 40) / 330, 0, 1) * 0.55;

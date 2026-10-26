@@ -518,8 +518,26 @@ window.EI = window.EI || {};
   def('cas_top', 9, 2, [(p) => {
     // balustraded attic with an oculus framed by garlands, urns on the balustrade
     p.clear(wallP([236, 226, 204])); p.grain(1600, 0.05, 196); p.rect(0, 166, IN, 58, trimP([246, 238, 222], 0.72));
-    p.ell(112, 90, 32, 32, trimP([250, 244, 232], Hh.corn)); p.ell(112, 90, 21, 21, sp([60, 70, 76], TN, 0.1, 1, Hh.glass));
-    p.shade(c => { c.strokeStyle = 'rgba(150,120,60,0.45)'; c.lineWidth = 4; c.beginPath(); c.moveTo(40, 60); c.quadraticCurveTo(72, 96, 80, 70); c.moveTo(184, 60); c.quadraticCurveTo(152, 96, 144, 70); c.stroke(); });
+    // (an oval oeil-de-boeuf: moulded stone frame in the wall's own tone, recessed reveal, glass catching the sky, glazing bars,
+    // carved garland drops either side - no bright ring round a dark disc under dark swags, which read as cartoon eyes)
+    const OX = 112, OY = 92;
+    for (const sg of [-1, 1]) {
+      const gx = OX + sg * 47; const leaf = trimP([230, 218, 194], Hh.corn - 0.1);
+      p.ell(gx, OY - 30, 7, 4, trimP([236, 226, 204], Hh.corn - 0.06)); p.ell(gx - 6, OY - 33, 4, 3, leaf); p.ell(gx + 6, OY - 33, 4, 3, leaf);
+      for (let k = 0; k < 6; k++) { const yy = OY - 22 + k * 9, rr = 6.5 - k * 0.7; p.ell(gx + (k % 2 ? 1.5 : -1.5), yy, rr, rr * 0.8, leaf); }
+      p.shade(c => { c.fillStyle = 'rgba(96,78,52,0.16)'; for (let k = 0; k < 6; k++) { const yy = OY - 22 + k * 9, rr = 6.5 - k * 0.7; c.beginPath(); c.ellipse(gx + (k % 2 ? 2.5 : -0.5), yy + rr * 0.6, rr * 0.9, rr * 0.35, 0, 0, 6.283); c.fill(); } });
+    }
+    p.shade(c => { c.fillStyle = 'rgba(70,56,40,0.14)'; c.beginPath(); c.ellipse(OX + 1, OY + 3, 36, 31, 0, 0, 6.283); c.fill(); });
+    p.ell(OX, OY, 35, 30, trimP([238, 228, 206], Hh.corn - 0.04));
+    p.shade(c => { c.strokeStyle = 'rgba(110,92,64,0.3)'; c.lineWidth = 1.5; c.beginPath(); c.ellipse(OX, OY, 31, 26.5, 0, 0, 6.283); c.stroke(); c.strokeStyle = 'rgba(255,255,255,0.22)'; c.beginPath(); c.ellipse(OX, OY, 34, 29, 0, Math.PI * 1.05, Math.PI * 1.75); c.stroke(); });
+    p.ell(OX, OY, 26, 21.5, sp([190, 180, 160], TW, 0.9, 0, Hh.reveal));
+    p.ell(OX, OY + 1, 23, 18.5, sp([74, 88, 100], TN, 0.06, 1, Hh.glass));
+    p.shade(c => { c.beginPath(); c.ellipse(OX, OY + 1, 23, 18.5, 0, 0, 6.283); c.clip(); const g = c.createLinearGradient(0, OY - 18, 0, OY + 20); g.addColorStop(0, 'rgba(20,20,24,0.5)'); g.addColorStop(0.2, 'rgba(176,196,212,0.5)'); g.addColorStop(0.6, 'rgba(120,138,152,0.24)'); g.addColorStop(1, 'rgba(40,46,52,0.2)'); c.fillStyle = g; c.fillRect(OX - 24, OY - 18, 48, 38);
+      c.fillStyle = 'rgba(255,255,255,0.1)'; c.beginPath(); c.moveTo(OX - 4, OY - 18); c.lineTo(OX + 8, OY - 18); c.lineTo(OX - 8, OY + 20); c.lineTo(OX - 20, OY + 20); c.closePath(); c.fill(); });
+    const bar = sp([214, 206, 186], TN, 0.5, 0, Hh.frame);
+    for (const dx of [-8, 8]) p.rect(OX + dx - 1.25, OY - 17, 2.5, 36, bar); p.rect(OX - 22, OY, 44, 2.5, bar);
+    p.fill(c => { c.moveTo(OX - 7, OY - 33); c.lineTo(OX + 7, OY - 33); c.lineTo(OX + 5, OY - 19); c.lineTo(OX - 5, OY - 19); c.closePath(); }, trimP([244, 236, 218], Hh.corn + 0.06));
+    p.shade(c => { c.fillStyle = 'rgba(70,56,40,0.22)'; c.fillRect(OX - 5, OY - 19, 10, 2); });
     for (let k = 6; k < IN; k += 16) p.ell(k + 5, 196, 4, 18, sp([80, 74, 66], TN, 0.9, 0, 0.32));
     p.rect(0, 162, IN, 8, trimP([252, 248, 238], Hh.corn)); for (const x of [10, 200]) { p.ell(x + 6, 150, 9, 12, trimP([246, 240, 228], Hh.corn)); p.rect(x + 2, 158, 8, 8, trimP([246, 240, 228], Hh.corn)); }
   }]);

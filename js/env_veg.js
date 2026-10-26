@@ -13,28 +13,40 @@ window.EI = window.EI || {};
     const CW = 512; const [c, ctx] = Env.canvas(CW * (med ? 8 : 4), CW * 3); ctx.clearRect(0, 0, c.width, c.height);
     const rgb = (a, k, al) => 'rgba(' + (U.clamp(a[0] * k, 0, 255) | 0) + ',' + (U.clamp(a[1] * k, 0, 255) | 0) + ',' + (U.clamp(a[2] * k, 0, 255) | 0) + ',' + (al == null ? 1 : al) + ')';
     const mixc = (a, b, t) => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
-    // one leaf mass: many small leaf dabs inside an ellipse, lit from above, darker below and inside, sunlit translucent tips on top
+    // one leaf mass (POLISH-C, wave 10): leaf clusters (a dab and one or two satellite leaves) inside an ellipse, a sparse fringe of
+    // smaller leaves just past its rim (soft, ragged silhouette instead of a hard oval), lit from above at crown scale (global) with a
+    // gentle lobe-scale term (no 'broccoli ball' per lobe), darker deep inside, a per-lobe hue drift (some yellower, some bluer),
+    // ragged sky gaps, sunlit translucent leaves on the upper rim. Leaves are batched into 9 light buckets per lobe (one fill each,
+    // darkest first: the sunlit surface leaves end up on top) - much faster to paint than one path per leaf.
     const lobe = (r, ox, oy, L, pal, global) => {
-      const n = Math.round(L.rx * L.ry * pal.density);
+      const n = Math.round(L.rx * L.ry * pal.density * 1.15), lf = pal.leaf * 0.86; const NB = 9; const bk = []; for (let k = 0; k < NB; k++) bk.push([]);
+      const hue = (r() - 0.5) * 0.18, deep = 0.7 + r() * 0.14;
       for (let i = 0; i < n; i++) {
-        const a = r() * 6.283, rad = Math.sqrt(r()); const lx = Math.cos(a) * rad, ly = Math.sin(a) * rad;
+        const fringe = i < n * 0.16; const a = r() * 6.283, rad = fringe ? 0.86 + r() * 0.28 : Math.sqrt(r()) * 0.95; const lx = Math.cos(a) * rad, ly = Math.sin(a) * rad;
         const x = L.x + lx * L.rx, y = L.y + ly * L.ry;
-        // light: from the top (slightly left); shadowed core and underside
-        let lit = U.clamp(0.5 - ly * 0.55 - lx * 0.12 + (rad - 0.5) * 0.25, 0, 1);
-        lit *= global(y); lit = U.clamp(lit + (r() - 0.5) * 0.35, 0, 1);
-        const col = lit < 0.5 ? mixc(pal.dark, pal.mid, lit * 2) : mixc(pal.mid, pal.light, (lit - 0.5) * 2);
-        const s = pal.leaf * (0.6 + r() * 0.8) * (rad > 0.85 ? 0.7 : 1);
-        ctx.fillStyle = rgb(col, 1); ctx.beginPath(); ctx.ellipse(ox + x, oy + y, s * (1 + r() * 0.6), s * (0.55 + r() * 0.4), r() * 3.14, 0, 6.283); ctx.fill();
+        let lit = U.clamp(0.5 - ly * 0.42 - lx * 0.12 + (rad - 0.55) * 0.34, 0, 1) * global(y); if (rad < 0.5) lit *= deep;
+        lit = U.clamp(lit + (r() - 0.5) * 0.4, 0, 0.999);
+        const s = lf * (0.55 + r() * 0.75) * (fringe ? 0.6 : rad > 0.8 ? 0.8 : 1);
+        const B = bk[Math.floor(lit * NB)]; const rot = r() * 3.14, ex = s * (1 + r() * 0.6), ey = s * (0.5 + r() * 0.35); B.push(x, y, ex, ey, rot);
+        if (!fringe && r() < 0.55) { const q = r() * 6.283; B.push(x + Math.cos(q) * s * 1.3, y + Math.sin(q) * s * 1.3, ex * 0.7, ey * 0.75, rot + 0.9); if (r() < 0.4) B.push(x - Math.cos(q) * s * 1.1, y - Math.sin(q) * s * 1.2, ex * 0.6, ey * 0.7, rot - 0.8); }
       }
-      // a few sky holes through the outer part of the lobe
-      if (pal.holes) { ctx.save(); ctx.globalCompositeOperation = 'destination-out'; for (let i = 0; i < pal.holes; i++) { const a = r() * 6.283, rad = 0.55 + r() * 0.4; ctx.beginPath(); ctx.ellipse(ox + L.x + Math.cos(a) * rad * L.rx, oy + L.y + Math.sin(a) * rad * L.ry, 2 + r() * 5, 2 + r() * 4, r() * 3, 0, 6.283); ctx.fill(); } ctx.restore(); }
+      for (let k = 0; k < NB; k++) {
+        const P = bk[k]; if (!P.length) continue; const lt = (k + 0.5) / NB; const c0 = lt < 0.5 ? mixc(pal.dark, pal.mid, lt * 2) : mixc(pal.mid, pal.light, (lt - 0.5) * 2);
+        ctx.fillStyle = rgb([c0[0] * (1 + hue), c0[1], c0[2] * (1 - hue * 1.4)], 1); ctx.beginPath();
+        for (let j = 0; j < P.length; j += 5) { const x = ox + P[j], y = oy + P[j + 1], ex = P[j + 2], ey = P[j + 3], ro = P[j + 4]; ctx.moveTo(x + ex * Math.cos(ro), y + ex * Math.sin(ro)); ctx.ellipse(x, y, ex, ey, ro, 0, 6.283); }
+        ctx.fill();
+      }
+      // ragged sky gaps through the outer part of the lobe: a few small dabs knocked out together
+      if (pal.holes) { ctx.save(); ctx.globalCompositeOperation = 'destination-out'; ctx.beginPath(); for (let i = 0; i < pal.holes; i++) { const a = r() * 6.283, rad = 0.5 + r() * 0.42; const hx = ox + L.x + Math.cos(a) * rad * L.rx, hy = oy + L.y + Math.sin(a) * rad * L.ry; const m = 2 + Math.floor(r() * 3); for (let q = 0; q < m; q++) { const px = hx + (r() - 0.5) * 9, py = hy + (r() - 0.5) * 7, ex = 1.6 + r() * 3.4, ey = 1.4 + r() * 2.6, ro = r() * 3; ctx.moveTo(px + ex * Math.cos(ro), py + ex * Math.sin(ro)); ctx.ellipse(px, py, ex, ey, ro, 0, 6.283); } } ctx.fill(); ctx.restore(); }
       // translucent sunlit leaves on the upper rim
-      for (let i = 0; i < n * 0.06; i++) {
-        const a = -Math.PI / 2 + (r() - 0.5) * 2.2, rad = 0.7 + r() * 0.32; const x = L.x + Math.cos(a) * rad * L.rx, y = L.y + Math.sin(a) * rad * L.ry;
-        ctx.fillStyle = rgb(pal.glow, 1, 0.75); ctx.beginPath(); ctx.ellipse(ox + x, oy + y, pal.leaf * 0.8, pal.leaf * 0.45, r() * 3, 0, 6.283); ctx.fill();
-      }
+      ctx.fillStyle = rgb(pal.glow, 1, 0.6); ctx.beginPath();
+      for (let i = 0; i < n * 0.05; i++) { const a = -Math.PI / 2 + (r() - 0.5) * 2.0, rad = 0.72 + r() * 0.26; const x = ox + L.x + Math.cos(a) * rad * L.rx, y = oy + L.y + Math.sin(a) * rad * L.ry, ex = lf * 0.7, ey = lf * 0.4, ro = r() * 3; ctx.moveTo(x + ex * Math.cos(ro), y + ex * Math.sin(ro)); ctx.ellipse(x, y, ex, ey, ro, 0, 6.283); }
+      ctx.fill();
     };
-    const trunk = (ox, oy, x, y0, y1, w0, w1, col) => { ctx.fillStyle = col; ctx.beginPath(); ctx.moveTo(ox + x - w0 / 2, oy + y0); ctx.lineTo(ox + x - w1 / 2, oy + y1); ctx.lineTo(ox + x + w1 / 2, oy + y1); ctx.lineTo(ox + x + w0 / 2, oy + y0); ctx.closePath(); ctx.fill(); };
+    // (POLISH-C: round stems - lit left, shaded right, a dark contact band where the crown shades the top of the stem)
+    const trunk = (ox, oy, x, y0, y1, w0, w1, col) => { const path = () => { ctx.beginPath(); ctx.moveTo(ox + x - w0 / 2, oy + y0); ctx.lineTo(ox + x - w1 / 2, oy + y1); ctx.lineTo(ox + x + w1 / 2, oy + y1); ctx.lineTo(ox + x + w0 / 2, oy + y0); ctx.closePath(); };
+      ctx.fillStyle = col; path(); ctx.fill(); if (w0 < 6) return; const wm = Math.max(w0, w1) / 2; const g = ctx.createLinearGradient(ox + x - wm, 0, ox + x + wm, 0); g.addColorStop(0, 'rgba(0,0,0,0.25)'); g.addColorStop(0.3, 'rgba(255,255,255,0.1)'); g.addColorStop(0.6, 'rgba(0,0,0,0.05)'); g.addColorStop(1, 'rgba(0,0,0,0.45)');
+      ctx.fillStyle = g; path(); ctx.fill(); const gv = ctx.createLinearGradient(0, oy + y1, 0, oy + y1 + Math.min(80, (y0 - y1) * 0.5)); gv.addColorStop(0, 'rgba(0,0,0,0.45)'); gv.addColorStop(1, 'rgba(0,0,0,0)'); ctx.fillStyle = gv; path(); ctx.fill(); };
     const branch = (ox, oy, x0, y0, x1, y1, w, col) => { ctx.strokeStyle = col; ctx.lineWidth = w; ctx.lineCap = 'round'; ctx.beginPath(); ctx.moveTo(ox + x0, oy + y0); ctx.quadraticCurveTo(ox + (x0 + x1) / 2 + (x1 - x0) * 0.1, oy + (y0 + y1) / 2 - 10, ox + x1, oy + y1); ctx.stroke(); };
     const PAL = {
       oak: { dark: [20, 26, 16], mid: [46, 56, 31], light: [84, 94, 54], glow: [124, 130, 80], leaf: 5.5, density: 0.07, holes: 5 },
@@ -51,8 +63,9 @@ window.EI = window.EI || {};
     const oakSide = (ox, oy, seed, pal, ash) => {
       const r = U.rng(seed); const base = ash ? 360 : 400;
       trunk(ox, oy, 256, 512, base - 40, ash ? 22 : 34, ash ? 14 : 22, bark); trunk(ox, oy, 262, 512, base, 10, 6, barkLight);
-      for (let b = 0; b < 7; b++) { const dir = b % 2 ? 1 : -1; branch(ox, oy, 256 + dir * 4, base - 10 - b * 12, 256 + dir * (70 + r() * 140), base - 120 - r() * 170, (ash ? 7 : 10) - b, bark); }
       const lobes = []; const n = ash ? 20 : 22; const cy = ash ? 190 : 215, ry = ash ? 150 : 165, rx = ash ? 200 : 228;
+      // limbs end well inside the crown (they poked out of the top as bare sticks), only their lower parts show through the gaps
+      for (let b = 0; b < 7; b++) { const dir = b % 2 ? 1 : -1; let ex = dir * (70 + r() * 140), ey = base - 120 - r() * 170 - cy; const d = Math.hypot(ex / rx, ey / ry); if (d > 0.6) { ex *= 0.6 / d; ey *= 0.6 / d; } branch(ox, oy, 256 + dir * 4, base - 10 - b * 12, 256 + ex, cy + ey, (ash ? 7 : 10) - b, bark); }
       for (let i = 0; i < n; i++) {
         const a = r() * 6.283, d = Math.pow(r(), 0.6) * 0.82; let x = Math.cos(a) * d * rx, y = Math.sin(a) * d * ry;
         if (y > 0) y *= 0.75 + 0.25 * Math.abs(x) / rx; // flatter underside, sides hang lower than the middle
@@ -72,9 +85,10 @@ window.EI = window.EI || {};
     const spruceSide = (ox, oy, seed, pal) => {
       const r = U.rng(seed); trunk(ox, oy, 256, 512, 30, 16, 5, '#3a3128');
       const global = (y) => 1.0 - U.clamp((y - 20) / 470, 0, 1) * 0.5;
-      for (let k = 0; k < 30; k++) {
-        const y = 22 + k * 15.5 + r() * 5; const u = U.clamp((y - 14) / 470, 0, 1); const hwid = 12 + 232 * Math.pow(u, 0.9) * (0.86 + r() * 0.14);
-        for (const sd of [-1, 1]) lobe(r, ox, oy, { x: 256 + sd * hwid * 0.52, y: y + hwid * 0.1, rx: hwid * 0.5, ry: 11 + u * 9 }, pal, global);
+      // (POLISH-C: whorls of uneven reach with drooping tips - a ragged, layered edge instead of a ruled triangle)
+      for (let k = 0; k < 27; k++) {
+        const y = 22 + k * 17.2 + r() * 6; const u = U.clamp((y - 14) / 470, 0, 1); const hwid = 12 + 232 * Math.pow(u, 0.9) * (0.74 + r() * 0.3);
+        for (const sd of [-1, 1]) { const reach = hwid * (0.84 + r() * 0.22); lobe(r, ox, oy, { x: 256 + sd * reach * 0.5, y: y + reach * 0.08, rx: reach * 0.44, ry: 10 + u * 8 }, pal, global); if (u > 0.12) lobe(r, ox, oy, { x: 256 + sd * reach * 0.84, y: y + reach * 0.17 + 3, rx: reach * 0.19, ry: 6 + u * 7 }, pal, global); }
         lobe(r, ox, oy, { x: 256, y, rx: Math.max(10, hwid * 0.35), ry: 12 + u * 8 }, pal, global);
       }
     };
@@ -133,24 +147,38 @@ window.EI = window.EI || {};
       lobes.sort((a, b) => a.y - b.y); const global = (y) => 1.12 - U.clamp((y - 70) / 120, 0, 1) * 0.55;
       for (const L of lobes) lobe(r, ox, oy, L, P.stone, global);
     };
-    // palm: ringed trunk (slightly swollen top on the date palm), crown of arching pinnate fronds and a few dead hanging ones
+    // palm (POLISH-C, wave 10): ringed trunk with leaf-base texture and round shading (slightly swollen top on the date palm), a dark
+    // boot of old leaf bases under the crown, a skirt of dry hanging fronds, then ~30 live pinnate fronds back to front: a rachis and
+    // dense, stiff leaflets (lit upper side, darker underside, the far fronds darker and bluer), so the crown reads as a full starburst
+    // rather than a wire frame
     const palm = (ox, oy, seed, date) => {
       const r = U.rng(seed); const top = date ? 150 : 110; const bend = (r() - 0.5) * 30;
-      for (let y = 512; y > top; y -= 3) { const u = (512 - y) / (512 - top); const x = 256 + bend * u * u; const w = date ? 22 + 10 * Math.pow(u, 4) : 15 - 3 * u; const v = 96 + ((y / 3) % 3 === 0 ? -22 : 0) + r() * 10; ctx.fillStyle = 'rgb(' + (v + 20 | 0) + ',' + (v + 6 | 0) + ',' + (v - 14 | 0) + ')'; ctx.fillRect(ox + x - w / 2, oy + y - 3, w, 3.4); }
+      for (let y = 512; y > top; y -= 3) { const u = (512 - y) / (512 - top); const x = 256 + bend * u * u; const w = date ? 22 + 10 * Math.pow(u, 4) : 15 - 3 * u; const v = 96 + ((y / 3) % 3 === 0 ? -22 : 0) + r() * 10; ctx.fillStyle = 'rgb(' + (v + 20 | 0) + ',' + (v + 6 | 0) + ',' + (v - 14 | 0) + ')'; ctx.fillRect(ox + x - w / 2, oy + y - 3, w, 3.4);
+        if (date && (y / 3) % 2 === 0) { ctx.fillStyle = 'rgba(40,30,20,0.35)'; ctx.fillRect(ox + x - w / 2 + ((y / 6) % 2) * w * 0.5, oy + y - 2, w * 0.45, 1.6); }
+        const g = ctx.createLinearGradient(ox + x - w / 2, 0, ox + x + w / 2, 0); g.addColorStop(0, 'rgba(0,0,0,0.2)'); g.addColorStop(0.35, 'rgba(255,255,255,0.08)'); g.addColorStop(1, 'rgba(0,0,0,0.42)'); ctx.fillStyle = g; ctx.fillRect(ox + x - w / 2, oy + y - 3, w, 3.4); }
       const cx = 256 + bend, cy = top;
-      // dead fronds (skirt), then live fronds back to front
-      for (let k = 0; k < 7; k++) { const a = Math.PI * (0.25 + 0.5 * r()); ctx.strokeStyle = 'rgb(122,98,62)'; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(ox + cx, oy + cy + 8); ctx.quadraticCurveTo(ox + cx + Math.cos(a) * 60, oy + cy + 30, ox + cx + Math.cos(a) * 80, oy + cy + 90 + r() * 40); ctx.stroke(); }
-      const fronds = []; for (let k = 0; k < 22; k++) fronds.push({ a: -Math.PI + (k / 21) * Math.PI * 2 + (r() - 0.5) * 0.25, len: 150 + r() * 70, droop: 0.35 + r() * 0.5, z: r() });
+      // dry skirt: a few hanging brown fronds with ragged leaflets
+      for (let k = 0; k < 8; k++) { const a = Math.PI * (0.22 + 0.56 * r()), L = 70 + r() * 45, dx = Math.cos(a); const ex = cx + dx * L * 0.55, ey = cy + 30 + L * (0.65 + r() * 0.3); const v = 96 + r() * 36;
+        ctx.strokeStyle = 'rgb(' + (v + 28 | 0) + ',' + (v + 6 | 0) + ',' + (v - 26 | 0) + ')'; ctx.lineWidth = 2.6; ctx.beginPath(); ctx.moveTo(ox + cx, oy + cy + 8); ctx.quadraticCurveTo(ox + cx + dx * L * 0.6, oy + cy + 14, ox + ex, oy + ey); ctx.stroke();
+        ctx.lineWidth = 1.6; ctx.beginPath(); for (let q = 0.35; q < 1; q += 0.12) { const px = cx + dx * L * 0.6 * q * (2 - q) + (ex - cx - dx * L * 0.6) * q * q, py = cy + 8 + (ey - cy - 8) * q * q + 6 * q * (1 - q); for (const sd of [-1, 1]) { ctx.moveTo(ox + px, oy + py); ctx.lineTo(ox + px + sd * 7, oy + py + 10); } } ctx.stroke(); }
+      ctx.fillStyle = 'rgb(70,56,36)'; ctx.beginPath(); ctx.ellipse(ox + cx, oy + cy + 12, date ? 20 : 14, 16, 0, 0, 6.283); ctx.fill();
+      const fronds = []; for (let k = 0; k < 30; k++) { const a = -Math.PI + (k / 29) * Math.PI * 2 + (r() - 0.5) * 0.22; fronds.push({ a, len: Math.min(150 + r() * 75, Math.sin(a) < -0.1 ? (cy - 18) / (-Math.sin(a) * 0.62) : 1e3), droop: (Math.sin(a) < -0.5 ? 0.15 : 0.3) + r() * 0.45, z: r() }); }
       fronds.sort((p, q) => p.z - q.z);
       for (const f of fronds) {
         const dx = Math.cos(f.a), up = Math.sin(f.a) < 0 ? -Math.sin(f.a) : -Math.sin(f.a) * 0.5;
-        const pts = []; for (let s = 0; s <= 12; s++) { const u = s / 12; pts.push([cx + dx * f.len * u, cy - up * f.len * u * (1 - u) * 1.1 + f.droop * f.len * u * u * 0.9]); }
-        const lit = 0.55 + f.z * 0.45 - Math.max(0, Math.sin(f.a)) * 0.2;
-        ctx.strokeStyle = rgb(P.palm.mid, lit * 0.8); ctx.lineWidth = 3; ctx.beginPath(); pts.forEach((p, i) => i ? ctx.lineTo(ox + p[0], oy + p[1]) : ctx.moveTo(ox + p[0], oy + p[1])); ctx.stroke();
-        for (let s = 1; s < 12; s++) { const p = pts[s], q = pts[s + 1]; const tx = q[0] - p[0], ty = q[1] - p[1]; const l = Math.hypot(tx, ty) || 1; const nx = -ty / l, ny = tx / l; const ll = 26 * Math.sin(Math.PI * s / 12) + 6;
-          for (const sd of [-1, 1]) { const col = r() < 0.5 ? P.palm.light : P.palm.mid; ctx.strokeStyle = rgb(col, lit * (0.8 + r() * 0.4)); ctx.lineWidth = 2.2; ctx.beginPath(); ctx.moveTo(ox + p[0], oy + p[1]); ctx.lineTo(ox + p[0] + nx * sd * ll * 0.7 + tx / l * ll * 0.5, oy + p[1] + ny * sd * ll * 0.7 + ty / l * ll * 0.5 + ll * 0.35); ctx.stroke(); } }
+        const NS = 16; const pts = []; for (let s = 0; s <= NS; s++) { const u = s / NS; pts.push([cx + dx * f.len * u * 0.95, cy + Math.sin(f.a) * f.len * u * 0.62 - up * f.len * u * (1 - u) * 0.5 + f.droop * f.len * u * u * 0.85]); }
+        const lit = 0.5 + f.z * 0.5 - Math.max(0, Math.sin(f.a)) * 0.22; const back = f.z < 0.35;
+        // leaflets as thin filled blades along both sides (two passes: undersides darker, then the lit upper sides)
+        for (let pass = 0; pass < 2; pass++) {
+          ctx.fillStyle = pass ? rgb(P.palm.light, lit * (back ? 0.72 : 0.95)) : rgb(P.palm.mid, lit * (back ? 0.72 : 0.9)); ctx.beginPath();
+          for (let s = 1; s < NS; s++) { const p = pts[s], q = pts[s + 1]; const tx = q[0] - p[0], ty = q[1] - p[1]; const l = Math.hypot(tx, ty) || 1; const nx = -ty / l, ny = tx / l; const ll = 34 * Math.sin(Math.PI * Math.min(1, s / NS * 1.1)) + 6;
+            for (const sd of [-1, 1]) { if ((pass === 0) !== (sd * (dx >= 0 ? 1 : -1) > 0)) continue; const ex = p[0] + nx * sd * ll * 0.72 + tx / l * ll * 0.45, ey = p[1] + ny * sd * ll * 0.72 + ty / l * ll * 0.45 + ll * 0.38;
+              const w2 = 2.0 + (1 - s / NS) * 1.6; ctx.moveTo(ox + p[0] - tx / l * w2, oy + p[1] - ty / l * w2); ctx.lineTo(ox + ex, oy + ey); ctx.lineTo(ox + p[0] + tx / l * w2, oy + p[1] + ty / l * w2); ctx.closePath(); } }
+          ctx.fill();
+        }
+        ctx.strokeStyle = rgb(P.palm.mid, lit * 0.7); ctx.lineWidth = 2.6; ctx.beginPath(); pts.forEach((p, i) => i ? ctx.lineTo(ox + p[0], oy + p[1]) : ctx.moveTo(ox + p[0], oy + p[1])); ctx.stroke();
       }
-      ctx.fillStyle = 'rgb(84,70,44)'; ctx.beginPath(); ctx.ellipse(ox + cx, oy + cy + 6, 16, 12, 0, 0, 6.283); ctx.fill();
+      ctx.fillStyle = 'rgb(84,70,44)'; ctx.beginPath(); ctx.ellipse(ox + cx, oy + cy + 6, 14, 10, 0, 0, 6.283); ctx.fill();
     };
     // italian cypress: a narrow dark flame from the ground to a point
     const cypress = (ox, oy, seed) => {
@@ -164,10 +192,10 @@ window.EI = window.EI || {};
       const lobes = []; for (let i = 0; i < 18; i++) { const a = Math.PI + r() * Math.PI, d = Math.sqrt(r()) * 0.85; lobes.push({ x: 256 + Math.cos(a) * d * 200, y: 400 + Math.sin(a) * d * 230, rx: 56 + r() * 40, ry: 48 + r() * 30 }); }
       lobes.push({ x: 256, y: 440, rx: 220, ry: 70 }); lobes.sort((a, b) => a.y - b.y);
       for (const L of lobes) { L.y = Math.min(L.y, 512 - L.ry * 0.6); lobe(r, ox, oy, L, P.oleander, global); }
-      for (let i = 0; i < 160; i++) { const a = Math.PI + r() * Math.PI, d = Math.sqrt(r()) * 0.9; const x = 256 + Math.cos(a) * d * 210, y = 420 + Math.sin(a) * d * 240; if (y > 470) continue; const c = pal[Math.floor(r() * pal.length)]; ctx.fillStyle = rgb(c, 0.85 + r() * 0.25); ctx.beginPath(); ctx.arc(ox + x, oy + y, 3.5 + r() * 4, 0, 6.283); ctx.fill(); }
+      for (let i = 0; i < 160; i++) { const a = Math.PI + r() * Math.PI, d = Math.sqrt(r()) * 0.9; const x = 256 + Math.cos(a) * d * 210, y = 420 + Math.sin(a) * d * 240; if (y > 470) continue; const c = pal[Math.floor(r() * pal.length)]; ctx.fillStyle = rgb(c, 0.7 + r() * 0.3); ctx.beginPath(); for (let q = 0; q < 4; q++) { const fx = ox + x + (r() - 0.5) * 9, fy = oy + y + (r() - 0.5) * 7, fr = 1.6 + r() * 2.2; ctx.moveTo(fx + fr, fy); ctx.arc(fx, fy, fr, 0, 6.283); } ctx.fill(); }   // (POLISH-C: clusters of small florets, not big dots)
     };
     const topRound = (ox, oy, seed, pal, R, n) => { const r = U.rng(seed); for (let i = 0; i < n; i++) { const a = r() * 6.283, d = Math.sqrt(r()) * 0.7 * R; const rr = 60 + r() * 40; lobe(r, ox, oy, { x: 256 + Math.cos(a) * d, y: 256 + Math.sin(a) * d, rx: rr, ry: rr }, pal, () => 1); } };
-    const topPalm = (ox, oy, seed) => { const r = U.rng(seed); for (let k = 0; k < 18; k++) { const a = k / 18 * 6.283 + r() * 0.2; const L = 170 + r() * 60; for (let s = 1; s < 14; s++) { const u = s / 14; const x = 256 + Math.cos(a) * L * u, y = 256 + Math.sin(a) * L * u; const ll = 24 * Math.sin(Math.PI * u) + 4; ctx.strokeStyle = rgb(r() < 0.5 ? P.palm.light : P.palm.mid, 0.9 + r() * 0.3); ctx.lineWidth = 2.4; for (const sd of [-1, 1]) { ctx.beginPath(); ctx.moveTo(ox + x, oy + y); ctx.lineTo(ox + x - Math.sin(a) * sd * ll + Math.cos(a) * ll * 0.5, oy + y + Math.cos(a) * sd * ll + Math.sin(a) * ll * 0.5); ctx.stroke(); } } ctx.strokeStyle = rgb(P.palm.mid, 0.7); ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(ox + 256, oy + 256); ctx.lineTo(ox + 256 + Math.cos(a) * L, oy + 256 + Math.sin(a) * L); ctx.stroke(); } };
+    const topPalm = (ox, oy, seed) => { const r = U.rng(seed); for (let k = 0; k < 26; k++) { const a = k / 26 * 6.283 + r() * 0.2; const L = 170 + r() * 60; for (let s = 1; s < 18; s++) { const u = s / 18; const x = 256 + Math.cos(a) * L * u, y = 256 + Math.sin(a) * L * u; const ll = 30 * Math.sin(Math.PI * u) + 5; ctx.strokeStyle = rgb(r() < 0.5 ? P.palm.light : P.palm.mid, (0.75 + r() * 0.3) * (0.7 + 0.3 * u)); ctx.lineWidth = 3.2; for (const sd of [-1, 1]) { ctx.beginPath(); ctx.moveTo(ox + x, oy + y); ctx.lineTo(ox + x - Math.sin(a) * sd * ll + Math.cos(a) * ll * 0.5, oy + y + Math.cos(a) * sd * ll + Math.sin(a) * ll * 0.5); ctx.stroke(); } } ctx.strokeStyle = rgb(P.palm.mid, 0.7); ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(ox + 256, oy + 256); ctx.lineTo(ox + 256 + Math.cos(a) * L, oy + 256 + Math.sin(a) * L); ctx.stroke(); } };
     const flowers = [[232, 96, 150], [214, 52, 96], [248, 236, 236], [236, 130, 170]];
     const X4 = CW * 4, X5 = CW * 5, X6 = CW * 6, X7 = CW * 7;
     cell(X4, rowA, () => umbrella(X4, rowA, 71, 0.3)); cell(X4, rowB, () => umbrella(X4, rowB, 73, -0.5)); cell(X4, rowT, () => topRound(X4, rowT, 75, P.stone, 210, 16));
@@ -209,9 +237,14 @@ window.EI = window.EI || {};
     sh.fragmentShader = sh.fragmentShader.replace('#include <aomap_fragment>', '#include <aomap_fragment>\nreflectedLight.directSpecular = vec3(0.0); reflectedLight.indirectSpecular = vec3(0.0);\n' +
       '#if NUM_DIR_LIGHTS > 0\n{ float eiBk = max(dot(-normalize(vViewPosition), directionalLights[0].direction), 0.0); reflectedLight.directDiffuse += directionalLights[0].color * diffuseColor.rgb * (' + (+k).toFixed(3) + ' * eiBk * eiBk * eiBk); }\n#endif');
   };
+  // alpha-tested crowns keep their filled area with distance (POLISH-C): the mipmapped alpha averages leaves with sky, so far crowns
+  // thinned out into a speckle that shimmered as the camera moved - the alpha is lifted with the mip level actually sampled
+  // (screen-space texel footprint), ~20 % per level, capped. WebGL2 only (textureSize); near cards (level 0) are unchanged.
+  Veg.alphaMip = (k) => '\n#if __VERSION__ >= 300\n{ vec2 eiTs = vec2(textureSize(map, 0)); vec2 eiDx = dFdx(vUv * eiTs), eiDy = dFdy(vUv * eiTs); float eiLod = 0.5 * log2(max(max(dot(eiDx, eiDx), dot(eiDy, eiDy)), 1.0)); diffuseColor.a = min(1.0, diffuseColor.a * (1.0 + min(eiLod, 6.0) * ' + k.toFixed(3) + ')); }\n#endif\n';
+  Veg.ALPHA_MIP = Veg.alphaMip(0.2);
   function nearPatch(sh, uni, depth, med) {
     Object.assign(sh.uniforms, uni);
-    sh.vertexShader = sh.vertexShader.replace('#include <common>', TREE_HEAD + 'attribute float isTop;\nattribute vec3 ctint;\nattribute float cvar;')
+    sh.vertexShader = sh.vertexShader.replace('#include <common>', TREE_HEAD + 'attribute float isTop;\nattribute vec3 ctint;\nattribute float cvar;\nvarying float vTopA;')
       .replace('#include <beginnormal_vertex>', 'float nY = iA.w; vec3 objectNormal = vec3(cos(nY) * normal.x + sin(nY) * normal.z, normal.y, -sin(nY) * normal.x + cos(nY) * normal.z);')
       .replace('#include <begin_vertex>', [
         'vec3 transformed = vec3(position); float sp = iB.z;',
@@ -220,10 +253,11 @@ window.EI = window.EI || {};
         'transformed.xz *= iB.x; transformed.y *= iB.y; float tc = cos(iA.w), ts = sin(iA.w);',
         'transformed = vec3(tc * transformed.x + ts * transformed.z, transformed.y, -ts * transformed.x + tc * transformed.z) + iA.xyz;',
         'float dE = distance(iA.xz, uEye.xz); if (dE < uLod.x || dE >= uLod.y) transformed = iA.xyz;',
-        'vTint = iC.rgb * ctint;'].join('\n'))
+        'vTint = iC.rgb * ctint;',
+        'vTopA = 1.0; if (isTop > 0.5) { vec3 eiW = (modelMatrix * vec4(transformed, 1.0)).xyz; vTopA = smoothstep(0.06, 0.3, (cameraPosition.y - eiW.y) / max(1.0, length(cameraPosition.xz - eiW.xz))); if (vTopA < 0.001) transformed = iA.xyz; }'].join('\n'))
       .replace('#include <uv_vertex>', '#include <uv_vertex>\n#ifdef USE_UV\nvUv = (uv * vec2(0.98, 0.985) + vec2(0.01, 0.004) + vec2(iB.z, isTop > 0.5 ? 2.0 : mod(iB.w + cvar, 2.0))) * vec2(' + (med ? '0.125' : '0.25') + ', 1.0 / 3.0);\n#endif');
     if (depth) sh.vertexShader = sh.vertexShader.replace('vTint = iC.rgb * ctint;', 'vTint = iC.rgb * ctint; if (dE > 200.0) transformed = iA.xyz;');
-    if (!depth) { sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nvarying vec3 vTint;').replace('#include <map_fragment>', '#include <map_fragment>\ndiffuseColor.rgb *= vTint;'); Env.noFlip(sh); Veg.foliage(sh, med ? 0.3 : 0.5); }
+    if (!depth) { sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nvarying vec3 vTint;\nvarying float vTopA;').replace('#include <map_fragment>', '#include <map_fragment>\ndiffuseColor.rgb *= vTint; diffuseColor.a *= vTopA;' + Veg.ALPHA_MIP); Env.noFlip(sh); Veg.foliage(sh, med ? 0.3 : 0.5); }
   }
   // far LOD: one card turned to the camera about the vertical axis (side view A of the species)
   function farPatch(sh, uni, med) {
@@ -232,7 +266,7 @@ window.EI = window.EI || {};
       .replace('#include <beginnormal_vertex>', 'vec2 bdv = cameraPosition.xz - iA.xz; vec2 bdd = length(bdv) > 0.01 ? normalize(bdv) : vec2(0.0, 1.0); vec3 brt = vec3(bdd.y, 0.0, -bdd.x);\nvec3 objectNormal = normalize(brt * position.x * 1.1 + vec3(0.0, 0.45 + position.y * 0.7, 0.0) + vec3(bdd.x, 0.0, bdd.y) * 0.35);')
       .replace('#include <begin_vertex>', 'vec3 transformed = iA.xyz + brt * position.x * iB.x * 0.95 + vec3(0.0, position.y * iB.y, 0.0);\nfloat dE = distance(iA.xz, uEye.xz); if (dE < uLod.x || dE >= uLod.y) transformed = iA.xyz;\nvTint = iC.rgb;')
       .replace('#include <uv_vertex>', '#include <uv_vertex>\n#ifdef USE_UV\nvUv = (uv * vec2(0.98, 0.985) + vec2(0.01, 0.004) + vec2(iB.z, iB.w)) * vec2(' + (med ? '0.125' : '0.25') + ', 1.0 / 3.0);\n#endif');
-    sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nvarying vec3 vTint;').replace('#include <map_fragment>', '#include <map_fragment>\ndiffuseColor.rgb *= vTint;');
+    sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nvarying vec3 vTint;').replace('#include <map_fragment>', '#include <map_fragment>\ndiffuseColor.rgb *= vTint;' + Veg.ALPHA_MIP);
     Env.noFlip(sh); Veg.foliage(sh, med ? 0.3 : 0.5);
   }
 

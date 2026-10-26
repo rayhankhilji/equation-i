@@ -31,6 +31,9 @@
     ['Bus Stop', 3, '#2a6a36', '#2a6a36'],
   ];
   T.gravelTint = [1.6, 1.5, 1.32];   // pale grey-beige Spa gravel
+  // pit.js team garages: piers / partitions, back walls and header in the building's concrete grey (env_spa.js conc 0x868b90) instead of
+  // white, which read near-white in the sun beside the grey closed garages (POLISH-B; refs pit_garages_ferrari_crane_ing_garage_5: grey ribbed piers)
+  T.pitPier = 0x868b90;
 
   // ---- marshal posts: the corners' outsides, then a post every ~200-250 m along the straights, sides alternating (infra keeps clear of the pit lane, stands, the corridor)
   F.marshals = [

@@ -859,7 +859,7 @@ window.EI = window.EI || {};
         'vec4 texelColor = mapTexelToLinear(texture2D(map, vUv)); vec4 mk = texture2D(map, vUv + vec2(0.5, 0.0));',
         'float skinW = smoothstep(0.76, 0.86, mk.b), hairW = smoothstep(0.45, 0.53, mk.b) - skinW, trouW = smoothstep(0.14, 0.24, mk.b) * (1.0 - smoothstep(0.42, 0.5, mk.b));',
         'vec3 cc = texelColor.rgb * mix(vec3(1.0), vShirt * 2.05, mk.r) * mix(vec3(1.0), vAcc * 2.05, mk.g) * mix(vec3(1.0), vSkin * 2.05, skinW) * mix(vec3(1.0), vHair * 2.05, max(hairW, 0.0)) * mix(vec3(1.0), vTrou * 2.05, trouW);',
-        'diffuseColor *= vec4(cc * vShade, texelColor.a);'].join('\n'));
+        'diffuseColor *= vec4(cc * vShade, texelColor.a);' + (EI.EnvVeg && EI.EnvVeg.alphaMip ? EI.EnvVeg.alphaMip(0.12) : '')].join('\n'));   // (POLISH-C: far sprites keep their size, see env_veg.js)
     };
     const base = new THREE.PlaneGeometry(1, 1); base.translate(0, 0.5, 0);
     const [g, attrs] = Env.instGeo(base, ['cP', 'cD', 'cS', 'cA'], N);

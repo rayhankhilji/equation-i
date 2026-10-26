@@ -322,7 +322,7 @@ window.EI = window.EI || {};
   // painted markings atlas (2048 x 1024, transparent ground): grid slots (5 x 5 cells: number ahead of the front line, bracket going back),
   // four rows of run-off paint logos (the race partners), the start / finish chequer band and a solid white cell for plain lines
   const GRID_SLOTS = 22;   // painted grid boxes: the full 2026 field
-  function paintAtlas() {
+  function paintAtlas(trackId) {
     const W = 2048, H = 1024; const c = document.createElement('canvas'); c.width = W; c.height = H; const ctx = c.getContext('2d'); ctx.clearRect(0, 0, W, H);
     const cw = 204.8, ch = 256, sq = 0.8;   // 5 x 5 cells of 204.8 x 204.8, each painted as a 204.8 x 256 cell squashed by 0.8
     for (let p = 0; p < GRID_SLOTS; p++) {
@@ -335,8 +335,18 @@ window.EI = window.EI || {};
     weather(ctx, 1024, 512, 91, 26000, 1024, 0);
     const q = 21; for (let i = 0; i < 48; i++) for (let j = 0; j < 4; j++) { ctx.fillStyle = (i + j) % 2 ? '#e9e8e3' : '#151517'; ctx.fillRect(1032 + i * q, 560 + j * q, q, q); }
     ctx.fillStyle = '#ecebe6'; ctx.fillRect(1032, 680, 64, 64);
-    // infield patch (Yas's hairpin pocket, u5): Lumi plum ground, cream rim, the reversed Lumi lock-up
-    { const L = EI.Ads.LUMI; ctx.fillStyle = L.plum; ctx.fillRect(1104, 700, 940, 316); ctx.strokeStyle = L.bg; ctx.lineWidth = 10; ctx.strokeRect(1116, 712, 916, 292);
+    // infield patch (Yas's hairpin pocket, u5): Lumi plum ground, cream rim, the reversed Lumi lock-up; Mexico: the stadium apron's
+    // 'F1 / MEXICO' (red F1 on a blue oval, big red 'MEXICO' in a dark outline, on transparent ground: painted on the asphalt)
+    if (trackId === 'mexico') {
+      ctx.save(); ctx.beginPath(); ctx.rect(1104, 700, 940, 316); ctx.clip();
+      ctx.fillStyle = '#f2f1ec'; ctx.beginPath(); ctx.ellipse(1250, 858, 142, 124, 0, 0, 6.2832); ctx.fill();
+      ctx.fillStyle = '#2b5cb3'; ctx.beginPath(); ctx.ellipse(1250, 858, 134, 116, 0, 0, 6.2832); ctx.fill();
+      if (EI.Ads && EI.Ads.drawF1) EI.Ads.drawF1(ctx, 1250, 858, 196, 84, '#e0262c');
+      const FT = '"F1 Wide", "Titillium Web", Arial, sans-serif'; ctx.font = 'italic 900 200px ' + FT; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      const tw = ctx.measureText('MEXICO').width || 600; const k = Math.min(1, 600 / tw); ctx.translate(1720, 866); ctx.scale(k, 1.25);
+      ctx.lineJoin = 'round'; ctx.strokeStyle = '#17181b'; ctx.lineWidth = 16; ctx.strokeText('MEXICO', 0, 0); ctx.fillStyle = '#da2a2f'; ctx.fillText('MEXICO', 0, 0);
+      ctx.restore(); weather(ctx, 940, 316, 29, 9000, 1104, 700);
+    } else { const L = EI.Ads.LUMI; ctx.fillStyle = L.plum; ctx.fillRect(1104, 700, 940, 316); ctx.strokeStyle = L.bg; ctx.lineWidth = 10; ctx.strokeRect(1116, 712, 916, 292);
       EI.Ads.lockupCentered(ctx, 'lumi', 1574, 858, 180, 760, L.bg); weather(ctx, 940, 316, 23, 5000, 1104, 700); }
     const tex = U.srgb(canvasTex(c)); tex.wrapS = tex.wrapT = THREE.ClampToEdgeWrapping;
     return { tex, grid: atlasRect(W, H, 0, 0, 1024, 1024), logos: atlasRect(W, H, 1024, 0, 1024, 512), cheq: atlasRect(W, H, 1032, 560, 48 * q, 4 * q), white: atlasRect(W, H, 1032, 680, 64, 64), patch: atlasRect(W, H, 1104, 700, 940, 316) };
@@ -618,6 +628,23 @@ window.EI = window.EI || {};
         for (let c = 0; c < 2; c++) { const l = c ? latB : latA; b.pos.push(f.x + f.nx * l, f.y + (yOff || 0.012), f.z + f.nz * l); const t = uvFn(fs, c); b.uv.push(t[0], t[1]); }
         if (r > 0) { const a = base + (r - 1) * 2, q = base + r * 2; b.idx.push(a, q, a + 1, a + 1, q, q + 1); }
       }
+    }
+    // Mexico: the big painted 'F1 / MEXICO' on the wide asphalt apron at the stadium's Turn 13 (F1 photo mex_stadium_bowl_mc_wall),
+    // letters along the track, tops away from it (they read from the track side), in the markings batch (no extra draw call, kept on Low)
+    apronLogo(b, A) {
+      const c = this.data.corners.find(cc => cc.t === 13); if (!c) return; const L = this.length, aw = this.halfWidth + this.kerbWidth + 2.5;
+      let best = null;
+      for (const side of [1, -1]) {
+        const run = side < 0 ? this.runoffL : this.runoffR, outer = side < 0 ? this.runoffOuterL : this.runoffOuterR; let s0 = null, mn = Infinity;
+        for (let s = c.s - 100; s <= c.s + 40; s += 2) {
+          const i = this.idxAtS(U.mod(s, L)); const ok = run[i] && outer[i] >= aw + 9;
+          if (ok) { if (s0 == null) { s0 = s; mn = Infinity; } mn = Math.min(mn, outer[i]); }
+          if ((!ok || s + 2 > c.s + 40) && s0 != null) { const len = s - s0; if (!best || len > best.len) best = { side, s0, len, mn }; s0 = null; }
+        }
+      }
+      if (!best || best.len < 24) return;
+      const wd = Math.min(12, best.mn - 1.2 - aw), len = Math.min(best.len - 4, wd * 940 / 316), sm = best.s0 + best.len / 2, sd = best.side;
+      this.addDecal(b, sm - len / 2, sm + len / 2, sd * aw, sd * (aw + wd), (fs, fl) => A.patch(sd > 0 ? fs : 1 - fs, fl), Math.ceil(len / 1.5), 0.016);
     }
     static batchMesh(b, mat) {
       const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.Float32BufferAttribute(b.pos, 3)); geo.setAttribute('uv', new THREE.Float32BufferAttribute(b.uv, 2));
@@ -1018,7 +1045,7 @@ window.EI = window.EI || {};
     // ------------------------------------------------ painted markings: start/finish, grid boxes, DRS lines, run-off logos (one atlas, one material)
     buildMarkings(g) {
       const hw = this.halfWidth, kw = this.kerbWidth; const sf = this.sf;
-      const A = paintAtlas();
+      const A = paintAtlas(this.data.id);
       const mat = new THREE.MeshStandardMaterial({ map: A.tex, transparent: true, depthWrite: false, roughness: 0.62, metalness: 0, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -4 });
       const b = { pos: [], uv: [], idx: [] };
       // start / finish: chequered band (48 squares across, 4 along)
@@ -1032,6 +1059,7 @@ window.EI = window.EI || {};
       // DRS detection and activation lines across the track
       const wh = () => A.white(0.5, 0.5);
       for (const z of this.drs) { this.addDecal(b, z.detect - 0.15, z.detect + 0.15, -hw + 0.2, hw - 0.2, wh, 1); this.addDecal(b, z.start - 0.2, z.start + 0.2, -hw + 0.2, hw - 0.2, wh, 1); }
+      if (this.data.id === 'mexico') this.apronLogo(b, A);
       const m = Track.batchMesh(b, mat); m.name = 'paint'; g.add(m);
       // painted partner logos on the run-off at the big corners; decorative: dropped on low quality
       const lb = { pos: [], uv: [], idx: [] }; const aw0 = hw + kw + 2.0;
@@ -1139,9 +1167,11 @@ window.EI = window.EI || {};
         g.add(new THREE.Mesh(ag, barMat));
       }
       // debris fence
-      const fenceTex = (function (mesh) { const c = document.createElement('canvas'); c.width = 64; c.height = 64; const ctx = c.getContext('2d'); ctx.clearRect(0, 0, 64, 64); ctx.strokeStyle = mesh || 'rgba(30,30,30,0.85)';   // data.fence.mesh: the wire colour (Spa: dark green)
-        ctx.lineWidth = 1.2;
-        for (let i = 0; i <= 64; i += 6) { ctx.beginPath(); ctx.moveTo(i, 0); ctx.lineTo(i, 64); ctx.stroke(); ctx.beginPath(); ctx.moveTo(0, i); ctx.lineTo(64, i); ctx.stroke(); } ctx.fillStyle = mesh || '#555'; ctx.fillRect(0, 0, 3, 64);
+      // POLISH-B: a fine wire mesh (a 3 x 3 m tile of 32 x 32 cells = 9 cm, square at every fence height: the uv across the net is set per metre below)
+      // instead of 10 cells of ~30 cm that read as a pale grid close up; the same 20 % wire cover per direction, so it averages to the same veil far off
+      const fenceTex = (function (mesh) { const c = document.createElement('canvas'); c.width = 128; c.height = 128; const ctx = c.getContext('2d'); ctx.clearRect(0, 0, 128, 128); ctx.strokeStyle = mesh || 'rgba(30,30,30,0.85)';   // data.fence.mesh: the wire colour (Spa: dark green)
+        ctx.lineWidth = 0.8;
+        for (let i = 0; i < 128; i += 4) { ctx.beginPath(); ctx.moveTo(i + 0.5, 0); ctx.lineTo(i + 0.5, 128); ctx.stroke(); ctx.beginPath(); ctx.moveTo(0, i + 0.5); ctx.lineTo(128, i + 0.5); ctx.stroke(); } ctx.fillStyle = mesh || '#555'; ctx.fillRect(0, 0, 4, 128);
         const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.anisotropy = 8; return t; })((this.data.fence || {}).mesh);
       const FD = this.data.fence || {}; const TD0 = this.data.tunnel;   // data.fence { h, op }: catch-fence height and opacity (Monza: 4.5 m)
       const fenceMat = new THREE.MeshBasicMaterial({ map: fenceTex, transparent: true, side: THREE.DoubleSide, depthWrite: false, opacity: FD.op || 0.7, color: FD.color != null ? FD.color : 0xffffff });
@@ -1153,12 +1183,13 @@ window.EI = window.EI || {};
       const fGr = FD.ground && this.scenery && this.scenery.height ? this.scenery : null; const fDrop = {};
       // (+0.2: a post's foot sits just in the ground; where the ground RISES above the road (a bank behind the barrier, Monza's Prima Variante) the net and posts go up
       // with it instead of standing 0.3-1 m in the bank - POLISH-B. The net is sampled where ribbon() draws it: clamped on the inside of tight bends (kFold); the posts where they stand)
-      const fDropAt = (i, side, d) => { const dz = this.y[i] - fGr.height(this.x[i] + this.nx[i] * side * d, this.z[i] + this.nz[i] * side * d); return dz > 0.03 ? Math.min(4, dz + 0.2) : dz < -0.12 ? Math.max(-3, dz + 0.08) : 0; };
+      const fDropAt = (i, side, d) => { const dz = this.y[i] - fGr.height(this.x[i] + this.nx[i] * side * d, this.z[i] + this.nz[i] * side * d); return dz > 0.03 ? Math.min(4, dz + 0.2) : dz < -0.12 ? Math.max(-4.5, dz + 0.08) : 0; };
       const fNetD = (i, side, d) => { if (!this.kFold) return d; const kf = this.kFold[i], cap = Math.max(2, 0.9 / (Math.abs(kf) + 1e-6)); return (kf > 0) === (side > 0) ? Math.min(d, cap) : d; };
       if (fGr) for (const side of [-1, 1]) { const w0 = side < 0 ? this.wallL : this.wallR; const a = new Float32Array(this.n); for (let i = 0; i < this.n; i++) a[i] = fDropAt(i, side, fNetD(i, side, w0[i] + 0.8)); fDrop[side] = a; }
       for (const side of [-1, 1]) {
         const wall = side < 0 ? this.wallL : this.wallR; const fd = fDrop[side];
         const TD = this.data.tunnel; const fg = this.ribbon(i => side * (wall[i] + 0.8), i => side * (wall[i] + 0.8), { ya: fd ? (i => -fd[i]) : () => 0, yb: (i) => fenceH(i, side, FD.h || 3.4) - (fd ? fd[i] : 0), vScale: 3, mask: TD || FD.runs ? (i => (!TD || this.s[i] < TD.s0 - 6 || this.s[i] > TD.s1 + 6) && fenceH(i, side, 1) > 0) : undefined });
+        { const fp = fg.attributes.position, fu = fg.attributes.uv; for (let k = 0; k + 1 < fp.count; k += 2) fu.setX(k + 1, Math.max(0.3, (fp.getY(k + 1) - fp.getY(k)) / 3)); }   // u across the net = height / 3 m (square mesh cells)
         const fm = new THREE.Mesh(fg, fenceMat); fm.name = 'fence'; g.add(fm);
       }
       // catch-fence posts (data.fence.posts = spacing in metres): grey galvanised posts with the top leaning towards the track (Monza refs m15_t1exit)

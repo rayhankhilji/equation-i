@@ -57,12 +57,16 @@ window.EI = window.EI || {};
   }
   function box(w, h, d, x, y, z, ry) { const g = new THREE.BoxGeometry(w, h, d); if (ry) g.rotateY(ry); g.translate(x, y, z); return g; }
   function boxProjectUV(geo) {
+    // the livery sheet's layout (EI.paintLivery, js/teams.js): top view u = 512 - 160 x, v = 256 - 232.7 z (px of 1024, nose left);
+    // left side u = 512 - 160 x, v = 696 - 160 y; right side (its own right-hand view, nose right) u = 512 + 160 x, v = 952 - 160 y
     const p = geo.attributes.position, n = geo.attributes.normal; const uv = [];
     for (let i = 0; i < p.count; i++) {
-      const x = p.getX(i), y = p.getY(i), z = p.getZ(i), ny = n.getY(i), nz = n.getZ(i); const u = U.clamp((x + 3.0) / 6.2, 0, 1); let v;
-      const side = Math.abs(ny) < 0.5 && Math.abs(nz) >= 0.5;
-      if (!side) v = U.clamp((z + 1.0) / 2.0, 0, 1) * 0.5; else if (nz < 0) v = 0.5 + (1 - U.clamp(y / 1.2, 0, 1)) * 0.25; else v = 0.75 + (1 - U.clamp(y / 1.2, 0, 1)) * 0.25;
-      uv.push(side && nz < 0 ? 1 - u : u, v);
+      const x = p.getX(i), y = p.getY(i), z = p.getZ(i), ny = n.getY(i), nz = n.getZ(i);
+      const side = Math.abs(ny) < 0.5 && Math.abs(nz) >= 0.5; let u, v;
+      if (!side) { u = (512 - 160 * x) / 1024; v = U.clamp(256 - 232.7 * z, 2, 510) / 1024; }
+      else if (nz < 0) { u = (512 - 160 * x) / 1024; v = U.clamp(696 - 160 * y, 514, 766) / 1024; }
+      else { u = (512 + 160 * x) / 1024; v = U.clamp(952 - 160 * y, 770, 1022) / 1024; }
+      uv.push(U.clamp(u, 0.002, 0.998), v);
     }
     geo.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2)); return geo;
   }
@@ -104,7 +108,7 @@ window.EI = window.EI || {};
     textures();
     const g = new THREE.Group(); const body = new THREE.Group(); g.add(body);
     const tex = EI.paintLivery(car.team, car.num, car.isPlayer ? car.name : null, car.driver);
-    const paint = new THREE.MeshStandardMaterial({ map: tex, metalness: 0.25, roughness: 0.28, envMapIntensity: 1.1 });
+    const paint = new THREE.MeshStandardMaterial({ map: tex, metalness: 0.18, roughness: 0.42, envMapIntensity: 0.9 });   // the GLB paint's finish (carglb.js)
     const carbon = new THREE.MeshStandardMaterial({ map: carbonTex, color: 0xd0d0d0, metalness: 0.35, roughness: 0.38, envMapIntensity: 0.8 });
     const matte = new THREE.MeshStandardMaterial({ color: 0x0e0f12, metalness: 0.05, roughness: 0.75 });
     const metal = new THREE.MeshStandardMaterial({ color: 0xb8bbc0, metalness: 0.95, roughness: 0.3 });
@@ -195,8 +199,9 @@ window.EI = window.EI || {};
     const hm = new THREE.Mesh(new THREE.SphereGeometry(0.15, 18, 14), helmetMat); hm.position.set(0.42, 0.74, 0); hm.scale.set(1.08, 1, 1); helmet.add(hm);
     const visor = new THREE.Mesh(new THREE.SphereGeometry(0.152, 18, 10, -0.9, 1.8, 1.1, 0.8), glass); visor.position.copy(hm.position); helmet.add(visor);
     const hans = new THREE.Mesh(box(0.22, 0.08, 0.34, 0.3, 0.6, 0), carbon); helmet.add(hans);
-    const shoulders = new THREE.Mesh(box(0.3, 0.14, 0.46, 0.32, 0.54, 0), new THREE.MeshStandardMaterial({ color: new THREE.Color(car.team.primary), roughness: 0.8 })); helmet.add(shoulders);
-    for (const s of [1, -1]) { const arm = new THREE.Mesh(strut([0.4, 0.62, s * 0.2], [0.78, 0.7, s * 0.12], 0.07, 0.07), new THREE.MeshStandardMaterial({ color: new THREE.Color(car.team.primary), roughness: 0.8 })); helmet.add(arm); }
+    const suit = new THREE.MeshStandardMaterial({ color: new THREE.Color(car.team.suit || car.team.primary), roughness: 0.85 });   // race suit (teams.js KIT)
+    const shoulders = new THREE.Mesh(box(0.3, 0.12, 0.4, 0.32, 0.52, 0), suit); helmet.add(shoulders);
+    for (const s of [1, -1]) { const arm = new THREE.Mesh(strut([0.4, 0.6, s * 0.18], [0.78, 0.68, s * 0.12], 0.07, 0.07), suit); helmet.add(arm); }
     body.add(helmet);
     // steering wheel with display
     const wheelGrp = new THREE.Group(); wheelGrp.position.set(0.86, 0.7, 0); wheelGrp.rotation.z = -0.35;

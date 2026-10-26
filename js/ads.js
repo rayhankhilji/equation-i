@@ -531,6 +531,12 @@
     tiles: ['msccruises', 'mexicogp', 'L0', 'heineken', 'lenovo', 'mexicogp', 'I4', 'lvmh'],
     barrier: ['mexicogp', 'L', 'lenovo', 'heineken', 'I'], billboard: ['msccruises', 'L2', 'heineken', 'I3'],
     runoff: ['heineken', 'L', 'pirelli', 'I'], bridge: { lumi: 'L', intake: 'I', lumi2: 'tagheuer', intake2: 'msccruises' } };
+  // Autodromo Jose Carlos Pace, Interlagos (BRA-GEN stub; BRA-DRESS owns it): "Formula 1 MSC Cruises Grande Premio de Sao Paulo" (the 2025 title partner) + the F1
+  // global partners already in the set; Lumi / Intake 2 of the 8 hoarding tiles and 2 of the 5 wall panels
+  VENUES.interlagos = { title: 'msccruises', event: 'Grande Prêmio de São Paulo', dark: false,
+    tiles: ['msccruises', 'heineken', 'L0', 'pirelli', 'lenovo', 'qatarairways', 'I4', 'dhl'],
+    barrier: ['msccruises', 'L', 'heineken', 'pirelli', 'I'], billboard: ['msccruises', 'L2', 'heineken', 'I3'],
+    runoff: ['heineken', 'L', 'pirelli', 'I'], bridge: { lumi: 'L', intake: 'I', lumi2: 'tagheuer', intake2: 'msccruises' } };
   const venue = Ads.venue = () => VENUES[EI.trackId] || VENUES.silverstone;
   // the track's width (m): the start gantry banner ((width + 2.6) x 0.9 m) and the bridge fascias ((width + 6.8) x 2.1 m) span it
   const trackW = () => (EI.TRACKS && EI.TRACKS[EI.trackId] && EI.TRACKS[EI.trackId].width) || 15;

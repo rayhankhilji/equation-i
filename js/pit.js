@@ -91,7 +91,7 @@ window.EI = window.EI || {};
     if (track.data.street) { P.dLimIn = Math.max(P.dLimIn, Math.round(P.garD0)); P.dLimOut = Math.min(P.dLimOut, Math.round(P.garD1)); }
     // circuits with a longer limiter zone than the 360 m straight window (Monza: the limit lines sit out on the entry and exit roads;
     // pit loss ~24 s). track.data.pitZonePad overrides the table.
-    { const pad = track.data.pitZonePad != null ? track.data.pitZonePad : ({ monza: 35, spa: 40, cota: 40, mexico: 40 })[track.data.id] || 0;
+    { const pad = track.data.pitZonePad != null ? track.data.pitZonePad : ({ monza: 35, spa: 40, cota: 40, mexico: 40, interlagos: 40 })[track.data.id] || 0;
       if (pad > 0 && !track.data.street) { P.dLimIn = Math.max(P.dRoad0 + 20, P.dLimIn - pad); P.dLimOut = Math.min(P.dRoad1 - 20, P.dLimOut + pad); } }
     // approach to the pit entry (Pit.driveBot): how far out a car lines up for it and how hard it brakes for the entry speed. Monaco's
     // entry comes straight out of Rascasse (already slow), so a short approach; elsewhere 430 m (measured pit loss ~19-21 s)
@@ -295,6 +295,8 @@ window.EI = window.EI || {};
     }
     // ---- structures: pit wall, stands (pit wall gantries), garages
     const shell = new GB(), inner = new GB(), glow = new GB(), screens = new GB(true), signs = new GB(true);
+    // data.pitPier (hex, opt-in): the garage piers / partitions, back walls, facade header and block end walls instead of white (Spa: they read near-white in the sun - POLISH-B)
+    const PP = track.data && track.data.pitPier != null ? col(track.data.pitPier) : null;
     const concrete = col(0xd4d4d0), white = col(0xeceef1), dark = col(0x23262c), steel = col(0x9aa0a8), floorC = col(0xc9ccd2), glass = col(0x3e5a78), rubber = col(0x141416), black = col(0x0c0d10);
     // pit wall along the lane, from the limit line to past the exit line
     // (street circuit: grey concrete with a black partner board band on both faces, as the Monaco pit wall in the photos - MONACO-UPGRADE)
@@ -333,10 +335,10 @@ window.EI = window.EI || {};
       const gf = frameAt(d, GAR_FRONT, 0); const W = BOX_SP - 0.35, H = 4.8;
       inner.add('box', lm(gf, 0, 0.04, sZ(GAR_D / 2), W, 0.08, GAR_D), floorC);
       inner.add('box', lm(gf, 0, 0.085, sZ(GAR_D / 2 + 0.6), W - 3, 0.01, GAR_D - 3), col(t.primary, 0.25).lerp(floorC, 0.55));
-      inner.add('box', lm(gf, 0, H / 2, sZ(GAR_D), W, H, 0.2), white);                                   // back wall
+      inner.add('box', lm(gf, 0, H / 2, sZ(GAR_D), W, H, 0.2), PP ? PP.clone().lerp(white, 0.25) : white);                                   // back wall
       inner.add('box', lm(gf, 0, 1.1, sZ(GAR_D - 0.12), W, 2.2, 0.06), tc);                                // team colour dado
       inner.add('box', lm(gf, 0, H - 0.05, sZ(GAR_D / 2), W, 0.1, GAR_D), col(0x5a5e66));                // ceiling
-      for (const sg of [-1, 1]) inner.add('box', lm(gf, sg * BOX_SP / 2, H / 2, sZ(GAR_D / 2), 0.3, H, GAR_D), white); // partitions
+      for (const sg of [-1, 1]) inner.add('box', lm(gf, sg * BOX_SP / 2, H / 2, sZ(GAR_D / 2), 0.3, H, GAR_D), PP || white); // partitions
       for (let x = -6; x <= 6; x += 4) glow.add('box', lm(gf, x, H - 0.14, sZ(GAR_D / 2), 0.25, 0.06, GAR_D - 1.5), col(0xfff6e6));
       // wall screen and timing screens on stands
       screens.quad(...quadV(gf, -2.2, 2.6, sZ(GAR_D - 0.15), 4.4, 1.9, -GZ), 0xffffff, [0, 0, 1, 1]);
@@ -386,7 +388,7 @@ window.EI = window.EI || {};
       // facade: header with the team sign, upper floor glass band, roof slab over the walkway (Monza: the building's own facade is
       // modelled by js/env_monza.js - EnvMonza.ownsPitFacade - and only the team sign is kept here)
       const ownF = EI.EnvMonza && EI.EnvMonza.ownsPitFacade && EI.EnvMonza.ownsPitFacade(track); if (!ownF) {
-      shell.add('box', lm(gf, 0, H + 0.9, sZ(GAR_D / 2), BOX_SP, 1.8, GAR_D + 0.3), white); }
+      shell.add('box', lm(gf, 0, H + 0.9, sZ(GAR_D / 2), BOX_SP, 1.8, GAR_D + 0.3), PP || white); }
       signs.quad(...quadV(gf, -W / 2 + 1.5, H + 0.35, sZ(-0.17), W - 3, 1.15, GZ), 0xffffff, [0, 1 - (k + 1) / SIGN_ROWS(), 1, 1 - k / SIGN_ROWS()]);
       if (!ownF) {
       shell.add('box', lm(gf, 0, H + 3.4, sZ(GAR_D / 2 + 0.6), BOX_SP, 3.2, GAR_D - 1.0), glass);
@@ -395,7 +397,7 @@ window.EI = window.EI || {};
       }
     });
     // end walls of the garage block
-    for (const [dd, sgn] of [[L.garD0, -1], [L.garD1, 1]]) { const gf = frameAt(dd, GAR_FRONT, 0); shell.add('box', lm(gf, sgn * 0.2, 5.0, sZ(GAR_D / 2), 0.4, 10, GAR_D + 0.3), white); }
+    for (const [dd, sgn] of [[L.garD0, -1], [L.garD1, 1]]) { const gf = frameAt(dd, GAR_FRONT, 0); shell.add('box', lm(gf, sgn * 0.2, 5.0, sZ(GAR_D / 2), 0.4, 10, GAR_D + 0.3), PP || white); }
     // signage boards: pit entry, limit, exit
     {
       // street circuit: the four boards share one canvas (one draw call); other circuits keep a texture per board
@@ -661,8 +663,8 @@ window.EI = window.EI || {};
   // rather than rejoining in traffic, and not stacking behind a team-mate (one garage per team). Runs on lap / sector changes
   // only. QA: EI.debugStrategy = true logs every decision; Pit.strategyLog keeps the last 300; car.pit.strat / car.pit.why.
   const COMP_N = 3;
-  const PIT_LOSS = { silverstone: 19, monaco: 21, abudhabi: 22, monza: 24, spa: 17, cota: 21, mexico: 22 };   // measured lane time - racing time (f1-QA gate), s (spa: SPA-GEN ploss.js, uncontested 15.7-17.4; cota: COTA-GEN ploss.js, uncontested 21.2-21.5, real 19-22)
-  const PASS_COST = { monaco: 7, silverstone: 2.2, abudhabi: 2.5, monza: 1.6, spa: 1.6, cota: 1.6, mexico: 1.6 };    // what a car loses to a car it must re-pass on track, s
+  const PIT_LOSS = { silverstone: 19, monaco: 21, abudhabi: 22, monza: 24, spa: 17, cota: 21, mexico: 22, interlagos: 21 };   // measured lane time - racing time (f1-QA gate), s (spa: SPA-GEN ploss.js, uncontested 15.7-17.4; cota: COTA-GEN ploss.js, uncontested 21.2-21.5, real 19-22)
+  const PASS_COST = { monaco: 7, silverstone: 2.2, abudhabi: 2.5, monza: 1.6, spa: 1.6, cota: 1.6, mexico: 1.6, interlagos: 1.6 };    // what a car loses to a car it must re-pass on track, s
   // worn tyres and the bots: ai.js slows a bot by wearK x wear but grip falls faster, so past ~0.3 they slide off more and more
   // (Silverstone softs, 9 bots x 5 laps: 0.04 offs per bot-lap at wear 0-0.27, 0.18 at 0.37-0.42, 0.27 at 0.52-0.58). That risk is
   // a cost (C_K x lap per unit^2 beyond W_RISK) and W_PLAN caps a planned stint; W_FAIL = "about to fail": stops even in the last quarter
@@ -1029,7 +1031,7 @@ window.EI = window.EI || {};
       for (const c of cams) if (c && c.position.distanceTo(mid.O) < 650) near = true;
       // the crews, engineers and their props (a dozen instanced draws, ~100k triangles) are only drawn within a few hundred metres
       // of the pit lane (street circuits: closer, the city hides them sooner)
-      { const street = !!(L.track && L.track.data.street); let dmin = Infinity; for (const c of cams) if (c) dmin = Math.min(dmin, c.position.distanceTo(mid.O)); const kq = EI.quality === 'low' ? 0.55 : 1, vis = dmin < (street ? 260 : 330) * kq, vis2 = dmin < (street ? 380 : 480) * kq;   // low: crews within ~145-180 m (PERF)
+      { const street = !!(L.track && L.track.data.street); let dmin = Infinity; for (const c of cams) if (c) dmin = Math.min(dmin, c.position.distanceTo(mid.O)); const kq = (EI.quality === 'low' ? 0.55 : 1) * (cams.length > 1 && cams[0] && cams[0].aspect > 2.6 ? 0.5 : 1), vis = dmin < (street ? 260 : 330) * kq, vis2 = dmin < (street ? 380 : 480) * kq;   // low: crews within ~145-180 m (PERF); top/bottom split views are half height: half the distance, same on-screen size (PERF-2)
         // the garage interiors, lane paint, screens and signs (small, many draws) also drop out beyond ~380 m; the lane and the garage shells stay
         if (V._crewVis !== vis || V._pitVis !== vis2) { V._crewVis = vis; V._pitVis = vis2; V.group.traverse(o => { if (o.isInstancedMesh && /^pit-/.test(o.name)) o.visible = vis; else if (o.isMesh && o.userData.pitFar) o.visible = vis2; }); } }
       // street circuit: no pose work at all while the crews are hidden (they are re-posed the frame they come back into range)
