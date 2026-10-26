@@ -18,6 +18,8 @@ window.EI = window.EI || {};
     });
   }
   // the circuit is chosen in the menu; a change reloads the page with ?track=<id> (the whole scene is built once at start-up)
+  // tracks still being built: reachable with ?track=<id>, hidden from the track menu until they ship
+  EI.TRACKS_WIP = { interlagos: true };
   const trackId = (() => { try { const q = new URLSearchParams(location.search).get('track'); const id = q || localStorage.getItem('ei-track') || 'silverstone'; return EI.TRACKS[id] ? id : 'silverstone'; } catch (e) { return 'silverstone'; } })();
   // loading screen (F1 dress): the event and circuit of the track being built, filled in before the (blocking) scene build starts
   (function fillLoader(d) {
@@ -30,7 +32,7 @@ window.EI = window.EI || {};
     set('track-kicker', d.country); set('track-name', d.name); set('track-meta', (d.location.split(',')[0]) + ' · ' + d.direction + ' · 3 sectors');
     set('track-km', (d.lapLength / 1000).toFixed(3)); set('track-turns', turns); set('track-drs', d.drs.length);
     const meta = $('menu-meta'); if (meta) meta.innerHTML = '<b>Round ' + (Object.keys(EI.TRACKS).indexOf(d.id) + 1) + '</b> &middot; ' + (d.gp || d.name + ' Grand Prix') + '<br>' + (d.circuit || d.name) + ' &middot; Race day';
-    const sel = $('opt-track'); if (sel && !sel.options.length) { for (const id in EI.TRACKS) { const o = document.createElement('option'); o.value = id; o.textContent = EI.TRACKS[id].name + ' · ' + (EI.TRACKS[id].gp || ''); sel.appendChild(o); } sel.value = d.id; sel.addEventListener('change', () => { try { localStorage.setItem('ei-track', sel.value); } catch (e) { } const u = new URL(location.href); u.searchParams.set('track', sel.value); location.href = u.toString(); }); }
+    const sel = $('opt-track'); if (sel && !sel.options.length) { for (const id in EI.TRACKS) { if (EI.TRACKS_WIP && EI.TRACKS_WIP[id] && id !== d.id) continue; const o = document.createElement('option'); o.value = id; o.textContent = EI.TRACKS[id].name + ' · ' + (EI.TRACKS[id].gp || ''); sel.appendChild(o); } sel.value = d.id; sel.addEventListener('change', () => { try { localStorage.setItem('ei-track', sel.value); } catch (e) { } const u = new URL(location.href); u.searchParams.set('track', sel.value); location.href = u.toString(); }); }
   }
   function init() {
     if (EI.CarGLB) EI.CarGLB.preload().catch(() => { });   // start downloading the car model now, while the scenery is being built
