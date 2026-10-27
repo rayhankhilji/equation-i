@@ -21,9 +21,9 @@ window.EI = window.EI || {};
   BV.C = C;
   // sRGB albedo, muted like env.js PAL (main.js grades with a saturation boost) - SPEC 4.8 starting values; colour constants are BRA-BEAUTY's
   const PAL = { 0: [26, 50, 32], 1: [50, 72, 40], 2: [72, 104, 52], 3: [88, 104, 58], 4: [128, 86, 60], 5: [112, 110, 104], 6: [70, 70, 68], 7: [40, 58, 46] };
-  const LAWN = [[70, 102, 50], [78, 110, 55]];       // lawns / mown banks: lush wet-season green, two tones in broad patches
-  const ROUGH = [[86, 100, 56], [98, 106, 60]];      // rough grass and the dry patches of the infield (greener in November than the imagery)
-  const MOWN = [[68, 100, 50], [74, 106, 54]];       // the mown circuit grass behind the barriers, stripes 7.5 m
+  const LAWN = [[64, 98, 50], [72, 104, 54]];       // lawns / mown banks: lush wet-season green, two tones in broad patches
+  const ROUGH = [[80, 98, 54], [92, 104, 58]];      // rough grass and the dry patches of the infield (greener in November than the imagery)
+  const MOWN = [[62, 96, 48], [68, 102, 52]];       // the mown circuit grass behind the barriers, stripes 7.5 m
   const MARSH = [[54, 74, 48], [62, 80, 50]];        // waterlogged grass of the infield basin
   const CROWN_A = [24, 44, 30], CROWN_B = [40, 60, 34];
   // the city from above between the houses: yards, slabs, streets (the 3D houses stand on it); beyond the OSM houses the roof mosaic itself
@@ -78,7 +78,7 @@ window.EI = window.EI || {};
   }
   BV.ground = {
     pal: PAL, mow: MOWN,
-    gs: 20, kin: 90, ring: 16, ringHalves: true,          // 20 m grid (= the DEM's) inside +-1.8 km (every house stands on the fine grid), the ring to ~2.8 km: 6 tiles
+    gs: 20, kin: 80, ring: 16, ringHalves: true,          // 20 m grid (= the DEM's) inside +-1.6 km, the ring to ~2.6 km (houses beyond use BV.groundAt): 6 tiles / 74 k tris
     level: [C.PAVED],                  // paddock, plazas, car parks levelled (the city's own slopes are the DEM's: houses step down the hills)
     flat: 2.5,
     fallback: (E, x, z) => U.fbm(x / 500 + 3.3, z / 500 + 1.7, 3) < 0.3 ? C.CANOPY : U.noise2(x / 23 + 0.7, z / 23 + 2.1) < 0.2 ? C.ASPH : C.PAVED,
@@ -356,7 +356,7 @@ window.EI = window.EI || {};
       if (ok && inOwn(h.x, h.z)) ok = false;
       if (!ok) { nSkip++; continue; }
       let lo = Infinity, gc = 0; for (const p of K4) lo = Math.min(lo, groundAt(E, p[0], p[1])); gc = groundAt(E, h.x, h.z); lo = Math.min(lo, gc);
-      lots.push({ h, rad, K4, lo, gc, inLap: lapPoly.length > 3 && U.pointInPoly(h.x, h.z, lapPoly), s: Math.floor(((Math.atan2(h.z, h.x) / (2 * Math.PI)) + 1) * NS) % NS });
+      lots.push({ h, rad, K4, lo, gc, inLap: lapPoly.length > 3 && U.pointInPoly(h.x, h.z, lapPoly), fs: E.fsAt(h.x, h.z), s: Math.floor(((Math.atan2(h.z, h.x) / (2 * Math.PI)) + 1) * NS) % NS });
     }
     lots.sort((a, b) => a.rad - b.rad);
     const cW = [0, 0, 0], cR = [0, 0, 0], cT = [0, 0, 0];
@@ -376,7 +376,7 @@ window.EI = window.EI || {};
       let u = rng() * 16;
       for (let e = 0; e < 4; e++) {
         const a = L.K4[e], b = L.K4[(e + 1) % 4]; const ex = b[0] - a[0], ez = b[1] - a[1]; const len = Math.hypot(ex, ez); const nxw = ez / len, nzw = -ex / len;   // (outward for the corner order above)
-        if (!L.inLap && (nxw * tx + nzw * tz) / tl < -0.35) { u += len; continue; }
+        if (!L.inLap && L.fs > 80 && (nxw * tx + nzw * tz) / tl < -0.5) { u += len; continue; }   // (the stands / TV towers see the near houses from above and behind)
         const uS = mid ? 1 / 12 : 1 / 16; const u0 = u * uS, u1 = (u + len) * uS; u += len;
         const ya = yTop + (roof === 2 && e < 2 ? pitch : 0), yb = yTop + (roof === 2 && (e === 0 || e === 3) ? pitch : 0);   // (mono-pitch: the -z side is the high eave)
         tri([a[0], y0, a[1]], [b[0], yb, b[1]], [b[0], y0, b[1]], [u0, vBot], [u1, vTop], [u1, vBot], cW);
