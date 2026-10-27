@@ -115,30 +115,33 @@ window.EI = window.EI || {};
     },
   };
 
-  // ---------------------------------------------------------------- water beds: the ground under GEN's water polygons sinks 1.6 m (the OSM lake, rivers),
-  // so Scenery.buildWater's plane (lowest shore + 0.25 m) is never pierced by DEM noise; a 4 m mask, eased over ~10 m at the shore
+  // ---------------------------------------------------------------- water beds: under GEN's water polygons (the OSM lake, rivers, ponds) the ground
+  // sinks to (polygon level - 1.2 m), level = the lowest natural ground on its shore, so Scenery.buildWater's plane (lowest shore + 0.25 m) is
+  // never pierced by DEM noise; a 4 m mask (polygon id + weight), the weight eased over ~12 m at the shore
   function waterMask(E) {
-    if (E._brWater !== undefined) return E._brWater; const N = 1200, S = 4, H = 2400; const m = new Float32Array(N * N); let any = false;
+    if (E._brWater !== undefined) return E._brWater; const N = 1200, S = 4, H = 2400; const m = new Float32Array(N * N), id = new Int16Array(N * N).fill(-1); const polys = [];
     for (const P of (E.t.data.scenery && E.t.data.scenery.water) || []) {
-      if (!P || P.length < 3) continue; any = true;
+      if (!P || P.length < 3) continue; const pi = polys.length; polys.push(P);
       for (let j = 0; j < N; j++) {
         const z = -H + (j + 0.5) * S; const xs = [];
         for (let k = 0, l = P.length - 1; k < P.length; l = k++) { const a = P[l], b = P[k]; if ((a[1] > z) !== (b[1] > z)) xs.push(a[0] + (z - a[1]) * (b[0] - a[0]) / (b[1] - a[1])); }
         xs.sort((a, b) => a - b);
-        for (let q = 0; q + 1 < xs.length; q += 2) { const i0 = Math.max(0, Math.ceil((xs[q] + H) / S - 0.5)), i1 = Math.min(N - 1, Math.floor((xs[q + 1] + H) / S - 0.5)); for (let i = i0; i <= i1; i++) m[j * N + i] = 1; }
+        for (let q = 0; q + 1 < xs.length; q += 2) { const i0 = Math.max(0, Math.ceil((xs[q] + H) / S - 0.5)), i1 = Math.min(N - 1, Math.floor((xs[q + 1] + H) / S - 0.5)); for (let i = i0; i <= i1; i++) { m[j * N + i] = 1; id[j * N + i] = pi; } }
       }
     }
-    if (!any) return (E._brWater = null);
-    // erode-blur: 1 inside, easing to 0 at the shore over ~3 cells
+    if (!polys.length) return (E._brWater = null);
     for (let pass = 0; pass < 3; pass++) { const o = new Float32Array(N * N); for (let j = 1; j < N - 1; j++) for (let i = 1; i < N - 1; i++) { const k = j * N + i; o[k] = m[k] ? Math.min(m[k], (m[k - 1] + m[k + 1] + m[k - N] + m[k + N]) / 4) : 0; } m.set(o); }
-    return (E._brWater = { m, N, S, H });
+    return (E._brWater = { m, id, N, S, H, polys, level: new Float32Array(polys.length).fill(NaN) });
   }
   { const Ctx = Env.Ctx, oDem = Ctx.prototype.forestDem;
     Ctx.prototype.forestDem = function (x, z) {
       const h = oDem.call(this, x, z); if (!isI(this.t)) return h; const W = waterMask(this); if (!W) return h;
-      const fx = (x + W.H) / W.S - 0.5, fz = (z + W.H) / W.S - 0.5; const i = Math.floor(fx), j = Math.floor(fz); if (i < 0 || j < 0 || i >= W.N - 1 || j >= W.N - 1) return h;
-      const u = fx - i, v = fz - j, m = W.m, N = W.N; const w = (m[j * N + i] * (1 - u) + m[j * N + i + 1] * u) * (1 - v) + (m[(j + 1) * N + i] * (1 - u) + m[(j + 1) * N + i + 1] * u) * v;
-      return h - 1.6 * w;
+      const i = Math.round((x + W.H) / W.S - 0.5), j = Math.round((z + W.H) / W.S - 0.5); if (i < 0 || j < 0 || i >= W.N || j >= W.N) return h;
+      const k = j * W.N + i, pi = W.id[k]; if (pi < 0) return h;
+      const fx = (x + W.H) / W.S - 0.5, fz = (z + W.H) / W.S - 0.5, i0 = Math.min(W.N - 2, Math.max(0, Math.floor(fx))), j0 = Math.min(W.N - 2, Math.max(0, Math.floor(fz))); const u = fx - i0, v = fz - j0, m = W.m, N = W.N;
+      const w = (m[j0 * N + i0] * (1 - u) + m[j0 * N + i0 + 1] * u) * (1 - v) + (m[(j0 + 1) * N + i0] * (1 - u) + m[(j0 + 1) * N + i0 + 1] * u) * v;
+      if (Number.isNaN(W.level[pi])) { let lo = Infinity; for (const q of W.polys[pi]) lo = Math.min(lo, oDem.call(this, q[0], q[1])); W.level[pi] = lo; }
+      return h - w * Math.max(0, h - (W.level[pi] - 1.2));
     }; }
 
   // ---------------------------------------------------------------- the 'brazil' tree atlas (env_veg.js paintAtlas variant; same 512 px cells)
@@ -214,7 +217,7 @@ window.EI = window.EI || {};
     const ST = 5; const x0 = G.x0, z0 = G.z0, X1 = G.x0 + nx * A, Z1 = G.z0 + nz * A;
     for (let z = z0 + 2; z < Z1; z += ST) for (let x = x0 + 2 + ((Math.round(z / ST) & 1) ? ST / 2 : 0); x < X1; x += ST) {
       const px = x + (rng() - 0.5) * ST * 0.8, pz = z + (rng() - 0.5) * ST * 0.8; const i = Math.floor((px - x0) / A), j = Math.floor((pz - z0) / A); if (i < 0 || j < 0 || i >= nx || j >= nz) continue;
-      const k = j * nx + i, c = cl[k]; const fs = E.fsAt(px, pz); if (fs < 3) continue;
+      const k = j * nx + i, c = cl[k]; if (c > 3) continue; const fs = E.fsAt(px, pz); if (fs < 3) continue;
       const far = fs > 900 ? 0.3 : fs > 450 ? 0.55 : 1;   // (PERF: thinner far stands, the crown mosaic of the field map carries them)
       const rr = rng(); const city = isUrban(E, px, pz);
       if (c <= 1) {
@@ -346,7 +349,9 @@ window.EI = window.EI || {};
       const ca = Math.cos(h.a), sa = Math.sin(h.a); const corner = (lx, lz) => [h.x + lx * ca - lz * sa, h.z + lx * sa + lz * ca];
       const K4 = [corner(-h.hl, -h.hd), corner(h.hl, -h.hd), corner(h.hl, h.hd), corner(-h.hl, h.hd)];
       // clear of the corridor (barrier + 6 m), roads / water / reserved ground, modelled buildings and stands
-      let ok = true; for (const p of K4.concat([[h.x, h.z]])) { if (E.fsAt(p[0], p[1]) < 6 || (E.occAt(p[0], p[1]) & BAD)) { ok = false; break; } }
+      // (houses front the street directly: only the inner half of the footprint must be clear of the road raster, which is drawn with a margin)
+      let ok = true; for (const p of K4.map(q => [h.x + (q[0] - h.x) * 0.5, h.z + (q[1] - h.z) * 0.5]).concat([[h.x, h.z]])) { if (E.fsAt(p[0], p[1]) < 6 || (E.occAt(p[0], p[1]) & BAD)) { ok = false; break; } }
+      if (ok) for (const p of K4) if (E.fsAt(p[0], p[1]) < 6 || (E.occAt(p[0], p[1]) & (OCC.WATER | OCC.KEEP))) { ok = false; break; }
       if (ok) { t.project(h.x, h.z, null, pr); const sd = pr.lat < 0 ? -1 : 1; if (pr.dist < E.wallCap(pr.i, sd) + 6 + Math.max(h.hl, h.hd)) { for (const p of K4) { t.project(p[0], p[1], null, pr); if (pr.dist < E.wallCap(pr.i, pr.lat < 0 ? -1 : 1) + 6) { ok = false; break; } } } }
       if (ok && inOwn(h.x, h.z)) ok = false;
       if (!ok) { nSkip++; continue; }
@@ -373,8 +378,9 @@ window.EI = window.EI || {};
         const a = L.K4[e], b = L.K4[(e + 1) % 4]; const ex = b[0] - a[0], ez = b[1] - a[1]; const len = Math.hypot(ex, ez); const nxw = ez / len, nzw = -ex / len;   // (outward for the corner order above)
         if (!L.inLap && (nxw * tx + nzw * tz) / tl < -0.35) { u += len; continue; }
         const uS = mid ? 1 / 12 : 1 / 16; const u0 = u * uS, u1 = (u + len) * uS; u += len;
-        tri([a[0], y0, a[1]], [b[0], y0, b[1]], [b[0], yTop, b[1]], [u0, vBot], [u1, vBot], [u1, vTop], cW);
-        tri([a[0], y0, a[1]], [b[0], yTop, b[1]], [a[0], yTop, a[1]], [u0, vBot], [u1, vTop], [u0, vTop], cW);
+        const ya = yTop + (roof === 2 && e < 2 ? pitch : 0), yb = yTop + (roof === 2 && (e === 0 || e === 3) ? pitch : 0);   // (mono-pitch: the -z side is the high eave)
+        tri([a[0], y0, a[1]], [b[0], yb, b[1]], [b[0], y0, b[1]], [u0, vBot], [u1, vTop], [u1, vBot], cW);
+        tri([a[0], y0, a[1]], [a[0], ya, a[1]], [b[0], yb, b[1]], [u0, vBot], [u0, vTop], [u1, vTop], cW);
       }
       // roof
       const ca = Math.cos(h.a), sa = Math.sin(h.a); const W = (lx, lz, y) => [h.x + lx * ca - lz * sa, y, h.z + lx * sa + lz * ca];
@@ -387,16 +393,14 @@ window.EI = window.EI || {};
         tri(A1, R1, A2, [0, s0], [hd / 16, s1], [2 * hd / 16, s0], cR); tri(A3, R0, A0, [0, s0], [hd / 16, s1], [2 * hd / 16, s0], cR);     // hip ends
       } else {
         const hiZ = roof === 2 ? pitch : 0; const A0 = W(-h.hl, -h.hd, yTop + hiZ), A1 = W(h.hl, -h.hd, yTop + hiZ), A2 = W(h.hl, h.hd, yTop), A3 = W(-h.hl, h.hd, yTop);
-        const vv = roof === 2 ? [VB.rib0, VB.rib1] : mid ? [0.02, 0.06] : [VB.plain, VB.plain + 0.03];
-        tri(A0, A2, A1, [0, vv[0]], [h.hl / 8, vv[1]], [h.hl / 8, vv[0]], cR); tri(A0, A3, A2, [0, vv[0]], [0, vv[1]], [h.hl / 8, vv[1]], cR);
-        if (roof === 2) {   // the gable triangles of the mono-pitch (the walls stop at the low eave)
-          tri(W(h.hl, -h.hd, yTop), A1, W(h.hl, h.hd, yTop), [0, VB.plain], [0, VB.plain + 0.02], [0.1, VB.plain], cW); tri(W(-h.hl, h.hd, yTop), A0, W(-h.hl, -h.hd, yTop), [0, VB.plain], [0, VB.plain + 0.02], [0.1, VB.plain], cW);
-        }
+        const vv = roof === 2 ? [VB.rib0, VB.rib1] : [VB.plain, VB.plain + 0.03]; const uR = mid ? 0 : h.hl / 8;
+        if (mid) { tri(A0, A2, A1, [0.01, 0.98], [0.02, 0.98], [0.02, 0.97], cR); tri(A0, A3, A2, [0.01, 0.98], [0.01, 0.97], [0.02, 0.98], cR); }
+        else { tri(A0, A2, A1, [0, vv[0]], [uR, vv[1]], [uR, vv[0]], cR); tri(A0, A3, A2, [0, vv[0]], [0, vv[1]], [uR, vv[1]], cR); }
         // a water tank on the slab (blue polyethylene / grey fibre-cement), near houses only
         if (roof === 1 && !mid && L.rad < 900 && rng() < 0.55) {
           lin(TANK[Math.floor(rng() * TANK.length)], 0.9 + 0.2 * rng(), cT); const tw = 0.75, th = 1.1, lx = (rng() - 0.5) * Math.max(0, h.hl - 1.2) * 1.6, lz = (rng() - 0.5) * Math.max(0, h.hd - 1.2) * 1.6;
           const b0 = W(lx - tw, lz - tw, yTop), b1 = W(lx + tw, lz - tw, yTop), b2 = W(lx + tw, lz + tw, yTop), b3 = W(lx - tw, lz + tw, yTop); const T = (p) => [p[0], p[1] + th, p[2]]; const pv = [VB.plain, VB.plain + 0.02];
-          for (const [a, b] of [[b0, b1], [b1, b2], [b2, b3], [b3, b0]]) { tri(a, b, T(b), [0, pv[0]], [0.1, pv[0]], [0.1, pv[1]], cT); tri(a, T(b), T(a), [0, pv[0]], [0.1, pv[1]], [0, pv[1]], cT); }
+          for (const [a, b] of [[b0, b1], [b1, b2], [b2, b3], [b3, b0]]) { tri(a, T(b), b, [0, pv[0]], [0.1, pv[1]], [0.1, pv[0]], cT); tri(a, T(a), T(b), [0, pv[0]], [0, pv[1]], [0.1, pv[1]], cT); }
           tri(T(b0), T(b2), T(b1), [0, pv[0]], [0.1, pv[1]], [0.1, pv[0]], cT); tri(T(b0), T(b3), T(b2), [0, pv[0]], [0, pv[1]], [0.1, pv[1]], cT); nTank++;
         }
       }
